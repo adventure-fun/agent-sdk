@@ -2,8 +2,11 @@
   "name": "adventure-fun",
   "private": true,
   "workspaces": [
-    "apps/*",
-    "packages/*"
+    "frontend",
+    "backend",
+    "shared/*",
+    "agent-sdk",
+    "player-agent"
   ],
   "scripts": {
     "build": "turbo build",

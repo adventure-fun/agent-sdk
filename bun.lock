@@ -10,37 +10,7 @@
         "typescript": "^5.7.2",
       },
     },
-    "apps/player-agent": {
-      "name": "@adventure-fun/player-agent",
-      "version": "0.1.0",
-      "dependencies": {
-        "@adventure-fun/agent-sdk": "*",
-        "@adventure-fun/schemas": "*",
-      },
-      "devDependencies": {
-        "@types/bun": "latest",
-        "typescript": "*",
-      },
-    },
-    "apps/web": {
-      "name": "@adventure-fun/web",
-      "version": "0.1.0",
-      "dependencies": {
-        "@adventure-fun/agent-sdk": "*",
-        "@adventure-fun/schemas": "*",
-        "next": "^15.2.4",
-        "react": "^19.0.0",
-        "react-dom": "^19.0.0",
-      },
-      "devDependencies": {
-        "@types/bun": "latest",
-        "@types/node": "*",
-        "@types/react": "^19.0.0",
-        "@types/react-dom": "^19.0.0",
-        "typescript": "*",
-      },
-    },
-    "packages/agent-sdk": {
+    "agent-sdk": {
       "name": "@adventure-fun/agent-sdk",
       "version": "0.1.0",
       "dependencies": {
@@ -54,25 +24,7 @@
         "ws": "^8.18.0",
       },
     },
-    "packages/engine": {
-      "name": "@adventure-fun/engine",
-      "version": "0.1.0",
-      "dependencies": {
-        "@adventure-fun/schemas": "*",
-      },
-      "devDependencies": {
-        "@types/bun": "latest",
-        "typescript": "*",
-      },
-    },
-    "packages/schemas": {
-      "name": "@adventure-fun/schemas",
-      "version": "0.1.0",
-      "devDependencies": {
-        "typescript": "*",
-      },
-    },
-    "packages/server": {
+    "backend": {
       "name": "@adventure-fun/server",
       "version": "0.1.0",
       "dependencies": {
@@ -90,21 +42,69 @@
         "typescript": "*",
       },
     },
+    "frontend": {
+      "name": "@adventure-fun/web",
+      "version": "0.1.0",
+      "dependencies": {
+        "@adventure-fun/agent-sdk": "*",
+        "@adventure-fun/schemas": "*",
+        "next": "^15.2.4",
+        "react": "^19.0.0",
+        "react-dom": "^19.0.0",
+      },
+      "devDependencies": {
+        "@types/bun": "latest",
+        "@types/node": "*",
+        "@types/react": "^19.0.0",
+        "@types/react-dom": "^19.0.0",
+        "typescript": "*",
+      },
+    },
+    "player-agent": {
+      "name": "@adventure-fun/player-agent",
+      "version": "0.1.0",
+      "dependencies": {
+        "@adventure-fun/agent-sdk": "*",
+        "@adventure-fun/schemas": "*",
+      },
+      "devDependencies": {
+        "@types/bun": "latest",
+        "typescript": "*",
+      },
+    },
+    "shared/engine": {
+      "name": "@adventure-fun/engine",
+      "version": "0.1.0",
+      "dependencies": {
+        "@adventure-fun/schemas": "*",
+      },
+      "devDependencies": {
+        "@types/bun": "latest",
+        "typescript": "*",
+      },
+    },
+    "shared/schemas": {
+      "name": "@adventure-fun/schemas",
+      "version": "0.1.0",
+      "devDependencies": {
+        "typescript": "*",
+      },
+    },
   },
   "packages": {
     "@adraffy/ens-normalize": ["@adraffy/ens-normalize@1.11.1", "", {}, "sha512-nhCBV3quEgesuf7c7KYfperqSS14T8bYuvJ8PcLJp6znkZpFc0AuW4qBtr8eKVyPPe/8RSr7sglCWPU5eaxwKQ=="],
 
-    "@adventure-fun/agent-sdk": ["@adventure-fun/agent-sdk@workspace:packages/agent-sdk"],
+    "@adventure-fun/agent-sdk": ["@adventure-fun/agent-sdk@workspace:agent-sdk"],
 
-    "@adventure-fun/engine": ["@adventure-fun/engine@workspace:packages/engine"],
+    "@adventure-fun/engine": ["@adventure-fun/engine@workspace:shared/engine"],
 
-    "@adventure-fun/player-agent": ["@adventure-fun/player-agent@workspace:apps/player-agent"],
+    "@adventure-fun/player-agent": ["@adventure-fun/player-agent@workspace:player-agent"],
 
-    "@adventure-fun/schemas": ["@adventure-fun/schemas@workspace:packages/schemas"],
+    "@adventure-fun/schemas": ["@adventure-fun/schemas@workspace:shared/schemas"],
 
-    "@adventure-fun/server": ["@adventure-fun/server@workspace:packages/server"],
+    "@adventure-fun/server": ["@adventure-fun/server@workspace:backend"],
 
-    "@adventure-fun/web": ["@adventure-fun/web@workspace:apps/web"],
+    "@adventure-fun/web": ["@adventure-fun/web@workspace:frontend"],
 
     "@emnapi/runtime": ["@emnapi/runtime@1.9.2", "", { "dependencies": { "tslib": "^2.4.0" } }, "sha512-3U4+MIWHImeyu1wnmVygh5WlgfYDtyf0k8AbLhMFxOipihf6nrWC4syIm/SwEeec0mNSafiiNnMJwbza/Is6Lw=="],
 
