@@ -1,0 +1,13 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "buildCommand": "cd ../.. && bun run build --filter=@adventure-fun/web",
+  "outputDirectory": "apps/web/.next",
+  "installCommand": "bun install",
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://your-railway-server.railway.app/:path*"
+    }
+  ]
+}

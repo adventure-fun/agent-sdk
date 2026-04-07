@@ -1,0 +1,98 @@
+[
+  {
+    "id": "health_potion",
+    "name": "Health Potion",
+    "type": "consumable",
+    "rarity": "common",
+    "effects": [
+      {
+        "type": "heal_hp",
+        "magnitude": 30
+      }
+    ],
+    "stack_limit": 5,
+    "sell_price": 8,
+    "buy_price": 20,
+    "description": "A small flask of crimson liquid that mends wounds. Restores 30 HP when consumed."
+  },
+  {
+    "id": "greater_health_potion",
+    "name": "Greater Health Potion",
+    "type": "consumable",
+    "rarity": "uncommon",
+    "effects": [
+      {
+        "type": "heal_hp",
+        "magnitude": 70
+      }
+    ],
+    "stack_limit": 3,
+    "sell_price": 20,
+    "buy_price": 50,
+    "description": "A larger, more potent healing draught. Restores 70 HP when consumed. A prized commodity deep in any dungeon."
+  },
+  {
+    "id": "antidote",
+    "name": "Antidote",
+    "type": "consumable",
+    "rarity": "common",
+    "effects": [
+      {
+        "type": "cure_debuff",
+        "magnitude": 1
+      }
+    ],
+    "stack_limit": 5,
+    "sell_price": 6,
+    "buy_price": 15,
+    "description": "A bitter green tincture that purges poison and other toxins from the body. Cures the poison status effect immediately."
+  },
+  {
+    "id": "portal_scroll",
+    "name": "Portal Scroll",
+    "type": "consumable",
+    "rarity": "uncommon",
+    "effects": [
+      {
+        "type": "portal"
+      }
+    ],
+    "stack_limit": 2,
+    "sell_price": 15,
+    "buy_price": 40,
+    "description": "A single-use arcane scroll inscribed with a gate rune. Opens a portal back to town. Cannot be used mid-combat."
+  },
+  {
+    "id": "mana_potion",
+    "name": "Mana Potion",
+    "type": "consumable",
+    "rarity": "common",
+    "effects": [
+      {
+        "type": "heal_resource",
+        "magnitude": 40
+      }
+    ],
+    "stack_limit": 5,
+    "sell_price": 8,
+    "buy_price": 20,
+    "description": "A shimmering blue vial brimming with arcane essence. Restores 40 mana/resource when consumed."
+  },
+  {
+    "id": "buff_potion",
+    "name": "Buff Potion",
+    "type": "consumable",
+    "rarity": "uncommon",
+    "effects": [
+      {
+        "type": "buff",
+        "magnitude": 5,
+        "duration": 5
+      }
+    ],
+    "stack_limit": 3,
+    "sell_price": 12,
+    "buy_price": 30,
+    "description": "A frothing amber brew that temporarily sharpens reflexes and strengthens muscles. Grants +5 attack for 5 turns."
+  }
+]

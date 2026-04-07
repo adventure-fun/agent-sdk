@@ -1,0 +1,118 @@
+{
+  "id": "knight",
+  "name": "Knight",
+  "base_stats": {
+    "hp": 100,
+    "attack": 17,
+    "defense": 12,
+    "accuracy": 67,
+    "evasion": 14,
+    "speed": 10
+  },
+  "stat_growth": {
+    "hp": 12,
+    "attack": 2,
+    "defense": 2,
+    "accuracy": 1,
+    "evasion": 1,
+    "speed": 1
+  },
+  "stat_roll_ranges": {
+    "hp": [90, 110],
+    "attack": [15, 20],
+    "defense": [10, 14],
+    "accuracy": [60, 75],
+    "evasion": [10, 18],
+    "speed": [8, 12]
+  },
+  "resource_type": "stamina",
+  "resource_max": 10,
+  "resource_regen_rule": {
+    "type": "passive",
+    "amount": 1,
+    "interval": 1,
+    "on_defend_bonus": 2
+  },
+  "starting_abilities": ["shield_bash", "defend"],
+  "skill_tree": {
+    "tiers": [
+      {
+        "tier": 1,
+        "unlock_level": 2,
+        "choices": [
+          {
+            "id": "knight_t1_bulwark",
+            "name": "Bulwark",
+            "description": "Increases base defense by 3.",
+            "cost": 1,
+            "prerequisites": [],
+            "effect": {
+              "type": "passive_stat",
+              "stat": "defense",
+              "value": 3
+            }
+          },
+          {
+            "id": "knight_t1_heavy_strikes",
+            "name": "Heavy Strikes",
+            "description": "Increases base attack by 3.",
+            "cost": 1,
+            "prerequisites": [],
+            "effect": {
+              "type": "passive_stat",
+              "stat": "attack",
+              "value": 3
+            }
+          }
+        ]
+      },
+      {
+        "tier": 2,
+        "unlock_level": 4,
+        "choices": [
+          {
+            "id": "knight_t2_fortify",
+            "name": "Fortify",
+            "description": "Unlocks the Fortify ability — spend 3 stamina to gain a powerful defense buff for 3 turns.",
+            "cost": 2,
+            "prerequisites": ["knight_t1_bulwark"],
+            "effect": {
+              "type": "grant_ability",
+              "ability_id": "fortify"
+            }
+          },
+          {
+            "id": "knight_t2_cleave",
+            "name": "Cleave",
+            "description": "Unlocks the Cleave ability — a sweeping attack that hits all adjacent enemies.",
+            "cost": 2,
+            "prerequisites": ["knight_t1_heavy_strikes"],
+            "effect": {
+              "type": "grant_ability",
+              "ability_id": "cleave"
+            }
+          }
+        ]
+      },
+      {
+        "tier": 3,
+        "unlock_level": 7,
+        "choices": [
+          {
+            "id": "knight_t3_last_stand",
+            "name": "Last Stand",
+            "description": "Unlocks Last Stand — when HP drops below 25%, attack and defense increase by 5 for the remainder of combat.",
+            "cost": 3,
+            "prerequisites": ["knight_t2_fortify", "knight_t2_cleave"],
+            "effect": {
+              "type": "grant_ability",
+              "ability_id": "last_stand"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "starting_equipment": ["iron_sword", "wooden_shield", "leather_armor"],
+  "visibility_radius": 3
+}

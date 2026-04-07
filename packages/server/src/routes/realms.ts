@@ -1,27 +1,178 @@
 import { Hono } from "hono"
+import { db } from "../db/client.js"
+import { requireAuth } from "../auth/middleware.js"
+import { generateRealm } from "@adventure-fun/engine"
 
 const realms = new Hono()
 
-// GET /realms/mine — list active realm instances
-realms.get("/mine", async (c) => {
-  return c.json({ error: "Not implemented" }, 501)
+const VALID_TEMPLATES = ["sunken-crypt", "collapsed-mines"] as const
+const TEMPLATE_VERSIONS: Record<string, number> = {
+  "sunken-crypt": 1,
+  "collapsed-mines": 1,
+}
+
+// GET /realms/mine
+realms.get("/mine", requireAuth, async (c) => {
+  const { account_id } = c.get("session")
+
+  const { data: character } = await db
+    .from("characters")
+    .select("id")
+    .eq("account_id", account_id)
+    .eq("status", "alive")
+    .maybeSingle()
+
+  if (!character) return c.json({ realms: [] })
+
+  const { data, error } = await db
+    .from("realm_instances")
+    .select("*")
+    .eq("character_id", character.id)
+    .order("created_at", { ascending: false })
+
+  if (error) return c.json({ error: error.message }, 500)
+  return c.json({ realms: data })
 })
 
-// POST /realms/generate — x402 gated (first realm free)
-realms.post("/generate", async (c) => {
-  // TODO: check free_realm_used, x402 gate if used, generate realm, store seed
-  return c.json({ error: "Not implemented" }, 501)
+// POST /realms/generate — first realm free, then x402
+realms.post("/generate", requireAuth, async (c) => {
+  const { account_id } = c.get("session")
+  const body = await c.req.json<{ template_id: string }>()
+
+  if (!VALID_TEMPLATES.includes(body.template_id as typeof VALID_TEMPLATES[number])) {
+    return c.json({ error: `Invalid template. Choose: ${VALID_TEMPLATES.join(", ")}` }, 400)
+  }
+
+  // Get living character
+  const { data: character } = await db
+    .from("characters")
+    .select("id")
+    .eq("account_id", account_id)
+    .eq("status", "alive")
+    .maybeSingle()
+
+  if (!character) return c.json({ error: "No living character" }, 404)
+
+  // Check if already has this realm
+  const { data: existingRealm } = await db
+    .from("realm_instances")
+    .select("id, status")
+    .eq("character_id", character.id)
+    .eq("template_id", body.template_id)
+    .maybeSingle()
+
+  if (existingRealm && existingRealm.status !== "completed" && existingRealm.status !== "dead_end") {
+    return c.json({ error: "Realm already exists for this character", realm: existingRealm }, 409)
+  }
+
+  // Check free realm
+  const { data: account } = await db
+    .from("accounts")
+    .select("free_realm_used")
+    .eq("id", account_id)
+    .single()
+
+  const isFree = !account?.free_realm_used
+
+  if (!isFree) {
+    const proof = c.req.header("X-Payment-Proof")
+    if (!proof) {
+      return c.json(
+        { error: "Payment required", action: "realm_generate", price_usd: "0.25" },
+        402,
+      )
+    }
+    // TODO: verify x402 payment proof
+  }
+
+  // Generate realm with random seed
+  const seed = Math.floor(Math.random() * 2 ** 32)
+  const templateVersion = TEMPLATE_VERSIONS[body.template_id] ?? 1
+
+  const { data: realm, error } = await db
+    .from("realm_instances")
+    .insert({
+      character_id: character.id,
+      template_id: body.template_id,
+      template_version: templateVersion,
+      seed,
+      status: "generated",
+      floor_reached: 1,
+      is_free: isFree,
+    })
+    .select()
+    .single()
+
+  if (error) return c.json({ error: error.message }, 500)
+
+  // Mark free realm as used
+  if (isFree) {
+    await db.from("accounts").update({ free_realm_used: true }).eq("id", account_id)
+  }
+
+  // Initialize discovered map for floor 1
+  await db.from("realm_discovered_map").insert({
+    realm_instance_id: realm.id,
+    floor: 1,
+    discovered_tiles: [],
+  })
+
+  return c.json(realm, 201)
 })
 
-// POST /realms/:id/regenerate — x402 + gold gated
-realms.post("/:id/regenerate", async (c) => {
-  return c.json({ error: "Not implemented" }, 501)
-})
+// POST /realms/:id/regenerate — completed realms only, x402 + gold
+realms.post("/:id/regenerate", requireAuth, async (c) => {
+  const { account_id } = c.get("session")
+  const realmId = c.req.param("id")
 
-// GET /realms/:id/enter — WebSocket upgrade for game session
-realms.get("/:id/enter", async (c) => {
-  // TODO: upgrade to WebSocket, start game session turn loop
-  return c.json({ error: "WebSocket upgrade required" }, 426)
+  const { data: character } = await db
+    .from("characters")
+    .select("id, gold")
+    .eq("account_id", account_id)
+    .eq("status", "alive")
+    .maybeSingle()
+
+  if (!character) return c.json({ error: "No living character" }, 404)
+
+  const { data: realm } = await db
+    .from("realm_instances")
+    .select("*")
+    .eq("id", realmId)
+    .eq("character_id", character.id)
+    .maybeSingle()
+
+  if (!realm) return c.json({ error: "Realm not found" }, 404)
+  if (realm.status !== "completed") {
+    return c.json({ error: "Only completed realms can be regenerated" }, 409)
+  }
+
+  const REGEN_GOLD_COST = 100
+  if (character.gold < REGEN_GOLD_COST) {
+    return c.json({ error: `Requires ${REGEN_GOLD_COST} gold`, gold: character.gold }, 400)
+  }
+
+  const proof = c.req.header("X-Payment-Proof")
+  if (!proof) {
+    return c.json(
+      { error: "Payment required", action: "realm_regen", price_usd: "0.25", gold_cost: REGEN_GOLD_COST },
+      402,
+    )
+  }
+
+  const newSeed = Math.floor(Math.random() * 2 ** 32)
+
+  const [{ data: updated }, _] = await Promise.all([
+    db.from("realm_instances")
+      .update({ seed: newSeed, status: "generated", floor_reached: 1 })
+      .eq("id", realmId)
+      .select()
+      .single(),
+    db.from("characters")
+      .update({ gold: character.gold - REGEN_GOLD_COST })
+      .eq("id", character.id),
+  ])
+
+  return c.json(updated)
 })
 
 export { realms as realmRoutes }

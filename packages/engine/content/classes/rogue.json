@@ -1,0 +1,117 @@
+{
+  "id": "rogue",
+  "name": "Rogue",
+  "base_stats": {
+    "hp": 72,
+    "attack": 20,
+    "defense": 6,
+    "accuracy": 80,
+    "evasion": 24,
+    "speed": 17
+  },
+  "stat_growth": {
+    "hp": 7,
+    "attack": 3,
+    "defense": 1,
+    "accuracy": 2,
+    "evasion": 2,
+    "speed": 2
+  },
+  "stat_roll_ranges": {
+    "hp": [65, 80],
+    "attack": [18, 23],
+    "defense": [5, 8],
+    "accuracy": [75, 85],
+    "evasion": [20, 28],
+    "speed": [15, 20]
+  },
+  "resource_type": "energy",
+  "resource_max": 6,
+  "resource_regen_rule": {
+    "type": "burst_reset",
+    "amount": 6,
+    "interval": 3
+  },
+  "starting_abilities": ["backstab", "smoke_bomb"],
+  "skill_tree": {
+    "tiers": [
+      {
+        "tier": 1,
+        "unlock_level": 2,
+        "choices": [
+          {
+            "id": "rogue_t1_shadow_step",
+            "name": "Shadow Step",
+            "description": "Increases evasion by 4 and grants passive trap detection (+10 to detection rolls).",
+            "cost": 1,
+            "prerequisites": [],
+            "effect": {
+              "type": "passive_stat",
+              "stat": "evasion",
+              "value": 4
+            }
+          },
+          {
+            "id": "rogue_t1_blade_mastery",
+            "name": "Blade Mastery",
+            "description": "Increases attack by 4 and accuracy by 5.",
+            "cost": 1,
+            "prerequisites": [],
+            "effect": {
+              "type": "passive_stat",
+              "stat": "attack",
+              "value": 4
+            }
+          }
+        ]
+      },
+      {
+        "tier": 2,
+        "unlock_level": 4,
+        "choices": [
+          {
+            "id": "rogue_t2_envenom",
+            "name": "Envenom",
+            "description": "Unlocks Envenom — coat your blade in poison, applying a lingering damage-over-time effect.",
+            "cost": 2,
+            "prerequisites": ["rogue_t1_blade_mastery"],
+            "effect": {
+              "type": "grant_ability",
+              "ability_id": "envenom"
+            }
+          },
+          {
+            "id": "rogue_t2_vanish",
+            "name": "Vanish",
+            "description": "Unlocks Vanish — instantly break combat and become untargetable for 1 turn.",
+            "cost": 2,
+            "prerequisites": ["rogue_t1_shadow_step"],
+            "effect": {
+              "type": "grant_ability",
+              "ability_id": "vanish"
+            }
+          }
+        ]
+      },
+      {
+        "tier": 3,
+        "unlock_level": 7,
+        "choices": [
+          {
+            "id": "rogue_t3_death_mark",
+            "name": "Death Mark",
+            "description": "Unlocks Death Mark — mark a target for death; your next attack against them deals double damage.",
+            "cost": 3,
+            "prerequisites": ["rogue_t2_envenom", "rogue_t2_vanish"],
+            "effect": {
+              "type": "grant_ability",
+              "ability_id": "death_mark"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "starting_equipment": ["iron_sword", "leather_armor"],
+  "visibility_radius": 4
+}

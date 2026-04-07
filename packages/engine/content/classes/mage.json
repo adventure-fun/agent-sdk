@@ -1,0 +1,114 @@
+{
+  "id": "mage",
+  "name": "Mage",
+  "base_stats": {
+    "hp": 62,
+    "attack": 25,
+    "defense": 4,
+    "accuracy": 75,
+    "evasion": 15,
+    "speed": 12
+  },
+  "stat_growth": {
+    "hp": 6,
+    "attack": 4,
+    "defense": 1,
+    "accuracy": 2,
+    "evasion": 1,
+    "speed": 1
+  },
+  "stat_roll_ranges": {
+    "hp": [55, 70],
+    "attack": [22, 28],
+    "defense": [3, 6],
+    "accuracy": [70, 80],
+    "evasion": [12, 18],
+    "speed": [10, 14]
+  },
+  "resource_type": "mana",
+  "resource_max": 20,
+  "resource_regen_rule": {
+    "type": "none"
+  },
+  "starting_abilities": ["arcane_bolt", "frost_nova"],
+  "skill_tree": {
+    "tiers": [
+      {
+        "tier": 1,
+        "unlock_level": 2,
+        "choices": [
+          {
+            "id": "mage_t1_mana_efficiency",
+            "name": "Mana Efficiency",
+            "description": "All abilities cost 1 less mana (minimum 1).",
+            "cost": 1,
+            "prerequisites": [],
+            "effect": {
+              "type": "passive_effect",
+              "description": "Reduce all ability mana costs by 1."
+            }
+          },
+          {
+            "id": "mage_t1_glass_cannon",
+            "name": "Glass Cannon",
+            "description": "Increases attack by 5, decreases defense by 1.",
+            "cost": 1,
+            "prerequisites": [],
+            "effect": {
+              "type": "passive_stat",
+              "stat": "attack",
+              "value": 5
+            }
+          }
+        ]
+      },
+      {
+        "tier": 2,
+        "unlock_level": 4,
+        "choices": [
+          {
+            "id": "mage_t2_meteor",
+            "name": "Meteor Strike",
+            "description": "Unlocks Meteor Strike — a devastating AoE blast that damages all enemies in the room.",
+            "cost": 2,
+            "prerequisites": ["mage_t1_glass_cannon"],
+            "effect": {
+              "type": "grant_ability",
+              "ability_id": "meteor_strike"
+            }
+          },
+          {
+            "id": "mage_t2_arcane_shield",
+            "name": "Arcane Shield",
+            "description": "Unlocks Arcane Shield — spend 4 mana to create a temporary magical barrier.",
+            "cost": 2,
+            "prerequisites": ["mage_t1_mana_efficiency"],
+            "effect": {
+              "type": "grant_ability",
+              "ability_id": "arcane_shield"
+            }
+          }
+        ]
+      },
+      {
+        "tier": 3,
+        "unlock_level": 7,
+        "choices": [
+          {
+            "id": "mage_t3_lich_grasp",
+            "name": "Lich's Grasp",
+            "description": "Unlocks Lich's Grasp — drain life from a target, dealing damage and restoring mana.",
+            "cost": 3,
+            "prerequisites": ["mage_t2_meteor", "mage_t2_arcane_shield"],
+            "effect": {
+              "type": "grant_ability",
+              "ability_id": "lich_grasp"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "starting_equipment": ["oak_staff", "leather_armor"],
+  "visibility_radius": 3
+}

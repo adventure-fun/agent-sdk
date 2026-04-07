@@ -1,0 +1,107 @@
+[
+  {
+    "id": "arcane_bolt",
+    "name": "Arcane Bolt",
+    "description": "Hurl a bolt of raw arcane energy at a single target. Fast cast, reliable damage.",
+    "resource_cost": 3,
+    "cooldown_turns": 0,
+    "range": 4,
+    "damage_formula": {
+      "base": 18,
+      "stat_scaling": "attack",
+      "scaling_factor": 0.9
+    },
+    "effects": [],
+    "target": "single"
+  },
+  {
+    "id": "frost_nova",
+    "name": "Frost Nova",
+    "description": "Unleash a burst of freezing energy around you, slowing all nearby enemies for 2 turns.",
+    "resource_cost": 4,
+    "cooldown_turns": 4,
+    "range": "melee",
+    "damage_formula": {
+      "base": 10,
+      "stat_scaling": "attack",
+      "scaling_factor": 0.6
+    },
+    "effects": [
+      {
+        "type": "slow",
+        "duration_turns": 2,
+        "magnitude": 4,
+        "apply_chance": 0.85
+      }
+    ],
+    "target": "aoe",
+    "aoe_radius": 2
+  },
+  {
+    "id": "meteor_strike",
+    "name": "Meteor Strike",
+    "description": "Call down a meteor from the sky, dealing massive AoE damage to all enemies in the area.",
+    "resource_cost": 8,
+    "cooldown_turns": 6,
+    "range": 5,
+    "damage_formula": {
+      "base": 35,
+      "stat_scaling": "attack",
+      "scaling_factor": 1.2
+    },
+    "effects": [
+      {
+        "type": "stun",
+        "duration_turns": 1,
+        "magnitude": 1,
+        "apply_chance": 0.5
+      }
+    ],
+    "target": "aoe",
+    "aoe_radius": 3
+  },
+  {
+    "id": "arcane_shield",
+    "name": "Arcane Shield",
+    "description": "Erect a shimmering magical barrier, greatly boosting defense for 2 turns.",
+    "resource_cost": 4,
+    "cooldown_turns": 5,
+    "range": "melee",
+    "damage_formula": {
+      "base": 0,
+      "stat_scaling": "defense",
+      "scaling_factor": 0.0
+    },
+    "effects": [
+      {
+        "type": "buff_defense",
+        "duration_turns": 2,
+        "magnitude": 10,
+        "apply_chance": 1.0
+      }
+    ],
+    "target": "self"
+  },
+  {
+    "id": "lich_grasp",
+    "name": "Lich's Grasp",
+    "description": "Extend tendrils of shadow into a target's life force. Deals damage and restores mana equal to half the damage dealt.",
+    "resource_cost": 5,
+    "cooldown_turns": 5,
+    "range": 3,
+    "damage_formula": {
+      "base": 22,
+      "stat_scaling": "attack",
+      "scaling_factor": 0.85
+    },
+    "effects": [
+      {
+        "type": "blind",
+        "duration_turns": 1,
+        "magnitude": 1,
+        "apply_chance": 0.4
+      }
+    ],
+    "target": "single"
+  }
+]

@@ -1,0 +1,106 @@
+[
+  {
+    "id": "backstab",
+    "name": "Backstab",
+    "description": "Strike from the shadows for devastating damage. Extra damage if target is stunned or unaware.",
+    "resource_cost": 2,
+    "cooldown_turns": 0,
+    "range": "melee",
+    "damage_formula": {
+      "base": 22,
+      "stat_scaling": "attack",
+      "scaling_factor": 1.1
+    },
+    "effects": [],
+    "target": "single"
+  },
+  {
+    "id": "smoke_bomb",
+    "name": "Smoke Bomb",
+    "description": "Throw a smoke bomb, blinding all nearby enemies for 2 turns and reducing their accuracy.",
+    "resource_cost": 2,
+    "cooldown_turns": 5,
+    "range": "melee",
+    "damage_formula": {
+      "base": 0,
+      "stat_scaling": "evasion",
+      "scaling_factor": 0.0
+    },
+    "effects": [
+      {
+        "type": "blind",
+        "duration_turns": 2,
+        "magnitude": 3,
+        "apply_chance": 0.9
+      }
+    ],
+    "target": "aoe",
+    "aoe_radius": 2
+  },
+  {
+    "id": "envenom",
+    "name": "Envenom",
+    "description": "Coat your blade in deadly venom. Your next 3 attacks apply poison that deals damage over time.",
+    "resource_cost": 2,
+    "cooldown_turns": 6,
+    "range": "melee",
+    "damage_formula": {
+      "base": 8,
+      "stat_scaling": "attack",
+      "scaling_factor": 0.5
+    },
+    "effects": [
+      {
+        "type": "poison",
+        "duration_turns": 4,
+        "magnitude": 5,
+        "apply_chance": 0.9
+      }
+    ],
+    "target": "single"
+  },
+  {
+    "id": "vanish",
+    "name": "Vanish",
+    "description": "Disappear in a flash, breaking combat and becoming untargetable for 1 turn. Perfect for repositioning.",
+    "resource_cost": 3,
+    "cooldown_turns": 8,
+    "range": "melee",
+    "damage_formula": {
+      "base": 0,
+      "stat_scaling": "evasion",
+      "scaling_factor": 0.0
+    },
+    "effects": [
+      {
+        "type": "buff_defense",
+        "duration_turns": 1,
+        "magnitude": 20,
+        "apply_chance": 1.0
+      }
+    ],
+    "target": "self"
+  },
+  {
+    "id": "death_mark",
+    "name": "Death Mark",
+    "description": "Brand a target with a lethal sigil. Your next attack against them deals double damage and ignores armor.",
+    "resource_cost": 4,
+    "cooldown_turns": 7,
+    "range": "melee",
+    "damage_formula": {
+      "base": 5,
+      "stat_scaling": "attack",
+      "scaling_factor": 2.0
+    },
+    "effects": [
+      {
+        "type": "slow",
+        "duration_turns": 1,
+        "magnitude": 5,
+        "apply_chance": 0.7
+      }
+    ],
+    "target": "single"
+  }
+]

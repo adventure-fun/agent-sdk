@@ -1,0 +1,104 @@
+[
+  {
+    "id": "skeleton_warrior",
+    "name": "Skeleton Warrior",
+    "stats": {
+      "hp": 35,
+      "attack": 10,
+      "defense": 5,
+      "accuracy": 60,
+      "evasion": 8,
+      "speed": 8
+    },
+    "abilities": ["basic_slash", "bone_rattle"],
+    "behavior": "aggressive",
+    "loot_table": "undead_common",
+    "xp_value": 15,
+    "difficulty_tier": 1
+  },
+  {
+    "id": "zombie",
+    "name": "Zombie",
+    "stats": {
+      "hp": 55,
+      "attack": 8,
+      "defense": 6,
+      "accuracy": 50,
+      "evasion": 2,
+      "speed": 4
+    },
+    "abilities": ["basic_slam", "infectious_bite"],
+    "behavior": "aggressive",
+    "loot_table": "undead_common",
+    "xp_value": 18,
+    "difficulty_tier": 1
+  },
+  {
+    "id": "ghost",
+    "name": "Ghost",
+    "stats": {
+      "hp": 28,
+      "attack": 14,
+      "defense": 2,
+      "accuracy": 70,
+      "evasion": 25,
+      "speed": 14
+    },
+    "abilities": ["spectral_touch", "phase_shift"],
+    "behavior": "ambush",
+    "loot_table": "undead_uncommon",
+    "xp_value": 28,
+    "difficulty_tier": 2
+  },
+  {
+    "id": "necromancer",
+    "name": "Necromancer",
+    "stats": {
+      "hp": 65,
+      "attack": 18,
+      "defense": 4,
+      "accuracy": 72,
+      "evasion": 10,
+      "speed": 9
+    },
+    "abilities": ["death_bolt", "raise_dead", "bone_shield"],
+    "behavior": "defensive",
+    "loot_table": "undead_rare",
+    "xp_value": 55,
+    "difficulty_tier": 3
+  },
+  {
+    "id": "stone_golem",
+    "name": "Stone Golem",
+    "stats": {
+      "hp": 80,
+      "attack": 16,
+      "defense": 14,
+      "accuracy": 55,
+      "evasion": 3,
+      "speed": 5
+    },
+    "abilities": ["ground_slam", "stone_skin"],
+    "behavior": "patrol",
+    "loot_table": "construct_common",
+    "xp_value": 40,
+    "difficulty_tier": 2
+  },
+  {
+    "id": "iron_automaton",
+    "name": "Iron Automaton",
+    "stats": {
+      "hp": 100,
+      "attack": 20,
+      "defense": 18,
+      "accuracy": 65,
+      "evasion": 5,
+      "speed": 7
+    },
+    "abilities": ["gear_grind", "piston_punch", "emergency_repair"],
+    "behavior": "patrol",
+    "loot_table": "construct_uncommon",
+    "xp_value": 60,
+    "difficulty_tier": 3
+  }
+]

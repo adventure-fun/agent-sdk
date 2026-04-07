@@ -1,0 +1,117 @@
+{
+  "id": "archer",
+  "name": "Archer",
+  "base_stats": {
+    "hp": 77,
+    "attack": 19,
+    "defense": 8,
+    "accuracy": 85,
+    "evasion": 18,
+    "speed": 14
+  },
+  "stat_growth": {
+    "hp": 8,
+    "attack": 3,
+    "defense": 1,
+    "accuracy": 2,
+    "evasion": 2,
+    "speed": 1
+  },
+  "stat_roll_ranges": {
+    "hp": [70, 85],
+    "attack": [17, 22],
+    "defense": [6, 10],
+    "accuracy": [80, 90],
+    "evasion": [15, 22],
+    "speed": [12, 16]
+  },
+  "resource_type": "focus",
+  "resource_max": 8,
+  "resource_regen_rule": {
+    "type": "accumulate",
+    "amount": 1,
+    "interval": 1
+  },
+  "starting_abilities": ["aimed_shot", "multishot"],
+  "skill_tree": {
+    "tiers": [
+      {
+        "tier": 1,
+        "unlock_level": 2,
+        "choices": [
+          {
+            "id": "archer_t1_keen_eye",
+            "name": "Keen Eye",
+            "description": "Increases accuracy by 5 and extends visibility_radius by 1.",
+            "cost": 1,
+            "prerequisites": [],
+            "effect": {
+              "type": "passive_stat",
+              "stat": "accuracy",
+              "value": 5
+            }
+          },
+          {
+            "id": "archer_t1_swift_quiver",
+            "name": "Swift Quiver",
+            "description": "Increases speed by 3, allowing more frequent turns.",
+            "cost": 1,
+            "prerequisites": [],
+            "effect": {
+              "type": "passive_stat",
+              "stat": "speed",
+              "value": 3
+            }
+          }
+        ]
+      },
+      {
+        "tier": 2,
+        "unlock_level": 4,
+        "choices": [
+          {
+            "id": "archer_t2_piercing_arrow",
+            "name": "Piercing Arrow",
+            "description": "Unlocks Piercing Arrow — an armor-penetrating shot that ignores 50% of target defense.",
+            "cost": 2,
+            "prerequisites": ["archer_t1_keen_eye"],
+            "effect": {
+              "type": "grant_ability",
+              "ability_id": "piercing_arrow"
+            }
+          },
+          {
+            "id": "archer_t2_explosive_arrow",
+            "name": "Explosive Arrow",
+            "description": "Unlocks Explosive Arrow — a fire-tipped arrow that deals AoE damage on impact.",
+            "cost": 2,
+            "prerequisites": ["archer_t1_swift_quiver"],
+            "effect": {
+              "type": "grant_ability",
+              "ability_id": "explosive_arrow"
+            }
+          }
+        ]
+      },
+      {
+        "tier": 3,
+        "unlock_level": 7,
+        "choices": [
+          {
+            "id": "archer_t3_rain_of_arrows",
+            "name": "Rain of Arrows",
+            "description": "Unlocks Rain of Arrows — saturate the entire room with arrows, hitting every enemy.",
+            "cost": 3,
+            "prerequisites": ["archer_t2_piercing_arrow", "archer_t2_explosive_arrow"],
+            "effect": {
+              "type": "grant_ability",
+              "ability_id": "rain_of_arrows"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "starting_equipment": ["hunters_bow", "leather_armor"],
+  "visibility_radius": 5
+}

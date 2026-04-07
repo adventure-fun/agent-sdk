@@ -1,0 +1,99 @@
+[
+  {
+    "id": "iron_sword",
+    "name": "Iron Sword",
+    "type": "equipment",
+    "rarity": "common",
+    "equip_slot": "weapon",
+    "stats": {
+      "attack": 6,
+      "accuracy": 5,
+      "speed": 0
+    },
+    "stack_limit": 1,
+    "sell_price": 12,
+    "buy_price": 30,
+    "description": "A sturdy iron sword, well-balanced and reliable. Standard issue for warriors entering the dungeon."
+  },
+  {
+    "id": "leather_armor",
+    "name": "Leather Armor",
+    "type": "equipment",
+    "rarity": "common",
+    "equip_slot": "armor",
+    "stats": {
+      "defense": 4,
+      "evasion": 2,
+      "speed": 0
+    },
+    "stack_limit": 1,
+    "sell_price": 10,
+    "buy_price": 25,
+    "description": "Hardened leather armor offering decent protection without sacrificing mobility. A common choice for dungeon delvers."
+  },
+  {
+    "id": "iron_ring",
+    "name": "Iron Ring",
+    "type": "equipment",
+    "rarity": "common",
+    "equip_slot": "accessory",
+    "stats": {
+      "hp": 10,
+      "defense": 1
+    },
+    "stack_limit": 1,
+    "sell_price": 8,
+    "buy_price": 20,
+    "description": "A simple iron ring engraved with a warding rune. Provides a small boost to max HP and defense."
+  },
+  {
+    "id": "wooden_shield",
+    "name": "Wooden Shield",
+    "type": "equipment",
+    "rarity": "common",
+    "equip_slot": "class_specific",
+    "class_restriction": "knight",
+    "stats": {
+      "defense": 6,
+      "evasion": -2
+    },
+    "stack_limit": 1,
+    "sell_price": 10,
+    "buy_price": 22,
+    "description": "A reinforced wooden shield banded with iron. Significantly increases defense but reduces agility. Knight-only."
+  },
+  {
+    "id": "hunters_bow",
+    "name": "Hunter's Bow",
+    "type": "equipment",
+    "rarity": "common",
+    "equip_slot": "weapon",
+    "class_restriction": "archer",
+    "stats": {
+      "attack": 5,
+      "accuracy": 8,
+      "speed": 1
+    },
+    "stack_limit": 1,
+    "sell_price": 14,
+    "buy_price": 32,
+    "description": "A well-crafted hunting bow, light and responsive. Excellent accuracy makes it ideal for the archer's art. Archer-only."
+  },
+  {
+    "id": "oak_staff",
+    "name": "Oak Staff",
+    "type": "equipment",
+    "rarity": "common",
+    "equip_slot": "weapon",
+    "class_restriction": "mage",
+    "stats": {
+      "attack": 4,
+      "accuracy": 6,
+      "defense": 1
+    },
+    "stack_limit": 1,
+    "sell_price": 12,
+    "buy_price": 28,
+    "description": "A gnarled oak staff carved with runes of amplification. Channels arcane energy efficiently. Mage-only."
+  }
+]

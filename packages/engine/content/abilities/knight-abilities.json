@@ -1,0 +1,112 @@
+[
+  {
+    "id": "shield_bash",
+    "name": "Shield Bash",
+    "description": "Slam your shield into the enemy, dealing moderate damage and stunning them for 1 turn.",
+    "resource_cost": 2,
+    "cooldown_turns": 3,
+    "range": "melee",
+    "damage_formula": {
+      "base": 14,
+      "stat_scaling": "attack",
+      "scaling_factor": 0.7
+    },
+    "effects": [
+      {
+        "type": "stun",
+        "duration_turns": 1,
+        "magnitude": 1,
+        "apply_chance": 0.65
+      }
+    ],
+    "target": "single"
+  },
+  {
+    "id": "defend",
+    "name": "Defend",
+    "description": "Adopt a defensive stance, greatly increasing defense this turn and regaining 2 bonus stamina.",
+    "resource_cost": 0,
+    "cooldown_turns": 2,
+    "range": "melee",
+    "damage_formula": {
+      "base": 0,
+      "stat_scaling": "defense",
+      "scaling_factor": 0.0
+    },
+    "effects": [
+      {
+        "type": "buff_defense",
+        "duration_turns": 1,
+        "magnitude": 8,
+        "apply_chance": 1.0
+      }
+    ],
+    "target": "self"
+  },
+  {
+    "id": "fortify",
+    "name": "Fortify",
+    "description": "Channel your resolve, raising defense by 6 for 3 turns. Stamina regeneration doubled during this time.",
+    "resource_cost": 3,
+    "cooldown_turns": 5,
+    "range": "melee",
+    "damage_formula": {
+      "base": 0,
+      "stat_scaling": "defense",
+      "scaling_factor": 0.0
+    },
+    "effects": [
+      {
+        "type": "buff_defense",
+        "duration_turns": 3,
+        "magnitude": 6,
+        "apply_chance": 1.0
+      }
+    ],
+    "target": "self"
+  },
+  {
+    "id": "cleave",
+    "name": "Cleave",
+    "description": "A wide sweeping strike hitting all adjacent enemies. Deals reduced but reliable damage.",
+    "resource_cost": 3,
+    "cooldown_turns": 4,
+    "range": "melee",
+    "damage_formula": {
+      "base": 10,
+      "stat_scaling": "attack",
+      "scaling_factor": 0.65
+    },
+    "effects": [],
+    "target": "aoe",
+    "aoe_radius": 1
+  },
+  {
+    "id": "last_stand",
+    "name": "Last Stand",
+    "description": "When bloodied, find hidden reserves of strength. Passively triggers when HP falls below 25%: +5 attack and +5 defense for the rest of combat.",
+    "resource_cost": 0,
+    "cooldown_turns": 99,
+    "range": "melee",
+    "damage_formula": {
+      "base": 0,
+      "stat_scaling": "attack",
+      "scaling_factor": 0.0
+    },
+    "effects": [
+      {
+        "type": "buff_attack",
+        "duration_turns": 999,
+        "magnitude": 5,
+        "apply_chance": 1.0
+      },
+      {
+        "type": "buff_defense",
+        "duration_turns": 999,
+        "magnitude": 5,
+        "apply_chance": 1.0
+      }
+    ],
+    "target": "self"
+  }
+]
