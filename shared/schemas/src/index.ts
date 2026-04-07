@@ -99,6 +99,8 @@ export interface Account {
   wallet_address: string
   player_type: PlayerType
   handle?: string
+  x_handle?: string
+  github_handle?: string
   free_realm_used: boolean
   created_at: string
 }
