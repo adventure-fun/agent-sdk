@@ -1,0 +1,145 @@
+{
+  "id": "collapsed-mines",
+  "name": "The Collapsed Mines",
+  "description": "The DeepVein Mining Company drove too deep and unearthed something they shouldn't have. Now their excavation is a sealed tomb of automated sentinels and animated rock constructs, guarding secrets that were meant to stay buried. The Iron Sentinel stands watch at the deepest shaft.",
+  "theme": "construct",
+  "version": 1,
+  "floor_count": { "min": 4, "max": 6 },
+  "difficulty_tier": 3,
+  "room_distribution": {
+    "combat": 0.40,
+    "treasure": 0.15,
+    "trap": 0.20,
+    "rest": 0.08,
+    "event": 0.12,
+    "boss": 0.05
+  },
+  "enemy_roster": [
+    "stone_golem",
+    "iron_automaton",
+    "skeleton_warrior",
+    "necromancer"
+  ],
+  "boss_id": "iron_sentinel",
+  "loot_tables": [
+    {
+      "id": "construct_common",
+      "entries": [
+        { "item_template_id": "health_potion", "weight": 35, "quantity": { "min": 1, "max": 2 } },
+        { "item_template_id": "buff_potion", "weight": 25, "quantity": { "min": 1, "max": 1 } },
+        { "item_template_id": "iron_ring", "weight": 20, "quantity": { "min": 1, "max": 1 } },
+        { "item_template_id": "antidote", "weight": 20, "quantity": { "min": 1, "max": 1 } }
+      ]
+    },
+    {
+      "id": "construct_uncommon",
+      "entries": [
+        { "item_template_id": "greater_health_potion", "weight": 30, "quantity": { "min": 1, "max": 1 } },
+        { "item_template_id": "iron_sword", "weight": 25, "quantity": { "min": 1, "max": 1 } },
+        { "item_template_id": "wooden_shield", "weight": 20, "quantity": { "min": 1, "max": 1 } },
+        { "item_template_id": "buff_potion", "weight": 15, "quantity": { "min": 1, "max": 2 } },
+        { "item_template_id": "portal_scroll", "weight": 10, "quantity": { "min": 1, "max": 1 } }
+      ]
+    },
+    {
+      "id": "iron_sentinel_boss",
+      "entries": [
+        { "item_template_id": "greater_health_potion", "weight": 30, "quantity": { "min": 2, "max": 4 } },
+        { "item_template_id": "portal_scroll", "weight": 25, "quantity": { "min": 1, "max": 2 } },
+        { "item_template_id": "iron_sword", "weight": 20, "quantity": { "min": 1, "max": 1 } },
+        { "item_template_id": "buff_potion", "weight": 15, "quantity": { "min": 2, "max": 3 } },
+        { "item_template_id": "iron_ring", "weight": 10, "quantity": { "min": 1, "max": 2 } }
+      ]
+    }
+  ],
+  "trap_types": [
+    {
+      "id": "collapsing_ceiling",
+      "name": "Collapsing Ceiling",
+      "damage": 30,
+      "detection_difficulty": 14,
+      "visible_after_trigger": true
+    },
+    {
+      "id": "steam_vent",
+      "name": "Steam Vent",
+      "damage": 15,
+      "effect": {
+        "type": "slow",
+        "duration_turns": 2,
+        "magnitude": 4,
+        "apply_chance": 0.8
+      },
+      "detection_difficulty": 11,
+      "visible_after_trigger": true
+    },
+    {
+      "id": "tripwire_alarm",
+      "name": "Tripwire Alarm",
+      "damage": 0,
+      "effect": {
+        "type": "stun",
+        "duration_turns": 1,
+        "magnitude": 1,
+        "apply_chance": 0.5
+      },
+      "detection_difficulty": 13,
+      "visible_after_trigger": true
+    },
+    {
+      "id": "ore_crusher",
+      "name": "Ore Crusher",
+      "damage": 45,
+      "detection_difficulty": 16,
+      "visible_after_trigger": true
+    }
+  ],
+  "room_templates": [
+    "mining_shaft",
+    "ore_processing_hall",
+    "foreman_office",
+    "equipment_depot",
+    "dynamite_storage",
+    "underground_lake",
+    "collapsed_tunnel",
+    "automaton_workshop",
+    "deepvein_vault"
+  ],
+  "narrative": {
+    "theme_description": "The DeepVein Mining Company's deepest excavation struck an ancient sealed vault. The automated guardians left by its builders activated, slaughtering the miners. Months later, the company sent enforcers — they never returned. The mine was sealed and officially listed as 'depleted.'",
+    "room_text_pool": [
+      { "text": "Mining carts sit on rusted tracks, overturned. Pickaxes lie scattered as if dropped mid-swing.", "type": "combat" },
+      { "text": "The ceiling groans ominously overhead. Dust sifts down with every footstep.", "type": "trap" },
+      { "text": "A safety notice board still hangs on the wall. Someone has scrawled 'THEY'RE ALIVE' over the safety guidelines.", "type": "event" },
+      { "text": "An untouched break room — half-eaten meals on the table, mugs of long-cold coffee. No bodies.", "type": "rest" },
+      { "text": "Veins of glittering ore run through the walls. Whatever they mined here was worth dying for.", "type": "treasure" },
+      { "text": "The air smells of machine oil and something older — like stone that has never seen sunlight.", "type": "combat" },
+      { "text": "A powered-down automaton slumped against the wall stirs as you approach. Its eyes flicker red.", "type": "combat" },
+      { "text": "Deep gouges in the stone floor trace the path of something massive being dragged through here.", "type": "event" },
+      { "text": "Water drips into a pool, the sound echoing for far too long in the darkness ahead.", "type": "trap" },
+      { "text": "A foreman's ledger lies open: 'Day 89 — They found the door. I've ordered it opened. God help us.'", "type": "event" }
+    ],
+    "lore_pool": [
+      "A company memorandum: 'Excavation of DeepVein Shaft 7 suspended pending investigation of worker disappearances. All employees are reminded that unauthorized exploration of sub-level 4 is a terminable offense.'",
+      "Scratched into the tunnel wall: 'There are 12 of them. They don't sleep. They don't stop. Run.'",
+      "A sealed company report marked CONFIDENTIAL: 'The constructs appear to originate from pre-Collapse era. Their core material is unknown. Standard weapons are ineffective against the larger variants.'",
+      "A miner's personal journal: 'Gregor says the big one in the deepest chamber is just a statue. But statues don't breathe.'",
+      "An official DeepVein Mining Co. notice: 'This facility has been decommissioned due to geological instability. Trespassers will be prosecuted.' The paper is dotted with what looks like machine oil."
+    ],
+    "interactable_pool": [
+      "overturned_ore_cart",
+      "company_foreman_desk",
+      "dormant_automaton",
+      "safety_notice_board",
+      "ore_vein_deposit",
+      "sealed_blast_door",
+      "steam_pressure_valve",
+      "deepvein_company_safe",
+      "ancient_vault_door"
+    ]
+  },
+  "completion_rewards": {
+    "xp": 280,
+    "gold": 220
+  }
+}
