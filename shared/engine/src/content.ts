@@ -25,11 +25,15 @@ import rogueAbilitiesJson from "../content/abilities/rogue-abilities.json" asser
 import archerAbilitiesJson from "../content/abilities/archer-abilities.json" assert { type: "json" }
 
 import undeadJson from "../content/enemies/undead.json" assert { type: "json" }
+import hollowJson from "../content/enemies/hollow.json" assert { type: "json" }
 import bossesJson from "../content/enemies/bosses.json" assert { type: "json" }
 
 import consumablesJson from "../content/items/consumables.json" assert { type: "json" }
 import equipmentCommonJson from "../content/items/equipment-common.json" assert { type: "json" }
 
+import tutorialCellarJson from "../content/realms/tutorial-cellar.json" assert { type: "json" }
+import collapsedPassageJson from "../content/realms/collapsed-passage.json" assert { type: "json" }
+import blightedHollowJson from "../content/realms/blighted-hollow.json" assert { type: "json" }
 import sunkenCryptJson from "../content/realms/sunken-crypt.json" assert { type: "json" }
 import collapsedMinesJson from "../content/realms/collapsed-mines.json" assert { type: "json" }
 
@@ -59,6 +63,7 @@ export const ABILITIES: Record<string, AbilityTemplate> = Object.fromEntries(
 
 const allEnemies: EnemyTemplate[] = [
   ...(undeadJson as unknown as EnemyTemplate[]),
+  ...(hollowJson as unknown as EnemyTemplate[]),
   ...(bossesJson as unknown as EnemyTemplate[]),
 ]
 
@@ -80,6 +85,9 @@ export const ITEMS: Record<string, ItemTemplate> = Object.fromEntries(
 // ---- Realms -------------------------------------------------
 
 export const REALMS: Record<string, RealmTemplate> = {
+  "tutorial-cellar": tutorialCellarJson as unknown as RealmTemplate,
+  "collapsed-passage": collapsedPassageJson as unknown as RealmTemplate,
+  "blighted-hollow": blightedHollowJson as unknown as RealmTemplate,
   "sunken-crypt": sunkenCryptJson as unknown as RealmTemplate,
   "collapsed-mines": collapsedMinesJson as unknown as RealmTemplate,
 }

@@ -400,6 +400,8 @@ export interface RealmTemplate {
   description: string
   theme: string
   version: number
+  is_tutorial?: boolean
+  procedural?: boolean                  // false = fully handcrafted layout
   floor_count: { min: number; max: number }
   difficulty_tier: number
   room_distribution: {
@@ -411,7 +413,7 @@ export interface RealmTemplate {
     boss: number
   }
   enemy_roster: string[]
-  boss_id: string
+  boss_id: string | null                // null for dungeons with no boss
   loot_tables: LootTable[]
   trap_types: TrapTemplate[]
   room_templates: string[]

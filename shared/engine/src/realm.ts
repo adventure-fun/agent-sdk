@@ -34,18 +34,94 @@ export interface GeneratedRealm {
 /**
  * Generates a complete realm deterministically from seed + template.
  * Same seed + same template version = same realm, always.
+ *
+ * When template.procedural is false, generates a fixed layout using
+ * the room_templates list in order rather than random generation.
  */
 export function generateRealm(
   template: RealmTemplate,
   seed: number,
 ): GeneratedRealm {
+  if (template.procedural === false) {
+    return generateHandcraftedRealm(template, seed)
+  }
+
   const rng = new SeededRng(seed)
   const floorCount = rng.nextInt(template.floor_count.min, template.floor_count.max)
+  const hasBoss = template.boss_id != null
   const floors: GeneratedFloor[] = []
 
   for (let f = 1; f <= floorCount; f++) {
     const floorRng = new SeededRng(deriveSeed(seed, `floor_${f}`))
-    floors.push(generateFloor(template, floorRng, f, f === floorCount))
+    const isFinalFloor = f === floorCount
+    floors.push(generateFloor(template, floorRng, f, isFinalFloor && hasBoss))
+  }
+
+  return {
+    template_id: template.id,
+    template_version: template.version,
+    seed,
+    floors,
+    total_floors: floorCount,
+  }
+}
+
+/**
+ * Generates a handcrafted realm from a template with procedural: false.
+ * Uses room_templates in order to produce a fixed layout.
+ */
+function generateHandcraftedRealm(
+  template: RealmTemplate,
+  seed: number,
+): GeneratedRealm {
+  const roomTemplateIds = template.room_templates
+  const hasBoss = template.boss_id != null
+  const floorCount = template.floor_count.min // fixed for handcrafted
+  const floors: GeneratedFloor[] = []
+
+  let roomOffset = 0
+  for (let f = 1; f <= floorCount; f++) {
+    const isFinalFloor = f === floorCount
+    // Distribute room templates across floors evenly
+    const roomsPerFloor = Math.ceil(roomTemplateIds.length / floorCount)
+    const floorRoomIds = roomTemplateIds.slice(roomOffset, roomOffset + roomsPerFloor)
+    roomOffset += roomsPerFloor
+
+    const rooms: GeneratedRoom[] = floorRoomIds.map((templateId, index) => {
+      const id = `f${f}_r${index}_${templateId}`
+      const textPool = template.narrative.room_text_pool
+      const description = textPool.length > 0
+        ? textPool[index % textPool.length].text
+        : "You enter the room."
+
+      return {
+        id,
+        type: templateId,
+        width: 7,
+        height: 7,
+        tiles: buildRoomTiles(7, 7),
+        enemy_ids: [],
+        item_ids: [],
+        trap_ids: [],
+        connections: [],
+        description_first_visit: description,
+        description_revisit: null,
+      }
+    })
+
+    // Wire rooms linearly
+    for (let r = 1; r < rooms.length; r++) {
+      rooms[r - 1].connections.push(rooms[r].id)
+      rooms[r].connections.push(rooms[r - 1].id)
+    }
+
+    floors.push({
+      floor_number: f,
+      rooms,
+      entrance_room_id: rooms[0].id,
+      exit_room_id: isFinalFloor ? null : rooms[rooms.length - 1].id,
+      boss_room_id: isFinalFloor && hasBoss ? rooms[rooms.length - 1].id : null,
+    })
   }
 
   return {

@@ -1,0 +1,100 @@
+{
+  "id": "collapsed-passage",
+  "name": "The Collapsed Passage",
+  "description": "An abandoned mine tunnel, unstable and claustrophobic. The miners left in a hurry — something drove them out. Or in.",
+  "theme": "mine",
+  "version": 1,
+  "procedural": false,
+  "floor_count": { "min": 1, "max": 1 },
+  "difficulty_tier": 1,
+  "room_distribution": {
+    "combat": 0.40,
+    "treasure": 0.20,
+    "trap": 0.10,
+    "rest": 0.10,
+    "event": 0.20,
+    "boss": 0
+  },
+  "enemy_roster": ["hollow-rat", "cave-crawler"],
+  "boss_id": null,
+  "loot_tables": [
+    {
+      "id": "passage_common",
+      "entries": [
+        { "item_template_id": "health_potion", "weight": 40, "quantity": { "min": 1, "max": 2 } },
+        { "item_template_id": "antidote", "weight": 20, "quantity": { "min": 1, "max": 1 } },
+        { "item_template_id": "iron_ring", "weight": 15, "quantity": { "min": 1, "max": 1 } },
+        { "item_template_id": "buff_potion", "weight": 15, "quantity": { "min": 1, "max": 1 } },
+        { "item_template_id": "portal_scroll", "weight": 10, "quantity": { "min": 1, "max": 1 } }
+      ]
+    },
+    {
+      "id": "passage_uncommon",
+      "entries": [
+        { "item_template_id": "iron_sword", "weight": 30, "quantity": { "min": 1, "max": 1 } },
+        { "item_template_id": "leather_armor", "weight": 25, "quantity": { "min": 1, "max": 1 } },
+        { "item_template_id": "greater_health_potion", "weight": 25, "quantity": { "min": 1, "max": 1 } },
+        { "item_template_id": "buff_potion", "weight": 20, "quantity": { "min": 1, "max": 2 } }
+      ]
+    }
+  ],
+  "trap_types": [],
+  "room_templates": [
+    "passage-entrance",
+    "shaft-junction",
+    "flooded-chamber",
+    "tool-storage",
+    "locked-gate",
+    "overseers-den"
+  ],
+  "narrative": {
+    "theme_description": "An abandoned mine tunnel. The miners of this passage broke through into something old beneath the rock. They fled — or were taken. The corruption the town whispers about may have started here.",
+    "room_text_pool": [
+      {
+        "text": "Three tunnels branch from here. The left one is flooded ankle-deep. The center one has fresh claw marks on the support beams. The right one is blocked by a rusted gate.",
+        "type": "event"
+      },
+      {
+        "text": "Water seeps from cracks in the ceiling. Mining tools lie scattered as if dropped mid-swing. A corroded lockbox sits on a stone ledge above the waterline.",
+        "type": "treasure"
+      },
+      {
+        "text": "Picks, hammers, and coils of rope hang from hooks on the walls. A lantern still flickers on the workbench — someone was here recently.",
+        "type": "rest"
+      },
+      {
+        "text": "A heavy iron gate blocks the passage. The lock is old but sturdy. Beyond it, you hear the scrape of something moving in the dark.",
+        "type": "event"
+      },
+      {
+        "text": "A cramped office carved into the rock. A desk, a chair, a journal. The air is still and heavy with dust.",
+        "type": "treasure"
+      },
+      {
+        "text": "The tunnel narrows. Timber supports creak overhead. Rat droppings litter the floor, growing denser ahead.",
+        "type": "combat"
+      },
+      {
+        "text": "Mining carts sit on rusted tracks, overturned. Pickaxes lie scattered as if dropped mid-swing.",
+        "type": "combat"
+      }
+    ],
+    "lore_pool": [
+      "passage-violet-stone",
+      "passage-overseer-journal",
+      "passage-crawler-hint"
+    ],
+    "interactable_pool": [
+      "corroded-lockbox",
+      "overseers-journal",
+      "mine-key-chest",
+      "rusted-gate",
+      "flickering-lantern",
+      "claw-marked-beam"
+    ]
+  },
+  "completion_rewards": {
+    "xp": 60,
+    "gold": 40
+  }
+}

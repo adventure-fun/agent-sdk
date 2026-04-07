@@ -43,6 +43,34 @@
     "difficulty_tier": 5
   },
   {
+    "id": "hollow-warden",
+    "name": "The Hollow Warden",
+    "stats": {
+      "hp": 150,
+      "attack": 18,
+      "defense": 14,
+      "accuracy": 70,
+      "evasion": 8,
+      "speed": 9
+    },
+    "abilities": [
+      "warden_slam",
+      "corrupted_strike"
+    ],
+    "behavior": "boss",
+    "boss_phases": [
+      {
+        "hp_threshold": 0.5,
+        "behavior_change": "The Warden's armor cracks and violet light pours from within. It lets out a howl that shakes the chamber — two Skeleton Warriors claw up from the floor.",
+        "abilities_added": ["summon_skeletons", "corrupted_bolt"],
+        "abilities_removed": []
+      }
+    ],
+    "loot_table": "warden_boss",
+    "xp_value": 200,
+    "difficulty_tier": 3
+  },
+  {
     "id": "iron_sentinel",
     "name": "Iron Sentinel",
     "stats": {
