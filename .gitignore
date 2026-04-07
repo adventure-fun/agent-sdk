@@ -14,10 +14,17 @@ build/
 .turbo/
 
 # Environment files — NEVER commit real secrets
-.env
-.env.local
-.env.*.local
-.env.production
+# Root .env has service keys — never commit
+/.env
+/.env.local
+/.env.*.local
+/.env.production
+# Backend env (inherits from root .env at runtime)
+/backend/.env
+/backend/.env.local
+# frontend/.env is committed — only contains NEXT_PUBLIC_ vars (safe, client-side by design)
+frontend/.env.local
+frontend/.env.production
 
 # Bun
 bun.lockb
