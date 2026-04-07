@@ -1,0 +1,137 @@
+name: CI — Red/Green TDD
+
+on:
+  push:
+    branches: ["main", "dev"]
+  pull_request:
+    branches: ["main"]
+
+env:
+  # Tests run with no real secrets — engine tests are pure, server tests are stubbed
+  NODE_ENV: test
+
+jobs:
+  # ── Engine tests (pure, no I/O, must be green before anything else) ──────────
+  engine-tests:
+    name: Engine Tests (Red/Green)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run engine tests
+        working-directory: packages/engine
+        run: bun test --reporter=verbose
+        # ↑ These MUST pass. Engine is the foundation.
+
+  # ── Schema typecheck ──────────────────────────────────────────────────────────
+  typecheck:
+    name: TypeScript Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck schemas
+        working-directory: packages/schemas
+        run: bun run typecheck
+
+      - name: Typecheck engine
+        working-directory: packages/engine
+        run: bun run typecheck
+
+      - name: Typecheck agent-sdk
+        working-directory: packages/agent-sdk
+        run: bun run typecheck
+
+  # ── Agent SDK tests ───────────────────────────────────────────────────────────
+  sdk-tests:
+    name: Agent SDK Tests
+    runs-on: ubuntu-latest
+    needs: engine-tests
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run agent-sdk tests
+        working-directory: packages/agent-sdk
+        run: bun test --reporter=verbose
+
+  # ── Server tests (stubbed endpoints, integration added in Milestone 3) ────────
+  server-tests:
+    name: Server Tests
+    runs-on: ubuntu-latest
+    needs: engine-tests
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run server tests
+        working-directory: packages/server
+        run: bun test --reporter=verbose
+
+  # ── Web typecheck ─────────────────────────────────────────────────────────────
+  web-typecheck:
+    name: Web Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck web app
+        working-directory: apps/web
+        run: bun run typecheck
+
+  # ── Full test gate — required to merge to main ────────────────────────────────
+  all-tests-pass:
+    name: All Tests Pass
+    runs-on: ubuntu-latest
+    needs: [engine-tests, typecheck, sdk-tests, server-tests, web-typecheck]
+    if: always()
+    steps:
+      - name: Check all jobs succeeded
+        run: |
+          if [[ "${{ needs.engine-tests.result }}" != "success" ]] || \
+             [[ "${{ needs.typecheck.result }}" != "success" ]] || \
+             [[ "${{ needs.sdk-tests.result }}" != "success" ]] || \
+             [[ "${{ needs.server-tests.result }}" != "success" ]] || \
+             [[ "${{ needs.web-typecheck.result }}" != "success" ]]; then
+            echo "One or more jobs failed — PR cannot be merged"
+            exit 1
+          fi
+          echo "All tests green ✓"

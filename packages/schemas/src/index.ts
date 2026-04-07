@@ -1,0 +1,546 @@
+// ============================================================
+// @adventure-fun/schemas — Canonical TypeScript types
+// Single source of truth for engine, server, agent-sdk, web
+// ============================================================
+
+// ---- Stats --------------------------------------------------
+
+export interface Stats {
+  attack: number
+  defense: number
+  accuracy: number
+  evasion: number
+  speed: number
+}
+
+export interface CharacterStats extends Stats {
+  hp: number
+}
+
+// ---- Status Effects -----------------------------------------
+
+export type StatusEffectType =
+  | "poison"
+  | "stun"
+  | "slow"
+  | "blind"
+  | "buff_attack"
+  | "buff_defense"
+
+export interface StatusEffect {
+  type: StatusEffectType
+  duration_turns: number
+  magnitude: number
+  apply_chance: number // 0-1
+}
+
+export interface ActiveEffect {
+  type: StatusEffectType
+  turns_remaining: number
+  magnitude: number
+}
+
+// ---- Items --------------------------------------------------
+
+export type ItemType = "consumable" | "equipment" | "loot" | "key_item"
+export type ItemRarity = "common" | "uncommon" | "rare" | "epic"
+export type EquipSlot = "weapon" | "armor" | "accessory" | "class_specific"
+export type OwnerType = "character" | "escrow" | "corpse"
+
+export interface ItemEffect {
+  type: "heal_hp" | "heal_resource" | "cure_debuff" | "portal" | "buff" | "reveal_map"
+  magnitude?: number
+  duration?: number
+}
+
+export interface ItemTemplate {
+  id: string
+  name: string
+  type: ItemType
+  rarity: ItemRarity
+  equip_slot?: EquipSlot
+  stats?: Partial<CharacterStats>
+  effects?: ItemEffect[]
+  stack_limit: number
+  sell_price: number
+  buy_price: number
+  class_restriction?: string
+  description: string
+}
+
+export interface InventoryItem {
+  id: string
+  template_id: string
+  name: string
+  quantity: number
+  modifiers: Record<string, number>
+  owner_type: OwnerType
+  owner_id: string
+  slot?: EquipSlot | null
+}
+
+export interface InventorySlot {
+  item_id: string
+  template_id: string
+  name: string
+  quantity: number
+  modifiers: Record<string, number>
+}
+
+// ---- Character & Account ------------------------------------
+
+export type PlayerType = "human" | "agent"
+export type CharacterClass = "knight" | "mage" | "rogue" | "archer"
+export type CharacterStatus = "alive" | "dead"
+export type ResourceType = "stamina" | "mana" | "energy" | "focus"
+
+export interface Account {
+  id: string
+  wallet_address: string
+  player_type: PlayerType
+  handle?: string
+  free_realm_used: boolean
+  created_at: string
+}
+
+export interface Character {
+  id: string
+  account_id: string
+  name: string
+  class: CharacterClass
+  level: number
+  xp: number
+  gold: number
+  hp_current: number
+  hp_max: number
+  resource_current: number
+  resource_max: number
+  resource_type: ResourceType
+  stats: CharacterStats
+  effective_stats: CharacterStats // after equipment + buffs
+  skill_tree: Record<string, string>
+  status: CharacterStatus
+  stat_rerolled: boolean
+  created_at: string
+  died_at?: string
+}
+
+// ---- Realm --------------------------------------------------
+
+export type RealmStatus =
+  | "generated"
+  | "active"
+  | "paused"
+  | "boss_cleared"
+  | "completed"
+  | "dead_end"
+
+export interface RealmInstance {
+  id: string
+  character_id: string
+  template_id: string
+  template_version: number
+  seed: number
+  status: RealmStatus
+  floor_reached: number
+  is_free: boolean
+  created_at: string
+}
+
+// ---- Tiles & Map --------------------------------------------
+
+export type TileType = "floor" | "wall" | "door" | "stairs" | "entrance"
+
+export interface Tile {
+  x: number
+  y: number
+  type: TileType
+  entities: string[] // entity IDs on this tile
+}
+
+export interface KnownMapData {
+  floors: Record<number, KnownFloor>
+}
+
+export interface KnownFloor {
+  tiles: Tile[]
+  rooms_visited: string[]
+}
+
+// ---- Entities -----------------------------------------------
+
+export type EntityType = "enemy" | "item" | "interactable" | "trap_visible"
+
+export interface Entity {
+  id: string
+  type: EntityType
+  name: string
+  position: { x: number; y: number }
+  hp_current?: number
+  hp_max?: number
+}
+
+export interface SpectatorEntity {
+  id: string
+  type: "enemy" | "item" | "interactable"
+  name: string
+  position: { x: number; y: number }
+  health_indicator?: "full" | "high" | "medium" | "low" | "critical"
+}
+
+// ---- Game Events --------------------------------------------
+
+export interface GameEvent {
+  turn: number
+  type: string
+  detail: string
+  data: Record<string, unknown>
+}
+
+// ---- Observation (full — player only) -----------------------
+
+export interface Observation {
+  turn: number
+  character: {
+    id: string
+    class: CharacterClass
+    level: number
+    xp: number
+    hp: { current: number; max: number }
+    resource: { type: ResourceType; current: number; max: number }
+    buffs: ActiveEffect[]
+    debuffs: ActiveEffect[]
+    cooldowns: Record<string, number>
+    base_stats: CharacterStats
+    effective_stats: CharacterStats
+  }
+  inventory: InventorySlot[]
+  equipment: Record<EquipSlot, InventoryItem | null>
+  gold: number
+  position: {
+    floor: number
+    room_id: string
+    tile: { x: number; y: number }
+  }
+  visible_tiles: Tile[]
+  known_map: KnownMapData
+  visible_entities: Entity[]
+  room_text: string | null
+  recent_events: GameEvent[]
+  legal_actions: Action[]
+  realm_info: {
+    template_name: string
+    floor_count: number
+    current_floor: number
+    status: "active" | "boss_floor" | "boss_cleared"
+  }
+}
+
+// ---- SpectatorObservation (redacted — public) ---------------
+
+export interface SpectatorObservation {
+  turn: number
+  character: {
+    id: string
+    class: CharacterClass
+    level: number
+    hp_percent: number
+    resource_percent: number
+  }
+  position: {
+    floor: number
+    room_id: string
+    tile: { x: number; y: number }
+  }
+  visible_tiles: Tile[]
+  known_map: KnownMapData
+  visible_entities: SpectatorEntity[]
+  room_text: string | null
+  recent_events: GameEvent[]
+  realm_info: {
+    template_name: string
+    current_floor: number
+    status: "active" | "boss_floor" | "boss_cleared"
+  }
+}
+
+// ---- Actions ------------------------------------------------
+
+export type Action =
+  | { type: "move"; direction: "up" | "down" | "left" | "right" }
+  | { type: "attack"; target_id: string; ability_id?: string }
+  | { type: "use_item"; item_id: string; target_id?: string }
+  | { type: "equip"; item_id: string }
+  | { type: "unequip"; slot: EquipSlot }
+  | { type: "inspect"; target_id: string }
+  | { type: "interact"; target_id: string }
+  | { type: "use_portal" }
+  | { type: "retreat" }
+  | { type: "wait" }
+  | { type: "pickup"; item_id: string }
+  | { type: "drop"; item_id: string }
+
+// ---- WebSocket Messages -------------------------------------
+
+export type ServerMessage =
+  | { type: "observation"; data: Observation }
+  | { type: "error"; message: string }
+  | { type: "death"; data: { cause: string; floor: number; room: string; turn: number } }
+  | { type: "extracted"; data: { loot_summary: InventorySlot[]; xp_gained: number } }
+
+export type ClientMessage =
+  | { type: "action"; data: Action }
+
+// ---- Content Templates (from CONTENT.md) --------------------
+
+export interface AbilityTemplate {
+  id: string
+  name: string
+  description: string
+  resource_cost: number
+  cooldown_turns: number
+  range: "melee" | number
+  damage_formula: {
+    base: number
+    stat_scaling: string
+    scaling_factor: number
+  }
+  effects: StatusEffect[]
+  target: "single" | "aoe" | "self"
+  aoe_radius?: number
+}
+
+export interface SkillNodeTemplate {
+  id: string
+  name: string
+  description: string
+  cost: number
+  prerequisites: string[]
+  effect: {
+    type: "grant_ability" | "passive_stat" | "passive_effect"
+    ability_id?: string
+    stat?: string
+    value?: number
+    description?: string
+  }
+}
+
+export interface SkillTier {
+  tier: number
+  unlock_level: number
+  choices: SkillNodeTemplate[]
+}
+
+export interface ClassTemplate {
+  id: CharacterClass
+  name: string
+  base_stats: CharacterStats
+  stat_growth: CharacterStats
+  stat_roll_ranges: Record<keyof CharacterStats, [number, number]>
+  resource_type: ResourceType
+  resource_max: number
+  resource_regen_rule: {
+    type: "passive" | "burst_reset" | "accumulate" | "none"
+    amount?: number
+    interval?: number
+    on_defend_bonus?: number
+  }
+  starting_abilities: string[]
+  skill_tree: { tiers: SkillTier[] }
+  starting_equipment: string[]
+  visibility_radius: number
+}
+
+export type EnemyBehavior = "aggressive" | "defensive" | "patrol" | "ambush" | "boss"
+
+export interface BossPhase {
+  hp_threshold: number
+  behavior_change: string
+  abilities_added: string[]
+  abilities_removed: string[]
+}
+
+export interface EnemyTemplate {
+  id: string
+  name: string
+  stats: CharacterStats
+  abilities: string[]
+  behavior: EnemyBehavior
+  boss_phases?: BossPhase[]
+  loot_table: string
+  xp_value: number
+  difficulty_tier: number
+}
+
+export interface LootEntry {
+  item_template_id: string
+  weight: number
+  quantity: { min: number; max: number }
+}
+
+export interface LootTable {
+  id: string
+  entries: LootEntry[]
+}
+
+export interface TrapTemplate {
+  id: string
+  name: string
+  damage: number
+  effect?: StatusEffect
+  detection_difficulty: number
+  visible_after_trigger: boolean
+}
+
+export interface RealmTemplate {
+  id: string
+  name: string
+  description: string
+  theme: string
+  version: number
+  floor_count: { min: number; max: number }
+  difficulty_tier: number
+  room_distribution: {
+    combat: number
+    treasure: number
+    trap: number
+    rest: number
+    event: number
+    boss: number
+  }
+  enemy_roster: string[]
+  boss_id: string
+  loot_tables: LootTable[]
+  trap_types: TrapTemplate[]
+  room_templates: string[]
+  narrative: {
+    theme_description: string
+    room_text_pool: Array<{ text: string; type: string }>
+    lore_pool: string[]
+    interactable_pool: string[]
+  }
+  completion_rewards: {
+    xp: number
+    gold: number
+  }
+}
+
+// ---- Leaderboard & Legends ----------------------------------
+
+export interface LeaderboardEntry {
+  character_id: string
+  character_name: string
+  class: CharacterClass
+  player_type: PlayerType
+  level: number
+  xp: number
+  deepest_floor: number
+  realms_completed: number
+  status: CharacterStatus
+  cause_of_death: string | null
+  owner: {
+    handle: string
+    wallet: string
+    x_handle: string | null
+    github_handle: string | null
+  }
+  created_at: string
+  died_at: string | null
+}
+
+export interface LegendPage {
+  character: {
+    id: string
+    name: string
+    class: CharacterClass
+    level: number
+    xp: number
+    stats: CharacterStats
+    skill_tree: Record<string, string>
+    equipment_at_death: Record<EquipSlot, InventoryItem | null>
+    gold_at_death: number
+  }
+  owner: {
+    handle: string
+    player_type: PlayerType
+    wallet: string
+    x_handle: string | null
+    github_handle: string | null
+  }
+  history: {
+    realms_completed: number
+    deepest_floor: number
+    enemies_killed: number
+    turns_survived: number
+    cause_of_death: string
+    death_floor: number
+    death_room: string
+    created_at: string
+    died_at: string
+  }
+}
+
+// ---- Marketplace --------------------------------------------
+
+export interface MarketplaceListing {
+  id: string
+  seller: {
+    handle: string
+    wallet: string
+    character_name: string
+    character_class: CharacterClass
+    character_status: CharacterStatus
+  }
+  item: {
+    template_id: string
+    name: string
+    type: ItemType
+    rarity: ItemRarity
+    stats: Record<string, number>
+    modifiers: Record<string, number>
+    description: string
+  }
+  price_usd: string
+  listing_fee_gold: number
+  status: "active" | "sold" | "cancelled"
+  is_orphaned: boolean
+  created_at: string
+  sold_at: string | null
+}
+
+// ---- Real-time (Redis pub/sub payloads) ---------------------
+
+export interface LobbyEvent {
+  type: string
+  characterName: string
+  characterClass: CharacterClass
+  detail: string
+  timestamp: number
+}
+
+export interface SanitizedChatMessage {
+  character_name: string
+  character_class: CharacterClass
+  player_type: PlayerType
+  message: string
+  timestamp: number
+}
+
+export interface LeaderboardDelta {
+  characterId: string
+  xp: number
+  level: number
+  deepestFloor: number
+}
+
+// ---- x402 Payment -------------------------------------------
+
+export interface PaymentRequired402 {
+  accepts: Array<{
+    scheme: "exact"
+    network: string
+    price: string
+    payTo: string
+    asset: string
+  }>
+}

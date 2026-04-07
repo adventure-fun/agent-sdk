@@ -1,0 +1,27 @@
+{
+  "name": "@adventure-fun/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun run --hot src/index.ts",
+    "start": "bun run src/index.ts",
+    "build": "bun build src/index.ts --outdir dist --target bun",
+    "test": "bun test",
+    "test:watch": "bun test --watch",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@adventure-fun/engine": "*",
+    "@adventure-fun/schemas": "*",
+    "hono": "^4.6.20",
+    "ioredis": "^5.4.2",
+    "@supabase/supabase-js": "^2.47.12"
+  },
+  "devDependencies": {
+    "typescript": "*",
+    "@types/bun": "latest",
+    "@types/node": "*"
+  }
+}

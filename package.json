@@ -1,0 +1,25 @@
+{
+  "name": "adventure-fun",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "turbo build",
+    "test": "turbo test",
+    "test:watch": "turbo test --watch",
+    "dev": "turbo dev",
+    "lint": "turbo lint",
+    "typecheck": "turbo typecheck",
+    "clean": "turbo clean && rm -rf node_modules"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.3",
+    "typescript": "^5.7.2",
+    "@types/node": "^22.10.2"
+  },
+  "engines": {
+    "bun": ">=1.1.0"
+  }
+}

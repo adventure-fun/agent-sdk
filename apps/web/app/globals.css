@@ -1,0 +1,48 @@
+@import "tailwindcss";
+
+:root {
+  --color-bg: #030712;
+  --color-surface: #111827;
+  --color-border: #1f2937;
+  --color-text: #f9fafb;
+  --color-muted: #6b7280;
+  --color-accent: #f59e0b;
+  --color-danger: #ef4444;
+  --color-success: #22c55e;
+  --color-rarity-common: #9ca3af;
+  --color-rarity-uncommon: #22c55e;
+  --color-rarity-rare: #3b82f6;
+  --color-rarity-epic: #a855f7;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-family: "Courier New", "Courier", monospace;
+}
+
+/* Dungeon map characters */
+.map-floor  { color: #374151; }
+.map-wall   { color: #6b7280; }
+.map-player { color: #f59e0b; font-weight: bold; }
+.map-enemy  { color: #ef4444; font-weight: bold; }
+.map-door   { color: #92400e; }
+.map-chest  { color: #d97706; }
+.map-stairs { color: #6366f1; }
+.map-trap   { color: #dc2626; }
+.map-fog    { color: #111827; }
+
+/* HP/Resource bars */
+.bar-hp       { background-color: #22c55e; }
+.bar-hp-low   { background-color: #ef4444; }
+.bar-resource { background-color: #3b82f6; }
+
+/* Rarity colors */
+.rarity-common   { color: var(--color-rarity-common); }
+.rarity-uncommon { color: var(--color-rarity-uncommon); }
+.rarity-rare     { color: var(--color-rarity-rare); }
+.rarity-epic     { color: var(--color-rarity-epic); }
