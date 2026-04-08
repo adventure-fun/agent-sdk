@@ -7,6 +7,7 @@ import { realmRoutes } from "./routes/realms.js"
 import { lobbyRoutes } from "./routes/lobby.js"
 import { marketplaceRoutes } from "./routes/marketplace.js"
 import { leaderboardRoutes } from "./routes/leaderboard.js"
+import { contentRoutes } from "./routes/content.js"
 import { verifySession } from "./auth/jwt.js"
 import { db } from "./db/client.js"
 import {
@@ -33,6 +34,7 @@ app.route("/realms", realmRoutes)
 app.route("/lobby", lobbyRoutes)
 app.route("/marketplace", marketplaceRoutes)
 app.route("/leaderboard", leaderboardRoutes)
+app.route("/content", contentRoutes)
 
 const port = Number(process.env["PORT"] ?? 3001)
 console.log(`Adventure.fun server on :${port}`)

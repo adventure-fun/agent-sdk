@@ -6,19 +6,21 @@ import { useAdventureAuth } from "../hooks/use-adventure-auth"
 import { useCharacter } from "../hooks/use-character"
 import { useRealm } from "../hooks/use-realm"
 import { useGameSession } from "../hooks/use-game-session"
+import { useContent } from "../hooks/use-content"
+import type { ClassTemplateSummary, RealmTemplateSummary } from "../hooks/use-content"
 import { AsciiMap } from "../components/ascii-map"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useMemo } from "react"
 import type { CharacterClass, Action, Observation } from "@adventure-fun/schemas"
-import {
-  ALL_CLASSES,
-  CLASS_STAT_RANGES,
-  CLASS_RESOURCE_TYPE,
-  CLASS_DISPLAY_NAME,
-  CLASS_DESCRIPTION,
-  STAT_KEYS,
-  STAT_LABELS,
-} from "./class-data"
-import { REALM_TEMPLATES, ALL_TEMPLATE_IDS, REALM_STATUS_LABELS } from "./realm-data"
+
+const STAT_KEYS = ["hp", "attack", "defense", "accuracy", "evasion", "speed"] as const
+const STAT_LABELS: Record<string, string> = {
+  hp: "HP", attack: "Attack", defense: "Defense",
+  accuracy: "Accuracy", evasion: "Evasion", speed: "Speed",
+}
+const REALM_STATUS_LABELS: Record<string, string> = {
+  generated: "Ready", active: "In Progress", paused: "Paused",
+  boss_cleared: "Boss Cleared", completed: "Completed", dead_end: "Lost",
+}
 
 type PageStep = "loading" | "class-select" | "name-input" | "stat-reveal" | "hub" | "dungeon"
 
@@ -53,7 +55,27 @@ export default function PlayPage() {
 
   const gameSession = useGameSession()
 
+  const {
+    realmTemplates,
+    classTemplates,
+    fetchRealmTemplates,
+    fetchClassTemplates,
+  } = useContent()
+
   const { createEvmEoaAccount } = useCreateEvmEoaAccount()
+
+  // Build lookup maps from fetched content
+  const classMap = useMemo(() => {
+    const m: Record<string, ClassTemplateSummary> = {}
+    for (const c of classTemplates) m[c.id] = c
+    return m
+  }, [classTemplates])
+
+  const realmTemplateMap = useMemo(() => {
+    const m: Record<string, RealmTemplateSummary> = {}
+    for (const r of realmTemplates) m[r.id] = r
+    return m
+  }, [realmTemplates])
 
   // Creation flow state
   const [step, setStep] = useState<PageStep>("loading")
@@ -68,6 +90,12 @@ export default function PlayPage() {
   // Realm generation state
   const [generatingTemplate, setGeneratingTemplate] = useState<string | null>(null)
   const [realmError, setRealmError] = useState<string | null>(null)
+
+  // Fetch content on mount (public, no auth needed)
+  useEffect(() => {
+    fetchClassTemplates()
+    fetchRealmTemplates()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Create EVM wallet if signed in but no wallet exists
   useEffect(() => {
@@ -186,28 +214,29 @@ export default function PlayPage() {
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {ALL_CLASSES.map((cls) => (
+            {classTemplates.map((cls) => (
               <button
-                key={cls}
-                onClick={() => setSelectedClass(cls)}
+                key={cls.id}
+                onClick={() => setSelectedClass(cls.id as CharacterClass)}
                 className={`text-left p-4 rounded border transition-colors ${
-                  selectedClass === cls
+                  selectedClass === cls.id
                     ? "border-amber-400 bg-gray-900"
                     : "border-gray-800 bg-gray-900/50 hover:border-gray-600"
                 }`}
               >
                 <div className="flex items-center justify-between mb-2">
-                  <h2 className="text-lg font-bold text-amber-400">{CLASS_DISPLAY_NAME[cls]}</h2>
+                  <h2 className="text-lg font-bold text-amber-400">{cls.name}</h2>
                   <span className="text-xs text-gray-500 uppercase tracking-wider">
-                    {CLASS_RESOURCE_TYPE[cls]}
+                    {cls.resource_type}
                   </span>
                 </div>
-                <p className="text-gray-400 text-sm mb-3">{CLASS_DESCRIPTION[cls]}</p>
+                <p className="text-gray-400 text-sm mb-3">{cls.description}</p>
                 <div className="space-y-1">
                   {STAT_KEYS.map((stat) => {
-                    const range = CLASS_STAT_RANGES[cls]![stat]!
+                    const range = cls.stat_roll_ranges[stat]
+                    if (!range) return null
                     return (
-                      <StatRangeBar key={stat as string} label={STAT_LABELS[stat]!} min={range[0]} max={range[1]} />
+                      <StatRangeBar key={stat} label={STAT_LABELS[stat]!} min={range[0]} max={range[1]} />
                     )
                   })}
                 </div>
@@ -261,16 +290,16 @@ export default function PlayPage() {
     return (
       <main className="min-h-screen flex flex-col items-center p-8">
         <div className="max-w-lg w-full text-center space-y-6">
-          <h1 className="text-3xl font-bold text-amber-400">Name Your {CLASS_DISPLAY_NAME[selectedClass]}</h1>
+          <h1 className="text-3xl font-bold text-amber-400">Name Your {classMap[selectedClass]?.name ?? selectedClass}</h1>
 
           <div className="bg-gray-900 border border-gray-800 rounded p-4 text-sm text-left w-full max-w-md mx-auto">
             <p>
               <span className="text-gray-500">Class:</span>{" "}
-              <span className="text-gray-300">{CLASS_DISPLAY_NAME[selectedClass]}</span>
+              <span className="text-gray-300">{classMap[selectedClass]?.name ?? selectedClass}</span>
             </p>
             <p>
               <span className="text-gray-500">Resource:</span>{" "}
-              <span className="text-gray-300 capitalize">{CLASS_RESOURCE_TYPE[selectedClass]}</span>
+              <span className="text-gray-300 capitalize">{classMap[selectedClass]?.resource_type ?? ""}</span>
             </p>
           </div>
 
@@ -300,7 +329,7 @@ export default function PlayPage() {
             <div className="bg-gray-900 border border-amber-400/50 rounded p-4 text-sm space-y-3 w-full max-w-md mx-auto">
               <p className="text-gray-300">
                 Create <span className="text-amber-400 font-bold">{trimmedName}</span> the{" "}
-                <span className="text-amber-400 font-bold">{CLASS_DISPLAY_NAME[selectedClass]}</span>?
+                <span className="text-amber-400 font-bold">{classMap[selectedClass]?.name ?? selectedClass}</span>?
               </p>
               <p className="text-gray-500 text-xs">
                 This is irreversible. Your stats will be rolled randomly within your class ranges.
@@ -368,17 +397,18 @@ export default function PlayPage() {
       <Shell wide>
         <h1 className="text-3xl font-bold text-amber-400">{character.name}</h1>
         <p className="text-gray-400 text-sm">
-          Level {character.level} {CLASS_DISPLAY_NAME[cls]} — {character.gold} gold
+          Level {character.level} {classMap[cls]?.name ?? cls} — {character.gold} gold
         </p>
 
         <div className="bg-gray-900 border border-gray-800 rounded p-4 w-full space-y-2">
           <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">Rolled Stats</h2>
           {STAT_KEYS.map((stat) => {
-            const range = CLASS_STAT_RANGES[cls]![stat]!
+            const range = classMap[cls]?.stat_roll_ranges[stat]
             const value = stats[stat]
+            if (!range) return null
             return (
               <StatValueBar
-                key={stat as string}
+                key={stat}
                 label={STAT_LABELS[stat]!}
                 value={value}
                 min={range[0]}
@@ -558,7 +588,7 @@ export default function PlayPage() {
             <div className="flex items-center justify-between">
               <h2 className="text-amber-400 font-bold">{character.name}</h2>
               <span className="text-gray-500 text-xs">
-                Level {character.level} {CLASS_DISPLAY_NAME[character.class]}
+                Level {character.level} {classMap[character.class]?.name ?? character.class}
               </span>
             </div>
             <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs">
@@ -571,7 +601,7 @@ export default function PlayPage() {
                 <span className="text-gray-300">{character.gold}</span>
               </p>
               <p>
-                <span className="text-gray-500">{CLASS_RESOURCE_TYPE[character.class]}:</span>{" "}
+                <span className="text-gray-500 capitalize">{classMap[character.class]?.resource_type ?? "resource"}:</span>{" "}
                 <span className="text-gray-300 capitalize">{character.resource_current}/{character.resource_max}</span>
               </p>
               <p>
@@ -594,7 +624,7 @@ export default function PlayPage() {
 
             {/* Existing realms */}
             {realms.map((realm) => {
-              const template = REALM_TEMPLATES[realm.template_id as keyof typeof REALM_TEMPLATES]
+              const template = realmTemplateMap[realm.template_id]
               const statusLabel = REALM_STATUS_LABELS[realm.status] ?? realm.status
               const canEnter = realm.status === "generated" || realm.status === "paused" || realm.status === "active"
 
@@ -634,16 +664,15 @@ export default function PlayPage() {
             })}
 
             {/* Generate new realm */}
-            {ALL_TEMPLATE_IDS.map((templateId) => {
-              const existing = realms.find((r) => r.template_id === templateId)
+            {realmTemplates.filter((t) => !t.is_tutorial).map((template) => {
+              const existing = realms.find((r) => r.template_id === template.id)
               if (existing && existing.status !== "completed" && existing.status !== "dead_end") return null
 
-              const template = REALM_TEMPLATES[templateId]
               const isFree = !realms.some((r) => r.is_free)
 
               return (
                 <div
-                  key={templateId}
+                  key={template.id}
                   className="bg-gray-900/50 border border-dashed border-gray-700 rounded p-4"
                 >
                   <div className="flex items-center justify-between mb-2">
@@ -654,11 +683,11 @@ export default function PlayPage() {
                   </div>
                   <p className="text-gray-600 text-xs mb-3">{template.description}</p>
                   <button
-                    onClick={() => handleGenerateRealm(templateId)}
+                    onClick={() => handleGenerateRealm(template.id)}
                     disabled={generatingTemplate !== null}
                     className="px-4 py-1 bg-amber-500 hover:bg-amber-400 text-black font-bold text-sm rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   >
-                    {generatingTemplate === templateId ? "Generating..." : "Generate Realm"}
+                    {generatingTemplate === template.id ? "Generating..." : "Generate Realm"}
                   </button>
                 </div>
               )

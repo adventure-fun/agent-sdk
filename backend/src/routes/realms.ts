@@ -1,15 +1,15 @@
 import { Hono } from "hono"
 import { db } from "../db/client.js"
 import { requireAuth } from "../auth/middleware.js"
-import { generateRealm } from "@adventure-fun/engine"
+import { generateRealm, REALMS } from "@adventure-fun/engine"
 
 const realms = new Hono()
 
-const VALID_TEMPLATES = ["sunken-crypt", "collapsed-mines"] as const
-const TEMPLATE_VERSIONS: Record<string, number> = {
-  "sunken-crypt": 1,
-  "collapsed-mines": 1,
-}
+// Derive valid templates from engine content
+const VALID_TEMPLATES = Object.keys(REALMS)
+const TEMPLATE_VERSIONS: Record<string, number> = Object.fromEntries(
+  Object.values(REALMS).map((r) => [r.id, r.version ?? 1]),
+)
 
 // GET /realms/mine
 realms.get("/mine", requireAuth, async (c) => {
@@ -39,7 +39,7 @@ realms.post("/generate", requireAuth, async (c) => {
   const { account_id } = c.get("session")
   const body = await c.req.json<{ template_id: string }>()
 
-  if (!VALID_TEMPLATES.includes(body.template_id as typeof VALID_TEMPLATES[number])) {
+  if (!VALID_TEMPLATES.includes(body.template_id)) {
     return c.json({ error: `Invalid template. Choose: ${VALID_TEMPLATES.join(", ")}` }, 400)
   }
 
