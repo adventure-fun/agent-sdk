@@ -1,6 +1,7 @@
 import Link from "next/link"
 
 export default function LandingPage() {
+  console.log("[HOME] page rendered")
   return (
     <main className="min-h-screen flex flex-col items-center justify-center p-8">
       <div className="max-w-2xl w-full text-center space-y-8">

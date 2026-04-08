@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
+    "dev": "next dev --turbopack -p 5555 -H 127.0.0.1",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -13,6 +13,9 @@
   "dependencies": {
     "@adventure-fun/agent-sdk": "*",
     "@adventure-fun/schemas": "*",
+    "@coinbase/cdp-core": "^0.0.98",
+    "@coinbase/cdp-hooks": "^0.0.98",
+    "@coinbase/cdp-react": "^0.0.98",
     "@tailwindcss/postcss": "^4.2.2",
     "next": "^16.2.0",
     "react": "^19.0.0",
