@@ -1,15 +1,13 @@
 "use client"
 
-import { useIsSignedIn, useIsInitialized } from "@coinbase/cdp-hooks"
+import { useIsSignedIn, useIsInitialized, useCreateEvmEoaAccount } from "@coinbase/cdp-hooks"
 import { AuthButton } from "@coinbase/cdp-react/components/AuthButton"
 import { useAdventureAuth } from "../hooks/use-adventure-auth"
 import { useEffect } from "react"
 
 export default function PlayPage() {
-  console.log("[PLAY] page rendered")
   const { isInitialized } = useIsInitialized()
   const { isSignedIn } = useIsSignedIn()
-  console.log("[PLAY] isInitialized:", isInitialized, "isSignedIn:", isSignedIn)
   const {
     evmAddress,
     isAuthenticated,
@@ -20,9 +18,17 @@ export default function PlayPage() {
     logout,
   } = useAdventureAuth()
 
+  const { createEvmEoaAccount } = useCreateEvmEoaAccount()
+
+  // Create EVM wallet if signed in but no wallet exists
+  useEffect(() => {
+    if (isSignedIn && !evmAddress) {
+      createEvmEoaAccount().catch(() => {})
+    }
+  }, [isSignedIn, evmAddress, createEvmEoaAccount])
+
   // Auto-connect to backend once CDP sign-in gives us a wallet
   useEffect(() => {
-    console.log("[PLAY] useEffect fired — isSignedIn:", isSignedIn, "evmAddress:", evmAddress, "isAuthenticated:", isAuthenticated, "isConnecting:", isConnecting)
     if (isSignedIn && evmAddress && !isAuthenticated && !isConnecting) {
       connect()
     }
