@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import type { SpectatorObservation } from "@adventure-fun/schemas"
+import { AsciiMap } from "../../components/ascii-map"
 
 interface Props {
   params: Promise<{ characterId: string }>
@@ -48,9 +49,11 @@ export default function SpectatePage({ params }: Props) {
           <div className="grid grid-cols-3 gap-4">
             {/* Map */}
             <div className="col-span-2 border border-gray-800 rounded p-4 bg-gray-950">
-              <pre className="text-xs leading-none font-mono text-gray-400">
-                {renderSpectatorMap(observation)}
-              </pre>
+              <AsciiMap
+                visibleTiles={observation.visible_tiles}
+                playerPosition={observation.position.tile}
+                entities={observation.visible_entities}
+              />
             </div>
 
             {/* Status */}
@@ -105,47 +108,4 @@ export default function SpectatePage({ params }: Props) {
       </div>
     </main>
   )
-}
-
-function renderSpectatorMap(obs: SpectatorObservation): string {
-  const { visible_tiles, position } = obs
-  if (visible_tiles.length === 0) return "No map data"
-
-  const xs = visible_tiles.map(t => t.x)
-  const ys = visible_tiles.map(t => t.y)
-  const minX = Math.min(...xs)
-  const maxX = Math.max(...xs)
-  const minY = Math.min(...ys)
-  const maxY = Math.max(...ys)
-
-  const tileMap = new Map(visible_tiles.map(t => [`${t.x},${t.y}`, t]))
-  const entityMap = new Map(
-    obs.visible_entities.map(e => [`${e.position.x},${e.position.y}`, e])
-  )
-
-  const rows: string[] = []
-  for (let y = minY; y <= maxY; y++) {
-    let row = ""
-    for (let x = minX; x <= maxX; x++) {
-      const key = `${x},${y}`
-      if (x === position.tile.x && y === position.tile.y) {
-        row += "@"
-      } else if (entityMap.has(key)) {
-        const entity = entityMap.get(key)!
-        row += entity.type === "enemy" ? "E" : "?"
-      } else {
-        const tile = tileMap.get(key)
-        if (!tile) { row += " "; continue }
-        switch (tile.type) {
-          case "wall": row += "#"; break
-          case "floor": row += "."; break
-          case "door": row += "D"; break
-          case "stairs": row += ">"; break
-          default: row += "."
-        }
-      }
-    }
-    rows.push(row)
-  }
-  return rows.join("\n")
 }
