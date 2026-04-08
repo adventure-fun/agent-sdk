@@ -82,6 +82,11 @@ export default {
 
       if (!realm) return new Response("Realm not found", { status: 404 })
 
+      // Guard: reject completed or dead_end realms (must regenerate first)
+      if (realm.status === "completed" || realm.status === "dead_end") {
+        return new Response("Realm is finished — regenerate to play again", { status: 409 })
+      }
+
       // Mark realm as active
       await db.from("realm_instances")
         .update({ status: "active" })
@@ -110,8 +115,8 @@ export default {
     async message(ws: ServerWebSocket<GameSessionData>, message: string | Buffer) {
       await handleGameMessage(ws, message)
     },
-    close(ws: ServerWebSocket<GameSessionData>) {
-      handleGameClose(ws)
+    async close(ws: ServerWebSocket<GameSessionData>) {
+      await handleGameClose(ws)
     },
   },
 }

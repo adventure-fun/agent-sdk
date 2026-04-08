@@ -127,6 +127,81 @@ export interface Character {
   died_at?: string
 }
 
+// ---- Game State (in-memory session model) -------------------
+
+export type MutationType =
+  | "killed"
+  | "opened"
+  | "trap_triggered"
+  | "unlocked"
+  | "looted"
+  | "used"
+  | "discovered"
+
+/** A permanent world state change written to realm_mutations */
+export interface WorldMutation {
+  entity_id: string          // deterministic ID from generateRealm(), e.g. f1_r2_encounter_01_enemy_00
+  mutation: MutationType
+  floor: number
+  metadata: Record<string, unknown>
+}
+
+/** Result of resolving a single turn via the engine */
+export interface TurnResult {
+  newState: GameState
+  worldMutations: WorldMutation[]   // empty for moves/waits, populated for kills/opens/etc.
+  observation: Observation
+  summary: string                   // human-readable description for event buffer
+  roomChanged: boolean              // true if player entered a new room
+  notableEvents: LobbyEvent[]      // deaths, boss kills, completions → lobby feed
+}
+
+/** Full in-memory game state held by the server during a session */
+export interface GameState {
+  realm: {
+    template_id: string
+    template_version: number
+    seed: number
+    total_floors: number
+  }
+  character: {
+    id: string
+    class: CharacterClass
+    level: number
+    xp: number
+    gold: number
+    hp: { current: number; max: number }
+    resource: { type: ResourceType; current: number; max: number }
+    stats: CharacterStats
+    effective_stats: CharacterStats
+    buffs: ActiveEffect[]
+    debuffs: ActiveEffect[]
+    cooldowns: Record<string, number>
+  }
+  position: {
+    floor: number
+    room_id: string
+    tile: { x: number; y: number }
+  }
+  inventory: InventoryItem[]
+  equipment: Record<EquipSlot, InventoryItem | null>
+  /** Current floor/room layouts with entities (post-mutation) */
+  activeFloor: {
+    rooms: Array<{
+      id: string
+      tiles: Tile[][]
+      enemies: Array<{ id: string; template_id: string; hp: number; hp_max: number; position: { x: number; y: number } }>
+      items: Array<{ id: string; template_id: string; position: { x: number; y: number } }>
+    }>
+  }
+  /** Tiles the player has seen — persisted to realm_discovered_map */
+  discoveredTiles: Record<number, Array<{ x: number; y: number }>>
+  /** IDs of entities that have been mutated (killed, opened, looted, used, etc.) */
+  mutatedEntities: string[]
+  /** Realm completion state */
+  realmStatus: "active" | "boss_floor" | "boss_cleared"
+}
+
 // ---- Realm --------------------------------------------------
 
 export type RealmStatus =

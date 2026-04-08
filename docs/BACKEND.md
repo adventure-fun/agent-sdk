@@ -56,7 +56,7 @@
 │  - characters                 - active game state cache  │
 │  - realm instances + deltas   - rate limit counters      │
 │  - inventory                  - leaderboard cache        │
-│  - run events                 - pub/sub channels         │
+│  - run logs (per-session)     - pub/sub channels         │
 │  - leaderboard snapshots      - lobby chat buffer        │
 │  - lore discovered            - lobby activity buffer    │
 │  - corpse containers                                     │
@@ -159,28 +159,39 @@ CREATE TABLE realm_discovered_map (
   PRIMARY KEY (realm_instance_id, floor)
 );
 
--- Inventory Items
+-- Inventory Items (polymorphic owner — character, escrow, or corpse)
 CREATE TABLE inventory_items (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  character_id UUID REFERENCES characters(id) NOT NULL,
+  character_id UUID REFERENCES characters(id) NOT NULL,  -- original owner (for audit)
+  owner_type TEXT NOT NULL DEFAULT 'character'
+    CHECK (owner_type IN ('character', 'escrow', 'corpse')),
+  owner_id UUID NOT NULL,            -- character_id, listing_id, or corpse_container_id
   template_id TEXT NOT NULL,
-  slot TEXT,                        -- null = unequipped inventory, 'weapon'/'armor'/etc = equipped
+  slot TEXT,                         -- null = unequipped, 'weapon'/'armor'/etc = equipped
   quantity INTEGER DEFAULT 1,
   modifiers JSONB,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Run Events (append-only, enables future replay)
-CREATE TABLE run_events (
-  id BIGSERIAL PRIMARY KEY,
+CREATE INDEX idx_inventory_owner ON inventory_items(owner_type, owner_id);
+
+-- Run Logs (one row per dungeon session, replaces per-turn run_events)
+-- See DATABASE_WRITES.md for full specification
+CREATE TABLE run_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   realm_instance_id UUID REFERENCES realm_instances(id) NOT NULL,
-  turn INTEGER NOT NULL,
-  event_type TEXT NOT NULL,
-  payload JSONB NOT NULL,
+  character_id UUID REFERENCES characters(id) NOT NULL,
+  started_at TIMESTAMPTZ NOT NULL,
+  ended_at TIMESTAMPTZ NOT NULL,
+  end_reason TEXT NOT NULL CHECK (end_reason IN ('death', 'extraction', 'disconnect')),
+  total_turns INTEGER NOT NULL,
+  events JSONB NOT NULL,              -- full action log as array (buffered in memory, written once)
+  summary JSONB NOT NULL,             -- pre-aggregated stats for quick queries
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_events_instance ON run_events(realm_instance_id);
+CREATE INDEX idx_run_logs_character ON run_logs(character_id);
+CREATE INDEX idx_run_logs_realm ON run_logs(realm_instance_id);
 
 -- Leaderboard Entries (denormalized snapshot)
 CREATE TABLE leaderboard_entries (
@@ -208,17 +219,19 @@ CREATE TABLE lore_discovered (
   PRIMARY KEY (character_id, lore_entry_id)
 );
 
--- Corpse Containers
+-- Corpse Containers (items stored via inventory_items with owner_type='corpse')
 CREATE TABLE corpse_containers (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   realm_instance_id UUID REFERENCES realm_instances(id) NOT NULL,
+  character_id UUID REFERENCES characters(id) NOT NULL,
   floor INTEGER NOT NULL,
   room_id TEXT NOT NULL,
   tile_x INTEGER NOT NULL,
   tile_y INTEGER NOT NULL,
-  items JSONB NOT NULL,             -- array of item snapshots
+  gold_amount INTEGER DEFAULT 0,    -- gold snapshot (lost on death, stored for legend)
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+-- Corpse items: inventory_items WHERE owner_type='corpse' AND owner_id=corpse_container.id
 
 -- Payment Log
 CREATE TABLE payment_log (
@@ -421,10 +434,12 @@ class GameSession {
 
 ### Disconnect Recovery
 
-- Server holds game state in memory + periodic checkpoint to DB
+- Server holds game state in memory (see `DATABASE_WRITES.md` for in-memory session architecture)
 - Agent reconnects → receives latest observation → resumes
 - Pending enemy turns resolve on reconnect
-- If server restarts, reload from last DB checkpoint + replay run_events
+- If server restarts or player reconnects to a different Railway instance, cold rebuild from DB: `generateRealm(seed)` + apply `realm_mutations` + load `realm_discovered_map` + restore player position from `realm_instances`
+- Session locking via Redis prevents two servers from holding state for the same realm simultaneously (see `DATABASE_WRITES.md` section 5a)
+- `run_events` table is deprecated — replaced by in-memory event buffer flushed to `run_logs` on session end (see `DATABASE_WRITES.md` section 4)
 
 ---
 
