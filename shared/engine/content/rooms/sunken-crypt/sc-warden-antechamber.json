@@ -1,0 +1,23 @@
+{
+  "id": "sc-warden-antechamber",
+  "type": "combat",
+  "size": { "width": 7, "height": 7 },
+  "text_first_visit": "A high-ceilinged chamber before the final door. Skeleton warriors stand in formation — an honor guard, still at their posts after centuries. They do not move until you do.",
+  "text_revisit": "The antechamber. Dust and bones.",
+  "interactables": [],
+  "enemy_slots": [
+    {
+      "enemy_template_id": "skeleton-warrior",
+      "position": "random",
+      "count": { "min": 2, "max": 3 }
+    }
+  ],
+  "loot_slots": [
+    {
+      "loot_table_id": "sc-skeleton-loot",
+      "container": "floor_drop",
+      "position": "random"
+    }
+  ],
+  "triggers": []
+}

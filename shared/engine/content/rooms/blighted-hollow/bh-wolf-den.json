@@ -1,0 +1,23 @@
+{
+  "id": "bh-wolf-den",
+  "type": "combat",
+  "size": { "width": 9, "height": 7 },
+  "text_first_visit": "Gnawed bones litter the floor of this wide cave. Two wolves pace at the far end — too large, too still, their fur matted with violet sap. They watch you with an intelligence that wolves should not have.",
+  "text_revisit": "The den. It still smells of wet fur and decay.",
+  "interactables": [],
+  "enemy_slots": [
+    {
+      "enemy_template_id": "blighted-wolf",
+      "position": "random",
+      "count": { "min": 2, "max": 2 }
+    }
+  ],
+  "loot_slots": [
+    {
+      "loot_table_id": "bh-minor-loot",
+      "container": "floor_drop",
+      "position": "random"
+    }
+  ],
+  "triggers": []
+}

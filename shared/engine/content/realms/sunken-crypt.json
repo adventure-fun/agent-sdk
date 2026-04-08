@@ -88,17 +88,18 @@
     }
   ],
   "room_templates": [
-    "crypt-antechamber",
-    "mural-hall",
-    "skeleton-guard-room",
-    "side-crypt",
-    "flooded-tomb",
-    "waterlogged-corridor",
-    "wall-carving-chamber",
-    "rest-shrine",
-    "warden-antechamber",
-    "warden-chamber",
-    "treasure-vault"
+    "sc-entry-hall",
+    "sc-gallery",
+    "sc-side-vault",
+    "sc-offering-room",
+    "sc-flooded-passage",
+    "sc-submerged-hall",
+    "sc-tomb-of-whispers",
+    "sc-drowned-vault",
+    "sc-rest-shrine",
+    "sc-warden-antechamber",
+    "sc-warden-chamber",
+    "sc-treasure-vault"
   ],
   "narrative": {
     "theme_description": "The Sunken Crypt is the ancient burial site of the first Guardian — a warrior who sealed the Hollow by absorbing part of its corruption. Over centuries, the Hollow corrupted the Guardian, transforming them into the Hollow Warden. The crypt's flooded halls are haunted by the undead remains of those who came to pay respects and never left.",

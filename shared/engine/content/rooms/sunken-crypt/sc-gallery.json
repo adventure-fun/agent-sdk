@@ -1,0 +1,23 @@
+{
+  "id": "sc-gallery",
+  "type": "combat",
+  "size": { "width": 9, "height": 7 },
+  "text_first_visit": "A long gallery lined with stone pillars. Between them, armored figures stand motionless — no, not statues. Skeletons in corroded plate, gripping rusted swords. As you step forward, two of them turn their heads.",
+  "text_revisit": "The gallery. The remaining statues stare ahead, waiting.",
+  "interactables": [],
+  "enemy_slots": [
+    {
+      "enemy_template_id": "skeleton-warrior",
+      "position": "random",
+      "count": { "min": 2, "max": 3 }
+    }
+  ],
+  "loot_slots": [
+    {
+      "loot_table_id": "sc-skeleton-loot",
+      "container": "floor_drop",
+      "position": "random"
+    }
+  ],
+  "triggers": []
+}

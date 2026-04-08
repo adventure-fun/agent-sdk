@@ -1,0 +1,28 @@
+{
+  "id": "sc-offering-room",
+  "type": "event",
+  "size": { "width": 7, "height": 7 },
+  "text_first_visit": "An octagonal room with a sunken floor. At the center, a stone altar bears dried flowers and shattered pottery — offerings from long ago. A locked iron door leads deeper. Stairs descend into darkness.",
+  "text_revisit": "The offering room. The altar is undisturbed.",
+  "interactables": [
+    {
+      "id": "sc-locked-door-f2",
+      "name": "Locked Iron Door",
+      "text_on_interact": "The crypt key fits. The door groans open, revealing stairs descending into flooded darkness.",
+      "conditions": [{ "type": "has_item", "item_id": "crypt-key" }],
+      "effects": [{ "type": "unlock_door", "entity_id": "sc-locked-door-f2" }],
+      "lore_entry_id": null
+    },
+    {
+      "id": "sc-altar",
+      "name": "Stone Altar",
+      "text_on_interact": "The offerings are centuries old. Whoever left them was honoring the dead — or asking for forgiveness.",
+      "conditions": [],
+      "effects": [{ "type": "reveal_lore", "lore_id": "sc-altar-offerings" }],
+      "lore_entry_id": "sc-altar-offerings"
+    }
+  ],
+  "enemy_slots": [],
+  "loot_slots": [],
+  "triggers": []
+}

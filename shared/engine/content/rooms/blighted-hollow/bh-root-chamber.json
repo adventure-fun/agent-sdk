@@ -1,0 +1,26 @@
+{
+  "id": "bh-root-chamber",
+  "type": "event",
+  "size": { "width": 7, "height": 7 },
+  "text_first_visit": "Massive roots descend from above, forming a tangled lattice across the chamber. Between the roots, fragments of carved stone are visible — this was a structure once, before the forest consumed it.",
+  "text_revisit": "The roots creak faintly. The carved stone beneath them is ancient.",
+  "interactables": [
+    {
+      "id": "bh-carved-stone",
+      "name": "Carved Stone Fragment",
+      "text_on_interact": "The carving depicts a figure in a ranger's cloak, hands pressed against a dark mass. Light radiates from the figure's chest into the darkness. Below, in a script you can barely read: 'The First Seal — the Ranger's Sacrifice.'",
+      "conditions": [],
+      "effects": [{ "type": "reveal_lore", "lore_id": "bh-first-seal" }],
+      "lore_entry_id": "bh-first-seal"
+    }
+  ],
+  "enemy_slots": [],
+  "loot_slots": [
+    {
+      "loot_table_id": "bh-equipment-loot",
+      "container": "chest",
+      "position": { "x": 3, "y": 1 }
+    }
+  ],
+  "triggers": []
+}

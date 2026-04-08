@@ -1,0 +1,46 @@
+{
+  "id": "sc-warden-chamber",
+  "type": "boss",
+  "size": { "width": 10, "height": 10 },
+  "text_first_visit": "The final chamber. Vast, circular, ringed with unlit braziers. At the center, a figure in blackened plate armor kneels before a cracked stone seal — the same violet light bleeding through. The figure rises slowly. Its eyes burn violet. It speaks in a voice like grinding stone: 'You should not have come. I cannot stop what I am becoming.'",
+  "text_revisit": null,
+  "interactables": [
+    {
+      "id": "sc-brazier-north",
+      "name": "Unlit Brazier",
+      "text_on_interact": "You light the brazier. Pale blue flame erupts. The Warden flinches.",
+      "conditions": [],
+      "effects": [{ "type": "grant_quest_flag", "flag": "brazier_north_lit" }],
+      "lore_entry_id": null
+    },
+    {
+      "id": "sc-brazier-south",
+      "name": "Unlit Brazier",
+      "text_on_interact": "Another brazier lit. The Warden's armor cracks, violet light leaking from the seams.",
+      "conditions": [],
+      "effects": [{ "type": "grant_quest_flag", "flag": "brazier_south_lit" }],
+      "lore_entry_id": null
+    }
+  ],
+  "enemy_slots": [
+    {
+      "enemy_template_id": "hollow-warden",
+      "position": { "x": 5, "y": 5 },
+      "count": { "min": 1, "max": 1 }
+    }
+  ],
+  "loot_slots": [],
+  "triggers": [
+    {
+      "conditions": [
+        { "type": "has_flag", "flag": "brazier_north_lit" },
+        { "type": "has_flag", "flag": "brazier_south_lit" }
+      ],
+      "effects": [
+        { "type": "modify_enemy_stat", "entity_id": "f3_r3_enemy_01", "stat": "defense", "modifier": -0.4 },
+        { "type": "show_text", "text": "The brazier light washes over the Warden. Its armor splits and falls away, revealing withered flesh beneath. The Warden is weakened." }
+      ],
+      "fire_once": true
+    }
+  ]
+}

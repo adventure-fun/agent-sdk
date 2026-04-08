@@ -1,0 +1,32 @@
+{
+  "id": "sc-submerged-hall",
+  "type": "combat",
+  "size": { "width": 9, "height": 9 },
+  "text_first_visit": "A grand burial hall, half-submerged. Stone coffins rise from the water like islands. The ceiling is high enough that your torchlight doesn't reach it. Movement in the water — more than one.",
+  "text_revisit": "The submerged hall. The water is still, but you know better.",
+  "interactables": [
+    {
+      "id": "sc-wall-carving",
+      "name": "Wall Carving",
+      "text_on_interact": "A carved relief shows a knight in full plate, standing before a great door. The knight is pressing a sword into the door — no, into a creature behind the door. The inscription: 'The Warden chose to remain. The seal required a soul, and he gave his.'",
+      "conditions": [],
+      "effects": [{ "type": "reveal_lore", "lore_id": "sc-warden-sacrifice" }],
+      "lore_entry_id": "sc-warden-sacrifice"
+    }
+  ],
+  "enemy_slots": [
+    {
+      "enemy_template_id": "drowned-husk",
+      "position": "random",
+      "count": { "min": 2, "max": 3 }
+    }
+  ],
+  "loot_slots": [
+    {
+      "loot_table_id": "sc-tomb-loot",
+      "container": "chest",
+      "position": { "x": 7, "y": 1 }
+    }
+  ],
+  "triggers": []
+}

@@ -1,0 +1,20 @@
+{
+  "id": "sc-tomb-of-whispers",
+  "type": "event",
+  "size": { "width": 7, "height": 7 },
+  "text_first_visit": "The water recedes here. The walls are covered in writing — thousands of lines, scratched in different hands over centuries. Prayers, warnings, confessions. And repeated, over and over: 'The Warden's armor weakens when the braziers are lit.'",
+  "text_revisit": "The room of whispers. The walls still speak if you read them.",
+  "interactables": [
+    {
+      "id": "sc-whisper-wall",
+      "name": "Inscribed Walls",
+      "text_on_interact": "You read fragments: 'He was a good man before the seal took him.' 'The violet is in his eyes now.' 'Light the braziers. It is the only mercy we can offer.' 'Forgive us, Warden. We could not free you.'",
+      "conditions": [],
+      "effects": [{ "type": "reveal_lore", "lore_id": "sc-brazier-hint" }],
+      "lore_entry_id": "sc-brazier-hint"
+    }
+  ],
+  "enemy_slots": [],
+  "loot_slots": [],
+  "triggers": []
+}

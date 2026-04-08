@@ -28,10 +28,7 @@
     }
   ],
   "trap_types": [],
-  "room_templates": [
-    "tutorial-storeroom",
-    "tutorial-burrow"
-  ],
+  "room_templates": ["tutorial-storeroom", "tutorial-burrow"],
   "narrative": {
     "theme_description": "The cellar beneath the old inn. Dusty, damp, and recently disturbed by something unnatural.",
     "room_text_pool": [

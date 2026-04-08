@@ -1,0 +1,25 @@
+{
+  "id": "sc-drowned-vault",
+  "type": "treasure",
+  "size": { "width": 5, "height": 5 },
+  "text_first_visit": "A sealed chamber, recently cracked open by water pressure. Inside, remarkably dry: a weapons rack and an armor stand, preserved by the seal. This was the Warden's personal armory.",
+  "text_revisit": "The Warden's armory. What remains is yours.",
+  "interactables": [],
+  "enemy_slots": [],
+  "loot_slots": [
+    {
+      "loot_table_id": "sc-rare-equipment",
+      "container": "chest",
+      "position": { "x": 2, "y": 2 }
+    },
+    {
+      "loot_table_id": "sc-consumable-loot",
+      "container": "chest",
+      "position": { "x": 4, "y": 2 },
+      "trapped": true,
+      "trap_damage": 20,
+      "trap_effect": null
+    }
+  ],
+  "triggers": []
+}

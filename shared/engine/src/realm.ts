@@ -1,5 +1,6 @@
-import type { RealmTemplate, Tile, TileType } from "@adventure-fun/schemas"
+import type { RealmTemplate, RoomTemplate, Tile, TileType } from "@adventure-fun/schemas"
 import { SeededRng, deriveSeed } from "./rng.js"
+import { ROOMS } from "./content.js"
 
 export interface GeneratedRoom {
   id: string          // deterministic: f{floor}_r{room}_{type}_{index}
@@ -68,7 +69,8 @@ export function generateRealm(
 
 /**
  * Generates a handcrafted realm from a template with procedural: false.
- * Uses room_templates in order to produce a fixed layout.
+ * Uses room_templates in order, looking up actual RoomTemplate JSON for
+ * size, text, enemy slots, and loot slots.
  */
 function generateHandcraftedRealm(
   template: RealmTemplate,
@@ -82,31 +84,12 @@ function generateHandcraftedRealm(
   let roomOffset = 0
   for (let f = 1; f <= floorCount; f++) {
     const isFinalFloor = f === floorCount
-    // Distribute room templates across floors evenly
     const roomsPerFloor = Math.ceil(roomTemplateIds.length / floorCount)
     const floorRoomIds = roomTemplateIds.slice(roomOffset, roomOffset + roomsPerFloor)
     roomOffset += roomsPerFloor
 
     const rooms: GeneratedRoom[] = floorRoomIds.map((templateId, index) => {
-      const id = `f${f}_r${index}_${templateId}`
-      const textPool = template.narrative.room_text_pool
-      const description = textPool.length > 0
-        ? textPool[index % textPool.length].text
-        : "You enter the room."
-
-      return {
-        id,
-        type: templateId,
-        width: 7,
-        height: 7,
-        tiles: buildRoomTiles(7, 7),
-        enemy_ids: [],
-        item_ids: [],
-        trap_ids: [],
-        connections: [],
-        description_first_visit: description,
-        description_revisit: null,
-      }
+      return generateRoomFromTemplate(templateId, f, index)
     })
 
     // Wire rooms linearly
@@ -130,6 +113,68 @@ function generateHandcraftedRealm(
     seed,
     floors,
     total_floors: floorCount,
+  }
+}
+
+/**
+ * Generates a room from a RoomTemplate definition.
+ * Uses the actual template data for size, text, enemy placement, and loot.
+ * Falls back to defaults if no template is found in the ROOMS registry.
+ */
+function generateRoomFromTemplate(
+  templateId: string,
+  floor: number,
+  index: number,
+): GeneratedRoom {
+  const roomTemplate = ROOMS[templateId]
+  const id = `f${floor}_r${index}_${templateId}`
+
+  if (!roomTemplate) {
+    // Fallback for room IDs not yet in the registry
+    return {
+      id,
+      type: templateId,
+      width: 7,
+      height: 7,
+      tiles: buildRoomTiles(7, 7),
+      enemy_ids: [],
+      item_ids: [],
+      trap_ids: [],
+      connections: [],
+      description_first_visit: "You enter the room.",
+      description_revisit: null,
+    }
+  }
+
+  const { width, height } = roomTemplate.size
+  const tiles = buildRoomTiles(width, height)
+
+  // Generate enemy entity IDs from enemy_slots
+  const enemy_ids: string[] = []
+  for (const slot of roomTemplate.enemy_slots) {
+    const count = slot.count.max // handcrafted uses fixed counts
+    for (let e = 0; e < count; e++) {
+      enemy_ids.push(`${id}_enemy_${String(enemy_ids.length).padStart(2, "0")}`)
+    }
+  }
+
+  // Generate item entity IDs from loot_slots
+  const item_ids: string[] = roomTemplate.loot_slots.map(
+    (_, i) => `${id}_loot_${String(i).padStart(2, "0")}`
+  )
+
+  return {
+    id,
+    type: roomTemplate.type,
+    width,
+    height,
+    tiles,
+    enemy_ids,
+    item_ids,
+    trap_ids: [],
+    connections: [],
+    description_first_visit: roomTemplate.text_first_visit,
+    description_revisit: roomTemplate.text_revisit,
   }
 }
 
@@ -186,6 +231,50 @@ function generateRoom(
   type: string,
   _isFinalFloor: boolean,
 ): GeneratedRoom {
+  // For procedural generation, try to pick a matching room template by type
+  const matchingTemplates = template.room_templates
+    .map((id) => ROOMS[id])
+    .filter((rt): rt is RoomTemplate => rt != null && rt.type === type)
+
+  if (matchingTemplates.length > 0) {
+    const roomTemplate = rng.pick(matchingTemplates)
+    const id = `f${floor}_r${index}_${roomTemplate.id}`
+    const { width, height } = roomTemplate.size
+    const tiles = buildRoomTiles(width, height)
+
+    const enemy_ids: string[] = []
+    for (const slot of roomTemplate.enemy_slots) {
+      const count = rng.nextInt(slot.count.min, slot.count.max)
+      for (let e = 0; e < count; e++) {
+        enemy_ids.push(`${id}_enemy_${String(enemy_ids.length).padStart(2, "0")}`)
+      }
+    }
+
+    const item_ids: string[] = roomTemplate.loot_slots.map(
+      (_, i) => `${id}_loot_${String(i).padStart(2, "0")}`
+    )
+
+    const trap_ids: string[] = []
+    if (type === "trap") {
+      trap_ids.push(`${id}_trap_00`)
+    }
+
+    return {
+      id,
+      type: roomTemplate.type,
+      width,
+      height,
+      tiles,
+      enemy_ids,
+      item_ids,
+      trap_ids,
+      connections: [],
+      description_first_visit: roomTemplate.text_first_visit,
+      description_revisit: roomTemplate.text_revisit,
+    }
+  }
+
+  // Fallback: generate room from realm-level narrative text pool
   const id = `f${floor}_r${index}_${type}`
   const width = rng.nextInt(5, 10)
   const height = rng.nextInt(5, 10)

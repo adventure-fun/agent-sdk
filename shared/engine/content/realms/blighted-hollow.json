@@ -70,13 +70,13 @@
     }
   ],
   "room_templates": [
-    "hollow-entrance",
-    "root-tunnel",
-    "spore-grove",
-    "wolf-den",
-    "cracked-seal-chamber",
-    "corrupted-spring",
-    "hidden-alcove"
+    "bh-entrance-clearing",
+    "bh-fungal-corridor",
+    "bh-spore-den",
+    "bh-root-chamber",
+    "bh-wolf-den",
+    "bh-hollow-spring",
+    "bh-corrupted-heart"
   ],
   "narrative": {
     "theme_description": "A cave system beneath a dying forest. The roots overhead glow faintly violet where the Hollow's corruption seeps upward. The first Guardian — a ranger — sealed the Hollow here centuries ago. The seal is cracking.",

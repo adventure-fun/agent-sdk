@@ -1,0 +1,32 @@
+{
+  "id": "cp-overseers-den",
+  "type": "treasure",
+  "size": { "width": 7, "height": 7 },
+  "text_first_visit": "The overseer's quarters. A desk covered in papers, a cot against the wall, and a heavy strongbox beneath the desk. A cave crawler has made this room its lair — bones are scattered across the floor.",
+  "text_revisit": "The overseer's quarters. The desk is still covered in unfinished paperwork.",
+  "interactables": [
+    {
+      "id": "cp-overseer-journal",
+      "name": "Overseer's Journal",
+      "text_on_interact": "The last entry reads: 'The crawlers avoid the light from the blue crystals. We've started lining the main shaft with them, but supply is running low. If the deeper shafts are lost, we abandon the mine.'",
+      "conditions": [],
+      "effects": [{ "type": "reveal_lore", "lore_id": "cp-crystal-weakness" }],
+      "lore_entry_id": "cp-crystal-weakness"
+    }
+  ],
+  "enemy_slots": [
+    {
+      "enemy_template_id": "cave-crawler",
+      "position": { "x": 5, "y": 5 },
+      "count": { "min": 1, "max": 1 }
+    }
+  ],
+  "loot_slots": [
+    {
+      "loot_table_id": "cp-strongbox-loot",
+      "container": "chest",
+      "position": { "x": 3, "y": 6 }
+    }
+  ],
+  "triggers": []
+}

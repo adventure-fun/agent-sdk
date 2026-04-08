@@ -1,0 +1,34 @@
+{
+  "id": "cp-flooded-chamber",
+  "type": "treasure",
+  "size": { "width": 7, "height": 7 },
+  "text_first_visit": "Water seeps from cracks in the ceiling, pooling across the floor. Mining tools lie scattered as if dropped mid-swing. A corroded lockbox sits on a stone ledge above the waterline.",
+  "text_revisit": "The water is ankle-deep and still rising, slowly.",
+  "interactables": [
+    {
+      "id": "cp-lockbox",
+      "name": "Corroded Lockbox",
+      "text_on_interact": "The lock crumbles at your touch. Inside: a heavy iron key stamped with the mine's seal.",
+      "conditions": [],
+      "effects": [{ "type": "grant_item", "item_template_id": "mine-key" }],
+      "lore_entry_id": null
+    },
+    {
+      "id": "cp-scattered-tools",
+      "name": "Scattered Mining Tools",
+      "text_on_interact": "Pickaxes, shovels, lanterns — all abandoned mid-use. Whatever happened here happened fast.",
+      "conditions": [],
+      "effects": [{ "type": "reveal_lore", "lore_id": "cp-sudden-abandonment" }],
+      "lore_entry_id": "cp-sudden-abandonment"
+    }
+  ],
+  "enemy_slots": [],
+  "loot_slots": [
+    {
+      "loot_table_id": "cp-minor-loot",
+      "container": "chest",
+      "position": { "x": 5, "y": 1 }
+    }
+  ],
+  "triggers": []
+}

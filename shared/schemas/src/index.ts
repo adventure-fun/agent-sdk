@@ -394,6 +394,80 @@ export interface TrapTemplate {
   visible_after_trigger: boolean
 }
 
+// ---- Room Templates -----------------------------------------
+
+export interface InteractableTemplate {
+  id: string
+  name: string
+  text_on_interact: string
+  conditions: Condition[]
+  effects: Effect[]
+  lore_entry_id: string | null
+}
+
+export type Condition =
+  | { type: "first_visit" }
+  | { type: "has_item"; item_id: string }
+  | { type: "class_is"; class: string }
+  | { type: "enemy_defeated"; entity_id: string }
+  | { type: "room_visited"; room_id: string }
+  | { type: "floor_depth_gte"; depth: number }
+  | { type: "hp_below"; percent: number }
+  | { type: "has_flag"; flag: string }
+
+export type Effect =
+  | { type: "reveal_lore"; lore_id: string }
+  | { type: "grant_quest_flag"; flag: string }
+  | { type: "unlock_door"; entity_id: string }
+  | { type: "spawn_enemy"; enemy_template_id: string; position: { x: number; y: number } }
+  | { type: "apply_buff"; buff: StatusEffect }
+  | { type: "apply_debuff"; debuff: StatusEffect }
+  | { type: "grant_item"; item_template_id: string; quantity?: number }
+  | { type: "grant_gold"; amount: number }
+  | { type: "show_text"; text: string }
+  | { type: "heal_hp"; amount: number }
+  | { type: "cure_debuffs" }
+  | { type: "modify_enemy_stat"; entity_id: string; stat: string; modifier: number }
+
+export interface TriggerTemplate {
+  conditions: Condition[]
+  effects: Effect[]
+  fire_once: boolean
+  trigger_on?: string      // "interact", "interact_failed", "interact_complete", etc.
+  target_id?: string       // entity ID the trigger is attached to
+}
+
+export interface EnemySlot {
+  enemy_template_id: string  // or "random_from_roster"
+  position: { x: number; y: number } | "random"
+  count: { min: number; max: number }
+}
+
+export interface LootSlot {
+  loot_table_id: string
+  container: "chest" | "floor_drop" | "hidden"
+  position?: { x: number; y: number } | "random"
+  trapped?: boolean
+  trap_damage?: number
+  trap_effect?: StatusEffect | null
+}
+
+export type RoomType = "combat" | "treasure" | "rest" | "event" | "boss"
+
+export interface RoomTemplate {
+  id: string
+  type: RoomType
+  size: { width: number; height: number }
+  text_first_visit: string
+  text_revisit: string | null
+  interactables: InteractableTemplate[]
+  enemy_slots: EnemySlot[]
+  loot_slots: LootSlot[]
+  triggers: TriggerTemplate[]
+}
+
+// ---- Realm Templates ----------------------------------------
+
 export interface RealmTemplate {
   id: string
   name: string

@@ -1,0 +1,20 @@
+{
+  "id": "cp-entrance",
+  "type": "event",
+  "size": { "width": 5, "height": 5 },
+  "text_first_visit": "A rough-cut tunnel descends at a steep angle. Broken timber supports lean against the walls. The air is thick with dust and something metallic.",
+  "text_revisit": "The entrance tunnel. Daylight filters down from above.",
+  "interactables": [
+    {
+      "id": "cp-warning-sign",
+      "name": "Weathered Sign",
+      "text_on_interact": "Nailed to a beam in faded paint: 'SHAFT 7 — CONDEMNED BY ORDER OF THE OVERSEER.' Someone has scratched underneath: 'condemned by what's inside.'",
+      "conditions": [],
+      "effects": [{ "type": "reveal_lore", "lore_id": "cp-condemned-notice" }],
+      "lore_entry_id": "cp-condemned-notice"
+    }
+  ],
+  "enemy_slots": [],
+  "loot_slots": [],
+  "triggers": []
+}

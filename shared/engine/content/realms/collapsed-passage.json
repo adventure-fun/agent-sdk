@@ -40,12 +40,12 @@
   ],
   "trap_types": [],
   "room_templates": [
-    "passage-entrance",
-    "shaft-junction",
-    "flooded-chamber",
-    "tool-storage",
-    "locked-gate",
-    "overseers-den"
+    "cp-entrance",
+    "cp-shaft-junction",
+    "cp-flooded-chamber",
+    "cp-tool-storage",
+    "cp-locked-gate",
+    "cp-overseers-den"
   ],
   "narrative": {
     "theme_description": "An abandoned mine tunnel. The miners of this passage broke through into something old beneath the rock. They fled — or were taken. The corruption the town whispers about may have started here.",

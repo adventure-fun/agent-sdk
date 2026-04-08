@@ -1,0 +1,17 @@
+{
+  "id": "sc-flooded-passage",
+  "type": "combat",
+  "size": { "width": 3, "height": 9 },
+  "text_first_visit": "Water rises to your knees as the stairs level out into a narrow passage. The walls weep moisture. Something moves beneath the surface — a shape, man-sized, dragging itself along the floor.",
+  "text_revisit": "The flooded passage. The water is darker than before.",
+  "interactables": [],
+  "enemy_slots": [
+    {
+      "enemy_template_id": "drowned-husk",
+      "position": { "x": 1, "y": 7 },
+      "count": { "min": 1, "max": 1 }
+    }
+  ],
+  "loot_slots": [],
+  "triggers": []
+}
