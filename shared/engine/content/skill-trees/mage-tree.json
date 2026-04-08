@@ -1,0 +1,96 @@
+{
+  "id": "mage-tree",
+  "class_id": "mage",
+  "tiers": [
+    {
+      "tier": 1,
+      "unlock_level": 3,
+      "choices": [
+        {
+          "id": "mage-t1-frost-nova",
+          "name": "Frost Nova",
+          "description": "Unlocks Frost Nova — AoE crowd control that damages and slows nearby enemies.",
+          "cost": 1,
+          "prerequisites": [],
+          "effect": { "type": "grant_ability", "ability_id": "mage-frost-nova" }
+        },
+        {
+          "id": "mage-t1-fireball",
+          "name": "Fireball",
+          "description": "Unlocks Fireball — high single-target ranged damage.",
+          "cost": 1,
+          "prerequisites": [],
+          "effect": { "type": "grant_ability", "ability_id": "mage-fireball" }
+        },
+        {
+          "id": "mage-t1-healing-light",
+          "name": "Healing Light",
+          "description": "Unlocks Healing Light — heal yourself or an ally. Entry to the cleric path.",
+          "cost": 1,
+          "prerequisites": [],
+          "effect": { "type": "grant_ability", "ability_id": "mage-healing-light" }
+        }
+      ]
+    },
+    {
+      "tier": 2,
+      "unlock_level": 6,
+      "choices": [
+        {
+          "id": "mage-t2-arcane-sight",
+          "name": "Arcane Sight",
+          "description": "Unlocks Arcane Sight — reveal all enemies in the current room.",
+          "cost": 1,
+          "prerequisites": [],
+          "effect": { "type": "grant_ability", "ability_id": "mage-arcane-sight" }
+        },
+        {
+          "id": "mage-t2-mana-drain",
+          "name": "Mana Drain",
+          "description": "Unlocks Mana Drain — deal damage and restore 8 mana on hit.",
+          "cost": 1,
+          "prerequisites": [],
+          "effect": { "type": "grant_ability", "ability_id": "mage-mana-drain" }
+        },
+        {
+          "id": "mage-t2-purify",
+          "name": "Purify",
+          "description": "Unlocks Purify — remove all debuffs + heal. Requires Healing Light.",
+          "cost": 1,
+          "prerequisites": ["mage-t1-healing-light"],
+          "effect": { "type": "grant_ability", "ability_id": "mage-purify" }
+        }
+      ]
+    },
+    {
+      "tier": 3,
+      "unlock_level": 10,
+      "choices": [
+        {
+          "id": "mage-t3-portal",
+          "name": "Portal",
+          "description": "Unlocks Portal — exit the dungeon immediately with all loot. 1 use per run.",
+          "cost": 1,
+          "prerequisites": [],
+          "effect": { "type": "grant_ability", "ability_id": "mage-portal" }
+        },
+        {
+          "id": "mage-t3-meteor",
+          "name": "Meteor Strike",
+          "description": "Unlocks Meteor Strike — massive AoE nuke. Requires Fireball.",
+          "cost": 1,
+          "prerequisites": ["mage-t1-fireball"],
+          "effect": { "type": "grant_ability", "ability_id": "mage-meteor" }
+        },
+        {
+          "id": "mage-t3-restoration",
+          "name": "Restoration",
+          "description": "Unlocks Restoration — massive heal + defense buff. Requires Purify.",
+          "cost": 1,
+          "prerequisites": ["mage-t2-purify"],
+          "effect": { "type": "grant_ability", "ability_id": "mage-restoration" }
+        }
+      ]
+    }
+  ]
+}

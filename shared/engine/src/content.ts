@@ -20,10 +20,16 @@ import mageJson from "../content/classes/mage.json" assert { type: "json" }
 import rogueJson from "../content/classes/rogue.json" assert { type: "json" }
 import archerJson from "../content/classes/archer.json" assert { type: "json" }
 
+import sharedAbilitiesJson from "../content/abilities/shared.json" assert { type: "json" }
 import knightAbilitiesJson from "../content/abilities/knight-abilities.json" assert { type: "json" }
 import mageAbilitiesJson from "../content/abilities/mage-abilities.json" assert { type: "json" }
 import rogueAbilitiesJson from "../content/abilities/rogue-abilities.json" assert { type: "json" }
 import archerAbilitiesJson from "../content/abilities/archer-abilities.json" assert { type: "json" }
+
+import knightTreeJson from "../content/skill-trees/knight-tree.json" assert { type: "json" }
+import mageTreeJson from "../content/skill-trees/mage-tree.json" assert { type: "json" }
+import rogueTreeJson from "../content/skill-trees/rogue-tree.json" assert { type: "json" }
+import archerTreeJson from "../content/skill-trees/archer-tree.json" assert { type: "json" }
 
 import undeadJson from "../content/enemies/undead.json" assert { type: "json" }
 import hollowJson from "../content/enemies/hollow.json" assert { type: "json" }
@@ -89,6 +95,7 @@ export const CLASSES: Record<string, ClassTemplate> = {
 // ---- Abilities ----------------------------------------------
 
 const allAbilities: AbilityTemplate[] = [
+  ...(sharedAbilitiesJson as unknown as AbilityTemplate[]),
   ...(knightAbilitiesJson as unknown as AbilityTemplate[]),
   ...(mageAbilitiesJson as unknown as AbilityTemplate[]),
   ...(rogueAbilitiesJson as unknown as AbilityTemplate[]),
@@ -170,6 +177,19 @@ const allRoomTemplates: RoomTemplate[] = [
 
 export const ROOMS: Record<string, RoomTemplate> = Object.fromEntries(
   allRoomTemplates.map((r) => [r.id, r])
+)
+
+// ---- Skill Trees --------------------------------------------
+
+const allSkillTrees = [
+  knightTreeJson,
+  mageTreeJson,
+  rogueTreeJson,
+  archerTreeJson,
+]
+
+export const SKILL_TREES: Record<string, typeof knightTreeJson> = Object.fromEntries(
+  allSkillTrees.map((t) => [t.id, t])
 )
 
 // ---- Accessor helpers ---------------------------------------

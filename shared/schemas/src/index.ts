@@ -308,8 +308,9 @@ export interface AbilityTemplate {
     scaling_factor: number
   }
   effects: StatusEffect[]
-  target: "single" | "aoe" | "self"
+  target: "single" | "aoe" | "self" | "single_or_self"
   aoe_radius?: number
+  special?: string             // engine-hardcoded behavior (e.g. "counter_on_hit", "disarm_trap")
 }
 
 export interface SkillNodeTemplate {

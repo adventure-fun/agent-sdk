@@ -1,6 +1,7 @@
 {
   "id": "rogue",
   "name": "Rogue",
+  "description": "Burst damage in windows. Energy fully resets every 3 turns. High evasion and speed. The only class that can disarm chest traps.",
   "base_stats": {
     "hp": 72,
     "attack": 20,
@@ -32,86 +33,96 @@
     "amount": 6,
     "interval": 3
   },
-  "starting_abilities": ["backstab", "smoke_bomb"],
+  "starting_abilities": ["rogue-backstab", "rogue-dodge-roll"],
+  "skill_tree_id": "rogue-tree",
   "skill_tree": {
     "tiers": [
       {
         "tier": 1,
-        "unlock_level": 2,
+        "unlock_level": 3,
         "choices": [
           {
-            "id": "rogue_t1_shadow_step",
-            "name": "Shadow Step",
-            "description": "Increases evasion by 4 and grants passive trap detection (+10 to detection rolls).",
+            "id": "rogue-t1-smoke-bomb",
+            "name": "Smoke Bomb",
+            "description": "Unlocks Smoke Bomb — blind all nearby enemies for 2 turns.",
             "cost": 1,
             "prerequisites": [],
             "effect": {
-              "type": "passive_stat",
-              "stat": "evasion",
-              "value": 4
+              "type": "grant_ability",
+              "ability_id": "rogue-smoke-bomb"
             }
           },
           {
-            "id": "rogue_t1_blade_mastery",
-            "name": "Blade Mastery",
-            "description": "Increases attack by 4 and accuracy by 5.",
+            "id": "rogue-t1-disarm-trap",
+            "name": "Disarm Trap",
+            "description": "Unlocks Disarm Trap — safely remove traps from chests. Class-defining utility.",
             "cost": 1,
             "prerequisites": [],
             "effect": {
-              "type": "passive_stat",
-              "stat": "attack",
-              "value": 4
+              "type": "grant_ability",
+              "ability_id": "rogue-disarm-trap"
             }
           }
         ]
       },
       {
         "tier": 2,
-        "unlock_level": 4,
+        "unlock_level": 6,
         "choices": [
           {
-            "id": "rogue_t2_envenom",
+            "id": "rogue-t2-envenom",
             "name": "Envenom",
-            "description": "Unlocks Envenom — coat your blade in poison, applying a lingering damage-over-time effect.",
-            "cost": 2,
-            "prerequisites": ["rogue_t1_blade_mastery"],
+            "description": "Unlocks Envenom — poison strike dealing sustained damage over time.",
+            "cost": 1,
+            "prerequisites": [],
             "effect": {
               "type": "grant_ability",
-              "ability_id": "envenom"
+              "ability_id": "rogue-envenom"
             }
           },
           {
-            "id": "rogue_t2_vanish",
+            "id": "rogue-t2-vanish",
             "name": "Vanish",
-            "description": "Unlocks Vanish — instantly break combat and become untargetable for 1 turn.",
-            "cost": 2,
-            "prerequisites": ["rogue_t1_shadow_step"],
+            "description": "Unlocks Vanish — become untargetable for 1 turn for repositioning.",
+            "cost": 1,
+            "prerequisites": [],
             "effect": {
               "type": "grant_ability",
-              "ability_id": "vanish"
+              "ability_id": "rogue-vanish"
             }
           }
         ]
       },
       {
         "tier": 3,
-        "unlock_level": 7,
+        "unlock_level": 10,
         "choices": [
           {
-            "id": "rogue_t3_death_mark",
+            "id": "rogue-t3-death-mark",
             "name": "Death Mark",
-            "description": "Unlocks Death Mark — mark a target for death; your next attack against them deals double damage.",
-            "cost": 3,
-            "prerequisites": ["rogue_t2_envenom", "rogue_t2_vanish"],
+            "description": "Unlocks Death Mark — brand target for double damage on next hit. Requires Envenom.",
+            "cost": 1,
+            "prerequisites": ["rogue-t2-envenom"],
             "effect": {
               "type": "grant_ability",
-              "ability_id": "death_mark"
+              "ability_id": "rogue-death-mark"
+            }
+          },
+          {
+            "id": "rogue-t3-shadow-step",
+            "name": "Shadow Step",
+            "description": "Unlocks Shadow Step — teleport to any tile within range and deal backstab damage. Requires Vanish.",
+            "cost": 1,
+            "prerequisites": ["rogue-t2-vanish"],
+            "effect": {
+              "type": "grant_ability",
+              "ability_id": "rogue-shadow-step"
             }
           }
         ]
       }
     ]
   },
-  "starting_equipment": ["iron_sword", "leather_armor"],
+  "starting_equipment": [],
   "visibility_radius": 4
 }

@@ -1,94 +1,136 @@
 [
   {
-    "id": "aimed_shot",
+    "id": "archer-aimed-shot",
     "name": "Aimed Shot",
-    "description": "Take careful aim and loose a precise arrow. High accuracy and solid single-target damage.",
-    "resource_cost": 2,
+    "description": "Take careful aim and loose a precise arrow. Reliable ranged damage.",
+    "resource_cost": 3,
     "cooldown_turns": 0,
-    "range": 6,
+    "range": 5,
     "damage_formula": {
-      "base": 16,
+      "base": 10,
+      "stat_scaling": "attack",
+      "scaling_factor": 1.2
+    },
+    "effects": [],
+    "target": "single"
+  },
+  {
+    "id": "archer-quick-shot",
+    "name": "Quick Shot",
+    "description": "A fast, cheap shot for turns when you can't afford Aimed Shot.",
+    "resource_cost": 1,
+    "cooldown_turns": 1,
+    "range": 4,
+    "damage_formula": {
+      "base": 4,
+      "stat_scaling": "attack",
+      "scaling_factor": 0.6
+    },
+    "effects": [],
+    "target": "single"
+  },
+  {
+    "id": "archer-piercing-shot",
+    "name": "Piercing Shot",
+    "description": "An armor-penetrating shot that ignores target defense entirely.",
+    "resource_cost": 5,
+    "cooldown_turns": 3,
+    "range": 5,
+    "damage_formula": {
+      "base": 8,
       "stat_scaling": "attack",
       "scaling_factor": 1.0
     },
     "effects": [],
-    "target": "single"
+    "target": "single",
+    "special": "piercing_shot"
   },
   {
-    "id": "multishot",
-    "name": "Multishot",
-    "description": "Rapidly fire three arrows at a single target or split between nearby enemies.",
-    "resource_cost": 3,
-    "cooldown_turns": 3,
-    "range": 5,
-    "damage_formula": {
-      "base": 9,
-      "stat_scaling": "attack",
-      "scaling_factor": 0.75
-    },
-    "effects": [],
-    "target": "aoe",
-    "aoe_radius": 1
-  },
-  {
-    "id": "piercing_arrow",
-    "name": "Piercing Arrow",
-    "description": "Loose a bodkin-tipped arrow that punches through armor, ignoring 50% of target defense.",
+    "id": "archer-pin-shot",
+    "name": "Pin Shot",
+    "description": "A shot aimed at the legs, dealing moderate damage and slowing the target.",
     "resource_cost": 4,
     "cooldown_turns": 4,
-    "range": 7,
+    "range": 5,
     "damage_formula": {
-      "base": 20,
-      "stat_scaling": "attack",
-      "scaling_factor": 1.1
-    },
-    "effects": [],
-    "target": "single"
-  },
-  {
-    "id": "explosive_arrow",
-    "name": "Explosive Arrow",
-    "description": "A fire-tipped arrow that explodes on impact, dealing area damage and potentially igniting enemies.",
-    "resource_cost": 5,
-    "cooldown_turns": 5,
-    "range": 6,
-    "damage_formula": {
-      "base": 18,
-      "stat_scaling": "attack",
-      "scaling_factor": 0.9
-    },
-    "effects": [
-      {
-        "type": "poison",
-        "duration_turns": 2,
-        "magnitude": 4,
-        "apply_chance": 0.6
-      }
-    ],
-    "target": "aoe",
-    "aoe_radius": 2
-  },
-  {
-    "id": "rain_of_arrows",
-    "name": "Rain of Arrows",
-    "description": "Saturate the entire room with a storm of arrows. Every enemy in the room takes damage.",
-    "resource_cost": 7,
-    "cooldown_turns": 7,
-    "range": 10,
-    "damage_formula": {
-      "base": 12,
+      "base": 6,
       "stat_scaling": "attack",
       "scaling_factor": 0.8
     },
     "effects": [
       {
         "type": "slow",
-        "duration_turns": 1,
-        "magnitude": 3,
-        "apply_chance": 0.55
+        "duration_turns": 2,
+        "magnitude": 4,
+        "apply_chance": 0.8
       }
     ],
+    "target": "single"
+  },
+  {
+    "id": "archer-volley",
+    "name": "Volley",
+    "description": "Fire a volley of arrows, hitting all enemies in a 2-tile radius.",
+    "resource_cost": 8,
+    "cooldown_turns": 5,
+    "range": 4,
+    "damage_formula": {
+      "base": 6,
+      "stat_scaling": "attack",
+      "scaling_factor": 0.7
+    },
+    "effects": [],
     "target": "aoe",
-    "aoe_radius": 10
+    "aoe_radius": 2,
+    "special": "multishot"
+  },
+  {
+    "id": "archer-disengage",
+    "name": "Disengage",
+    "description": "Strike an adjacent enemy then leap 2 tiles away. The Archer's escape tool.",
+    "resource_cost": 2,
+    "cooldown_turns": 3,
+    "range": "melee",
+    "damage_formula": {
+      "base": 6,
+      "stat_scaling": "attack",
+      "scaling_factor": 0.8
+    },
+    "effects": [],
+    "target": "single",
+    "special": "disengage"
+  },
+  {
+    "id": "archer-snipe",
+    "name": "Snipe",
+    "description": "Extreme range, extreme damage single-target shot that ignores defense.",
+    "resource_cost": 12,
+    "cooldown_turns": 6,
+    "range": 7,
+    "damage_formula": {
+      "base": 20,
+      "stat_scaling": "attack",
+      "scaling_factor": 2.0
+    },
+    "effects": [],
+    "target": "single",
+    "special": "piercing_shot"
+  },
+  {
+    "id": "archer-rain-of-arrows",
+    "name": "Rain of Arrows",
+    "description": "Saturate a massive area with arrows, hitting everything within a 3-tile radius.",
+    "resource_cost": 15,
+    "cooldown_turns": 8,
+    "range": 5,
+    "damage_formula": {
+      "base": 10,
+      "stat_scaling": "attack",
+      "scaling_factor": 1.0
+    },
+    "effects": [],
+    "target": "aoe",
+    "aoe_radius": 3,
+    "special": "multishot"
   }
 ]

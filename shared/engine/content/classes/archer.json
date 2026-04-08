@@ -1,6 +1,7 @@
 {
   "id": "archer",
   "name": "Archer",
+  "description": "Sustained ranged damage. Focus builds +1 per turn, spent on powerful special shots. Highest accuracy, good speed. Excels in large rooms.",
   "base_stats": {
     "hp": 77,
     "attack": 19,
@@ -32,86 +33,96 @@
     "amount": 1,
     "interval": 1
   },
-  "starting_abilities": ["aimed_shot", "multishot"],
+  "starting_abilities": ["archer-aimed-shot", "archer-quick-shot"],
+  "skill_tree_id": "archer-tree",
   "skill_tree": {
     "tiers": [
       {
         "tier": 1,
-        "unlock_level": 2,
+        "unlock_level": 3,
         "choices": [
           {
-            "id": "archer_t1_keen_eye",
-            "name": "Keen Eye",
-            "description": "Increases accuracy by 5 and extends visibility_radius by 1.",
+            "id": "archer-t1-piercing-shot",
+            "name": "Piercing Shot",
+            "description": "Unlocks Piercing Shot — ignores target defense entirely. Anti-tank ability.",
             "cost": 1,
             "prerequisites": [],
             "effect": {
-              "type": "passive_stat",
-              "stat": "accuracy",
-              "value": 5
+              "type": "grant_ability",
+              "ability_id": "archer-piercing-shot"
             }
           },
           {
-            "id": "archer_t1_swift_quiver",
-            "name": "Swift Quiver",
-            "description": "Increases speed by 3, allowing more frequent turns.",
+            "id": "archer-t1-pin-shot",
+            "name": "Pin Shot",
+            "description": "Unlocks Pin Shot — moderate damage + slow. Kiting tool.",
             "cost": 1,
             "prerequisites": [],
             "effect": {
-              "type": "passive_stat",
-              "stat": "speed",
-              "value": 3
+              "type": "grant_ability",
+              "ability_id": "archer-pin-shot"
             }
           }
         ]
       },
       {
         "tier": 2,
-        "unlock_level": 4,
+        "unlock_level": 6,
         "choices": [
           {
-            "id": "archer_t2_piercing_arrow",
-            "name": "Piercing Arrow",
-            "description": "Unlocks Piercing Arrow — an armor-penetrating shot that ignores 50% of target defense.",
-            "cost": 2,
-            "prerequisites": ["archer_t1_keen_eye"],
+            "id": "archer-t2-volley",
+            "name": "Volley",
+            "description": "Unlocks Volley — hit all enemies in a 2-tile radius. The Archer's only AoE.",
+            "cost": 1,
+            "prerequisites": [],
             "effect": {
               "type": "grant_ability",
-              "ability_id": "piercing_arrow"
+              "ability_id": "archer-volley"
             }
           },
           {
-            "id": "archer_t2_explosive_arrow",
-            "name": "Explosive Arrow",
-            "description": "Unlocks Explosive Arrow — a fire-tipped arrow that deals AoE damage on impact.",
-            "cost": 2,
-            "prerequisites": ["archer_t1_swift_quiver"],
+            "id": "archer-t2-disengage",
+            "name": "Disengage",
+            "description": "Unlocks Disengage — attack adjacent enemy then leap 2 tiles away.",
+            "cost": 1,
+            "prerequisites": [],
             "effect": {
               "type": "grant_ability",
-              "ability_id": "explosive_arrow"
+              "ability_id": "archer-disengage"
             }
           }
         ]
       },
       {
         "tier": 3,
-        "unlock_level": 7,
+        "unlock_level": 10,
         "choices": [
           {
-            "id": "archer_t3_rain_of_arrows",
-            "name": "Rain of Arrows",
-            "description": "Unlocks Rain of Arrows — saturate the entire room with arrows, hitting every enemy.",
-            "cost": 3,
-            "prerequisites": ["archer_t2_piercing_arrow", "archer_t2_explosive_arrow"],
+            "id": "archer-t3-snipe",
+            "name": "Snipe",
+            "description": "Unlocks Snipe — extreme range, extreme damage, ignores defense. Requires Piercing Shot.",
+            "cost": 1,
+            "prerequisites": ["archer-t1-piercing-shot"],
             "effect": {
               "type": "grant_ability",
-              "ability_id": "rain_of_arrows"
+              "ability_id": "archer-snipe"
+            }
+          },
+          {
+            "id": "archer-t3-rain-of-arrows",
+            "name": "Rain of Arrows",
+            "description": "Unlocks Rain of Arrows — massive AoE devastation. Requires Volley.",
+            "cost": 1,
+            "prerequisites": ["archer-t2-volley"],
+            "effect": {
+              "type": "grant_ability",
+              "ability_id": "archer-rain-of-arrows"
             }
           }
         ]
       }
     ]
   },
-  "starting_equipment": ["hunters_bow", "leather_armor"],
+  "starting_equipment": [],
   "visibility_radius": 5
 }

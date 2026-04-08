@@ -1,6 +1,7 @@
 {
   "id": "mage",
   "name": "Mage",
+  "description": "Glass cannon. Highest burst damage, lowest HP. Mana does not regenerate passively. Resource management is the core challenge.",
   "base_stats": {
     "hp": 62,
     "attack": 25,
@@ -30,85 +31,129 @@
   "resource_regen_rule": {
     "type": "none"
   },
-  "starting_abilities": ["arcane_bolt", "frost_nova"],
+  "starting_abilities": ["mage-arcane-bolt", "mage-mana-shield"],
+  "skill_tree_id": "mage-tree",
   "skill_tree": {
     "tiers": [
       {
         "tier": 1,
-        "unlock_level": 2,
+        "unlock_level": 3,
         "choices": [
           {
-            "id": "mage_t1_mana_efficiency",
-            "name": "Mana Efficiency",
-            "description": "All abilities cost 1 less mana (minimum 1).",
+            "id": "mage-t1-frost-nova",
+            "name": "Frost Nova",
+            "description": "Unlocks Frost Nova — AoE crowd control that damages and slows nearby enemies.",
             "cost": 1,
             "prerequisites": [],
             "effect": {
-              "type": "passive_effect",
-              "description": "Reduce all ability mana costs by 1."
+              "type": "grant_ability",
+              "ability_id": "mage-frost-nova"
             }
           },
           {
-            "id": "mage_t1_glass_cannon",
-            "name": "Glass Cannon",
-            "description": "Increases attack by 5, decreases defense by 1.",
+            "id": "mage-t1-fireball",
+            "name": "Fireball",
+            "description": "Unlocks Fireball — high single-target ranged damage.",
             "cost": 1,
             "prerequisites": [],
             "effect": {
-              "type": "passive_stat",
-              "stat": "attack",
-              "value": 5
+              "type": "grant_ability",
+              "ability_id": "mage-fireball"
+            }
+          },
+          {
+            "id": "mage-t1-healing-light",
+            "name": "Healing Light",
+            "description": "Unlocks Healing Light — heal yourself or an ally. Entry to the cleric path.",
+            "cost": 1,
+            "prerequisites": [],
+            "effect": {
+              "type": "grant_ability",
+              "ability_id": "mage-healing-light"
             }
           }
         ]
       },
       {
         "tier": 2,
-        "unlock_level": 4,
+        "unlock_level": 6,
         "choices": [
           {
-            "id": "mage_t2_meteor",
-            "name": "Meteor Strike",
-            "description": "Unlocks Meteor Strike — a devastating AoE blast that damages all enemies in the room.",
-            "cost": 2,
-            "prerequisites": ["mage_t1_glass_cannon"],
+            "id": "mage-t2-arcane-sight",
+            "name": "Arcane Sight",
+            "description": "Unlocks Arcane Sight — reveal all enemies in the current room.",
+            "cost": 1,
+            "prerequisites": [],
             "effect": {
               "type": "grant_ability",
-              "ability_id": "meteor_strike"
+              "ability_id": "mage-arcane-sight"
             }
           },
           {
-            "id": "mage_t2_arcane_shield",
-            "name": "Arcane Shield",
-            "description": "Unlocks Arcane Shield — spend 4 mana to create a temporary magical barrier.",
-            "cost": 2,
-            "prerequisites": ["mage_t1_mana_efficiency"],
+            "id": "mage-t2-mana-drain",
+            "name": "Mana Drain",
+            "description": "Unlocks Mana Drain — deal damage and restore 8 mana on hit. The Mage's only combat mana regen.",
+            "cost": 1,
+            "prerequisites": [],
             "effect": {
               "type": "grant_ability",
-              "ability_id": "arcane_shield"
+              "ability_id": "mage-mana-drain"
+            }
+          },
+          {
+            "id": "mage-t2-purify",
+            "name": "Purify",
+            "description": "Unlocks Purify — remove all debuffs from self or ally + heal. Requires Healing Light.",
+            "cost": 1,
+            "prerequisites": ["mage-t1-healing-light"],
+            "effect": {
+              "type": "grant_ability",
+              "ability_id": "mage-purify"
             }
           }
         ]
       },
       {
         "tier": 3,
-        "unlock_level": 7,
+        "unlock_level": 10,
         "choices": [
           {
-            "id": "mage_t3_lich_grasp",
-            "name": "Lich's Grasp",
-            "description": "Unlocks Lich's Grasp — drain life from a target, dealing damage and restoring mana.",
-            "cost": 3,
-            "prerequisites": ["mage_t2_meteor", "mage_t2_arcane_shield"],
+            "id": "mage-t3-portal",
+            "name": "Portal",
+            "description": "Unlocks Portal — exit the dungeon immediately with all loot. 1 use per run.",
+            "cost": 1,
+            "prerequisites": [],
             "effect": {
               "type": "grant_ability",
-              "ability_id": "lich_grasp"
+              "ability_id": "mage-portal"
+            }
+          },
+          {
+            "id": "mage-t3-meteor",
+            "name": "Meteor Strike",
+            "description": "Unlocks Meteor Strike — massive AoE nuke. Requires Fireball.",
+            "cost": 1,
+            "prerequisites": ["mage-t1-fireball"],
+            "effect": {
+              "type": "grant_ability",
+              "ability_id": "mage-meteor"
+            }
+          },
+          {
+            "id": "mage-t3-restoration",
+            "name": "Restoration",
+            "description": "Unlocks Restoration — massive heal + defense buff. Requires Purify.",
+            "cost": 1,
+            "prerequisites": ["mage-t2-purify"],
+            "effect": {
+              "type": "grant_ability",
+              "ability_id": "mage-restoration"
             }
           }
         ]
       }
     ]
   },
-  "starting_equipment": ["oak_staff", "leather_armor"],
+  "starting_equipment": [],
   "visibility_radius": 3
 }

@@ -1,6 +1,7 @@
 {
   "id": "knight",
   "name": "Knight",
+  "description": "Tanky frontliner. High HP and defense. Stamina regenerates passively. Melee-only. The last one standing.",
   "base_stats": {
     "hp": 100,
     "attack": 17,
@@ -31,88 +32,99 @@
     "type": "passive",
     "amount": 1,
     "interval": 1,
-    "on_defend_bonus": 2
+    "on_defend_bonus": 3
   },
-  "starting_abilities": ["shield_bash", "defend"],
+  "starting_abilities": ["knight-slash", "knight-shield-block"],
+  "skill_tree_id": "knight-tree",
   "skill_tree": {
     "tiers": [
       {
         "tier": 1,
-        "unlock_level": 2,
+        "unlock_level": 3,
         "choices": [
           {
-            "id": "knight_t1_bulwark",
-            "name": "Bulwark",
-            "description": "Increases base defense by 3.",
+            "id": "knight-t1-shield-wall",
+            "name": "Shield Wall",
+            "description": "Unlocks Shield Wall — massive defense boost but immobilized for the duration.",
             "cost": 1,
             "prerequisites": [],
             "effect": {
-              "type": "passive_stat",
-              "stat": "defense",
-              "value": 3
+              "type": "grant_ability",
+              "ability_id": "knight-shield-wall"
             }
           },
           {
-            "id": "knight_t1_heavy_strikes",
-            "name": "Heavy Strikes",
-            "description": "Increases base attack by 3.",
+            "id": "knight-t1-cleave",
+            "name": "Cleave",
+            "description": "Unlocks Cleave — a sweeping strike that hits all adjacent enemies.",
             "cost": 1,
             "prerequisites": [],
             "effect": {
-              "type": "passive_stat",
-              "stat": "attack",
-              "value": 3
+              "type": "grant_ability",
+              "ability_id": "knight-cleave"
             }
           }
         ]
       },
       {
         "tier": 2,
-        "unlock_level": 4,
+        "unlock_level": 6,
         "choices": [
           {
-            "id": "knight_t2_fortify",
-            "name": "Fortify",
-            "description": "Unlocks the Fortify ability — spend 3 stamina to gain a powerful defense buff for 3 turns.",
-            "cost": 2,
-            "prerequisites": ["knight_t1_bulwark"],
+            "id": "knight-t2-iron-skin",
+            "name": "Iron Skin",
+            "description": "Permanently increases defense by 4.",
+            "cost": 1,
+            "prerequisites": [],
             "effect": {
-              "type": "grant_ability",
-              "ability_id": "fortify"
+              "type": "passive_stat",
+              "stat": "defense",
+              "value": 4
             }
           },
           {
-            "id": "knight_t2_cleave",
-            "name": "Cleave",
-            "description": "Unlocks the Cleave ability — a sweeping attack that hits all adjacent enemies.",
-            "cost": 2,
-            "prerequisites": ["knight_t1_heavy_strikes"],
+            "id": "knight-t2-riposte",
+            "name": "Riposte",
+            "description": "Unlocks Riposte — counter-attack stance that auto-strikes when hit.",
+            "cost": 1,
+            "prerequisites": [],
             "effect": {
               "type": "grant_ability",
-              "ability_id": "cleave"
+              "ability_id": "knight-riposte"
             }
           }
         ]
       },
       {
         "tier": 3,
-        "unlock_level": 7,
+        "unlock_level": 10,
         "choices": [
           {
-            "id": "knight_t3_last_stand",
-            "name": "Last Stand",
-            "description": "Unlocks Last Stand — when HP drops below 25%, attack and defense increase by 5 for the remainder of combat.",
-            "cost": 3,
-            "prerequisites": ["knight_t2_fortify", "knight_t2_cleave"],
+            "id": "knight-t3-fortress",
+            "name": "Fortress",
+            "description": "Unlocks Fortress — an impenetrable defensive stance. Requires Shield Wall.",
+            "cost": 1,
+            "prerequisites": ["knight-t1-shield-wall"],
             "effect": {
               "type": "grant_ability",
-              "ability_id": "last_stand"
+              "ability_id": "knight-fortress"
+            }
+          },
+          {
+            "id": "knight-t3-berserker",
+            "name": "Berserker Rage",
+            "description": "Unlocks Berserker Rage — sacrifice HP for massive attack boost. Requires Cleave.",
+            "cost": 1,
+            "prerequisites": ["knight-t1-cleave"],
+            "effect": {
+              "type": "grant_ability",
+              "ability_id": "knight-berserker-rage"
             }
           }
         ]
       }
     ]
   },
-  "starting_equipment": ["iron_sword", "wooden_shield", "leather_armor"],
+  "starting_equipment": [],
   "visibility_radius": 3
 }

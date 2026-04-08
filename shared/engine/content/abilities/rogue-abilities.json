@@ -1,8 +1,8 @@
 [
   {
-    "id": "backstab",
+    "id": "rogue-backstab",
     "name": "Backstab",
-    "description": "Strike from the shadows for devastating damage. Extra damage if target is stunned or unaware.",
+    "description": "Strike from the shadows for devastating damage. The Rogue's bread and butter.",
     "resource_cost": 2,
     "cooldown_turns": 0,
     "range": "melee",
@@ -15,9 +15,31 @@
     "target": "single"
   },
   {
-    "id": "smoke_bomb",
+    "id": "rogue-dodge-roll",
+    "name": "Dodge Roll",
+    "description": "Roll to evade, greatly boosting evasion for 1 turn. Also repositions 1 tile.",
+    "resource_cost": 1,
+    "cooldown_turns": 2,
+    "range": "melee",
+    "damage_formula": {
+      "base": 0,
+      "stat_scaling": "evasion",
+      "scaling_factor": 0.0
+    },
+    "effects": [
+      {
+        "type": "buff_defense",
+        "duration_turns": 1,
+        "magnitude": 15,
+        "apply_chance": 1.0
+      }
+    ],
+    "target": "self"
+  },
+  {
+    "id": "rogue-smoke-bomb",
     "name": "Smoke Bomb",
-    "description": "Throw a smoke bomb, blinding all nearby enemies for 2 turns and reducing their accuracy.",
+    "description": "Throw a smoke bomb, blinding all nearby enemies for 2 turns.",
     "resource_cost": 2,
     "cooldown_turns": 5,
     "range": "melee",
@@ -38,9 +60,25 @@
     "aoe_radius": 2
   },
   {
-    "id": "envenom",
+    "id": "rogue-disarm-trap",
+    "name": "Disarm Trap",
+    "description": "Target a chest. If trapped, safely removes the trap. The Rogue's class-defining utility.",
+    "resource_cost": 1,
+    "cooldown_turns": 0,
+    "range": "melee",
+    "damage_formula": {
+      "base": 0,
+      "stat_scaling": "attack",
+      "scaling_factor": 0.0
+    },
+    "effects": [],
+    "target": "single",
+    "special": "disarm_trap"
+  },
+  {
+    "id": "rogue-envenom",
     "name": "Envenom",
-    "description": "Coat your blade in deadly venom. Your next 3 attacks apply poison that deals damage over time.",
+    "description": "Coat your blade in deadly venom, dealing damage and applying a potent poison.",
     "resource_cost": 2,
     "cooldown_turns": 6,
     "range": "melee",
@@ -60,9 +98,9 @@
     "target": "single"
   },
   {
-    "id": "vanish",
+    "id": "rogue-vanish",
     "name": "Vanish",
-    "description": "Disappear in a flash, breaking combat and becoming untargetable for 1 turn. Perfect for repositioning.",
+    "description": "Disappear from sight, becoming untargetable for 1 turn. Perfect for repositioning.",
     "resource_cost": 3,
     "cooldown_turns": 8,
     "range": "melee",
@@ -79,10 +117,11 @@
         "apply_chance": 1.0
       }
     ],
-    "target": "self"
+    "target": "self",
+    "special": "stealth"
   },
   {
-    "id": "death_mark",
+    "id": "rogue-death-mark",
     "name": "Death Mark",
     "description": "Brand a target with a lethal sigil. Your next attack against them deals double damage and ignores armor.",
     "resource_cost": 4,
@@ -101,6 +140,23 @@
         "apply_chance": 0.7
       }
     ],
-    "target": "single"
+    "target": "single",
+    "special": "mark_target"
+  },
+  {
+    "id": "rogue-shadow-step",
+    "name": "Shadow Step",
+    "description": "Teleport to any tile within range. If an enemy is adjacent to landing, deal backstab damage.",
+    "resource_cost": 3,
+    "cooldown_turns": 5,
+    "range": 4,
+    "damage_formula": {
+      "base": 22,
+      "stat_scaling": "attack",
+      "scaling_factor": 1.1
+    },
+    "effects": [],
+    "target": "single",
+    "special": "teleport_attack"
   }
 ]

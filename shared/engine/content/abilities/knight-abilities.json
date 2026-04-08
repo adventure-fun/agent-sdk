@@ -1,30 +1,30 @@
 [
   {
-    "id": "shield_bash",
-    "name": "Shield Bash",
-    "description": "Slam your shield into the enemy, dealing moderate damage and stunning them for 1 turn.",
-    "resource_cost": 2,
-    "cooldown_turns": 3,
+    "id": "knight-slash",
+    "name": "Slash",
+    "description": "A powerful melee strike that can weaken the target's defenses.",
+    "resource_cost": 3,
+    "cooldown_turns": 0,
     "range": "melee",
     "damage_formula": {
-      "base": 14,
+      "base": 10,
       "stat_scaling": "attack",
-      "scaling_factor": 0.7
+      "scaling_factor": 1.2
     },
     "effects": [
       {
-        "type": "stun",
-        "duration_turns": 1,
-        "magnitude": 1,
-        "apply_chance": 0.65
+        "type": "buff_defense",
+        "duration_turns": 2,
+        "magnitude": -2,
+        "apply_chance": 0.3
       }
     ],
     "target": "single"
   },
   {
-    "id": "defend",
-    "name": "Defend",
-    "description": "Adopt a defensive stance, greatly increasing defense this turn and regaining 2 bonus stamina.",
+    "id": "knight-shield-block",
+    "name": "Shield Block",
+    "description": "Adopt a defensive stance, greatly increasing defense this turn and regaining bonus stamina.",
     "resource_cost": 0,
     "cooldown_turns": 2,
     "range": "melee",
@@ -44,11 +44,11 @@
     "target": "self"
   },
   {
-    "id": "fortify",
-    "name": "Fortify",
-    "description": "Channel your resolve, raising defense by 6 for 3 turns. Stamina regeneration doubled during this time.",
-    "resource_cost": 3,
-    "cooldown_turns": 5,
+    "id": "knight-shield-wall",
+    "name": "Shield Wall",
+    "description": "Brace behind your shield, massively boosting defense but becoming immobilized.",
+    "resource_cost": 8,
+    "cooldown_turns": 6,
     "range": "melee",
     "damage_formula": {
       "base": 0,
@@ -59,34 +59,78 @@
       {
         "type": "buff_defense",
         "duration_turns": 3,
-        "magnitude": 6,
+        "magnitude": 15,
+        "apply_chance": 1.0
+      },
+      {
+        "type": "slow",
+        "duration_turns": 3,
+        "magnitude": 99,
         "apply_chance": 1.0
       }
     ],
     "target": "self"
   },
   {
-    "id": "cleave",
+    "id": "knight-cleave",
     "name": "Cleave",
-    "description": "A wide sweeping strike hitting all adjacent enemies. Deals reduced but reliable damage.",
-    "resource_cost": 3,
-    "cooldown_turns": 4,
+    "description": "A wide sweeping strike hitting all adjacent enemies.",
+    "resource_cost": 6,
+    "cooldown_turns": 3,
     "range": "melee",
     "damage_formula": {
-      "base": 10,
+      "base": 8,
       "stat_scaling": "attack",
-      "scaling_factor": 0.65
+      "scaling_factor": 0.8
     },
     "effects": [],
     "target": "aoe",
     "aoe_radius": 1
   },
   {
-    "id": "last_stand",
-    "name": "Last Stand",
-    "description": "When bloodied, find hidden reserves of strength. Passively triggers when HP falls below 25%: +5 attack and +5 defense for the rest of combat.",
-    "resource_cost": 0,
-    "cooldown_turns": 99,
+    "id": "knight-riposte",
+    "name": "Riposte",
+    "description": "Enter a counter-attack stance. If hit this turn, automatically strike back.",
+    "resource_cost": 4,
+    "cooldown_turns": 3,
+    "range": "melee",
+    "damage_formula": {
+      "base": 12,
+      "stat_scaling": "attack",
+      "scaling_factor": 1.0
+    },
+    "effects": [],
+    "target": "self",
+    "special": "counter_on_hit"
+  },
+  {
+    "id": "knight-fortress",
+    "name": "Fortress",
+    "description": "An impenetrable defensive stance. Massively boosts defense for 4 turns.",
+    "resource_cost": 12,
+    "cooldown_turns": 8,
+    "range": "melee",
+    "damage_formula": {
+      "base": 0,
+      "stat_scaling": "defense",
+      "scaling_factor": 0.0
+    },
+    "effects": [
+      {
+        "type": "buff_defense",
+        "duration_turns": 4,
+        "magnitude": 10,
+        "apply_chance": 1.0
+      }
+    ],
+    "target": "self"
+  },
+  {
+    "id": "knight-berserker-rage",
+    "name": "Berserker Rage",
+    "description": "Sacrifice 20% of your max HP to enter a devastating rage, gaining +12 attack for 5 turns.",
+    "resource_cost": 10,
+    "cooldown_turns": 10,
     "range": "melee",
     "damage_formula": {
       "base": 0,
@@ -96,17 +140,12 @@
     "effects": [
       {
         "type": "buff_attack",
-        "duration_turns": 999,
-        "magnitude": 5,
-        "apply_chance": 1.0
-      },
-      {
-        "type": "buff_defense",
-        "duration_turns": 999,
-        "magnitude": 5,
+        "duration_turns": 5,
+        "magnitude": 12,
         "apply_chance": 1.0
       }
     ],
-    "target": "self"
+    "target": "self",
+    "special": "self_damage_20pct"
   }
 ]

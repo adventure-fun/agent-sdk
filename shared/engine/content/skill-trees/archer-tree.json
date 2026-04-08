@@ -1,0 +1,72 @@
+{
+  "id": "archer-tree",
+  "class_id": "archer",
+  "tiers": [
+    {
+      "tier": 1,
+      "unlock_level": 3,
+      "choices": [
+        {
+          "id": "archer-t1-piercing-shot",
+          "name": "Piercing Shot",
+          "description": "Unlocks Piercing Shot — ignores target defense entirely. Anti-tank ability.",
+          "cost": 1,
+          "prerequisites": [],
+          "effect": { "type": "grant_ability", "ability_id": "archer-piercing-shot" }
+        },
+        {
+          "id": "archer-t1-pin-shot",
+          "name": "Pin Shot",
+          "description": "Unlocks Pin Shot — moderate damage + slow. Kiting tool.",
+          "cost": 1,
+          "prerequisites": [],
+          "effect": { "type": "grant_ability", "ability_id": "archer-pin-shot" }
+        }
+      ]
+    },
+    {
+      "tier": 2,
+      "unlock_level": 6,
+      "choices": [
+        {
+          "id": "archer-t2-volley",
+          "name": "Volley",
+          "description": "Unlocks Volley — hit all enemies in a 2-tile radius. The Archer's only AoE.",
+          "cost": 1,
+          "prerequisites": [],
+          "effect": { "type": "grant_ability", "ability_id": "archer-volley" }
+        },
+        {
+          "id": "archer-t2-disengage",
+          "name": "Disengage",
+          "description": "Unlocks Disengage — attack adjacent enemy then leap 2 tiles away.",
+          "cost": 1,
+          "prerequisites": [],
+          "effect": { "type": "grant_ability", "ability_id": "archer-disengage" }
+        }
+      ]
+    },
+    {
+      "tier": 3,
+      "unlock_level": 10,
+      "choices": [
+        {
+          "id": "archer-t3-snipe",
+          "name": "Snipe",
+          "description": "Unlocks Snipe — extreme range, extreme damage, ignores defense. Requires Piercing Shot.",
+          "cost": 1,
+          "prerequisites": ["archer-t1-piercing-shot"],
+          "effect": { "type": "grant_ability", "ability_id": "archer-snipe" }
+        },
+        {
+          "id": "archer-t3-rain-of-arrows",
+          "name": "Rain of Arrows",
+          "description": "Unlocks Rain of Arrows — massive AoE devastation. Requires Volley.",
+          "cost": 1,
+          "prerequisites": ["archer-t2-volley"],
+          "effect": { "type": "grant_ability", "ability_id": "archer-rain-of-arrows" }
+        }
+      ]
+    }
+  ]
+}

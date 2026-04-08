@@ -1,71 +1,25 @@
 [
   {
-    "id": "arcane_bolt",
+    "id": "mage-arcane-bolt",
     "name": "Arcane Bolt",
-    "description": "Hurl a bolt of raw arcane energy at a single target. Fast cast, reliable damage.",
-    "resource_cost": 3,
+    "description": "Hurl a bolt of raw arcane energy at a single target. Reliable ranged damage.",
+    "resource_cost": 5,
     "cooldown_turns": 0,
     "range": 4,
     "damage_formula": {
-      "base": 18,
+      "base": 12,
       "stat_scaling": "attack",
-      "scaling_factor": 0.9
+      "scaling_factor": 1.3
     },
     "effects": [],
     "target": "single"
   },
   {
-    "id": "frost_nova",
-    "name": "Frost Nova",
-    "description": "Unleash a burst of freezing energy around you, slowing all nearby enemies for 2 turns.",
-    "resource_cost": 4,
-    "cooldown_turns": 4,
-    "range": "melee",
-    "damage_formula": {
-      "base": 10,
-      "stat_scaling": "attack",
-      "scaling_factor": 0.6
-    },
-    "effects": [
-      {
-        "type": "slow",
-        "duration_turns": 2,
-        "magnitude": 4,
-        "apply_chance": 0.85
-      }
-    ],
-    "target": "aoe",
-    "aoe_radius": 2
-  },
-  {
-    "id": "meteor_strike",
-    "name": "Meteor Strike",
-    "description": "Call down a meteor from the sky, dealing massive AoE damage to all enemies in the area.",
-    "resource_cost": 8,
-    "cooldown_turns": 6,
-    "range": 5,
-    "damage_formula": {
-      "base": 35,
-      "stat_scaling": "attack",
-      "scaling_factor": 1.2
-    },
-    "effects": [
-      {
-        "type": "stun",
-        "duration_turns": 1,
-        "magnitude": 1,
-        "apply_chance": 0.5
-      }
-    ],
-    "target": "aoe",
-    "aoe_radius": 3
-  },
-  {
-    "id": "arcane_shield",
-    "name": "Arcane Shield",
+    "id": "mage-mana-shield",
+    "name": "Mana Shield",
     "description": "Erect a shimmering magical barrier, greatly boosting defense for 2 turns.",
-    "resource_cost": 4,
-    "cooldown_turns": 5,
+    "resource_cost": 8,
+    "cooldown_turns": 4,
     "range": "melee",
     "damage_formula": {
       "base": 0,
@@ -76,32 +30,185 @@
       {
         "type": "buff_defense",
         "duration_turns": 2,
-        "magnitude": 10,
+        "magnitude": 12,
         "apply_chance": 1.0
       }
     ],
     "target": "self"
   },
   {
-    "id": "lich_grasp",
-    "name": "Lich's Grasp",
-    "description": "Extend tendrils of shadow into a target's life force. Deals damage and restores mana equal to half the damage dealt.",
-    "resource_cost": 5,
-    "cooldown_turns": 5,
-    "range": 3,
+    "id": "mage-frost-nova",
+    "name": "Frost Nova",
+    "description": "Unleash a burst of freezing energy, damaging and slowing all nearby enemies.",
+    "resource_cost": 10,
+    "cooldown_turns": 4,
+    "range": "melee",
     "damage_formula": {
-      "base": 22,
+      "base": 8,
       "stat_scaling": "attack",
-      "scaling_factor": 0.85
+      "scaling_factor": 0.8
     },
     "effects": [
       {
-        "type": "blind",
-        "duration_turns": 1,
-        "magnitude": 1,
-        "apply_chance": 0.4
+        "type": "slow",
+        "duration_turns": 2,
+        "magnitude": 4,
+        "apply_chance": 0.8
       }
     ],
+    "target": "aoe",
+    "aoe_radius": 2
+  },
+  {
+    "id": "mage-fireball",
+    "name": "Fireball",
+    "description": "Launch a searing fireball at a distant target. High single-target damage.",
+    "resource_cost": 12,
+    "cooldown_turns": 3,
+    "range": 5,
+    "damage_formula": {
+      "base": 15,
+      "stat_scaling": "attack",
+      "scaling_factor": 1.5
+    },
+    "effects": [],
     "target": "single"
+  },
+  {
+    "id": "mage-healing-light",
+    "name": "Healing Light",
+    "description": "Channel restorative energy to heal yourself or an ally.",
+    "resource_cost": 6,
+    "cooldown_turns": 2,
+    "range": 3,
+    "damage_formula": {
+      "base": 15,
+      "stat_scaling": "attack",
+      "scaling_factor": 0.4
+    },
+    "effects": [
+      {
+        "type": "heal_hp",
+        "duration_turns": 1,
+        "magnitude": 15,
+        "apply_chance": 1.0
+      }
+    ],
+    "target": "single_or_self"
+  },
+  {
+    "id": "mage-arcane-sight",
+    "name": "Arcane Sight",
+    "description": "Open your inner eye. Reveals all enemies in the current room for 3 turns.",
+    "resource_cost": 6,
+    "cooldown_turns": 8,
+    "range": "melee",
+    "damage_formula": {
+      "base": 0,
+      "stat_scaling": "attack",
+      "scaling_factor": 0.0
+    },
+    "effects": [],
+    "target": "self",
+    "special": "reveal_room_enemies"
+  },
+  {
+    "id": "mage-mana-drain",
+    "name": "Mana Drain",
+    "description": "Siphon arcane energy from a target, dealing damage and restoring 8 mana on hit.",
+    "resource_cost": 0,
+    "cooldown_turns": 5,
+    "range": 3,
+    "damage_formula": {
+      "base": 8,
+      "stat_scaling": "attack",
+      "scaling_factor": 0.6
+    },
+    "effects": [],
+    "target": "single",
+    "special": "restore_resource_on_hit"
+  },
+  {
+    "id": "mage-purify",
+    "name": "Purify",
+    "description": "Cleanse all debuffs from yourself or an ally and restore a small amount of HP.",
+    "resource_cost": 8,
+    "cooldown_turns": 5,
+    "range": 3,
+    "damage_formula": {
+      "base": 10,
+      "stat_scaling": "attack",
+      "scaling_factor": 0.0
+    },
+    "effects": [
+      {
+        "type": "heal_hp",
+        "duration_turns": 1,
+        "magnitude": 10,
+        "apply_chance": 1.0
+      }
+    ],
+    "target": "single_or_self",
+    "special": "cure_debuffs"
+  },
+  {
+    "id": "mage-portal",
+    "name": "Portal",
+    "description": "Tear open a portal back to town. Exit the dungeon immediately with all loot. 1 use per run.",
+    "resource_cost": 20,
+    "cooldown_turns": 999,
+    "range": "melee",
+    "damage_formula": {
+      "base": 0,
+      "stat_scaling": "attack",
+      "scaling_factor": 0.0
+    },
+    "effects": [],
+    "target": "self",
+    "special": "portal_escape"
+  },
+  {
+    "id": "mage-meteor",
+    "name": "Meteor Strike",
+    "description": "Call down a meteor from the sky, dealing massive AoE damage.",
+    "resource_cost": 25,
+    "cooldown_turns": 8,
+    "range": 5,
+    "damage_formula": {
+      "base": 25,
+      "stat_scaling": "attack",
+      "scaling_factor": 1.8
+    },
+    "effects": [],
+    "target": "aoe",
+    "aoe_radius": 2
+  },
+  {
+    "id": "mage-restoration",
+    "name": "Restoration",
+    "description": "A powerful healing ability that restores massive HP and grants a defense buff.",
+    "resource_cost": 18,
+    "cooldown_turns": 8,
+    "range": 3,
+    "damage_formula": {
+      "base": 40,
+      "stat_scaling": "attack",
+      "scaling_factor": 0.8
+    },
+    "effects": [
+      {
+        "type": "heal_hp",
+        "duration_turns": 1,
+        "magnitude": 40,
+        "apply_chance": 1.0
+      },
+      {
+        "type": "buff_defense",
+        "duration_turns": 3,
+        "magnitude": 5,
+        "apply_chance": 1.0
+      }
+    ],
+    "target": "single_or_self"
   }
 ]
