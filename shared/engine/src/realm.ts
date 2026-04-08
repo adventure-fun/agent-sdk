@@ -98,13 +98,15 @@ function generateHandcraftedRealm(
       rooms[r].connections.push(rooms[r - 1].id)
     }
 
-    floors.push({
+    const floorResult: GeneratedFloor = {
       floor_number: f,
       rooms,
-      entrance_room_id: rooms[0].id,
-      exit_room_id: isFinalFloor ? null : rooms[rooms.length - 1].id,
-      boss_room_id: isFinalFloor && hasBoss ? rooms[rooms.length - 1].id : null,
-    })
+      entrance_room_id: rooms[0]!.id,
+      exit_room_id: isFinalFloor ? null : rooms[rooms.length - 1]!.id,
+      boss_room_id: isFinalFloor && hasBoss ? rooms[rooms.length - 1]!.id : null,
+    }
+    placeDoors(floorResult)
+    floors.push(floorResult)
   }
 
   return {
@@ -214,13 +216,16 @@ function generateFloor(
   }
   rooms.push(finalRoom)
 
-  return {
+  const floorResult: GeneratedFloor = {
     floor_number: floorNumber,
     rooms,
     entrance_room_id: entranceRoom.id,
     exit_room_id: isFinalFloor ? null : finalRoom.id,
     boss_room_id: isFinalFloor ? finalRoom.id : null,
   }
+
+  placeDoors(floorResult)
+  return floorResult
 }
 
 function generateRoom(
@@ -342,6 +347,47 @@ function pickRoomType(template: RealmTemplate, rng: SeededRng, isFinalFloor: boo
     if (roll <= 0) return type
   }
   return "combat"
+}
+
+/**
+ * After rooms are connected, punch door tiles through the walls
+ * so the player can see and walk through exits.
+ * Linear chain: previous room ← left wall door | right wall door → next room.
+ * Exit rooms (non-final floor) get a stairs tile instead of a right door.
+ */
+function placeDoors(floor: GeneratedFloor): void {
+  const rooms = floor.rooms
+  for (let i = 0; i < rooms.length; i++) {
+    const room = rooms[i]!
+    const h = room.tiles.length
+    const w = room.tiles[0]?.length ?? 0
+    if (h < 3 || w < 3) continue
+
+    const midY = Math.floor(h / 2)
+
+    // Door to previous room → left wall center
+    const prev = rooms[i - 1]
+    if (prev && room.connections.includes(prev.id)) {
+      const row = room.tiles[midY]
+      if (row) row[0] = { x: 0, y: midY, type: "door", entities: [] }
+    }
+
+    // Door/stairs to next room → right wall center
+    const next = rooms[i + 1]
+    if (next && room.connections.includes(next.id)) {
+      const row = room.tiles[midY]
+      // If this is the exit room, use stairs instead of door
+      const tileType: TileType = room.id === floor.exit_room_id ? "stairs" : "door"
+      if (row) row[w - 1] = { x: w - 1, y: midY, type: tileType, entities: [] }
+    }
+
+    // If this is the exit room with no next room in the chain,
+    // place stairs on the right wall center for floor descent
+    if (room.id === floor.exit_room_id && !next) {
+      const row = room.tiles[midY]
+      if (row) row[w - 1] = { x: w - 1, y: midY, type: "stairs", entities: [] }
+    }
+  }
 }
 
 function buildRoomTiles(width: number, height: number): Tile[][] {

@@ -11,7 +11,7 @@
       "text_on_interact": "The chest is dented but intact. Inside: two glass vials of red liquid and a small pouch of coins.",
       "conditions": [{ "type": "enemy_defeated", "entity_id": "f1_r2_enemy_01" }],
       "effects": [
-        { "type": "grant_item", "item_template_id": "health-potion", "quantity": 2 },
+        { "type": "grant_item", "item_template_id": "health_potion", "quantity": 2 },
         { "type": "grant_gold", "amount": 15 }
       ],
       "lore_entry_id": null

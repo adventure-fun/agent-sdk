@@ -15,7 +15,7 @@
     "boss": 0.10
   },
   "enemy_roster": [
-    "skeleton_warrior",
+    "skeleton-warrior",
     "drowned-husk"
   ],
   "boss_id": "hollow-warden",

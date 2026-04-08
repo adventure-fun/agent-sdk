@@ -15,12 +15,12 @@
     "boss": 0.05
   },
   "enemy_roster": [
-    "stone_golem",
-    "iron_automaton",
-    "skeleton_warrior",
+    "stone-golem",
+    "iron-automaton",
+    "skeleton-warrior",
     "necromancer"
   ],
-  "boss_id": "iron_sentinel",
+  "boss_id": "iron-sentinel",
   "loot_tables": [
     {
       "id": "construct_common",

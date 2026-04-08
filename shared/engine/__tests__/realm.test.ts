@@ -18,8 +18,8 @@ const mockTemplate: RealmTemplate = {
     event: 0.1,
     boss: 0.1,
   },
-  enemy_roster: ["skeleton_warrior", "zombie"],
-  boss_id: "lich_king",
+  enemy_roster: ["skeleton-warrior", "zombie"],
+  boss_id: "lich-king",
   loot_tables: [
     { id: "crypt_common", entries: [{ item_template_id: "iron_sword", weight: 1, quantity: { min: 1, max: 1 } }] },
   ],

@@ -10,7 +10,7 @@
       "name": "Corroded Lockbox",
       "text_on_interact": "The lock crumbles at your touch. Inside: a heavy iron key stamped with the mine's seal.",
       "conditions": [],
-      "effects": [{ "type": "grant_item", "item_template_id": "mine-key" }],
+      "effects": [{ "type": "grant_item", "item_template_id": "mine_key" }],
       "lore_entry_id": null
     },
     {

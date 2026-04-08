@@ -18,9 +18,10 @@
     "clean": "turbo clean && rm -rf node_modules"
   },
   "devDependencies": {
+    "@types/node": "^22.10.2",
+    "postgres": "^3.4.9",
     "turbo": "^2.3.3",
-    "typescript": "^5.7.2",
-    "@types/node": "^22.10.2"
+    "typescript": "^5.7.2"
   },
   "packageManager": "bun@1.3.11",
   "engines": {

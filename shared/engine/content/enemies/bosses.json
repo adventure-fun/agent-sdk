@@ -1,6 +1,6 @@
 [
   {
-    "id": "lich_king",
+    "id": "lich-king",
     "name": "Lich King",
     "stats": {
       "hp": 280,
@@ -71,7 +71,7 @@
     "difficulty_tier": 3
   },
   {
-    "id": "iron_sentinel",
+    "id": "iron-sentinel",
     "name": "Iron Sentinel",
     "stats": {
       "hp": 320,

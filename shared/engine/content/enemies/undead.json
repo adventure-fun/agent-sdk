@@ -1,6 +1,6 @@
 [
   {
-    "id": "skeleton_warrior",
+    "id": "skeleton-warrior",
     "name": "Skeleton Warrior",
     "stats": {
       "hp": 35,
@@ -68,7 +68,7 @@
     "difficulty_tier": 3
   },
   {
-    "id": "stone_golem",
+    "id": "stone-golem",
     "name": "Stone Golem",
     "stats": {
       "hp": 80,
@@ -85,7 +85,7 @@
     "difficulty_tier": 2
   },
   {
-    "id": "iron_automaton",
+    "id": "iron-automaton",
     "name": "Iron Automaton",
     "stats": {
       "hp": 100,

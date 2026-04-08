@@ -10,7 +10,7 @@
       "name": "Open Sarcophagus",
       "text_on_interact": "The burial cloth is embroidered with a name you cannot read. The key is cold and heavy — it bears the crypt's seal.",
       "conditions": [],
-      "effects": [{ "type": "grant_item", "item_template_id": "crypt-key" }],
+      "effects": [{ "type": "grant_item", "item_template_id": "crypt_key" }],
       "lore_entry_id": null
     }
   ],

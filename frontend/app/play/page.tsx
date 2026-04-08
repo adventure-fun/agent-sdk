@@ -765,6 +765,28 @@ function DungeonView({
   const resPct = character.resource.max > 0 ? (character.resource.current / character.resource.max) * 100 : 0
   const hpColor = hpPct > 50 ? "bg-green-500" : hpPct > 25 ? "bg-yellow-500" : "bg-red-500"
 
+  // Arrow key → movement mapping
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (waitingForResponse) return
+      const dirMap: Record<string, "up" | "down" | "left" | "right"> = {
+        ArrowUp: "up",
+        ArrowDown: "down",
+        ArrowLeft: "left",
+        ArrowRight: "right",
+      }
+      const direction = dirMap[e.key]
+      if (!direction) return
+      const action = moveActions.find((a) => a.direction === direction)
+      if (action) {
+        e.preventDefault()
+        onAction(action)
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [moveActions, waitingForResponse, onAction])
+
   return (
     <main className="min-h-screen flex flex-col p-4">
       <div className="max-w-5xl w-full mx-auto flex-1 flex flex-col gap-4">
@@ -953,16 +975,19 @@ function DungeonView({
           {/* Pickup */}
           {canPickup.length > 0 && (
             <div className="flex flex-wrap gap-2 justify-center">
-              {canPickup.map((action, i) => (
-                <button
-                  key={i}
-                  disabled={waitingForResponse}
-                  onClick={() => onAction(action)}
-                  className="px-3 py-1 text-xs bg-amber-900/50 hover:bg-amber-900 text-amber-300 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  Pick up {action.item_id}
-                </button>
-              ))}
+              {canPickup.map((action, i) => {
+                const entity = visible_entities.find((e) => e.id === action.item_id)
+                return (
+                  <button
+                    key={i}
+                    disabled={waitingForResponse}
+                    onClick={() => onAction(action)}
+                    className="px-3 py-1 text-xs bg-amber-900/50 hover:bg-amber-900 text-amber-300 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Pick up {entity?.name ?? action.item_id}
+                  </button>
+                )
+              })}
             </div>
           )}
 

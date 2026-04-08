@@ -19,21 +19,21 @@
   "triggers": [
     {
       "conditions": [{ "type": "class_is", "class": "knight" }],
-      "effects": [{ "type": "grant_item", "item_template_id": "weapon-iron-sword" }],
+      "effects": [{ "type": "grant_item", "item_template_id": "weapon_iron_sword" }],
       "fire_once": true,
       "trigger_on": "interact",
       "target_id": "tutorial-chest-weapon"
     },
     {
       "conditions": [{ "type": "class_is", "class": "rogue" }],
-      "effects": [{ "type": "grant_item", "item_template_id": "weapon-rusty-dagger" }],
+      "effects": [{ "type": "grant_item", "item_template_id": "weapon_rusty_dagger" }],
       "fire_once": true,
       "trigger_on": "interact",
       "target_id": "tutorial-chest-weapon"
     },
     {
       "conditions": [{ "type": "class_is", "class": "mage" }],
-      "effects": [{ "type": "grant_item", "item_template_id": "weapon-oak-staff" }],
+      "effects": [{ "type": "grant_item", "item_template_id": "weapon_oak_staff" }],
       "fire_once": true,
       "trigger_on": "interact",
       "target_id": "tutorial-chest-weapon"
@@ -41,8 +41,8 @@
     {
       "conditions": [{ "type": "class_is", "class": "archer" }],
       "effects": [
-        { "type": "grant_item", "item_template_id": "weapon-short-bow" },
-        { "type": "grant_item", "item_template_id": "ammo-arrows-10" }
+        { "type": "grant_item", "item_template_id": "weapon_short_bow" },
+        { "type": "grant_item", "item_template_id": "ammo_arrows_10" }
       ],
       "fire_once": true,
       "trigger_on": "interact",

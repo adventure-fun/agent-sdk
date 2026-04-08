@@ -133,7 +133,7 @@ class GameSession {
 
     // Build active floor rooms
     const activeFloorRooms = (genFloor?.rooms ?? []).map((gr) =>
-      buildRoomState(gr, mutatedEntities),
+      buildRoomState(gr, mutatedEntities, realm.template_id, realm.seed),
     )
 
     // Build inventory + equipment
@@ -449,7 +449,7 @@ class GameSession {
       status: reason === "death" ? "dead" : "alive",
       cause_of_death:
         reason === "death"
-          ? (this.eventBuffer.findLast((e) => e.type === "enemy_attack")
+          ? ([...this.eventBuffer].reverse().find((e: GameEvent) => e.type === "enemy_attack")
               ?.detail ?? "Unknown")
           : null,
       owner_handle: (account?.handle as string) ?? "",
@@ -663,6 +663,6 @@ function startTurnTimer(ws: ServerWebSocket<GameSessionData>) {
 function clearTurnTimer(ws: ServerWebSocket<GameSessionData>) {
   if (ws.data.turnTimer) {
     clearTimeout(ws.data.turnTimer)
-    ws.data.turnTimer = undefined
+    delete ws.data.turnTimer
   }
 }

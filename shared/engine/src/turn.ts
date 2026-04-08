@@ -44,8 +44,8 @@ import {
   mergeDiscoveredTiles,
   type Position,
 } from "./visibility.js"
-import { getEnemy, getItem, CLASSES, ROOMS } from "./content.js"
-import { SeededRng } from "./rng.js"
+import { getEnemy, getItem, CLASSES, ROOMS, REALMS } from "./content.js"
+import { SeededRng, deriveSeed } from "./rng.js"
 
 // ── Internal types ────────────────────────────────────────────────────────────
 
@@ -178,13 +178,8 @@ function resolveMove(
   const height = room.tiles.length
   const width = room.tiles[0]?.length ?? 0
 
-  // Check room transition: moving into a wall at the edge
-  if (nx < 0 || ny < 0 || nx >= width || ny >= height || room.tiles[ny]?.[nx]?.type === "wall") {
-    const transition = tryRoomTransition(s, room, direction, realm)
-    if (transition) {
-      events.push({ turn: 0, type: "move", detail: `Moved to ${transition.roomId}`, data: { direction } })
-      return { summary: transition.summary, roomChanged: true }
-    }
+  // Out of bounds → blocked
+  if (nx < 0 || ny < 0 || nx >= width || ny >= height) {
     events.push({ turn: 0, type: "blocked", detail: "Path blocked", data: { direction } })
     return { summary: "The way is blocked.", roomChanged: false }
   }
@@ -202,10 +197,20 @@ function resolveMove(
     return { summary: "An enemy blocks the way.", roomChanged: false }
   }
 
+  // Move the player onto the tile
   s.position.tile = { x: nx, y: ny }
   events.push({ turn: 0, type: "move", detail: `Moved ${direction}`, data: { direction, x: nx, y: ny } })
 
-  // Check if stepping on stairs triggers a floor transition
+  // Door tile → room transition
+  if (targetTile.type === "door") {
+    const transition = tryRoomTransition(s, room, direction, realm)
+    if (transition) {
+      events.push({ turn: 0, type: "room_change", detail: `Entered ${transition.roomId}`, data: { direction } })
+      return { summary: transition.summary, roomChanged: true }
+    }
+  }
+
+  // Stairs tile → floor transition
   if (targetTile.type === "stairs") {
     const ft = tryFloorTransition(s, realm, events)
     if (ft) return { summary: ft.summary, roomChanged: true }
@@ -241,7 +246,7 @@ function tryRoomTransition(
   let targetRoom = s.activeFloor.rooms.find((r) => r.id === targetGenRoom.id)
   if (!targetRoom) {
     // Room not yet loaded — build it from generated data
-    targetRoom = buildRoomState(targetGenRoom, s.mutatedEntities)
+    targetRoom = buildRoomState(targetGenRoom, s.mutatedEntities, s.realm.template_id, s.realm.seed)
     s.activeFloor.rooms.push(targetRoom)
   }
 
@@ -270,7 +275,7 @@ function tryFloorTransition(
 
   // Build the new floor's rooms
   s.activeFloor.rooms = nextGenFloor.rooms.map((gr) =>
-    buildRoomState(gr, s.mutatedEntities),
+    buildRoomState(gr, s.mutatedEntities, s.realm.template_id, s.realm.seed),
   )
   s.position.floor = nextFloorNum
   s.position.room_id = nextGenFloor.entrance_room_id
@@ -910,10 +915,13 @@ function findRoomTemplate(generatedRoomId: string): RoomTemplate | null {
   return ROOMS[templateId] ?? null
 }
 
-/** Build a RoomState from a GeneratedRoom, filtering out already-mutated entities */
+/** Build a RoomState from a GeneratedRoom, filtering out already-mutated entities.
+ *  When realmTemplateId + seed are provided, resolves loot items from loot tables deterministically. */
 export function buildRoomState(
   genRoom: GeneratedRoom,
   mutatedEntities: string[],
+  realmTemplateId?: string,
+  seed?: number,
 ): RoomState {
   const roomTemplate = findRoomTemplateFromId(genRoom.id)
 
@@ -955,12 +963,37 @@ export function buildRoomState(
     })
   }
 
+  // Resolve loot items from room template's loot_slots + realm loot tables
   const items: RoomState["items"] = []
-  for (const itemId of genRoom.item_ids) {
+  const realmTemplate = realmTemplateId ? REALMS[realmTemplateId] : undefined
+  const lootTables = realmTemplate?.loot_tables
+
+  for (let i = 0; i < genRoom.item_ids.length; i++) {
+    const itemId = genRoom.item_ids[i]!
     if (mutatedEntities.includes(itemId)) continue
+
+    let templateId = "health_potion" // fallback
+    const lootSlot = roomTemplate?.loot_slots[i]
+    if (lootSlot && lootTables && seed != null) {
+      const table = lootTables.find((t) => t.id === lootSlot.loot_table_id)
+      if (table && table.entries.length > 0) {
+        // Deterministic per-item RNG so same seed always gives same loot
+        const itemRng = new SeededRng(deriveSeed(seed, itemId))
+        const totalWeight = table.entries.reduce((sum, e) => sum + e.weight, 0)
+        let roll = itemRng.next() * totalWeight
+        for (const entry of table.entries) {
+          roll -= entry.weight
+          if (roll <= 0) {
+            templateId = entry.item_template_id
+            break
+          }
+        }
+      }
+    }
+
     items.push({
       id: itemId,
-      template_id: "unknown", // resolved by loot table at generation time
+      template_id: templateId,
       position: { x: 2, y: 2 },
     })
   }
@@ -1141,6 +1174,20 @@ export function buildObservationFromState(
         name: template?.name ?? item.template_id,
         position: item.position,
       })
+    }
+
+    // Interactables from room template
+    const obsRoomTemplate = findRoomTemplate(room.id)
+    if (obsRoomTemplate) {
+      for (const inter of obsRoomTemplate.interactables) {
+        if (state.mutatedEntities.includes(inter.id)) continue
+        visibleEntities.push({
+          id: inter.id,
+          type: "interactable",
+          name: inter.name,
+          position: { x: 0, y: 0 },
+        })
+      }
     }
   }
 
