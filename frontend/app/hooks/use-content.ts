@@ -19,6 +19,7 @@ export interface ClassTemplateSummary {
   name: string
   description: string
   resource_type: string
+  resource_max: number
   stat_roll_ranges: Record<string, [number, number]>
   visibility_radius: number
 }

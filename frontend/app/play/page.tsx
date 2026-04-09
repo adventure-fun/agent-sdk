@@ -227,7 +227,7 @@ export default function PlayPage() {
                 <div className="flex items-center justify-between mb-2">
                   <h2 className="text-lg font-bold text-amber-400">{cls.name}</h2>
                   <span className="text-xs text-gray-500 uppercase tracking-wider">
-                    {cls.resource_type}
+                    {cls.resource_type}: {cls.resource_max}
                   </span>
                 </div>
                 <p className="text-gray-400 text-sm mb-3">{cls.description}</p>
@@ -561,6 +561,10 @@ export default function PlayPage() {
 
   // ── Character hub ────────────────────────────────────────────────────────────
   if (step === "hub" && character) {
+    const hubHpPct = character.hp_max > 0 ? (character.hp_current / character.hp_max) * 100 : 0
+    const hubHpColor = hubHpPct > 50 ? "bg-green-500" : hubHpPct > 25 ? "bg-yellow-500" : "bg-red-500"
+    const resourceLabel = classMap[character.class]?.resource_type ?? "resource"
+
     const handleGenerateRealm = async (templateId: string) => {
       setRealmError(null)
       setGeneratingTemplate(templateId)
@@ -584,7 +588,7 @@ export default function PlayPage() {
           <h1 className="text-3xl font-bold text-amber-400 text-center">ADVENTURE.FUN</h1>
 
           {/* Character summary */}
-          <div className="bg-gray-900 border border-gray-800 rounded p-4 text-sm space-y-2">
+          <div className="bg-gray-900 border border-gray-800 rounded p-4 text-sm space-y-3">
             <div className="flex items-center justify-between">
               <h2 className="text-amber-400 font-bold">{character.name}</h2>
               <span className="text-gray-500 text-xs">
@@ -593,21 +597,27 @@ export default function PlayPage() {
             </div>
             <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs">
               <p>
-                <span className="text-gray-500">HP:</span>{" "}
-                <span className="text-gray-300">{character.hp_current}/{character.hp_max}</span>
-              </p>
-              <p>
                 <span className="text-gray-500">Gold:</span>{" "}
                 <span className="text-gray-300">{character.gold}</span>
-              </p>
-              <p>
-                <span className="text-gray-500 capitalize">{classMap[character.class]?.resource_type ?? "resource"}:</span>{" "}
-                <span className="text-gray-300 capitalize">{character.resource_current}/{character.resource_max}</span>
               </p>
               <p>
                 <span className="text-gray-500">XP:</span>{" "}
                 <span className="text-gray-300">{character.xp}</span>
               </p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <StatusMeter
+                label="HP"
+                current={character.hp_current}
+                max={character.hp_max}
+                colorClass={hubHpColor}
+              />
+              <StatusMeter
+                label={resourceLabel}
+                current={character.resource_current}
+                max={character.resource_max}
+                colorClass="bg-blue-500"
+              />
             </div>
             <p className="text-xs text-gray-600">
               ATK {character.stats.attack} | DEF {character.stats.defense} | ACC {character.stats.accuracy} | EVA {character.stats.evasion} | SPD {character.stats.speed}
@@ -762,7 +772,6 @@ function DungeonView({
   const canPickup = legal_actions.filter((a): a is Action & { type: "pickup" } => a.type === "pickup")
 
   const hpPct = character.hp.max > 0 ? (character.hp.current / character.hp.max) * 100 : 0
-  const resPct = character.resource.max > 0 ? (character.resource.current / character.resource.max) * 100 : 0
   const hpColor = hpPct > 50 ? "bg-green-500" : hpPct > 25 ? "bg-yellow-500" : "bg-red-500"
 
   // Arrow key → movement mapping
@@ -822,27 +831,19 @@ function DungeonView({
               <div className="text-xs text-gray-500">XP: {character.xp} — Gold: {gold}</div>
             </div>
 
-            {/* HP */}
-            <div>
-              <div className="flex justify-between text-xs mb-1">
-                <span className="text-gray-500">HP</span>
-                <span className="text-gray-400">{character.hp.current}/{character.hp.max}</span>
-              </div>
-              <div className="h-2 bg-gray-800 rounded overflow-hidden">
-                <div className={`h-full rounded ${hpColor}`} style={{ width: `${hpPct}%` }} />
-              </div>
-            </div>
+            <StatusMeter
+              label="HP"
+              current={character.hp.current}
+              max={character.hp.max}
+              colorClass={hpColor}
+            />
 
-            {/* Resource */}
-            <div>
-              <div className="flex justify-between text-xs mb-1">
-                <span className="text-gray-500 capitalize">{character.resource.type}</span>
-                <span className="text-gray-400">{character.resource.current}/{character.resource.max}</span>
-              </div>
-              <div className="h-2 bg-gray-800 rounded overflow-hidden">
-                <div className="h-full bg-blue-500 rounded" style={{ width: `${resPct}%` }} />
-              </div>
-            </div>
+            <StatusMeter
+              label={character.resource.type}
+              current={character.resource.current}
+              max={character.resource.max}
+              colorClass="bg-blue-500"
+            />
 
             {/* Stats */}
             <div className="text-xs text-gray-600 space-y-0.5">
@@ -867,9 +868,9 @@ function DungeonView({
             <div>
               <div className="text-xs text-gray-500 uppercase mb-1">Equipment</div>
               <div className="text-xs text-gray-600 space-y-0.5">
-                {(["weapon", "armor", "accessory", "class_specific"] as const).map((slot) => (
+                {(["weapon", "armor", "accessory", "class-specific"] as const).map((slot) => (
                   <p key={slot}>
-                    <span className="text-gray-500 capitalize">{slot.replace("_", " ")}:</span>{" "}
+                    <span className="text-gray-500 capitalize">{slot.replace("-", " ")}:</span>{" "}
                     <span className={equipment[slot] ? "text-gray-300" : "text-gray-700"}>
                       {equipment[slot]?.name ?? "Empty"}
                     </span>
@@ -1057,6 +1058,32 @@ function Shell({ children, wide }: { children: React.ReactNode; wide?: boolean }
         {children}
       </div>
     </main>
+  )
+}
+
+function StatusMeter({
+  label,
+  current,
+  max,
+  colorClass,
+}: {
+  label: string
+  current: number
+  max: number
+  colorClass: string
+}) {
+  const pct = max > 0 ? Math.min((current / max) * 100, 100) : 0
+
+  return (
+    <div>
+      <div className="flex justify-between text-xs mb-1">
+        <span className="text-gray-500 capitalize">{label}</span>
+        <span className="text-gray-400">{current}/{max}</span>
+      </div>
+      <div className="h-2 bg-gray-800 rounded overflow-hidden">
+        <div className={`h-full rounded ${colorClass}`} style={{ width: `${pct}%` }} />
+      </div>
+    </div>
   )
 }
 

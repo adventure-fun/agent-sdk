@@ -24,6 +24,7 @@ content.get("/classes", (c) => {
     name: cls.name,
     description: cls.description,
     resource_type: cls.resource_type,
+    resource_max: cls.resource_max,
     stat_roll_ranges: cls.stat_roll_ranges,
     visibility_radius: cls.visibility_radius,
   }))

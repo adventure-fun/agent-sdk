@@ -72,18 +72,20 @@ Add notes under any item with `> NOTE: your note here` when needed.
 **Scope:** Backend stat rolling, class template alignment
 **Why early:** Affects every new character created
 
-- [ ] **2.1 — `resource_max` hardcoded to 100 for all classes in `stats.ts`**
+- [x] **2.1 — `resource_max` hardcoded to 100 for all classes in `stats.ts`**
   - `backend/src/game/stats.ts` line 39-44: `RESOURCE_MAX = { knight: 100, mage: 100, rogue: 100, archer: 100 }`
   - But class JSON templates define different values (e.g. `knight.json` has `"resource_max": 10`)
   - This means knights get 100 stamina instead of 10, which would break balance once resources are functional
   - **Fix:** Import `CLASSES` from `@adventure-fun/engine` and use `cls.resource_max` instead of the hardcoded map
   - **Files:** `backend/src/game/stats.ts`
+  > NOTE: Replaced the hardcoded `RESOURCE_MAX` map with `CLASSES[cls].resource_max` from `@adventure-fun/engine`. Added TDD coverage in `backend/__tests__/stats.test.ts` to lock the backend to the engine template values. Also updated `frontend/app/play/page.tsx` so class cards show each class's max resource pool and the hub view renders a current/max resource meter.
 
-- [ ] **2.2 — Duplicate stat roll ranges between `stats.ts` and class JSON content**
+- [x] **2.2 — Duplicate stat roll ranges between `stats.ts` and class JSON content**
   - `stats.ts` has `CLASS_STAT_RANGES` hardcoded; class JSON files have `stat_roll_ranges`
   - These could drift out of sync — single source of truth should be the engine content
   - **Fix:** Replace the hardcoded ranges in `stats.ts` with values read from `CLASSES[cls].stat_roll_ranges`
   - **Files:** `backend/src/game/stats.ts`
+  > NOTE: Removed the duplicated `CLASS_STAT_RANGES` constant entirely. `rollStats()` and `rerollStats()` now read directly from `CLASSES[cls].stat_roll_ranges`, and the new backend test file verifies rolled stats always stay within the engine-defined bounds.
 
 ---
 
@@ -543,3 +545,5 @@ _Record completed fixes here with date and commit hash._
 | 2026-04-09 | 1.3 | pending | Created empty supabase/seed.sql |
 | 2026-04-09 | 1.4 | pending | Deleted orphaned migrations/ directory |
 | 2026-04-09 | 16.2 | pending | Removed dead `generateRealm` import from realms.ts (done as part of 1.2) |
+| 2026-04-09 | 2.1 | pending | Replaced hardcoded `resource_max` with engine `CLASSES` values; added backend tests and surfaced max resource in class select + hub UI |
+| 2026-04-09 | 2.2 | pending | Removed duplicated stat roll ranges from `stats.ts`; now rolls directly from engine template ranges with test coverage |
