@@ -1,7 +1,8 @@
 import { Hono } from "hono"
 import { db } from "../db/client.js"
 import { requireAuth } from "../auth/middleware.js"
-import { generateRealm, REALMS } from "@adventure-fun/engine"
+import { REALMS } from "@adventure-fun/engine"
+import { cleanupRealmForRegeneration } from "./realm-helpers.js"
 
 const realms = new Hono()
 
@@ -123,7 +124,7 @@ realms.post("/generate", requireAuth, async (c) => {
 // POST /realms/:id/regenerate — completed realms only, x402 + gold
 realms.post("/:id/regenerate", requireAuth, async (c) => {
   const { account_id } = c.get("session")
-  const realmId = c.req.param("id")
+  const realmId = c.req.param("id")!
 
   const { data: character } = await db
     .from("characters")
@@ -171,6 +172,8 @@ realms.post("/:id/regenerate", requireAuth, async (c) => {
       .update({ gold: character.gold - REGEN_GOLD_COST })
       .eq("id", character.id),
   ])
+
+  await cleanupRealmForRegeneration(db, realmId)
 
   return c.json(updated)
 })

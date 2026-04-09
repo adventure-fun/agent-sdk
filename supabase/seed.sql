@@ -1,0 +1,3 @@
+-- Adventure.fun — Database Seed
+-- This file is loaded by `supabase db reset` after migrations.
+-- Add seed data below as needed (e.g. test accounts, sample content).

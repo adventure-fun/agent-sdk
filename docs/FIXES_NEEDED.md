@@ -32,27 +32,31 @@ Add notes under any item with `> NOTE: your note here` when needed.
 **Scope:** Supabase migrations, schema corrections
 **Why first:** Other fixes depend on correct schema
 
-- [ ] **1.1 — `realm_instances` UNIQUE constraint blocks re-generation after death**
+- [x] **1.1 — `realm_instances` UNIQUE constraint blocks re-generation after death**
   - `UNIQUE (character_id, template_id)` prevents inserting a new realm for the same template after a `dead_end` result
   - The `POST /realms/generate` route allows past completed/dead_end realms but the insert will fail against the unique constraint since the old row still exists
   - **Fix:** Either (a) change generate to update the existing row when status is terminal (like regenerate does), or (b) drop the UNIQUE and add an app-level check, or (c) change the constraint to a partial unique excluding terminal statuses
   - **Files:** `supabase/migrations/`, `backend/src/routes/realms.ts`
+  > NOTE: Implemented option (c) — replaced absolute UNIQUE with partial unique index `unique_active_realm_per_template` excluding terminal statuses (`completed`, `dead_end`). Migration: `supabase/migrations/20260409033730_fix_realm_unique_constraint.sql`. Applied to live DB via Supabase MCP. No route changes needed — existing INSERT flow works with the relaxed constraint.
 
-- [ ] **1.2 — Realm regeneration leaves stale mutations and discovered map**
+- [x] **1.2 — Realm regeneration leaves stale mutations and discovered map**
   - `POST /realms/:id/regenerate` updates seed/status/floor but does not delete old `realm_mutations` or `realm_discovered_map` rows
   - On next session, `GameSession.create` loads these stale mutations, which reference entity IDs from the old seed — entities that should spawn won't because their old IDs are in `mutatedEntities`
   - **Fix:** Add `DELETE FROM realm_mutations WHERE realm_instance_id = $1` and same for `realm_discovered_map` in the regenerate route, then re-seed floor 1 discovered map
   - **Files:** `backend/src/routes/realms.ts`
+  > NOTE: Extracted cleanup into `backend/src/routes/realm-helpers.ts` (`cleanupRealmForRegeneration`) for testability. Deletes stale `realm_mutations` and `realm_discovered_map`, resets session columns (`last_turn`, `current_room_id`, `tile_x`, `tile_y`, `last_active_at`) on `realm_instances`, and re-seeds floor 1 discovered map. TDD: 5 tests in `backend/__tests__/realm-helpers.test.ts`, all green. Also created `backend/__tests__/helpers/mock-db.ts` for Supabase client mocking.
 
-- [ ] **1.3 — Missing `seed.sql` referenced by Supabase config**
+- [x] **1.3 — Missing `seed.sql` referenced by Supabase config**
   - `supabase/config.toml` has `[db.seed] enabled = true, sql_paths = ["./seed.sql"]` but no `seed.sql` exists
   - **Fix:** Either create an empty `supabase/seed.sql` or set `enabled = false`
   - **Files:** `supabase/config.toml`, optionally `supabase/seed.sql`
+  > NOTE: Created `supabase/seed.sql` with a comment header. Seed data can be added as needed.
 
-- [ ] **1.4 — Orphaned legacy migration file**
+- [x] **1.4 — Orphaned legacy migration file**
   - `/migrations/001_initial_schema.sql` duplicates (and may drift from) the authoritative Supabase migration at `supabase/migrations/20260407000000_initial_schema.sql`
   - **Fix:** Delete `/migrations/` directory or add a README noting it's superseded
   - **Files:** `migrations/001_initial_schema.sql`
+  > NOTE: Deleted `migrations/` directory entirely. Authoritative migrations are in `supabase/migrations/`.
 
 - [ ] **1.5 — Document RLS as future requirement**
   - All 14 public tables have `rls_enabled: false` and zero RLS policies (confirmed via live DB query)
@@ -507,10 +511,11 @@ Add notes under any item with `> NOTE: your note here` when needed.
   - **Fix:** Add a build step or ensure Bun can resolve the raw TS sources. Verify the import chain works on Railway
   - **Files:** `railway.toml`, `shared/schemas/package.json`
 
-- [ ] **16.2 — Dead import in `realms.ts`**
+- [x] **16.2 — Dead import in `realms.ts`**
   - `generateRealm` is imported from `@adventure-fun/engine` but never used
   - **Fix:** Remove the unused import
   - **Files:** `backend/src/routes/realms.ts`
+  > NOTE: Removed as part of Group 1 work — `generateRealm` import replaced with `cleanupRealmForRegeneration` import.
 
 ---
 
@@ -533,4 +538,8 @@ _Record completed fixes here with date and commit hash._
 
 | Date | Group.Item | Commit | Notes |
 |------|------------|--------|-------|
-| | | | |
+| 2026-04-09 | 1.1 | pending | Partial unique index replacing absolute UNIQUE on realm_instances |
+| 2026-04-09 | 1.2 | pending | cleanupRealmForRegeneration helper + tests; wired into regenerate route |
+| 2026-04-09 | 1.3 | pending | Created empty supabase/seed.sql |
+| 2026-04-09 | 1.4 | pending | Deleted orphaned migrations/ directory |
+| 2026-04-09 | 16.2 | pending | Removed dead `generateRealm` import from realms.ts (done as part of 1.2) |
