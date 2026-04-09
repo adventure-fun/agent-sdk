@@ -19,10 +19,12 @@ build/
 /.env.local
 /.env.*.local
 /.env.production
+/frontend/.env
 # Backend env (inherits from root .env at runtime)
 /backend/.env
 /backend/.env.local
 # frontend/.env is committed — only contains NEXT_PUBLIC_ vars (safe, client-side by design)
+frontend/.env
 frontend/.env.local
 frontend/.env.production
 

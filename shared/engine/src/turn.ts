@@ -603,18 +603,38 @@ function resolvePickup(
     return "Unknown item."
   }
 
+  const qty = floorItem.quantity ?? 1
+
+  // Gold coins go straight to gold total, not inventory
+  if (floorItem.template_id === "gold-coins") {
+    s.character.gold += qty
+
+    room.items.splice(itemIdx, 1)
+    mutations.push({
+      entity_id: floorItem.id,
+      mutation: "looted",
+      floor: s.position.floor,
+      metadata: { template_id: floorItem.template_id, quantity: qty },
+    })
+    s.mutatedEntities.push(floorItem.id)
+
+    const summary = `Found ${qty} gold.`
+    events.push({ turn: 0, type: "pickup", detail: summary, data: { item_id: floorItem.id, gold: qty } })
+    return summary
+  }
+
   // Add to inventory
   const existing = s.inventory.find(
     (i) => i.template_id === floorItem.template_id && i.quantity < template.stack_limit,
   )
   if (existing) {
-    existing.quantity += 1
+    existing.quantity += qty
   } else {
     s.inventory.push({
       id: floorItem.id,
       template_id: floorItem.template_id,
       name: template.name,
-      quantity: 1,
+      quantity: qty,
       modifiers: {},
       owner_type: "character",
       owner_id: s.character.id,
@@ -633,7 +653,7 @@ function resolvePickup(
   })
   s.mutatedEntities.push(floorItem.id)
 
-  const summary = `Picked up ${template.name}.`
+  const summary = qty > 1 ? `Picked up ${template.name} x${qty}.` : `Picked up ${template.name}.`
   events.push({ turn: 0, type: "pickup", detail: summary, data: { item_id: floorItem.id } })
   return summary
 }
@@ -680,7 +700,7 @@ function resolveInteract(
   // Apply interactable effects
   const parts: string[] = [interactable.text_on_interact]
   for (const effect of interactable.effects) {
-    applyEffect(s, effect, parts)
+    applyEffect(s, effect, parts, room, realm)
   }
 
   // Check triggers for this interactable
@@ -703,7 +723,7 @@ function resolveInteract(
 
     if (conditionsMet) {
       for (const effect of trigger.effects) {
-        applyEffect(s, effect, parts)
+        applyEffect(s, effect, parts, room, realm)
       }
     }
   }
@@ -727,6 +747,8 @@ function applyEffect(
   s: GameState,
   effect: { type: string; [key: string]: unknown },
   parts: string[],
+  room?: RoomState,
+  realm?: GeneratedRealm,
 ) {
   switch (effect.type) {
     case "grant-item": {
@@ -789,6 +811,33 @@ function applyEffect(
     case "cure-debuffs": {
       s.character.debuffs = []
       parts.push("Debuffs cleared.")
+      break
+    }
+    case "unlock-door": {
+      const entityId = effect.entity_id as string
+      s.mutatedEntities.push(entityId)
+      if (room && realm) {
+        // Find this room in the generated realm and connect it to the next room
+        const genFloor = realm.floors.find((f) => f.floor_number === s.position.floor)
+        if (genFloor) {
+          const roomIdx = genFloor.rooms.findIndex((r) => r.id === room.id)
+          const genRoom = genFloor.rooms[roomIdx]
+          const nextRoom = genFloor.rooms[roomIdx + 1]
+          if (genRoom && nextRoom && !genRoom.connections.includes(nextRoom.id)) {
+            // Create the forward connection in the generated realm
+            genRoom.connections.push(nextRoom.id)
+            // Place the door tile at right-wall center
+            const h = room.tiles.length
+            const w = room.tiles[0]?.length ?? 0
+            const midY = Math.floor(h / 2)
+            const row = room.tiles[midY]
+            if (row) {
+              row[w - 1] = { x: w - 1, y: midY, type: "door", entities: [] }
+            }
+          }
+        }
+      }
+      parts.push("The way ahead is now open.")
       break
     }
   }
@@ -973,6 +1022,7 @@ export function buildRoomState(
     if (mutatedEntities.includes(itemId)) continue
 
     let templateId = "health-potion" // fallback
+    let quantity = 1
     const lootSlot = roomTemplate?.loot_slots[i]
     if (lootSlot && lootTables && seed != null) {
       const table = lootTables.find((t) => t.id === lootSlot.loot_table_id)
@@ -985,6 +1035,9 @@ export function buildRoomState(
           roll -= entry.weight
           if (roll <= 0) {
             templateId = entry.item_template_id
+            // Resolve quantity from loot table range
+            const range = entry.quantity.max - entry.quantity.min
+            quantity = entry.quantity.min + (range > 0 ? Math.floor(itemRng.next() * (range + 1)) : 0)
             break
           }
         }
@@ -994,6 +1047,7 @@ export function buildRoomState(
     items.push({
       id: itemId,
       template_id: templateId,
+      quantity,
       position: { x: 2, y: 2 },
     })
   }

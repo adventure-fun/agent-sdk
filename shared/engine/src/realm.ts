@@ -92,10 +92,19 @@ function generateHandcraftedRealm(
       return generateRoomFromTemplate(templateId, f, index)
     })
 
-    // Wire rooms linearly
+    // Wire rooms linearly, skipping forward connections blocked by locked_exit
     for (let r = 1; r < rooms.length; r++) {
-      rooms[r - 1].connections.push(rooms[r].id)
-      rooms[r].connections.push(rooms[r - 1].id)
+      const prevTemplateId = floorRoomIds[r - 1]
+      const prevTemplate = prevTemplateId ? ROOMS[prevTemplateId] : undefined
+      if (prevTemplate?.locked_exit) {
+        // Previous room has a locked exit — don't connect forward.
+        // Player must unlock the door at runtime to create this connection.
+        // Still connect backward so player can retreat.
+        rooms[r].connections.push(rooms[r - 1].id)
+      } else {
+        rooms[r - 1].connections.push(rooms[r].id)
+        rooms[r].connections.push(rooms[r - 1].id)
+      }
     }
 
     const floorResult: GeneratedFloor = {

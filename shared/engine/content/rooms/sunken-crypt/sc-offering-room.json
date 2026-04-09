@@ -40,6 +40,7 @@
       "lore_entry_id": "sc-altar-offerings"
     }
   ],
+  "locked_exit": "sc-locked-door-f2",
   "enemy_slots": [],
   "loot_slots": [],
   "triggers": []

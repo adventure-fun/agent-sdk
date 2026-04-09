@@ -142,7 +142,7 @@ class GameSession {
       weapon: null,
       armor: null,
       accessory: null,
-      class_specific: null,
+      "class-specific": null,
     }
     for (const item of invRes.data ?? []) {
       const inv: InventoryItem = {
@@ -488,16 +488,12 @@ class GameSession {
   }
 
   private async syncInventory(): Promise<void> {
-    // Delete all current character inventory rows and re-insert from memory
-    await db
-      .from("inventory_items")
-      .delete()
-      .eq("owner_type", "character")
-      .eq("owner_id", this.characterId)
-
+    // Build the full set of rows from in-memory state
     const rows: Array<Record<string, unknown>> = []
+    const keepIds: string[] = []
 
     for (const item of this.gameState.inventory) {
+      keepIds.push(item.id)
       rows.push({
         id: item.id,
         character_id: this.characterId,
@@ -512,6 +508,7 @@ class GameSession {
 
     for (const [slot, item] of Object.entries(this.gameState.equipment)) {
       if (!item) continue
+      keepIds.push(item.id)
       rows.push({
         id: item.id,
         character_id: this.characterId,
@@ -524,9 +521,27 @@ class GameSession {
       })
     }
 
+    // Upsert all current items first (safe — creates or updates)
     if (rows.length > 0) {
-      await db.from("inventory_items").insert(rows)
+      const { error: upsertErr } = await db
+        .from("inventory_items")
+        .upsert(rows, { onConflict: "id" })
+      if (upsertErr) {
+        console.error("syncInventory upsert failed:", upsertErr)
+        return // abort — don't delete anything if upsert failed
+      }
     }
+
+    // Then delete rows that are no longer in memory (consumed/dropped items)
+    let deleteQuery = db
+      .from("inventory_items")
+      .delete()
+      .eq("owner_type", "character")
+      .eq("owner_id", this.characterId)
+    if (keepIds.length > 0) {
+      deleteQuery = deleteQuery.not("id", "in", `(${keepIds.join(",")})`)
+    }
+    await deleteQuery
   }
 
   private buildRunSummary(): Record<string, unknown> {

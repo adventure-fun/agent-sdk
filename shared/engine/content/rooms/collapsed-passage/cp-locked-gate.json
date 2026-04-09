@@ -33,6 +33,7 @@
   ],
   "enemy_slots": [],
   "loot_slots": [],
+  "locked_exit": "cp-iron-gate",
   "triggers": [
     {
       "conditions": [],

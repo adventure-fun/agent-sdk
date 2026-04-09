@@ -191,7 +191,7 @@ export interface GameState {
       id: string
       tiles: Tile[][]
       enemies: Array<{ id: string; template_id: string; hp: number; hp_max: number; position: { x: number; y: number } }>
-      items: Array<{ id: string; template_id: string; position: { x: number; y: number } }>
+      items: Array<{ id: string; template_id: string; quantity?: number; position: { x: number; y: number } }>
     }>
   }
   /** Tiles the player has seen — persisted to realm_discovered_map */
@@ -540,6 +540,9 @@ export interface RoomTemplate {
   enemy_slots: EnemySlot[]
   loot_slots: LootSlot[]
   triggers: TriggerTemplate[]
+  /** Interactable ID that locks the forward (right) exit. Door is not placed
+   *  until this interactable is used (unlock-door effect marks it mutated). */
+  locked_exit?: string
 }
 
 // ---- Realm Templates ----------------------------------------
