@@ -5,51 +5,283 @@
   "theme": "blight",
   "version": 1,
   "procedural": false,
-  "floor_count": { "min": 1, "max": 1 },
+  "floor_count": {
+    "min": 1,
+    "max": 1
+  },
   "difficulty_tier": 1,
   "room_distribution": {
     "combat": 0.35,
     "treasure": 0.15,
-    "trap": 0.20,
-    "rest": 0.10,
-    "event": 0.20,
+    "trap": 0.2,
+    "rest": 0.1,
+    "event": 0.2,
     "boss": 0
   },
-  "enemy_roster": ["blighted-wolf", "hollow-spore"],
+  "enemy_roster": [
+    "blighted-wolf",
+    "hollow-spore"
+  ],
   "boss_id": null,
   "loot_tables": [
     {
-      "id": "hollow_common",
+      "id": "hollow-common",
       "entries": [
-        { "item_template_id": "health_potion", "weight": 35, "quantity": { "min": 1, "max": 2 } },
-        { "item_template_id": "antidote", "weight": 30, "quantity": { "min": 1, "max": 2 } },
-        { "item_template_id": "buff_potion", "weight": 20, "quantity": { "min": 1, "max": 1 } },
-        { "item_template_id": "iron_ring", "weight": 15, "quantity": { "min": 1, "max": 1 } }
+        {
+          "item_template_id": "health-potion",
+          "weight": 35,
+          "quantity": {
+            "min": 1,
+            "max": 2
+          }
+        },
+        {
+          "item_template_id": "antidote",
+          "weight": 30,
+          "quantity": {
+            "min": 1,
+            "max": 2
+          }
+        },
+        {
+          "item_template_id": "buff-potion",
+          "weight": 20,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item_template_id": "iron-ring",
+          "weight": 15,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        }
       ]
     },
     {
-      "id": "hollow_uncommon",
+      "id": "hollow-uncommon",
       "entries": [
-        { "item_template_id": "leather_armor", "weight": 25, "quantity": { "min": 1, "max": 1 } },
-        { "item_template_id": "greater_health_potion", "weight": 25, "quantity": { "min": 1, "max": 1 } },
-        { "item_template_id": "portal_scroll", "weight": 20, "quantity": { "min": 1, "max": 1 } },
-        { "item_template_id": "iron_sword", "weight": 15, "quantity": { "min": 1, "max": 1 } },
-        { "item_template_id": "buff_potion", "weight": 15, "quantity": { "min": 1, "max": 2 } }
+        {
+          "item_template_id": "leather-armor",
+          "weight": 25,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item_template_id": "greater-health-potion",
+          "weight": 25,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item_template_id": "portal-scroll",
+          "weight": 20,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item_template_id": "iron-sword",
+          "weight": 15,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item_template_id": "buff-potion",
+          "weight": 15,
+          "quantity": {
+            "min": 1,
+            "max": 2
+          }
+        }
       ]
     },
     {
-      "id": "hollow_trapped_chest",
+      "id": "hollow-trapped-chest",
       "entries": [
-        { "item_template_id": "iron_sword", "weight": 30, "quantity": { "min": 1, "max": 1 } },
-        { "item_template_id": "leather_armor", "weight": 30, "quantity": { "min": 1, "max": 1 } },
-        { "item_template_id": "greater_health_potion", "weight": 20, "quantity": { "min": 1, "max": 2 } },
-        { "item_template_id": "portal_scroll", "weight": 20, "quantity": { "min": 1, "max": 1 } }
+        {
+          "item_template_id": "iron-sword",
+          "weight": 30,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item_template_id": "leather-armor",
+          "weight": 30,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item_template_id": "greater-health-potion",
+          "weight": 20,
+          "quantity": {
+            "min": 1,
+            "max": 2
+          }
+        },
+        {
+          "item_template_id": "portal-scroll",
+          "weight": 20,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "bh-minor-loot",
+      "entries": [
+        {
+          "item_template_id": "gold-coins",
+          "weight": 45,
+          "quantity": {
+            "min": 3,
+            "max": 10
+          }
+        },
+        {
+          "item_template_id": "health-potion",
+          "weight": 30,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item_template_id": "antidote",
+          "weight": 25,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "bh-equipment-loot",
+      "entries": [
+        {
+          "item_template_id": "gold-coins",
+          "weight": 25,
+          "quantity": {
+            "min": 8,
+            "max": 20
+          }
+        },
+        {
+          "item_template_id": "gear-leather-vest",
+          "weight": 20,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item_template_id": "gear-iron-ring",
+          "weight": 15,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item_template_id": "health-potion",
+          "weight": 15,
+          "quantity": {
+            "min": 1,
+            "max": 2
+          }
+        },
+        {
+          "item_template_id": "antidote",
+          "weight": 15,
+          "quantity": {
+            "min": 1,
+            "max": 2
+          }
+        },
+        {
+          "item_template_id": "portal-scroll",
+          "weight": 10,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "bh-heart-loot",
+      "entries": [
+        {
+          "item_template_id": "gold-coins",
+          "weight": 25,
+          "quantity": {
+            "min": 20,
+            "max": 35
+          }
+        },
+        {
+          "item_template_id": "gear-blight-ward",
+          "weight": 20,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item_template_id": "gear-venom-blade",
+          "weight": 15,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item_template_id": "health-potion",
+          "weight": 15,
+          "quantity": {
+            "min": 2,
+            "max": 3
+          }
+        },
+        {
+          "item_template_id": "antidote",
+          "weight": 15,
+          "quantity": {
+            "min": 2,
+            "max": 3
+          }
+        },
+        {
+          "item_template_id": "portal-scroll",
+          "weight": 10,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        }
       ]
     }
   ],
   "trap_types": [
     {
-      "id": "blight_spore_trap",
+      "id": "blight-spore-trap",
       "name": "Blight Spore Cloud",
       "damage": 5,
       "effect": {
@@ -62,7 +294,7 @@
       "visible_after_trigger": true
     },
     {
-      "id": "trapped_chest",
+      "id": "trapped-chest",
       "name": "Trapped Chest",
       "damage": 15,
       "detection_difficulty": 13,
@@ -79,7 +311,7 @@
     "bh-corrupted-heart"
   ],
   "narrative": {
-    "theme_description": "A cave system beneath a dying forest. The roots overhead glow faintly violet where the Hollow's corruption seeps upward. The first Guardian — a ranger — sealed the Hollow here centuries ago. The seal is cracking.",
+    "theme_description": "A cave system beneath a dying forest. The roots overhead glow faintly violet where the Hollow's corruption seeps upward. The first Guardian \u2014 a ranger \u2014 sealed the Hollow here centuries ago. The seal is cracking.",
     "room_text_pool": [
       {
         "text": "Gnarled roots twist down from the ceiling, their tips glowing a sickly violet. The air is thick with spores.",
@@ -98,15 +330,15 @@
         "type": "rest"
       },
       {
-        "text": "A chest sits nestled among the roots, half-buried in moss. Something about it feels wrong — the moss around it is dead.",
+        "text": "A chest sits nestled among the roots, half-buried in moss. Something about it feels wrong \u2014 the moss around it is dead.",
         "type": "treasure"
       },
       {
-        "text": "Ancient carvings cover the wall — a figure with a bow, standing before a great darkness. The stone is cracked, and violet light seeps through.",
+        "text": "Ancient carvings cover the wall \u2014 a figure with a bow, standing before a great darkness. The stone is cracked, and violet light seeps through.",
         "type": "event"
       },
       {
-        "text": "The roots here form a natural archway. Beyond it, the corruption is visibly thicker — the stone itself seems to sweat violet moisture.",
+        "text": "The roots here form a natural archway. Beyond it, the corruption is visibly thicker \u2014 the stone itself seems to sweat violet moisture.",
         "type": "event"
       }
     ],

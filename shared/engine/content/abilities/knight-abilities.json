@@ -13,7 +13,7 @@
     },
     "effects": [
       {
-        "type": "buff_defense",
+        "type": "buff-defense",
         "duration_turns": 2,
         "magnitude": -2,
         "apply_chance": 0.3
@@ -35,7 +35,7 @@
     },
     "effects": [
       {
-        "type": "buff_defense",
+        "type": "buff-defense",
         "duration_turns": 1,
         "magnitude": 8,
         "apply_chance": 1.0
@@ -57,7 +57,7 @@
     },
     "effects": [
       {
-        "type": "buff_defense",
+        "type": "buff-defense",
         "duration_turns": 3,
         "magnitude": 15,
         "apply_chance": 1.0
@@ -101,7 +101,7 @@
     },
     "effects": [],
     "target": "self",
-    "special": "counter_on_hit"
+    "special": "counter-on-hit"
   },
   {
     "id": "knight-fortress",
@@ -117,7 +117,7 @@
     },
     "effects": [
       {
-        "type": "buff_defense",
+        "type": "buff-defense",
         "duration_turns": 4,
         "magnitude": 10,
         "apply_chance": 1.0
@@ -139,13 +139,13 @@
     },
     "effects": [
       {
-        "type": "buff_attack",
+        "type": "buff-attack",
         "duration_turns": 5,
         "magnitude": 12,
         "apply_chance": 1.0
       }
     ],
     "target": "self",
-    "special": "self_damage_20pct"
+    "special": "self-damage-20pct"
   }
 ]

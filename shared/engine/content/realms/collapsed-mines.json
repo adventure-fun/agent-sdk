@@ -4,12 +4,15 @@
   "description": "The DeepVein Mining Company drove too deep and unearthed something they shouldn't have. Now their excavation is a sealed tomb of automated sentinels and animated rock constructs, guarding secrets that were meant to stay buried. The Iron Sentinel stands watch at the deepest shaft.",
   "theme": "construct",
   "version": 1,
-  "floor_count": { "min": 4, "max": 6 },
+  "floor_count": {
+    "min": 4,
+    "max": 6
+  },
   "difficulty_tier": 3,
   "room_distribution": {
-    "combat": 0.40,
+    "combat": 0.4,
     "treasure": 0.15,
-    "trap": 0.20,
+    "trap": 0.2,
     "rest": 0.08,
     "event": 0.12,
     "boss": 0.05
@@ -23,45 +26,143 @@
   "boss_id": "iron-sentinel",
   "loot_tables": [
     {
-      "id": "construct_common",
+      "id": "construct-common",
       "entries": [
-        { "item_template_id": "health_potion", "weight": 35, "quantity": { "min": 1, "max": 2 } },
-        { "item_template_id": "buff_potion", "weight": 25, "quantity": { "min": 1, "max": 1 } },
-        { "item_template_id": "iron_ring", "weight": 20, "quantity": { "min": 1, "max": 1 } },
-        { "item_template_id": "antidote", "weight": 20, "quantity": { "min": 1, "max": 1 } }
+        {
+          "item_template_id": "health-potion",
+          "weight": 35,
+          "quantity": {
+            "min": 1,
+            "max": 2
+          }
+        },
+        {
+          "item_template_id": "buff-potion",
+          "weight": 25,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item_template_id": "iron-ring",
+          "weight": 20,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item_template_id": "antidote",
+          "weight": 20,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        }
       ]
     },
     {
-      "id": "construct_uncommon",
+      "id": "construct-uncommon",
       "entries": [
-        { "item_template_id": "greater_health_potion", "weight": 30, "quantity": { "min": 1, "max": 1 } },
-        { "item_template_id": "iron_sword", "weight": 25, "quantity": { "min": 1, "max": 1 } },
-        { "item_template_id": "wooden_shield", "weight": 20, "quantity": { "min": 1, "max": 1 } },
-        { "item_template_id": "buff_potion", "weight": 15, "quantity": { "min": 1, "max": 2 } },
-        { "item_template_id": "portal_scroll", "weight": 10, "quantity": { "min": 1, "max": 1 } }
+        {
+          "item_template_id": "greater-health-potion",
+          "weight": 30,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item_template_id": "iron-sword",
+          "weight": 25,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item_template_id": "wooden-shield",
+          "weight": 20,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item_template_id": "buff-potion",
+          "weight": 15,
+          "quantity": {
+            "min": 1,
+            "max": 2
+          }
+        },
+        {
+          "item_template_id": "portal-scroll",
+          "weight": 10,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        }
       ]
     },
     {
-      "id": "iron_sentinel_boss",
+      "id": "iron-sentinel-boss",
       "entries": [
-        { "item_template_id": "greater_health_potion", "weight": 30, "quantity": { "min": 2, "max": 4 } },
-        { "item_template_id": "portal_scroll", "weight": 25, "quantity": { "min": 1, "max": 2 } },
-        { "item_template_id": "iron_sword", "weight": 20, "quantity": { "min": 1, "max": 1 } },
-        { "item_template_id": "buff_potion", "weight": 15, "quantity": { "min": 2, "max": 3 } },
-        { "item_template_id": "iron_ring", "weight": 10, "quantity": { "min": 1, "max": 2 } }
+        {
+          "item_template_id": "greater-health-potion",
+          "weight": 30,
+          "quantity": {
+            "min": 2,
+            "max": 4
+          }
+        },
+        {
+          "item_template_id": "portal-scroll",
+          "weight": 25,
+          "quantity": {
+            "min": 1,
+            "max": 2
+          }
+        },
+        {
+          "item_template_id": "iron-sword",
+          "weight": 20,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item_template_id": "buff-potion",
+          "weight": 15,
+          "quantity": {
+            "min": 2,
+            "max": 3
+          }
+        },
+        {
+          "item_template_id": "iron-ring",
+          "weight": 10,
+          "quantity": {
+            "min": 1,
+            "max": 2
+          }
+        }
       ]
     }
   ],
   "trap_types": [
     {
-      "id": "collapsing_ceiling",
+      "id": "collapsing-ceiling",
       "name": "Collapsing Ceiling",
       "damage": 30,
       "detection_difficulty": 14,
       "visible_after_trigger": true
     },
     {
-      "id": "steam_vent",
+      "id": "steam-vent",
       "name": "Steam Vent",
       "damage": 15,
       "effect": {
@@ -74,7 +175,7 @@
       "visible_after_trigger": true
     },
     {
-      "id": "tripwire_alarm",
+      "id": "tripwire-alarm",
       "name": "Tripwire Alarm",
       "damage": 0,
       "effect": {
@@ -87,7 +188,7 @@
       "visible_after_trigger": true
     },
     {
-      "id": "ore_crusher",
+      "id": "ore-crusher",
       "name": "Ore Crusher",
       "damage": 45,
       "detection_difficulty": 16,
@@ -95,29 +196,59 @@
     }
   ],
   "room_templates": [
-    "mining_shaft",
-    "ore_processing_hall",
-    "foreman_office",
-    "equipment_depot",
-    "dynamite_storage",
-    "underground_lake",
-    "collapsed_tunnel",
-    "automaton_workshop",
-    "deepvein_vault"
+    "mining-shaft",
+    "ore-processing-hall",
+    "foreman-office",
+    "equipment-depot",
+    "dynamite-storage",
+    "underground-lake",
+    "collapsed-tunnel",
+    "automaton-workshop",
+    "deepvein-vault"
   ],
   "narrative": {
-    "theme_description": "The DeepVein Mining Company's deepest excavation struck an ancient sealed vault. The automated guardians left by its builders activated, slaughtering the miners. Months later, the company sent enforcers — they never returned. The mine was sealed and officially listed as 'depleted.'",
+    "theme_description": "The DeepVein Mining Company's deepest excavation struck an ancient sealed vault. The automated guardians left by its builders activated, slaughtering the miners. Months later, the company sent enforcers \u2014 they never returned. The mine was sealed and officially listed as 'depleted.'",
     "room_text_pool": [
-      { "text": "Mining carts sit on rusted tracks, overturned. Pickaxes lie scattered as if dropped mid-swing.", "type": "combat" },
-      { "text": "The ceiling groans ominously overhead. Dust sifts down with every footstep.", "type": "trap" },
-      { "text": "A safety notice board still hangs on the wall. Someone has scrawled 'THEY'RE ALIVE' over the safety guidelines.", "type": "event" },
-      { "text": "An untouched break room — half-eaten meals on the table, mugs of long-cold coffee. No bodies.", "type": "rest" },
-      { "text": "Veins of glittering ore run through the walls. Whatever they mined here was worth dying for.", "type": "treasure" },
-      { "text": "The air smells of machine oil and something older — like stone that has never seen sunlight.", "type": "combat" },
-      { "text": "A powered-down automaton slumped against the wall stirs as you approach. Its eyes flicker red.", "type": "combat" },
-      { "text": "Deep gouges in the stone floor trace the path of something massive being dragged through here.", "type": "event" },
-      { "text": "Water drips into a pool, the sound echoing for far too long in the darkness ahead.", "type": "trap" },
-      { "text": "A foreman's ledger lies open: 'Day 89 — They found the door. I've ordered it opened. God help us.'", "type": "event" }
+      {
+        "text": "Mining carts sit on rusted tracks, overturned. Pickaxes lie scattered as if dropped mid-swing.",
+        "type": "combat"
+      },
+      {
+        "text": "The ceiling groans ominously overhead. Dust sifts down with every footstep.",
+        "type": "trap"
+      },
+      {
+        "text": "A safety notice board still hangs on the wall. Someone has scrawled 'THEY'RE ALIVE' over the safety guidelines.",
+        "type": "event"
+      },
+      {
+        "text": "An untouched break room \u2014 half-eaten meals on the table, mugs of long-cold coffee. No bodies.",
+        "type": "rest"
+      },
+      {
+        "text": "Veins of glittering ore run through the walls. Whatever they mined here was worth dying for.",
+        "type": "treasure"
+      },
+      {
+        "text": "The air smells of machine oil and something older \u2014 like stone that has never seen sunlight.",
+        "type": "combat"
+      },
+      {
+        "text": "A powered-down automaton slumped against the wall stirs as you approach. Its eyes flicker red.",
+        "type": "combat"
+      },
+      {
+        "text": "Deep gouges in the stone floor trace the path of something massive being dragged through here.",
+        "type": "event"
+      },
+      {
+        "text": "Water drips into a pool, the sound echoing for far too long in the darkness ahead.",
+        "type": "trap"
+      },
+      {
+        "text": "A foreman's ledger lies open: 'Day 89 \u2014 They found the door. I've ordered it opened. God help us.'",
+        "type": "event"
+      }
     ],
     "lore_pool": [
       "A company memorandum: 'Excavation of DeepVein Shaft 7 suspended pending investigation of worker disappearances. All employees are reminded that unauthorized exploration of sub-level 4 is a terminable offense.'",
@@ -127,15 +258,15 @@
       "An official DeepVein Mining Co. notice: 'This facility has been decommissioned due to geological instability. Trespassers will be prosecuted.' The paper is dotted with what looks like machine oil."
     ],
     "interactable_pool": [
-      "overturned_ore_cart",
-      "company_foreman_desk",
-      "dormant_automaton",
-      "safety_notice_board",
-      "ore_vein_deposit",
-      "sealed_blast_door",
-      "steam_pressure_valve",
-      "deepvein_company_safe",
-      "ancient_vault_door"
+      "overturned-ore-cart",
+      "company-foreman-desk",
+      "dormant-automaton",
+      "safety-notice-board",
+      "ore-vein-deposit",
+      "sealed-blast-door",
+      "steam-pressure-valve",
+      "deepvein-company-safe",
+      "ancient-vault-door"
     ]
   },
   "completion_rewards": {

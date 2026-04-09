@@ -28,7 +28,7 @@
     },
     "effects": [
       {
-        "type": "buff_defense",
+        "type": "buff-defense",
         "duration_turns": 1,
         "magnitude": 15,
         "apply_chance": 1.0
@@ -73,7 +73,7 @@
     },
     "effects": [],
     "target": "single",
-    "special": "disarm_trap"
+    "special": "disarm-trap"
   },
   {
     "id": "rogue-envenom",
@@ -111,7 +111,7 @@
     },
     "effects": [
       {
-        "type": "buff_defense",
+        "type": "buff-defense",
         "duration_turns": 1,
         "magnitude": 20,
         "apply_chance": 1.0
@@ -141,7 +141,7 @@
       }
     ],
     "target": "single",
-    "special": "mark_target"
+    "special": "mark-target"
   },
   {
     "id": "rogue-shadow-step",
@@ -157,6 +157,6 @@
     },
     "effects": [],
     "target": "single",
-    "special": "teleport_attack"
+    "special": "teleport-attack"
   }
 ]

@@ -1,16 +1,24 @@
 {
   "id": "sc-entry-hall",
   "type": "event",
-  "size": { "width": 7, "height": 7 },
-  "text_first_visit": "Stone steps descend into a vaulted hall. The walls are lined with alcoves, each holding a stone sarcophagus sealed with iron bands. Torches flicker in rusted sconces — someone lit them recently, or something did.",
+  "size": {
+    "width": 7,
+    "height": 7
+  },
+  "text_first_visit": "Stone steps descend into a vaulted hall. The walls are lined with alcoves, each holding a stone sarcophagus sealed with iron bands. Torches flicker in rusted sconces \u2014 someone lit them recently, or something did.",
   "text_revisit": "The entry hall. The torches still burn. They have not dimmed.",
   "interactables": [
     {
       "id": "sc-wall-mural",
       "name": "Faded Mural",
-      "text_on_interact": "A painted scene, cracked with age: four figures standing at cardinal points around a dark void. Each presses something into the void — a sword, a tome, a mask, and a bow. The void is shrinking. Below: 'The Four held the Hollow. The Hollow held patience.'",
+      "text_on_interact": "A painted scene, cracked with age: four figures standing at cardinal points around a dark void. Each presses something into the void \u2014 a sword, a tome, a mask, and a bow. The void is shrinking. Below: 'The Four held the Hollow. The Hollow held patience.'",
       "conditions": [],
-      "effects": [{ "type": "reveal_lore", "lore_id": "sc-four-guardians" }],
+      "effects": [
+        {
+          "type": "reveal-lore",
+          "lore_id": "sc-four-guardians"
+        }
+      ],
       "lore_entry_id": "sc-four-guardians"
     }
   ],

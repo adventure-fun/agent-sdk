@@ -10,9 +10,12 @@
       "evasion": 8,
       "speed": 8
     },
-    "abilities": ["basic_slash", "bone_rattle"],
+    "abilities": [
+      "basic-slash",
+      "bone-rattle"
+    ],
     "behavior": "aggressive",
-    "loot_table": "undead_common",
+    "loot_table": "undead-common",
     "xp_value": 15,
     "difficulty_tier": 1
   },
@@ -27,9 +30,12 @@
       "evasion": 2,
       "speed": 4
     },
-    "abilities": ["basic_slam", "infectious_bite"],
+    "abilities": [
+      "basic-slam",
+      "infectious-bite"
+    ],
     "behavior": "aggressive",
-    "loot_table": "undead_common",
+    "loot_table": "undead-common",
     "xp_value": 18,
     "difficulty_tier": 1
   },
@@ -44,9 +50,12 @@
       "evasion": 25,
       "speed": 14
     },
-    "abilities": ["spectral_touch", "phase_shift"],
+    "abilities": [
+      "spectral-touch",
+      "phase-shift"
+    ],
     "behavior": "ambush",
-    "loot_table": "undead_uncommon",
+    "loot_table": "undead-uncommon",
     "xp_value": 28,
     "difficulty_tier": 2
   },
@@ -61,9 +70,13 @@
       "evasion": 10,
       "speed": 9
     },
-    "abilities": ["death_bolt", "raise_dead", "bone_shield"],
+    "abilities": [
+      "death-bolt",
+      "raise-dead",
+      "bone-shield"
+    ],
     "behavior": "defensive",
-    "loot_table": "undead_rare",
+    "loot_table": "undead-rare",
     "xp_value": 55,
     "difficulty_tier": 3
   },
@@ -78,9 +91,12 @@
       "evasion": 3,
       "speed": 5
     },
-    "abilities": ["ground_slam", "stone_skin"],
+    "abilities": [
+      "ground-slam",
+      "stone-skin"
+    ],
     "behavior": "patrol",
-    "loot_table": "construct_common",
+    "loot_table": "construct-common",
     "xp_value": 40,
     "difficulty_tier": 2
   },
@@ -95,9 +111,13 @@
       "evasion": 5,
       "speed": 7
     },
-    "abilities": ["gear_grind", "piston_punch", "emergency_repair"],
+    "abilities": [
+      "gear-grind",
+      "piston-punch",
+      "emergency-repair"
+    ],
     "behavior": "patrol",
-    "loot_table": "construct_uncommon",
+    "loot_table": "construct-uncommon",
     "xp_value": 60,
     "difficulty_tier": 3
   }

@@ -9,18 +9,24 @@
         {
           "id": "rogue-t1-smoke-bomb",
           "name": "Smoke Bomb",
-          "description": "Unlocks Smoke Bomb — blind all nearby enemies for 2 turns.",
+          "description": "Unlocks Smoke Bomb \u2014 blind all nearby enemies for 2 turns.",
           "cost": 1,
           "prerequisites": [],
-          "effect": { "type": "grant_ability", "ability_id": "rogue-smoke-bomb" }
+          "effect": {
+            "type": "grant-ability",
+            "ability_id": "rogue-smoke-bomb"
+          }
         },
         {
           "id": "rogue-t1-disarm-trap",
           "name": "Disarm Trap",
-          "description": "Unlocks Disarm Trap — safely remove traps from chests. Class-defining utility.",
+          "description": "Unlocks Disarm Trap \u2014 safely remove traps from chests. Class-defining utility.",
           "cost": 1,
           "prerequisites": [],
-          "effect": { "type": "grant_ability", "ability_id": "rogue-disarm-trap" }
+          "effect": {
+            "type": "grant-ability",
+            "ability_id": "rogue-disarm-trap"
+          }
         }
       ]
     },
@@ -31,18 +37,24 @@
         {
           "id": "rogue-t2-envenom",
           "name": "Envenom",
-          "description": "Unlocks Envenom — poison strike dealing sustained damage over time.",
+          "description": "Unlocks Envenom \u2014 poison strike dealing sustained damage over time.",
           "cost": 1,
           "prerequisites": [],
-          "effect": { "type": "grant_ability", "ability_id": "rogue-envenom" }
+          "effect": {
+            "type": "grant-ability",
+            "ability_id": "rogue-envenom"
+          }
         },
         {
           "id": "rogue-t2-vanish",
           "name": "Vanish",
-          "description": "Unlocks Vanish — become untargetable for 1 turn for repositioning.",
+          "description": "Unlocks Vanish \u2014 become untargetable for 1 turn for repositioning.",
           "cost": 1,
           "prerequisites": [],
-          "effect": { "type": "grant_ability", "ability_id": "rogue-vanish" }
+          "effect": {
+            "type": "grant-ability",
+            "ability_id": "rogue-vanish"
+          }
         }
       ]
     },
@@ -53,18 +65,28 @@
         {
           "id": "rogue-t3-death-mark",
           "name": "Death Mark",
-          "description": "Unlocks Death Mark — brand target for double damage on next hit. Requires Envenom.",
+          "description": "Unlocks Death Mark \u2014 brand target for double damage on next hit. Requires Envenom.",
           "cost": 1,
-          "prerequisites": ["rogue-t2-envenom"],
-          "effect": { "type": "grant_ability", "ability_id": "rogue-death-mark" }
+          "prerequisites": [
+            "rogue-t2-envenom"
+          ],
+          "effect": {
+            "type": "grant-ability",
+            "ability_id": "rogue-death-mark"
+          }
         },
         {
           "id": "rogue-t3-shadow-step",
           "name": "Shadow Step",
-          "description": "Unlocks Shadow Step — teleport and deal backstab damage. Requires Vanish.",
+          "description": "Unlocks Shadow Step \u2014 teleport and deal backstab damage. Requires Vanish.",
           "cost": 1,
-          "prerequisites": ["rogue-t2-vanish"],
-          "effect": { "type": "grant_ability", "ability_id": "rogue-shadow-step" }
+          "prerequisites": [
+            "rogue-t2-vanish"
+          ],
+          "effect": {
+            "type": "grant-ability",
+            "ability_id": "rogue-shadow-step"
+          }
         }
       ]
     }

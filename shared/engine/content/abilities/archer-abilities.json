@@ -43,7 +43,7 @@
     },
     "effects": [],
     "target": "single",
-    "special": "piercing_shot"
+    "special": "piercing-shot"
   },
   {
     "id": "archer-pin-shot",
@@ -114,7 +114,7 @@
     },
     "effects": [],
     "target": "single",
-    "special": "piercing_shot"
+    "special": "piercing-shot"
   },
   {
     "id": "archer-rain-of-arrows",

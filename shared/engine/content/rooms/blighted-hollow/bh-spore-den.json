@@ -1,18 +1,27 @@
 {
   "id": "bh-spore-den",
   "type": "combat",
-  "size": { "width": 7, "height": 7 },
+  "size": {
+    "width": 7,
+    "height": 7
+  },
   "text_first_visit": "A wide cavern carpeted in fungal growth. Two large spore clusters sit at the far end, pulsing in unison. The air is thick enough to taste.",
   "text_revisit": "The spore den. New growth already covers the floor.",
   "interactables": [
     {
       "id": "bh-ranger-pack",
       "name": "Decayed Ranger's Pack",
-      "text_on_interact": "A leather satchel, half consumed by fungus. Inside, a tightly sealed vial and a scrap of treated parchment. The parchment reads: 'Antidote — one dose. The spores dissolve in the blood within minutes without treatment.'",
+      "text_on_interact": "A leather satchel, half consumed by fungus. Inside, a tightly sealed vial and a scrap of treated parchment. The parchment reads: 'Antidote \u2014 one dose. The spores dissolve in the blood within minutes without treatment.'",
       "conditions": [],
       "effects": [
-        { "type": "grant_item", "item_template_id": "antidote" },
-        { "type": "reveal_lore", "lore_id": "bh-spore-antidote" }
+        {
+          "type": "grant-item",
+          "item_template_id": "antidote"
+        },
+        {
+          "type": "reveal-lore",
+          "lore_id": "bh-spore-antidote"
+        }
       ],
       "lore_entry_id": "bh-spore-antidote"
     }
@@ -21,13 +30,16 @@
     {
       "enemy_template_id": "hollow-spore",
       "position": "random",
-      "count": { "min": 2, "max": 2 }
+      "count": {
+        "min": 2,
+        "max": 2
+      }
     }
   ],
   "loot_slots": [
     {
       "loot_table_id": "bh-minor-loot",
-      "container": "floor_drop",
+      "container": "floor-drop",
       "position": "random"
     }
   ],

@@ -1,14 +1,17 @@
 {
   "id": "tutorial-storeroom",
   "type": "treasure",
-  "size": { "width": 5, "height": 5 },
+  "size": {
+    "width": 5,
+    "height": 5
+  },
   "text_first_visit": "Dusty barrels and broken crates line the walls. The air smells of damp earth and something sour. A wooden chest sits in the corner, still latched.",
   "text_revisit": "The storeroom is quiet. Dust motes drift in the faint light from above.",
   "interactables": [
     {
       "id": "tutorial-chest-weapon",
       "name": "Wooden Chest",
-      "text_on_interact": "The latch gives way with a rusty click. Inside, wrapped in oilcloth, a weapon — battered but serviceable.",
+      "text_on_interact": "The latch gives way with a rusty click. Inside, wrapped in oilcloth, a weapon \u2014 battered but serviceable.",
       "conditions": [],
       "effects": [],
       "lore_entry_id": null
@@ -18,31 +21,72 @@
   "loot_slots": [],
   "triggers": [
     {
-      "conditions": [{ "type": "class_is", "class": "knight" }],
-      "effects": [{ "type": "grant_item", "item_template_id": "weapon_iron_sword" }],
-      "fire_once": true,
-      "trigger_on": "interact",
-      "target_id": "tutorial-chest-weapon"
-    },
-    {
-      "conditions": [{ "type": "class_is", "class": "rogue" }],
-      "effects": [{ "type": "grant_item", "item_template_id": "weapon_rusty_dagger" }],
-      "fire_once": true,
-      "trigger_on": "interact",
-      "target_id": "tutorial-chest-weapon"
-    },
-    {
-      "conditions": [{ "type": "class_is", "class": "mage" }],
-      "effects": [{ "type": "grant_item", "item_template_id": "weapon_oak_staff" }],
-      "fire_once": true,
-      "trigger_on": "interact",
-      "target_id": "tutorial-chest-weapon"
-    },
-    {
-      "conditions": [{ "type": "class_is", "class": "archer" }],
+      "conditions": [
+        {
+          "type": "class-is",
+          "class": "knight"
+        }
+      ],
       "effects": [
-        { "type": "grant_item", "item_template_id": "weapon_short_bow" },
-        { "type": "grant_item", "item_template_id": "ammo_arrows_10" }
+        {
+          "type": "grant-item",
+          "item_template_id": "weapon-iron-sword"
+        }
+      ],
+      "fire_once": true,
+      "trigger_on": "interact",
+      "target_id": "tutorial-chest-weapon"
+    },
+    {
+      "conditions": [
+        {
+          "type": "class-is",
+          "class": "rogue"
+        }
+      ],
+      "effects": [
+        {
+          "type": "grant-item",
+          "item_template_id": "weapon-rusty-dagger"
+        }
+      ],
+      "fire_once": true,
+      "trigger_on": "interact",
+      "target_id": "tutorial-chest-weapon"
+    },
+    {
+      "conditions": [
+        {
+          "type": "class-is",
+          "class": "mage"
+        }
+      ],
+      "effects": [
+        {
+          "type": "grant-item",
+          "item_template_id": "weapon-oak-staff"
+        }
+      ],
+      "fire_once": true,
+      "trigger_on": "interact",
+      "target_id": "tutorial-chest-weapon"
+    },
+    {
+      "conditions": [
+        {
+          "type": "class-is",
+          "class": "archer"
+        }
+      ],
+      "effects": [
+        {
+          "type": "grant-item",
+          "item_template_id": "weapon-short-bow"
+        },
+        {
+          "type": "grant-item",
+          "item_template_id": "ammo-arrows-10"
+        }
       ],
       "fire_once": true,
       "trigger_on": "interact",

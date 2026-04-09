@@ -1,7 +1,10 @@
 {
   "id": "cp-shaft-junction",
   "type": "combat",
-  "size": { "width": 7, "height": 7 },
+  "size": {
+    "width": 7,
+    "height": 7
+  },
   "text_first_visit": "Three tunnels branch from a central junction. Rotting rail tracks lead in each direction. Something skitters in the darkness to the left.",
   "text_revisit": "The junction. Tracks still lead three ways.",
   "interactables": [],
@@ -9,13 +12,16 @@
     {
       "enemy_template_id": "hollow-rat",
       "position": "random",
-      "count": { "min": 1, "max": 2 }
+      "count": {
+        "min": 1,
+        "max": 2
+      }
     }
   ],
   "loot_slots": [
     {
       "loot_table_id": "cp-minor-loot",
-      "container": "floor_drop",
+      "container": "floor-drop",
       "position": "random"
     }
   ],

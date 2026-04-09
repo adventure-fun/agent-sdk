@@ -1,8 +1,11 @@
 {
   "id": "bh-hollow-spring",
   "type": "rest",
-  "size": { "width": 5, "height": 5 },
-  "text_first_visit": "A natural spring bubbles from the rock. Strangely, the water here is clear — untouched by the blight. The air feels lighter. Cleaner.",
+  "size": {
+    "width": 5,
+    "height": 5
+  },
+  "text_first_visit": "A natural spring bubbles from the rock. Strangely, the water here is clear \u2014 untouched by the blight. The air feels lighter. Cleaner.",
   "text_revisit": "The spring still flows. A moment of calm in corrupted ground.",
   "interactables": [
     {
@@ -11,8 +14,14 @@
       "text_on_interact": "You drink. The water is cold and clean. Your wounds ache less.",
       "conditions": [],
       "effects": [
-        { "type": "heal_hp", "amount": 15 },
-        { "type": "show_text", "text": "The spring water restores some of your strength." }
+        {
+          "type": "heal-hp",
+          "amount": 15
+        },
+        {
+          "type": "show-text",
+          "text": "The spring water restores some of your strength."
+        }
       ],
       "lore_entry_id": null
     }

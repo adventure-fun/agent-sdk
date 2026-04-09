@@ -11,34 +11,45 @@
       "speed": 11
     },
     "abilities": [
-      "death_bolt",
-      "soul_drain",
-      "undead_summon",
-      "phylactery_shield",
-      "dark_nova"
+      "death-bolt",
+      "soul-drain",
+      "undead-summon",
+      "phylactery-shield",
+      "dark-nova"
     ],
     "behavior": "boss",
     "boss_phases": [
       {
         "hp_threshold": 0.7,
         "behavior_change": "The Lich King raises his staff and lets out a bone-chilling screech. His eyes blaze brighter as he begins summoning reinforcements.",
-        "abilities_added": ["undead_summon"],
+        "abilities_added": [
+          "undead-summon"
+        ],
         "abilities_removed": []
       },
       {
         "hp_threshold": 0.4,
         "behavior_change": "Cracks appear across the Lich King's phylactery. He roars 'YOU CANNOT DESTROY WHAT CANNOT DIE!' and unleashes waves of dark energy.",
-        "abilities_added": ["dark_nova"],
-        "abilities_removed": ["undead_summon"]
+        "abilities_added": [
+          "dark-nova"
+        ],
+        "abilities_removed": [
+          "undead-summon"
+        ]
       },
       {
         "hp_threshold": 0.15,
         "behavior_change": "The Lich King's physical form begins to dissolve. He channels all remaining power into a desperate last assault.",
-        "abilities_added": ["phylactery_shield", "dark_nova"],
-        "abilities_removed": ["phylactery_shield"]
+        "abilities_added": [
+          "phylactery-shield",
+          "dark-nova"
+        ],
+        "abilities_removed": [
+          "phylactery-shield"
+        ]
       }
     ],
-    "loot_table": "lich_king_boss",
+    "loot_table": "lich-king-boss",
     "xp_value": 500,
     "difficulty_tier": 5
   },
@@ -54,19 +65,22 @@
       "speed": 9
     },
     "abilities": [
-      "warden_slam",
-      "corrupted_strike"
+      "warden-slam",
+      "corrupted-strike"
     ],
     "behavior": "boss",
     "boss_phases": [
       {
         "hp_threshold": 0.5,
-        "behavior_change": "The Warden's armor cracks and violet light pours from within. It lets out a howl that shakes the chamber — two Skeleton Warriors claw up from the floor.",
-        "abilities_added": ["summon_skeletons", "corrupted_bolt"],
+        "behavior_change": "The Warden's armor cracks and violet light pours from within. It lets out a howl that shakes the chamber \u2014 two Skeleton Warriors claw up from the floor.",
+        "abilities_added": [
+          "summon-skeletons",
+          "corrupted-bolt"
+        ],
         "abilities_removed": []
       }
     ],
-    "loot_table": "warden_boss",
+    "loot_table": "warden-boss",
     "xp_value": 200,
     "difficulty_tier": 3
   },
@@ -82,34 +96,46 @@
       "speed": 8
     },
     "abilities": [
-      "piston_punch",
-      "gear_grind",
-      "cannon_blast",
-      "emergency_repair",
-      "lockdown_protocol"
+      "piston-punch",
+      "gear-grind",
+      "cannon-blast",
+      "emergency-repair",
+      "lockdown-protocol"
     ],
     "behavior": "boss",
     "boss_phases": [
       {
         "hp_threshold": 0.66,
         "behavior_change": "The Iron Sentinel's carapace slides open revealing a mounted cannon. Steam vents from its joints as it reconfigures for ranged combat.",
-        "abilities_added": ["cannon_blast"],
+        "abilities_added": [
+          "cannon-blast"
+        ],
         "abilities_removed": []
       },
       {
         "hp_threshold": 0.33,
         "behavior_change": "WARNING: CRITICAL DAMAGE THRESHOLD BREACHED. The Sentinel activates emergency protocols, its eyes flashing red as it begins frantic self-repair cycles.",
-        "abilities_added": ["lockdown_protocol", "emergency_repair"],
-        "abilities_removed": ["cannon_blast"]
+        "abilities_added": [
+          "lockdown-protocol",
+          "emergency-repair"
+        ],
+        "abilities_removed": [
+          "cannon-blast"
+        ]
       },
       {
         "hp_threshold": 0.1,
         "behavior_change": "SYSTEM CRITICAL. The Iron Sentinel ignites its reserve fuel cells in a desperate final measure. Heat distortion fills the room.",
-        "abilities_added": ["cannon_blast", "piston_punch"],
-        "abilities_removed": ["emergency_repair"]
+        "abilities_added": [
+          "cannon-blast",
+          "piston-punch"
+        ],
+        "abilities_removed": [
+          "emergency-repair"
+        ]
       }
     ],
-    "loot_table": "iron_sentinel_boss",
+    "loot_table": "iron-sentinel-boss",
     "xp_value": 550,
     "difficulty_tier": 5
   }

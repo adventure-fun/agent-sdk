@@ -24,8 +24,8 @@ export type StatusEffectType =
   | "stun"
   | "slow"
   | "blind"
-  | "buff_attack"
-  | "buff_defense"
+  | "buff-attack"
+  | "buff-defense"
 
 export interface StatusEffect {
   type: StatusEffectType
@@ -42,13 +42,13 @@ export interface ActiveEffect {
 
 // ---- Items --------------------------------------------------
 
-export type ItemType = "consumable" | "equipment" | "loot" | "key_item"
+export type ItemType = "consumable" | "equipment" | "loot" | "key-item"
 export type ItemRarity = "common" | "uncommon" | "rare" | "epic"
-export type EquipSlot = "weapon" | "armor" | "accessory" | "class_specific"
+export type EquipSlot = "weapon" | "armor" | "accessory" | "class-specific"
 export type OwnerType = "character" | "escrow" | "corpse"
 
 export interface ItemEffect {
-  type: "heal_hp" | "heal_resource" | "cure_debuff" | "portal" | "buff" | "reveal_map"
+  type: "heal-hp" | "restore-resource" | "cure-debuffs" | "portal-escape" | "buff" | "reveal-map"
   magnitude?: number
   duration?: number
 }
@@ -395,7 +395,7 @@ export interface SkillNodeTemplate {
   cost: number
   prerequisites: string[]
   effect: {
-    type: "grant_ability" | "passive_stat" | "passive_effect"
+    type: "grant-ability" | "passive-stat" | "passive-effect"
     ability_id?: string
     stat?: string
     value?: number
@@ -482,28 +482,28 @@ export interface InteractableTemplate {
 }
 
 export type Condition =
-  | { type: "first_visit" }
-  | { type: "has_item"; item_id: string }
-  | { type: "class_is"; class: string }
-  | { type: "enemy_defeated"; entity_id: string }
-  | { type: "room_visited"; room_id: string }
-  | { type: "floor_depth_gte"; depth: number }
-  | { type: "hp_below"; percent: number }
-  | { type: "has_flag"; flag: string }
+  | { type: "first-visit" }
+  | { type: "has-item"; item_id: string }
+  | { type: "class-is"; class: string }
+  | { type: "enemy-defeated"; entity_id: string }
+  | { type: "room-visited"; room_id: string }
+  | { type: "floor-depth-gte"; depth: number }
+  | { type: "hp-below"; percent: number }
+  | { type: "has-flag"; flag: string }
 
 export type Effect =
-  | { type: "reveal_lore"; lore_id: string }
-  | { type: "grant_quest_flag"; flag: string }
-  | { type: "unlock_door"; entity_id: string }
-  | { type: "spawn_enemy"; enemy_template_id: string; position: { x: number; y: number } }
-  | { type: "apply_buff"; buff: StatusEffect }
-  | { type: "apply_debuff"; debuff: StatusEffect }
-  | { type: "grant_item"; item_template_id: string; quantity?: number }
-  | { type: "grant_gold"; amount: number }
-  | { type: "show_text"; text: string }
-  | { type: "heal_hp"; amount: number }
-  | { type: "cure_debuffs" }
-  | { type: "modify_enemy_stat"; entity_id: string; stat: string; modifier: number }
+  | { type: "reveal-lore"; lore_id: string }
+  | { type: "grant-quest-flag"; flag: string }
+  | { type: "unlock-door"; entity_id: string }
+  | { type: "spawn-enemy"; enemy_template_id: string; position: { x: number; y: number } }
+  | { type: "apply-buff"; buff: StatusEffect }
+  | { type: "apply-debuff"; debuff: StatusEffect }
+  | { type: "grant-item"; item_template_id: string; quantity?: number }
+  | { type: "grant-gold"; amount: number }
+  | { type: "show-text"; text: string }
+  | { type: "heal-hp"; amount: number }
+  | { type: "cure-debuffs" }
+  | { type: "modify-enemy-stat"; entity_id: string; stat: string; modifier: number }
 
 export interface TriggerTemplate {
   conditions: Condition[]
@@ -521,7 +521,7 @@ export interface EnemySlot {
 
 export interface LootSlot {
   loot_table_id: string
-  container: "chest" | "floor_drop" | "hidden"
+  container: "chest" | "floor-drop" | "hidden"
   position?: { x: number; y: number } | "random"
   trapped?: boolean
   trap_damage?: number

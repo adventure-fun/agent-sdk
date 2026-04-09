@@ -1,18 +1,33 @@
 {
   "id": "tutorial-burrow",
   "type": "combat",
-  "size": { "width": 7, "height": 7 },
-  "text_first_visit": "The cellar opens into a dug-out burrow. Claw marks score the walls. A hunched figure snarls at you from behind a battered chest — a Hollow Rat, larger than any rat should be, its eyes glowing faintly violet.",
+  "size": {
+    "width": 7,
+    "height": 7
+  },
+  "text_first_visit": "The cellar opens into a dug-out burrow. Claw marks score the walls. A hunched figure snarls at you from behind a battered chest \u2014 a Hollow Rat, larger than any rat should be, its eyes glowing faintly violet.",
   "text_revisit": "The burrow is still. The scratches on the walls catch the light.",
   "interactables": [
     {
       "id": "tutorial-chest-supplies",
       "name": "Battered Chest",
       "text_on_interact": "The chest is dented but intact. Inside: two glass vials of red liquid and a small pouch of coins.",
-      "conditions": [{ "type": "enemy_defeated", "entity_id": "f1_r2_enemy_01" }],
+      "conditions": [
+        {
+          "type": "enemy-defeated",
+          "entity_id": "f1-r2-enemy-01"
+        }
+      ],
       "effects": [
-        { "type": "grant_item", "item_template_id": "health_potion", "quantity": 2 },
-        { "type": "grant_gold", "amount": 15 }
+        {
+          "type": "grant-item",
+          "item_template_id": "health-potion",
+          "quantity": 2
+        },
+        {
+          "type": "grant-gold",
+          "amount": 15
+        }
       ],
       "lore_entry_id": null
     },
@@ -21,15 +36,26 @@
       "name": "Scratched Tally Marks",
       "text_on_interact": "Someone counted days here. The last marks are frantic, overlapping. Below them, scratched in a shaking hand: 'it came from below.'",
       "conditions": [],
-      "effects": [{ "type": "reveal_lore", "lore_id": "cellar-warning-01" }],
+      "effects": [
+        {
+          "type": "reveal-lore",
+          "lore_id": "cellar-warning-01"
+        }
+      ],
       "lore_entry_id": "cellar-warning-01"
     }
   ],
   "enemy_slots": [
     {
       "enemy_template_id": "hollow-rat",
-      "position": { "x": 4, "y": 2 },
-      "count": { "min": 1, "max": 1 }
+      "position": {
+        "x": 4,
+        "y": 2
+      },
+      "count": {
+        "min": 1,
+        "max": 1
+      }
     }
   ],
   "loot_slots": [],

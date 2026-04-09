@@ -9,18 +9,24 @@
         {
           "id": "archer-t1-piercing-shot",
           "name": "Piercing Shot",
-          "description": "Unlocks Piercing Shot — ignores target defense entirely. Anti-tank ability.",
+          "description": "Unlocks Piercing Shot \u2014 ignores target defense entirely. Anti-tank ability.",
           "cost": 1,
           "prerequisites": [],
-          "effect": { "type": "grant_ability", "ability_id": "archer-piercing-shot" }
+          "effect": {
+            "type": "grant-ability",
+            "ability_id": "archer-piercing-shot"
+          }
         },
         {
           "id": "archer-t1-pin-shot",
           "name": "Pin Shot",
-          "description": "Unlocks Pin Shot — moderate damage + slow. Kiting tool.",
+          "description": "Unlocks Pin Shot \u2014 moderate damage + slow. Kiting tool.",
           "cost": 1,
           "prerequisites": [],
-          "effect": { "type": "grant_ability", "ability_id": "archer-pin-shot" }
+          "effect": {
+            "type": "grant-ability",
+            "ability_id": "archer-pin-shot"
+          }
         }
       ]
     },
@@ -31,18 +37,24 @@
         {
           "id": "archer-t2-volley",
           "name": "Volley",
-          "description": "Unlocks Volley — hit all enemies in a 2-tile radius. The Archer's only AoE.",
+          "description": "Unlocks Volley \u2014 hit all enemies in a 2-tile radius. The Archer's only AoE.",
           "cost": 1,
           "prerequisites": [],
-          "effect": { "type": "grant_ability", "ability_id": "archer-volley" }
+          "effect": {
+            "type": "grant-ability",
+            "ability_id": "archer-volley"
+          }
         },
         {
           "id": "archer-t2-disengage",
           "name": "Disengage",
-          "description": "Unlocks Disengage — attack adjacent enemy then leap 2 tiles away.",
+          "description": "Unlocks Disengage \u2014 attack adjacent enemy then leap 2 tiles away.",
           "cost": 1,
           "prerequisites": [],
-          "effect": { "type": "grant_ability", "ability_id": "archer-disengage" }
+          "effect": {
+            "type": "grant-ability",
+            "ability_id": "archer-disengage"
+          }
         }
       ]
     },
@@ -53,18 +65,28 @@
         {
           "id": "archer-t3-snipe",
           "name": "Snipe",
-          "description": "Unlocks Snipe — extreme range, extreme damage, ignores defense. Requires Piercing Shot.",
+          "description": "Unlocks Snipe \u2014 extreme range, extreme damage, ignores defense. Requires Piercing Shot.",
           "cost": 1,
-          "prerequisites": ["archer-t1-piercing-shot"],
-          "effect": { "type": "grant_ability", "ability_id": "archer-snipe" }
+          "prerequisites": [
+            "archer-t1-piercing-shot"
+          ],
+          "effect": {
+            "type": "grant-ability",
+            "ability_id": "archer-snipe"
+          }
         },
         {
           "id": "archer-t3-rain-of-arrows",
           "name": "Rain of Arrows",
-          "description": "Unlocks Rain of Arrows — massive AoE devastation. Requires Volley.",
+          "description": "Unlocks Rain of Arrows \u2014 massive AoE devastation. Requires Volley.",
           "cost": 1,
-          "prerequisites": ["archer-t2-volley"],
-          "effect": { "type": "grant_ability", "ability_id": "archer-rain-of-arrows" }
+          "prerequisites": [
+            "archer-t2-volley"
+          ],
+          "effect": {
+            "type": "grant-ability",
+            "ability_id": "archer-rain-of-arrows"
+          }
         }
       ]
     }

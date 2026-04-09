@@ -28,7 +28,7 @@
     },
     "effects": [
       {
-        "type": "buff_defense",
+        "type": "buff-defense",
         "duration_turns": 2,
         "magnitude": 12,
         "apply_chance": 1.0
@@ -88,13 +88,13 @@
     },
     "effects": [
       {
-        "type": "heal_hp",
+        "type": "heal-hp",
         "duration_turns": 1,
         "magnitude": 15,
         "apply_chance": 1.0
       }
     ],
-    "target": "single_or_self"
+    "target": "single-or-self"
   },
   {
     "id": "mage-arcane-sight",
@@ -110,7 +110,7 @@
     },
     "effects": [],
     "target": "self",
-    "special": "reveal_room_enemies"
+    "special": "reveal-room-enemies"
   },
   {
     "id": "mage-mana-drain",
@@ -126,7 +126,7 @@
     },
     "effects": [],
     "target": "single",
-    "special": "restore_resource_on_hit"
+    "special": "restore-resource-on-hit"
   },
   {
     "id": "mage-purify",
@@ -142,14 +142,14 @@
     },
     "effects": [
       {
-        "type": "heal_hp",
+        "type": "heal-hp",
         "duration_turns": 1,
         "magnitude": 10,
         "apply_chance": 1.0
       }
     ],
-    "target": "single_or_self",
-    "special": "cure_debuffs"
+    "target": "single-or-self",
+    "special": "cure-debuffs"
   },
   {
     "id": "mage-portal",
@@ -165,7 +165,7 @@
     },
     "effects": [],
     "target": "self",
-    "special": "portal_escape"
+    "special": "portal-escape"
   },
   {
     "id": "mage-meteor",
@@ -197,18 +197,18 @@
     },
     "effects": [
       {
-        "type": "heal_hp",
+        "type": "heal-hp",
         "duration_turns": 1,
         "magnitude": 40,
         "apply_chance": 1.0
       },
       {
-        "type": "buff_defense",
+        "type": "buff-defense",
         "duration_turns": 3,
         "magnitude": 5,
         "apply_chance": 1.0
       }
     ],
-    "target": "single_or_self"
+    "target": "single-or-self"
   }
 ]

@@ -19,12 +19,30 @@
     "speed": 1
   },
   "stat_roll_ranges": {
-    "hp": [90, 110],
-    "attack": [15, 20],
-    "defense": [10, 14],
-    "accuracy": [60, 75],
-    "evasion": [10, 18],
-    "speed": [8, 12]
+    "hp": [
+      90,
+      110
+    ],
+    "attack": [
+      15,
+      20
+    ],
+    "defense": [
+      10,
+      14
+    ],
+    "accuracy": [
+      60,
+      75
+    ],
+    "evasion": [
+      10,
+      18
+    ],
+    "speed": [
+      8,
+      12
+    ]
   },
   "resource_type": "stamina",
   "resource_max": 10,
@@ -34,7 +52,10 @@
     "interval": 1,
     "on_defend_bonus": 3
   },
-  "starting_abilities": ["knight-slash", "knight-shield-block"],
+  "starting_abilities": [
+    "knight-slash",
+    "knight-shield-block"
+  ],
   "skill_tree_id": "knight-tree",
   "skill_tree": {
     "tiers": [
@@ -45,22 +66,22 @@
           {
             "id": "knight-t1-shield-wall",
             "name": "Shield Wall",
-            "description": "Unlocks Shield Wall — massive defense boost but immobilized for the duration.",
+            "description": "Unlocks Shield Wall \u2014 massive defense boost but immobilized for the duration.",
             "cost": 1,
             "prerequisites": [],
             "effect": {
-              "type": "grant_ability",
+              "type": "grant-ability",
               "ability_id": "knight-shield-wall"
             }
           },
           {
             "id": "knight-t1-cleave",
             "name": "Cleave",
-            "description": "Unlocks Cleave — a sweeping strike that hits all adjacent enemies.",
+            "description": "Unlocks Cleave \u2014 a sweeping strike that hits all adjacent enemies.",
             "cost": 1,
             "prerequisites": [],
             "effect": {
-              "type": "grant_ability",
+              "type": "grant-ability",
               "ability_id": "knight-cleave"
             }
           }
@@ -77,7 +98,7 @@
             "cost": 1,
             "prerequisites": [],
             "effect": {
-              "type": "passive_stat",
+              "type": "passive-stat",
               "stat": "defense",
               "value": 4
             }
@@ -85,11 +106,11 @@
           {
             "id": "knight-t2-riposte",
             "name": "Riposte",
-            "description": "Unlocks Riposte — counter-attack stance that auto-strikes when hit.",
+            "description": "Unlocks Riposte \u2014 counter-attack stance that auto-strikes when hit.",
             "cost": 1,
             "prerequisites": [],
             "effect": {
-              "type": "grant_ability",
+              "type": "grant-ability",
               "ability_id": "knight-riposte"
             }
           }
@@ -102,22 +123,26 @@
           {
             "id": "knight-t3-fortress",
             "name": "Fortress",
-            "description": "Unlocks Fortress — an impenetrable defensive stance. Requires Shield Wall.",
+            "description": "Unlocks Fortress \u2014 an impenetrable defensive stance. Requires Shield Wall.",
             "cost": 1,
-            "prerequisites": ["knight-t1-shield-wall"],
+            "prerequisites": [
+              "knight-t1-shield-wall"
+            ],
             "effect": {
-              "type": "grant_ability",
+              "type": "grant-ability",
               "ability_id": "knight-fortress"
             }
           },
           {
             "id": "knight-t3-berserker",
             "name": "Berserker Rage",
-            "description": "Unlocks Berserker Rage — sacrifice HP for massive attack boost. Requires Cleave.",
+            "description": "Unlocks Berserker Rage \u2014 sacrifice HP for massive attack boost. Requires Cleave.",
             "cost": 1,
-            "prerequisites": ["knight-t1-cleave"],
+            "prerequisites": [
+              "knight-t1-cleave"
+            ],
             "effect": {
-              "type": "grant_ability",
+              "type": "grant-ability",
               "ability_id": "knight-berserker-rage"
             }
           }

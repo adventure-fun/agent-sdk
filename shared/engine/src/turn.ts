@@ -527,13 +527,13 @@ function resolveUseItem(
 
   for (const effect of template.effects ?? []) {
     switch (effect.type) {
-      case "heal_hp": {
+      case "heal-hp": {
         const amount = Math.min(effect.magnitude ?? 0, s.character.hp.max - s.character.hp.current)
         s.character.hp.current += amount
         parts.push(`Restored ${amount} HP.`)
         break
       }
-      case "heal_resource": {
+      case "restore-resource": {
         const amount = Math.min(
           effect.magnitude ?? 0,
           s.character.resource.max - s.character.resource.current,
@@ -542,26 +542,26 @@ function resolveUseItem(
         parts.push(`Restored ${amount} ${s.character.resource.type}.`)
         break
       }
-      case "cure_debuff": {
+      case "cure-debuffs": {
         s.character.debuffs = []
         parts.push("Debuffs cleared.")
         break
       }
       case "buff": {
         s.character.buffs.push({
-          type: "buff_attack",
+          type: "buff-attack",
           turns_remaining: effect.duration ?? 5,
           magnitude: effect.magnitude ?? 5,
         })
         parts.push(`Attack boosted by ${effect.magnitude ?? 5} for ${effect.duration ?? 5} turns.`)
         break
       }
-      case "portal": {
+      case "portal-escape": {
         // Signal portal usage — session layer handles extraction
         parts.push("A portal opens before you.")
         break
       }
-      case "reveal_map": {
+      case "reveal-map": {
         parts.push("The map reveals itself.")
         break
       }
@@ -661,17 +661,17 @@ function resolveInteract(
   // Check conditions
   for (const cond of interactable.conditions) {
     switch (cond.type) {
-      case "enemy_defeated":
+      case "enemy-defeated":
         if (!s.mutatedEntities.includes(cond.entity_id)) {
           return "Something must be dealt with first."
         }
         break
-      case "has_item":
+      case "has-item":
         if (!s.inventory.some((i) => i.template_id === cond.item_id)) {
           return "You're missing something."
         }
         break
-      case "class_is":
+      case "class-is":
         if (s.character.class !== cond.class) continue // condition doesn't apply
         break
     }
@@ -691,11 +691,11 @@ function resolveInteract(
     // Check trigger conditions
     let conditionsMet = true
     for (const cond of trigger.conditions) {
-      if (cond.type === "class_is" && s.character.class !== cond.class) {
+      if (cond.type === "class-is" && s.character.class !== cond.class) {
         conditionsMet = false
         break
       }
-      if (cond.type === "enemy_defeated" && !s.mutatedEntities.includes(cond.entity_id)) {
+      if (cond.type === "enemy-defeated" && !s.mutatedEntities.includes(cond.entity_id)) {
         conditionsMet = false
         break
       }
@@ -729,7 +729,7 @@ function applyEffect(
   parts: string[],
 ) {
   switch (effect.type) {
-    case "grant_item": {
+    case "grant-item": {
       const templateId = effect.item_template_id as string
       const qty = (effect.quantity as number) ?? 1
       try {
@@ -756,37 +756,37 @@ function applyEffect(
       }
       break
     }
-    case "grant_gold": {
+    case "grant-gold": {
       const amount = effect.amount as number
       s.character.gold += amount
       parts.push(`Received ${amount} gold.`)
       break
     }
-    case "heal_hp": {
+    case "heal-hp": {
       const amount = Math.min(effect.amount as number, s.character.hp.max - s.character.hp.current)
       s.character.hp.current += amount
       parts.push(`Restored ${amount} HP.`)
       break
     }
-    case "reveal_lore": {
+    case "reveal-lore": {
       parts.push("You discover a piece of lore.")
       break
     }
-    case "show_text": {
+    case "show-text": {
       parts.push(effect.text as string)
       break
     }
-    case "apply_buff": {
+    case "apply-buff": {
       const buff = effect.buff as ActiveEffect
       if (buff) s.character.buffs.push({ ...buff })
       break
     }
-    case "apply_debuff": {
+    case "apply-debuff": {
       const debuff = effect.debuff as ActiveEffect
       if (debuff) s.character.debuffs.push({ ...debuff })
       break
     }
-    case "cure_debuffs": {
+    case "cure-debuffs": {
       s.character.debuffs = []
       parts.push("Debuffs cleared.")
       break
@@ -972,7 +972,7 @@ export function buildRoomState(
     const itemId = genRoom.item_ids[i]!
     if (mutatedEntities.includes(itemId)) continue
 
-    let templateId = "health_potion" // fallback
+    let templateId = "health-potion" // fallback
     const lootSlot = roomTemplate?.loot_slots[i]
     if (lootSlot && lootTables && seed != null) {
       const table = lootTables.find((t) => t.id === lootSlot.loot_table_id)
@@ -1081,8 +1081,8 @@ function recalcStats(s: GameState) {
 
   // Add buff bonuses
   for (const buff of s.character.buffs) {
-    if (buff.type === "buff_attack") effective.attack += buff.magnitude
-    if (buff.type === "buff_defense") effective.defense += buff.magnitude
+    if (buff.type === "buff-attack") effective.attack += buff.magnitude
+    if (buff.type === "buff-defense") effective.defense += buff.magnitude
   }
 
   s.character.effective_stats = effective
@@ -1376,7 +1376,7 @@ export function computeLegalActions(
       // skip
     }
   }
-  for (const slot of ["weapon", "armor", "accessory", "class_specific"] as const) {
+  for (const slot of ["weapon", "armor", "accessory", "class-specific"] as const) {
     if (state.equipment[slot]) {
       actions.push({ type: "unequip", slot })
     }

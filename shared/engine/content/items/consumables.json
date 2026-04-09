@@ -1,13 +1,16 @@
 [
   {
-    "id": "health_potion",
+    "id": "health-potion",
     "name": "Health Potion",
     "description": "A small glass vial of red liquid. Tastes like copper and regret, but it works.",
     "type": "consumable",
     "rarity": "common",
     "stats": {},
     "effects": [
-      { "type": "heal_hp", "magnitude": 25 }
+      {
+        "type": "heal-hp",
+        "magnitude": 25
+      }
     ],
     "stack_limit": 5,
     "sell_price": 5,
@@ -15,12 +18,15 @@
     "class_restriction": null
   },
   {
-    "id": "greater_health_potion",
+    "id": "greater-health-potion",
     "name": "Greater Health Potion",
     "type": "consumable",
     "rarity": "uncommon",
     "effects": [
-      { "type": "heal_hp", "magnitude": 70 }
+      {
+        "type": "heal-hp",
+        "magnitude": 70
+      }
     ],
     "stack_limit": 3,
     "sell_price": 20,
@@ -28,14 +34,17 @@
     "description": "A larger, more potent healing draught. Restores 70 HP when consumed. A prized commodity deep in any dungeon."
   },
   {
-    "id": "mana_potion",
+    "id": "mana-potion",
     "name": "Mana Potion",
     "description": "A blue-tinged liquid that shimmers when shaken. Restores arcane energy.",
     "type": "consumable",
     "rarity": "common",
     "stats": {},
     "effects": [
-      { "type": "restore_resource", "magnitude": 15 }
+      {
+        "type": "restore-resource",
+        "magnitude": 15
+      }
     ],
     "stack_limit": 5,
     "sell_price": 6,
@@ -50,7 +59,9 @@
     "rarity": "common",
     "stats": {},
     "effects": [
-      { "type": "cure_debuffs" }
+      {
+        "type": "cure-debuffs"
+      }
     ],
     "stack_limit": 5,
     "sell_price": 4,
@@ -58,14 +69,16 @@
     "class_restriction": null
   },
   {
-    "id": "portal_scroll",
+    "id": "portal-scroll",
     "name": "Portal Scroll",
     "description": "A single-use scroll inscribed with unstable glyphs. Tears open a passage back to town. Don't read it wrong.",
     "type": "consumable",
     "rarity": "uncommon",
     "stats": {},
     "effects": [
-      { "type": "portal_escape" }
+      {
+        "type": "portal-escape"
+      }
     ],
     "stack_limit": 1,
     "sell_price": 25,
@@ -73,12 +86,16 @@
     "class_restriction": null
   },
   {
-    "id": "buff_potion",
+    "id": "buff-potion",
     "name": "Buff Potion",
     "type": "consumable",
     "rarity": "uncommon",
     "effects": [
-      { "type": "buff", "magnitude": 5, "duration": 5 }
+      {
+        "type": "buff",
+        "magnitude": 5,
+        "duration": 5
+      }
     ],
     "stack_limit": 3,
     "sell_price": 12,
@@ -86,7 +103,7 @@
     "description": "A frothing amber brew that temporarily sharpens reflexes and strengthens muscles. Grants +5 attack for 5 turns."
   },
   {
-    "id": "ammo_arrows_10",
+    "id": "ammo-arrows-10",
     "name": "Bundle of Arrows",
     "description": "Ten wooden arrows with iron tips. Standard ammunition.",
     "type": "consumable",
@@ -99,7 +116,7 @@
     "class_restriction": "archer"
   },
   {
-    "id": "gold_coins",
+    "id": "gold-coins",
     "name": "Gold Coins",
     "description": "A pouch of worn gold coins. Currency of the realm.",
     "type": "loot",
@@ -112,10 +129,10 @@
     "class_restriction": null
   },
   {
-    "id": "mine_key",
+    "id": "mine-key",
     "name": "Mine Key",
     "description": "A heavy iron key stamped with the mine's seal. Opens the gate to the overseer's quarters.",
-    "type": "key_item",
+    "type": "key-item",
     "rarity": "common",
     "stats": {},
     "effects": [],
@@ -123,13 +140,13 @@
     "sell_price": 0,
     "buy_price": 0,
     "class_restriction": null,
-    "unlocks": "cp_iron_gate"
+    "unlocks": "cp-iron-gate"
   },
   {
-    "id": "crypt_key",
+    "id": "crypt-key",
     "name": "Crypt Key",
     "description": "Cold iron bearing the crypt's seal. The metal feels heavier than it should.",
-    "type": "key_item",
+    "type": "key-item",
     "rarity": "common",
     "stats": {},
     "effects": [],
@@ -137,6 +154,6 @@
     "sell_price": 0,
     "buy_price": 0,
     "class_restriction": null,
-    "unlocks": "sc_locked_door_f2"
+    "unlocks": "sc-locked-door-f2"
   }
 ]

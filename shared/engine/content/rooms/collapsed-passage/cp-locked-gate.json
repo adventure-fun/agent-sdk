@@ -1,18 +1,32 @@
 {
   "id": "cp-locked-gate",
   "type": "event",
-  "size": { "width": 5, "height": 5 },
-  "text_first_visit": "A heavy iron gate blocks the passage ahead. The lock is stamped with the mine's seal. Beyond the bars, you can see a furnished room — the overseer's quarters.",
+  "size": {
+    "width": 5,
+    "height": 5
+  },
+  "text_first_visit": "A heavy iron gate blocks the passage ahead. The lock is stamped with the mine's seal. Beyond the bars, you can see a furnished room \u2014 the overseer's quarters.",
   "text_revisit": null,
   "interactables": [
     {
       "id": "cp-iron-gate",
       "name": "Locked Iron Gate",
       "text_on_interact": "The mine key turns with a grinding screech. The gate swings open.",
-      "conditions": [{ "type": "has_item", "item_id": "mine-key" }],
+      "conditions": [
+        {
+          "type": "has-item",
+          "item_id": "mine-key"
+        }
+      ],
       "effects": [
-        { "type": "unlock_door", "entity_id": "cp-iron-gate" },
-        { "type": "show_text", "text": "You insert the mine key. The gate groans open, rust flaking from the hinges." }
+        {
+          "type": "unlock-door",
+          "entity_id": "cp-iron-gate"
+        },
+        {
+          "type": "show-text",
+          "text": "You insert the mine key. The gate groans open, rust flaking from the hinges."
+        }
       ],
       "lore_entry_id": null
     }
@@ -22,9 +36,14 @@
   "triggers": [
     {
       "conditions": [],
-      "effects": [{ "type": "show_text", "text": "The gate is locked. You need a key with the mine's seal." }],
+      "effects": [
+        {
+          "type": "show-text",
+          "text": "The gate is locked. You need a key with the mine's seal."
+        }
+      ],
       "fire_once": false,
-      "trigger_on": "interact_failed",
+      "trigger_on": "interact-failed",
       "target_id": "cp-iron-gate"
     }
   ]

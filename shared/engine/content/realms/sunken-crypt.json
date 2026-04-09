@@ -1,18 +1,21 @@
 {
   "id": "sunken-crypt",
   "name": "The Sunken Crypt",
-  "description": "Ancient burial site of the first Guardian. Undead enemies haunt its flooded halls, and a corrupted Guardian — the Hollow Warden — stands watch in the deepest chamber.",
-  "theme": "undead_crypt",
+  "description": "Ancient burial site of the first Guardian. Undead enemies haunt its flooded halls, and a corrupted Guardian \u2014 the Hollow Warden \u2014 stands watch in the deepest chamber.",
+  "theme": "undead-crypt",
   "version": 2,
-  "floor_count": { "min": 3, "max": 3 },
+  "floor_count": {
+    "min": 3,
+    "max": 3
+  },
   "difficulty_tier": 2,
   "room_distribution": {
-    "combat": 0.40,
+    "combat": 0.4,
     "treasure": 0.15,
-    "trap": 0.10,
-    "rest": 0.10,
+    "trap": 0.1,
+    "rest": 0.1,
     "event": 0.15,
-    "boss": 0.10
+    "boss": 0.1
   },
   "enemy_roster": [
     "skeleton-warrior",
@@ -21,40 +24,390 @@
   "boss_id": "hollow-warden",
   "loot_tables": [
     {
-      "id": "crypt_common",
+      "id": "crypt-common",
       "entries": [
-        { "item_template_id": "health_potion", "weight": 40, "quantity": { "min": 1, "max": 2 } },
-        { "item_template_id": "antidote", "weight": 20, "quantity": { "min": 1, "max": 1 } },
-        { "item_template_id": "iron_ring", "weight": 15, "quantity": { "min": 1, "max": 1 } },
-        { "item_template_id": "buff_potion", "weight": 15, "quantity": { "min": 1, "max": 1 } },
-        { "item_template_id": "mana_potion", "weight": 10, "quantity": { "min": 1, "max": 1 } }
+        {
+          "item_template_id": "health-potion",
+          "weight": 40,
+          "quantity": {
+            "min": 1,
+            "max": 2
+          }
+        },
+        {
+          "item_template_id": "antidote",
+          "weight": 20,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item_template_id": "iron-ring",
+          "weight": 15,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item_template_id": "buff-potion",
+          "weight": 15,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item_template_id": "mana-potion",
+          "weight": 10,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        }
       ]
     },
     {
-      "id": "crypt_uncommon",
+      "id": "crypt-uncommon",
       "entries": [
-        { "item_template_id": "greater_health_potion", "weight": 30, "quantity": { "min": 1, "max": 1 } },
-        { "item_template_id": "leather_armor", "weight": 20, "quantity": { "min": 1, "max": 1 } },
-        { "item_template_id": "iron_sword", "weight": 20, "quantity": { "min": 1, "max": 1 } },
-        { "item_template_id": "portal_scroll", "weight": 15, "quantity": { "min": 1, "max": 1 } },
-        { "item_template_id": "buff_potion", "weight": 15, "quantity": { "min": 1, "max": 2 } }
+        {
+          "item_template_id": "greater-health-potion",
+          "weight": 30,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item_template_id": "leather-armor",
+          "weight": 20,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item_template_id": "iron-sword",
+          "weight": 20,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item_template_id": "portal-scroll",
+          "weight": 15,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item_template_id": "buff-potion",
+          "weight": 15,
+          "quantity": {
+            "min": 1,
+            "max": 2
+          }
+        }
       ]
     },
     {
-      "id": "warden_boss",
+      "id": "warden-boss",
       "entries": [
-        { "item_template_id": "greater_health_potion", "weight": 25, "quantity": { "min": 2, "max": 3 } },
-        { "item_template_id": "portal_scroll", "weight": 20, "quantity": { "min": 1, "max": 2 } },
-        { "item_template_id": "iron_sword", "weight": 20, "quantity": { "min": 1, "max": 1 } },
-        { "item_template_id": "leather_armor", "weight": 15, "quantity": { "min": 1, "max": 1 } },
-        { "item_template_id": "buff_potion", "weight": 10, "quantity": { "min": 2, "max": 3 } },
-        { "item_template_id": "iron_ring", "weight": 10, "quantity": { "min": 1, "max": 1 } }
+        {
+          "item_template_id": "greater-health-potion",
+          "weight": 25,
+          "quantity": {
+            "min": 2,
+            "max": 3
+          }
+        },
+        {
+          "item_template_id": "portal-scroll",
+          "weight": 20,
+          "quantity": {
+            "min": 1,
+            "max": 2
+          }
+        },
+        {
+          "item_template_id": "iron-sword",
+          "weight": 20,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item_template_id": "leather-armor",
+          "weight": 15,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item_template_id": "buff-potion",
+          "weight": 10,
+          "quantity": {
+            "min": 2,
+            "max": 3
+          }
+        },
+        {
+          "item_template_id": "iron-ring",
+          "weight": 10,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "sc-skeleton-loot",
+      "entries": [
+        {
+          "item_template_id": "gold-coins",
+          "weight": 45,
+          "quantity": {
+            "min": 5,
+            "max": 12
+          }
+        },
+        {
+          "item_template_id": "health-potion",
+          "weight": 30,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item_template_id": "gear-bone-fragment",
+          "weight": 25,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "sc-tomb-loot",
+      "entries": [
+        {
+          "item_template_id": "gold-coins",
+          "weight": 30,
+          "quantity": {
+            "min": 10,
+            "max": 25
+          }
+        },
+        {
+          "item_template_id": "gear-tomb-ring",
+          "weight": 20,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item_template_id": "health-potion",
+          "weight": 20,
+          "quantity": {
+            "min": 1,
+            "max": 2
+          }
+        },
+        {
+          "item_template_id": "mana-potion",
+          "weight": 15,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item_template_id": "portal-scroll",
+          "weight": 10,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item_template_id": "gear-crypt-shield",
+          "weight": 5,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "sc-consumable-loot",
+      "entries": [
+        {
+          "item_template_id": "health-potion",
+          "weight": 40,
+          "quantity": {
+            "min": 2,
+            "max": 3
+          }
+        },
+        {
+          "item_template_id": "mana-potion",
+          "weight": 25,
+          "quantity": {
+            "min": 1,
+            "max": 2
+          }
+        },
+        {
+          "item_template_id": "antidote",
+          "weight": 20,
+          "quantity": {
+            "min": 1,
+            "max": 2
+          }
+        },
+        {
+          "item_template_id": "portal-scroll",
+          "weight": 15,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "sc-rare-equipment",
+      "entries": [
+        {
+          "item_template_id": "gear-warden-gauntlets",
+          "weight": 25,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item_template_id": "gear-crypt-shield",
+          "weight": 25,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item_template_id": "gear-tomb-ring",
+          "weight": 20,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item_template_id": "gold-coins",
+          "weight": 20,
+          "quantity": {
+            "min": 25,
+            "max": 50
+          }
+        },
+        {
+          "item_template_id": "portal-scroll",
+          "weight": 10,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "sc-vault-epic",
+      "entries": [
+        {
+          "item_template_id": "gear-wardens-blade",
+          "weight": 20,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item_template_id": "gear-wardens-plate",
+          "weight": 20,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item_template_id": "gear-hollow-ward",
+          "weight": 20,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item_template_id": "gold-coins",
+          "weight": 25,
+          "quantity": {
+            "min": 40,
+            "max": 75
+          }
+        },
+        {
+          "item_template_id": "portal-scroll",
+          "weight": 15,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "sc-vault-gold",
+      "entries": [
+        {
+          "item_template_id": "gold-coins",
+          "weight": 60,
+          "quantity": {
+            "min": 30,
+            "max": 60
+          }
+        },
+        {
+          "item_template_id": "gear-bone-fragment",
+          "weight": 20,
+          "quantity": {
+            "min": 2,
+            "max": 4
+          }
+        },
+        {
+          "item_template_id": "health-potion",
+          "weight": 20,
+          "quantity": {
+            "min": 3,
+            "max": 5
+          }
+        }
       ]
     }
   ],
   "trap_types": [
     {
-      "id": "poison_vent",
+      "id": "poison-vent",
       "name": "Poison Vent",
       "damage": 8,
       "effect": {
@@ -67,14 +420,14 @@
       "visible_after_trigger": true
     },
     {
-      "id": "spike_pit",
+      "id": "spike-pit",
       "name": "Spike Pit",
       "damage": 20,
       "detection_difficulty": 10,
       "visible_after_trigger": true
     },
     {
-      "id": "curse_glyph",
+      "id": "curse-glyph",
       "name": "Curse Glyph",
       "damage": 5,
       "effect": {
@@ -102,7 +455,7 @@
     "sc-treasure-vault"
   ],
   "narrative": {
-    "theme_description": "The Sunken Crypt is the ancient burial site of the first Guardian — a warrior who sealed the Hollow by absorbing part of its corruption. Over centuries, the Hollow corrupted the Guardian, transforming them into the Hollow Warden. The crypt's flooded halls are haunted by the undead remains of those who came to pay respects and never left.",
+    "theme_description": "The Sunken Crypt is the ancient burial site of the first Guardian \u2014 a warrior who sealed the Hollow by absorbing part of its corruption. Over centuries, the Hollow corrupted the Guardian, transforming them into the Hollow Warden. The crypt's flooded halls are haunted by the undead remains of those who came to pay respects and never left.",
     "room_text_pool": [
       {
         "text": "Stone murals line the walls, depicting a warrior driving back a tide of darkness. The paint is faded but the story is clear.",
@@ -125,7 +478,7 @@
         "type": "combat"
       },
       {
-        "text": "Wall carvings depict the Guardian's sacrifice — hands pressed against a seal, violet light pouring through the cracks. Below, in careful script: 'The Warden's armor weakens when the braziers are lit.'",
+        "text": "Wall carvings depict the Guardian's sacrifice \u2014 hands pressed against a seal, violet light pouring through the cracks. Below, in careful script: 'The Warden's armor weakens when the braziers are lit.'",
         "type": "event"
       },
       {

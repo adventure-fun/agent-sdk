@@ -1,40 +1,236 @@
 {
   "id": "collapsed-passage",
   "name": "The Collapsed Passage",
-  "description": "An abandoned mine tunnel, unstable and claustrophobic. The miners left in a hurry — something drove them out. Or in.",
+  "description": "An abandoned mine tunnel, unstable and claustrophobic. The miners left in a hurry \u2014 something drove them out. Or in.",
   "theme": "mine",
   "version": 1,
   "procedural": false,
-  "floor_count": { "min": 1, "max": 1 },
+  "floor_count": {
+    "min": 1,
+    "max": 1
+  },
   "difficulty_tier": 1,
   "room_distribution": {
-    "combat": 0.40,
-    "treasure": 0.20,
-    "trap": 0.10,
-    "rest": 0.10,
-    "event": 0.20,
+    "combat": 0.4,
+    "treasure": 0.2,
+    "trap": 0.1,
+    "rest": 0.1,
+    "event": 0.2,
     "boss": 0
   },
-  "enemy_roster": ["hollow-rat", "cave-crawler"],
+  "enemy_roster": [
+    "hollow-rat",
+    "cave-crawler"
+  ],
   "boss_id": null,
   "loot_tables": [
     {
-      "id": "passage_common",
+      "id": "passage-common",
       "entries": [
-        { "item_template_id": "health_potion", "weight": 40, "quantity": { "min": 1, "max": 2 } },
-        { "item_template_id": "antidote", "weight": 20, "quantity": { "min": 1, "max": 1 } },
-        { "item_template_id": "iron_ring", "weight": 15, "quantity": { "min": 1, "max": 1 } },
-        { "item_template_id": "buff_potion", "weight": 15, "quantity": { "min": 1, "max": 1 } },
-        { "item_template_id": "portal_scroll", "weight": 10, "quantity": { "min": 1, "max": 1 } }
+        {
+          "item_template_id": "health-potion",
+          "weight": 40,
+          "quantity": {
+            "min": 1,
+            "max": 2
+          }
+        },
+        {
+          "item_template_id": "antidote",
+          "weight": 20,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item_template_id": "iron-ring",
+          "weight": 15,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item_template_id": "buff-potion",
+          "weight": 15,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item_template_id": "portal-scroll",
+          "weight": 10,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        }
       ]
     },
     {
-      "id": "passage_uncommon",
+      "id": "passage-uncommon",
       "entries": [
-        { "item_template_id": "iron_sword", "weight": 30, "quantity": { "min": 1, "max": 1 } },
-        { "item_template_id": "leather_armor", "weight": 25, "quantity": { "min": 1, "max": 1 } },
-        { "item_template_id": "greater_health_potion", "weight": 25, "quantity": { "min": 1, "max": 1 } },
-        { "item_template_id": "buff_potion", "weight": 20, "quantity": { "min": 1, "max": 2 } }
+        {
+          "item_template_id": "iron-sword",
+          "weight": 30,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item_template_id": "leather-armor",
+          "weight": 25,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item_template_id": "greater-health-potion",
+          "weight": 25,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item_template_id": "buff-potion",
+          "weight": 20,
+          "quantity": {
+            "min": 1,
+            "max": 2
+          }
+        }
+      ]
+    },
+    {
+      "id": "cp-minor-loot",
+      "entries": [
+        {
+          "item_template_id": "gold-coins",
+          "weight": 50,
+          "quantity": {
+            "min": 3,
+            "max": 8
+          }
+        },
+        {
+          "item_template_id": "health-potion",
+          "weight": 35,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item_template_id": "ammo-arrows-10",
+          "weight": 15,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "cp-equipment-loot",
+      "entries": [
+        {
+          "item_template_id": "health-potion",
+          "weight": 30,
+          "quantity": {
+            "min": 1,
+            "max": 2
+          }
+        },
+        {
+          "item_template_id": "gold-coins",
+          "weight": 25,
+          "quantity": {
+            "min": 5,
+            "max": 15
+          }
+        },
+        {
+          "item_template_id": "antidote",
+          "weight": 15,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item_template_id": "gear-leather-cap",
+          "weight": 15,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item_template_id": "gear-iron-ring",
+          "weight": 10,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item_template_id": "portal-scroll",
+          "weight": 5,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "cp-strongbox-loot",
+      "entries": [
+        {
+          "item_template_id": "gold-coins",
+          "weight": 30,
+          "quantity": {
+            "min": 15,
+            "max": 30
+          }
+        },
+        {
+          "item_template_id": "gear-iron-ring",
+          "weight": 25,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item_template_id": "gear-chain-gloves",
+          "weight": 20,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item_template_id": "health-potion",
+          "weight": 15,
+          "quantity": {
+            "min": 2,
+            "max": 3
+          }
+        },
+        {
+          "item_template_id": "portal-scroll",
+          "weight": 10,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        }
       ]
     }
   ],
@@ -48,7 +244,7 @@
     "cp-overseers-den"
   ],
   "narrative": {
-    "theme_description": "An abandoned mine tunnel. The miners of this passage broke through into something old beneath the rock. They fled — or were taken. The corruption the town whispers about may have started here.",
+    "theme_description": "An abandoned mine tunnel. The miners of this passage broke through into something old beneath the rock. They fled \u2014 or were taken. The corruption the town whispers about may have started here.",
     "room_text_pool": [
       {
         "text": "Three tunnels branch from here. The left one is flooded ankle-deep. The center one has fresh claw marks on the support beams. The right one is blocked by a rusted gate.",
@@ -59,7 +255,7 @@
         "type": "treasure"
       },
       {
-        "text": "Picks, hammers, and coils of rope hang from hooks on the walls. A lantern still flickers on the workbench — someone was here recently.",
+        "text": "Picks, hammers, and coils of rope hang from hooks on the walls. A lantern still flickers on the workbench \u2014 someone was here recently.",
         "type": "rest"
       },
       {

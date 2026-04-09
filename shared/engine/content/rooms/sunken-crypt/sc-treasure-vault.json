@@ -1,8 +1,11 @@
 {
   "id": "sc-treasure-vault",
   "type": "treasure",
-  "size": { "width": 7, "height": 7 },
-  "text_first_visit": "Beyond the Warden's chamber: a sealed vault, now open. Gold, weapons, and artifacts line the walls — the tribute of centuries, offered to a Guardian who became a prisoner. At the back, a final inscription: 'One seal is broken. Three remain. The Hollow remembers.'",
+  "size": {
+    "width": 7,
+    "height": 7
+  },
+  "text_first_visit": "Beyond the Warden's chamber: a sealed vault, now open. Gold, weapons, and artifacts line the walls \u2014 the tribute of centuries, offered to a Guardian who became a prisoner. At the back, a final inscription: 'One seal is broken. Three remain. The Hollow remembers.'",
   "text_revisit": "The vault. What remains is lesser, but still valuable.",
   "interactables": [
     {
@@ -10,7 +13,12 @@
       "name": "Final Inscription",
       "text_on_interact": "Carved deep into the stone: 'The Ranger fell in the forest. The Warden fell here. The Scholar and the Hunter still hold. Find them before the Hollow does.'",
       "conditions": [],
-      "effects": [{ "type": "reveal_lore", "lore_id": "sc-three-remain" }],
+      "effects": [
+        {
+          "type": "reveal-lore",
+          "lore_id": "sc-three-remain"
+        }
+      ],
       "lore_entry_id": "sc-three-remain"
     }
   ],
@@ -19,12 +27,18 @@
     {
       "loot_table_id": "sc-vault-epic",
       "container": "chest",
-      "position": { "x": 3, "y": 1 }
+      "position": {
+        "x": 3,
+        "y": 1
+      }
     },
     {
       "loot_table_id": "sc-vault-gold",
       "container": "chest",
-      "position": { "x": 5, "y": 1 }
+      "position": {
+        "x": 5,
+        "y": 1
+      }
     }
   ],
   "triggers": []
