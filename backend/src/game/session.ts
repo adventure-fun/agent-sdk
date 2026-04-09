@@ -23,6 +23,7 @@ import {
   buildObservationFromState,
   buildRoomState,
   computeLegalActions,
+  applyStatGrowth,
   checkLevelUp,
   toSpectatorObservation,
 } from "@adventure-fun/engine"
@@ -99,17 +100,11 @@ function applyCompletionLevelUps(state: GameState): void {
 
   const growth = CLASSES[state.character.class]?.stat_growth
   if (growth) {
-    for (let i = 0; i < levelsGained; i++) {
-      state.character.stats.hp += growth.hp
-      state.character.stats.attack += growth.attack
-      state.character.stats.defense += growth.defense
-      state.character.stats.accuracy += growth.accuracy
-      state.character.stats.evasion += growth.evasion
-      state.character.stats.speed += growth.speed
-    }
-    state.character.hp.max += growth.hp * levelsGained
+    const appliedGrowth = applyStatGrowth(state.character.stats, growth, levelsGained)
+    state.character.stats = appliedGrowth.nextStats
+    state.character.hp.max += appliedGrowth.statGains.hp
     state.character.hp.current = Math.min(
-      state.character.hp.current + growth.hp * levelsGained,
+      state.character.hp.current + appliedGrowth.statGains.hp,
       state.character.hp.max,
     )
     state.character.effective_stats = { ...state.character.stats }

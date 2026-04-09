@@ -142,4 +142,29 @@ describe("calcHitThreshold", () => {
     expect(threshold).toBeGreaterThanOrEqual(0.05)
     expect(threshold).toBeLessThanOrEqual(0.95)
   })
+
+  it("keeps low-scale player accuracy differences meaningful after the rebalance", () => {
+    const knightThreshold = calcHitThreshold(
+      { hp: 32, attack: 11, defense: 11, accuracy: 11, evasion: 4, speed: 4 },
+      { hp: 25, attack: 7, defense: 3, accuracy: 65, evasion: 18, speed: 12 },
+    )
+    const archerThreshold = calcHitThreshold(
+      { hp: 24, attack: 11, defense: 5, accuracy: 17, evasion: 9, speed: 11 },
+      { hp: 25, attack: 7, defense: 3, accuracy: 65, evasion: 18, speed: 12 },
+    )
+
+    expect(knightThreshold).toBeCloseTo(0.36, 2)
+    expect(archerThreshold).toBeCloseTo(0.7, 2)
+    expect(archerThreshold).toBeGreaterThan(knightThreshold)
+    expect(archerThreshold - knightThreshold).toBeGreaterThan(0.3)
+  })
+
+  it("still caps dangerous enemy attacks at the maximum hit chance", () => {
+    const threshold = calcHitThreshold(
+      { hp: 25, attack: 7, defense: 3, accuracy: 65, evasion: 18, speed: 12 },
+      { hp: 32, attack: 11, defense: 11, accuracy: 11, evasion: 4, speed: 4 },
+    )
+
+    expect(threshold).toBe(0.95)
+  })
 })

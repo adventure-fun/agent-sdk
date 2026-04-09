@@ -24,6 +24,12 @@ const STAT_LABELS: Record<string, string> = {
   hp: "HP", attack: "Attack", defense: "Defense",
   accuracy: "Accuracy", evasion: "Evasion", speed: "Speed",
 }
+const CLASS_ROLE_LABELS: Record<CharacterClass, string> = {
+  knight: "Tank",
+  mage: "Glass Cannon",
+  rogue: "Burst DPS",
+  archer: "Marksman",
+}
 const REALM_STATUS_LABELS: Record<string, string> = {
   generated: "Ready", active: "In Progress", paused: "Paused",
   boss_cleared: "Boss Cleared", realm_cleared: "Cleared", completed: "Completed", dead_end: "Lost",
@@ -420,7 +426,12 @@ export default function PlayPage() {
                 }`}
               >
                 <div className="flex items-center justify-between mb-2">
-                  <h2 className="text-lg font-bold text-amber-400">{cls.name}</h2>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-lg font-bold text-amber-400">{cls.name}</h2>
+                    <span className="rounded-full border border-sky-700/70 bg-sky-950/40 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-sky-300">
+                      {CLASS_ROLE_LABELS[cls.id as CharacterClass]}
+                    </span>
+                  </div>
                   <span className="text-xs text-gray-500 uppercase tracking-wider">
                     {cls.resource_type}: {cls.resource_max}
                   </span>
@@ -431,7 +442,13 @@ export default function PlayPage() {
                     const range = cls.stat_roll_ranges[stat]
                     if (!range) return null
                     return (
-                      <StatRangeBar key={stat} label={STAT_LABELS[stat]!} min={range[0]} max={range[1]} />
+                      <StatRangeBar
+                        key={stat}
+                        stat={stat}
+                        label={STAT_LABELS[stat]!}
+                        min={range[0]}
+                        max={range[1]}
+                      />
                     )
                   })}
                 </div>
@@ -619,6 +636,7 @@ export default function PlayPage() {
               return (
                 <StatValueBar
                   key={stat}
+                  stat={stat}
                   label={STAT_LABELS[stat]!}
                   value={value}
                   min={range[0]}
@@ -2454,8 +2472,28 @@ function formatLoreLabel(loreId: string) {
 // Stat range bar (class selection — shows min..max range)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-function StatRangeBar({ label, min, max }: { label: string; min: number; max: number }) {
-  const globalMax = 110
+function getStatDisplayMax(stat: typeof STAT_KEYS[number]) {
+  return stat === "hp" ? 50 : 25
+}
+
+function getRollQualityTone(fillPct: number) {
+  if (fillPct >= 67) return "bg-emerald-400"
+  if (fillPct >= 34) return "bg-amber-400"
+  return "bg-rose-400"
+}
+
+function StatRangeBar({
+  stat,
+  label,
+  min,
+  max,
+}: {
+  stat: typeof STAT_KEYS[number]
+  label: string
+  min: number
+  max: number
+}) {
+  const globalMax = getStatDisplayMax(stat)
   const leftPct = (min / globalMax) * 100
   const widthPct = ((max - min) / globalMax) * 100
 
@@ -2477,17 +2515,38 @@ function StatRangeBar({ label, min, max }: { label: string; min: number; max: nu
 // Stat value bar (stat reveal — shows actual roll within min..max)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-function StatValueBar({ label, value, min, max }: { label: string; value: number; min: number; max: number }) {
+function StatValueBar({
+  stat,
+  label,
+  value,
+  min,
+  max,
+}: {
+  stat: typeof STAT_KEYS[number]
+  label: string
+  value: number
+  min: number
+  max: number
+}) {
   const range = max - min
   const fillPct = range > 0 ? ((value - min) / range) * 100 : 100
+  const trackMax = getStatDisplayMax(stat)
+  const leftPct = (min / trackMax) * 100
+  const widthPct = ((max - min) / trackMax) * 100
+  const qualityWidthPct = Math.max((widthPct * fillPct) / 100, 4)
+  const qualityTone = getRollQualityTone(fillPct)
 
   return (
     <div className="flex items-center gap-2 text-xs">
       <span className="w-16 text-gray-500 text-right shrink-0">{label}</span>
       <div className="flex-1 h-2 bg-gray-800 rounded-full relative overflow-hidden">
         <div
-          className="absolute h-full bg-amber-400 rounded-full"
-          style={{ width: `${Math.max(fillPct, 4)}%` }}
+          className="absolute h-full rounded-full bg-gray-700/70"
+          style={{ left: `${leftPct}%`, width: `${Math.max(widthPct, 2)}%` }}
+        />
+        <div
+          className={`absolute h-full rounded-full ${qualityTone}`}
+          style={{ left: `${leftPct}%`, width: `${qualityWidthPct}%` }}
         />
       </div>
       <span className="w-20 text-gray-400 shrink-0">

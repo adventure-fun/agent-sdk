@@ -122,14 +122,14 @@ export function resolveAttack(
  * Returns value in [0.05, 0.95] — never guaranteed miss or guaranteed hit.
  */
 export function calcHitThreshold(attacker: CharacterStats, defender: CharacterStats): number {
-  const EVASION_SPEED_SCALING = 0.2
-  const ACCURACY_SPEED_SCALING = 0.2
+  const EVASION_SPEED_SCALING = 0.1
+  const ACCURACY_SPEED_SCALING = 0.1
   const BASE_HIT_CHANCE = 0.75
 
   const effectiveEvasion = defender.evasion + defender.speed * EVASION_SPEED_SCALING
   const effectiveAccuracy = attacker.accuracy + attacker.speed * ACCURACY_SPEED_SCALING
 
-  const hitChance = BASE_HIT_CHANCE + (effectiveAccuracy - effectiveEvasion) / 100
+  const hitChance = BASE_HIT_CHANCE + (effectiveAccuracy - effectiveEvasion) / 20
   return Math.min(0.95, Math.max(0.05, hitChance))
 }
 

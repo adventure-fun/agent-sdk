@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test"
 import { getInventoryCapacity, type Action, type GameState, type Tile } from "@adventure-fun/schemas"
+import { CLASSES } from "../src/content.js"
 import { buildObservationFromState, buildRoomState, computeLegalActions, resolveTurn } from "../src/turn.js"
 import { SeededRng } from "../src/rng.js"
 import { xpForLevel } from "../src/leveling.js"
@@ -1263,6 +1264,12 @@ describe("level-up on enemy defeat", () => {
     const beforeHpMax = state.character.hp.max
     const beforeAttack = state.character.stats.attack
     const beforeDefense = state.character.stats.defense
+    const beforeAccuracy = state.character.stats.accuracy
+    const growth = CLASSES.knight.stat_growth
+    const expectedHpGain = Math.max(1, Math.round(beforeHpMax * growth.hp))
+    const expectedAttackGain = Math.max(1, Math.round(beforeAttack * growth.attack))
+    const expectedDefenseGain = Math.max(1, Math.round(beforeDefense * growth.defense))
+    const expectedAccuracyGain = Math.max(1, Math.round(beforeAccuracy * growth.accuracy))
 
     const result = resolveTurn(
       state,
@@ -1271,10 +1278,20 @@ describe("level-up on enemy defeat", () => {
       new SeededRng(1),
     )
 
-    // Knight stat_growth: hp: 12, attack: 2, defense: 2
-    expect(result.newState.character.hp.max).toBe(beforeHpMax + 12)
-    expect(result.newState.character.stats.attack).toBe(beforeAttack + 2)
-    expect(result.newState.character.stats.defense).toBe(beforeDefense + 2)
+    expect(result.newState.character.hp.max).toBe(beforeHpMax + expectedHpGain)
+    expect(result.newState.character.stats.attack).toBe(beforeAttack + expectedAttackGain)
+    expect(result.newState.character.stats.defense).toBe(beforeDefense + expectedDefenseGain)
+    expect(result.newState.character.stats.accuracy).toBe(beforeAccuracy + expectedAccuracyGain)
+
+    const levelUpEvent = result.observation.recent_events.find((event) => event.type === "level_up")
+    expect(levelUpEvent?.data.stat_gains).toEqual({
+      hp: expectedHpGain,
+      attack: expectedAttackGain,
+      defense: expectedDefenseGain,
+      accuracy: expectedAccuracyGain,
+      evasion: Math.max(1, Math.round(state.character.stats.evasion * growth.evasion)),
+      speed: Math.max(1, Math.round(state.character.stats.speed * growth.speed)),
+    })
   })
 
   it("does not level up when XP is insufficient", () => {

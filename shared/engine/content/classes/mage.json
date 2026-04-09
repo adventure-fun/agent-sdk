@@ -3,45 +3,45 @@
   "name": "Mage",
   "description": "Glass cannon. Highest burst damage, lowest HP. Mana does not regenerate passively. Resource management is the core challenge.",
   "base_stats": {
-    "hp": 62,
-    "attack": 25,
-    "defense": 4,
-    "accuracy": 75,
-    "evasion": 15,
-    "speed": 12
+    "hp": 17,
+    "attack": 15,
+    "defense": 3,
+    "accuracy": 13,
+    "evasion": 6,
+    "speed": 9
   },
   "stat_growth": {
-    "hp": 6,
-    "attack": 4,
-    "defense": 1,
-    "accuracy": 2,
-    "evasion": 1,
-    "speed": 1
+    "hp": 0.03,
+    "attack": 0.05,
+    "defense": 0.01,
+    "accuracy": 0.04,
+    "evasion": 0.01,
+    "speed": 0.03
   },
   "stat_roll_ranges": {
     "hp": [
-      55,
-      70
+      12,
+      22
     ],
     "attack": [
-      22,
-      28
-    ],
-    "defense": [
-      3,
-      6
-    ],
-    "accuracy": [
-      70,
-      80
-    ],
-    "evasion": [
       12,
       18
     ],
-    "speed": [
+    "defense": [
+      2,
+      5
+    ],
+    "accuracy": [
       10,
-      14
+      16
+    ],
+    "evasion": [
+      4,
+      8
+    ],
+    "speed": [
+      6,
+      12
     ]
   },
   "resource_type": "mana",

@@ -2,7 +2,22 @@
 // leveling.ts — XP curve and level-up logic
 // ============================================================
 
+import type { CharacterStats } from "@adventure-fun/schemas"
+
 export const MAX_LEVEL = 20
+const STAT_KEYS: Array<keyof CharacterStats> = [
+  "hp",
+  "attack",
+  "defense",
+  "accuracy",
+  "evasion",
+  "speed",
+]
+
+export interface AppliedStatGrowth {
+  nextStats: CharacterStats
+  statGains: CharacterStats
+}
 
 /**
  * Cumulative XP required to reach a given level.
@@ -51,4 +66,35 @@ export function checkLevelUp(
     newLevel,
     levelsGained: newLevel - currentLevel,
   }
+}
+
+/**
+ * Applies compounding percentage-based stat growth over one or more levels.
+ * Each level rounds the per-stat gain and enforces a minimum +1 so every
+ * level-up produces visible progression in the character sheet.
+ */
+export function applyStatGrowth(
+  currentStats: CharacterStats,
+  growthRates: CharacterStats,
+  levelsGained: number,
+): AppliedStatGrowth {
+  const nextStats: CharacterStats = { ...currentStats }
+  const statGains: CharacterStats = {
+    hp: 0,
+    attack: 0,
+    defense: 0,
+    accuracy: 0,
+    evasion: 0,
+    speed: 0,
+  }
+
+  for (let level = 0; level < levelsGained; level += 1) {
+    for (const key of STAT_KEYS) {
+      const gain = Math.max(1, Math.round(nextStats[key] * growthRates[key]))
+      nextStats[key] += gain
+      statGains[key] += gain
+    }
+  }
+
+  return { nextStats, statGains }
 }

@@ -3,44 +3,44 @@
   "name": "Rogue",
   "description": "Burst damage in windows. Energy fully resets every 3 turns. High evasion and speed. The only class that can disarm chest traps.",
   "base_stats": {
-    "hp": 72,
-    "attack": 20,
-    "defense": 6,
-    "accuracy": 80,
-    "evasion": 24,
-    "speed": 17
+    "hp": 22,
+    "attack": 10,
+    "defense": 5,
+    "accuracy": 13,
+    "evasion": 14,
+    "speed": 16
   },
   "stat_growth": {
-    "hp": 7,
-    "attack": 3,
-    "defense": 1,
-    "accuracy": 2,
-    "evasion": 2,
-    "speed": 2
+    "hp": 0.03,
+    "attack": 0.03,
+    "defense": 0.01,
+    "accuracy": 0.03,
+    "evasion": 0.05,
+    "speed": 0.05
   },
   "stat_roll_ranges": {
     "hp": [
-      65,
-      80
-    ],
-    "attack": [
-      18,
-      23
-    ],
-    "defense": [
-      5,
-      8
-    ],
-    "accuracy": [
-      75,
-      85
-    ],
-    "evasion": [
-      20,
+      16,
       28
     ],
+    "attack": [
+      7,
+      13
+    ],
+    "defense": [
+      3,
+      7
+    ],
+    "accuracy": [
+      10,
+      16
+    ],
+    "evasion": [
+      10,
+      18
+    ],
     "speed": [
-      15,
+      12,
       20
     ]
   },

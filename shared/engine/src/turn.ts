@@ -50,7 +50,7 @@ import {
 } from "./visibility.js"
 import { getAbility, getEnemy, getEnemySafe, getItem, CLASSES, ROOMS, REALMS } from "./content.js"
 import { SeededRng, deriveSeed } from "./rng.js"
-import { checkLevelUp, xpToNextLevel } from "./leveling.js"
+import { applyStatGrowth, checkLevelUp, xpToNextLevel } from "./leveling.js"
 
 // ── Internal types ────────────────────────────────────────────────────────────
 
@@ -1059,18 +1059,14 @@ function handleEnemyDefeat(
   if (levelsGained > 0) {
     const classTemplate = CLASSES[s.character.class]
     const growth = classTemplate?.stat_growth
+    let statGains: CharacterStats | null = null
     if (growth) {
-      for (let i = 0; i < levelsGained; i++) {
-        s.character.stats.hp += growth.hp
-        s.character.stats.attack += growth.attack
-        s.character.stats.defense += growth.defense
-        s.character.stats.accuracy += growth.accuracy
-        s.character.stats.evasion += growth.evasion
-        s.character.stats.speed += growth.speed
-      }
-      s.character.hp.max += growth.hp * levelsGained
+      const appliedGrowth = applyStatGrowth(s.character.stats, growth, levelsGained)
+      s.character.stats = appliedGrowth.nextStats
+      statGains = appliedGrowth.statGains
+      s.character.hp.max += appliedGrowth.statGains.hp
       s.character.hp.current = Math.min(
-        s.character.hp.current + growth.hp * levelsGained,
+        s.character.hp.current + appliedGrowth.statGains.hp,
         s.character.hp.max,
       )
       s.character.effective_stats = { ...s.character.stats }
@@ -1083,7 +1079,7 @@ function handleEnemyDefeat(
       data: {
         old_level: newLevel - levelsGained,
         new_level: newLevel,
-        stat_growth: growth ?? null,
+        stat_gains: statGains,
         levels_gained: levelsGained,
       },
     })

@@ -72,7 +72,7 @@ Add notes under any item with `> NOTE: your note here` when needed.
 **Scope:** Class templates, starting stat ranges, per-level growth
 **Why early:** Affects every newly created character and current game balance immediately
 
-- [ ] **2.1 -- Starting character stat ranges are far too high**
+- [x] **2.1 -- Starting character stat ranges are far too high**
   - Current ranges let a fresh level 1 Knight massively overpower early realms
   - Example from the current data:
     - Knight starts with `hp: 90-110`, `attack: 15-20`, `defense: 10-14`
@@ -81,8 +81,9 @@ Add notes under any item with `> NOTE: your note here` when needed.
   - **Design decision:** Rebalance by reducing player starting stats sharply, not by buffing enemies
   - **Constraint:** Starting HP should never exceed 40 and non-HP stats should never exceed 20
   - **Files:** `shared/engine/content/classes/*.json`, `shared/engine/src/combat.ts`
+  > NOTE: Replaced all four class starting envelopes with the lower target ranges, aligned `base_stats` to the new midpoints, and re-tuned hit chance scaling for the lower accuracy/evasion stat scale so class differences still matter in combat.
 
-- [ ] **2.2 -- Replace class stat ranges with lower, role-driven ranges**
+- [x] **2.2 -- Replace class stat ranges with lower, role-driven ranges**
   - Treat HP like roughly `2d20` with class-shaped floors/ceilings
   - Treat other stats like `1d20` with class-specific strengths and weaknesses
   - **Target ranges to implement:**
@@ -92,17 +93,20 @@ Add notes under any item with `> NOTE: your note here` when needed.
     - **Archer:** HP `18-30`, attack `8-14`, defense `3-8`, accuracy `14-20`, evasion `6-12`, speed `8-14`
   - **Fix:** Update `stat_roll_ranges` in all class JSON files and align `base_stats` to sensible midpoints
   - **Files:** `shared/engine/content/classes/knight.json`, `shared/engine/content/classes/mage.json`, `shared/engine/content/classes/rogue.json`, `shared/engine/content/classes/archer.json`
+  > NOTE: Role identity is now much clearer at creation time: Knight owns defense, Mage owns attack, Rogue owns evasion/speed, and Archer owns accuracy. The class-select UI now reinforces that with role badges plus re-scaled range bars that are readable against the lower stat ceilings.
 
-- [ ] **2.3 -- Level-up stat growth should be scaled down with the new baseline**
+- [x] **2.3 -- Level-up stat growth should be scaled down with the new baseline**
   - Existing `stat_growth` values were designed around much larger starting pools
   - Example: Knight currently gaining `+5 HP` per level is too large if starting HP is only `25-40`
   - **Fix:** Reduce `stat_growth` in each class to match the new lower-power baseline while preserving class identity
   - **Suggested direction:** HP growth around `+2` or `+3`, non-HP growth around `+1` where appropriate
   - **Files:** `shared/engine/content/classes/*.json`
+  > NOTE: Implemented percentage-based stat growth instead of flat linear bonuses. Growth is now applied through shared engine logic and reused by both in-run level-ups and extraction-time catch-up level-ups, and level-up events now emit concrete `stat_gains` values instead of raw template rates.
 
-- [ ] **2.4 -- Update tests to lock the new ranges**
+- [x] **2.4 -- Update tests to lock the new ranges**
   - Keep the range assertions in sync so future edits cannot silently drift back upward
   - **Files:** `backend/__tests__/stats.test.ts`
+  > NOTE: Added hard ceiling checks for new starting ranges, growth-rate bound checks, role-identity assertions, level-20 projection sanity checks, explicit combat threshold coverage for the low-scale accuracy/evasion model, and updated engine level-up assertions for percentage growth payloads.
 
 > NOTE: Do not buff enemy stats in this group. The chosen balance direction is to bring players down to a more vulnerable starting state.
 
@@ -305,3 +309,4 @@ _Record completed fixes here with date and commit hash._
 | Date | Group.Item | Commit | Notes |
 |------|------------|--------|-------|
 | 2026-04-09 | 1.1-1.3 | uncommitted | Added `realm_cleared`, wired backend completion rewards/persistence, covered bossless completion with tests, and polished bossless completion UI copy/state messaging. |
+| 2026-04-09 | 2.1-2.4 | uncommitted | Rebalanced all class starting stats, switched level-ups to percentage-based growth, tuned low-scale hit chance math, added focused regression tests, and polished the class selection/stat reveal UI for the new ranges. |
