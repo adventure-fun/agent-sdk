@@ -5,10 +5,12 @@ import type {
   GameEvent,
   WorldMutation,
   InventoryItem,
+  InventorySlot,
   Observation,
   CharacterStats,
   EquipSlot,
   ResourceType,
+  ServerMessage,
 } from "@adventure-fun/schemas"
 import {
   generateRealm,
@@ -19,6 +21,7 @@ import {
   resolveTurn,
   buildObservationFromState,
   buildRoomState,
+  checkLevelUp,
 } from "@adventure-fun/engine"
 import type { GeneratedRealm } from "@adventure-fun/engine"
 import { db } from "../db/client.js"
@@ -34,6 +37,69 @@ export interface GameSessionData {
   session: SessionPayload
   characterId: string
   turnTimer?: ReturnType<typeof setTimeout>
+}
+
+export type ExtractionOutcome = Extract<ServerMessage, { type: "extracted" }>["data"]
+
+function buildLootSummary(inventory: InventoryItem[]): InventorySlot[] {
+  return inventory.map((item) => ({
+    item_id: item.id,
+    template_id: item.template_id,
+    name: item.name,
+    quantity: item.quantity,
+    modifiers: item.modifiers,
+  }))
+}
+
+function applyCompletionLevelUps(state: GameState): void {
+  const { newLevel, levelsGained } = checkLevelUp(
+    state.character.level,
+    state.character.xp,
+  )
+  if (levelsGained <= 0) return
+
+  const growth = CLASSES[state.character.class]?.stat_growth
+  if (growth) {
+    for (let i = 0; i < levelsGained; i++) {
+      state.character.stats.hp += growth.hp
+      state.character.stats.attack += growth.attack
+      state.character.stats.defense += growth.defense
+      state.character.stats.accuracy += growth.accuracy
+      state.character.stats.evasion += growth.evasion
+      state.character.stats.speed += growth.speed
+    }
+    state.character.hp.max += growth.hp * levelsGained
+    state.character.hp.current = Math.min(
+      state.character.hp.current + growth.hp * levelsGained,
+      state.character.hp.max,
+    )
+    state.character.effective_stats = { ...state.character.stats }
+  }
+
+  state.character.level = newLevel
+}
+
+export function applyExtractionOutcome(state: GameState): ExtractionOutcome {
+  const realmCompleted = state.realmStatus === "boss_cleared"
+  const completionRewards = realmCompleted
+    ? REALMS[state.realm.template_id]?.completion_rewards
+    : undefined
+
+  if (completionRewards) {
+    state.character.xp += completionRewards.xp
+    state.character.gold += completionRewards.gold
+    applyCompletionLevelUps(state)
+  }
+
+  return {
+    loot_summary: buildLootSummary(state.inventory),
+    xp_gained: completionRewards?.xp ?? 0,
+    gold_gained: completionRewards?.gold ?? 0,
+    completion_bonus: completionRewards
+      ? { xp: completionRewards.xp, gold: completionRewards.gold }
+      : undefined,
+    realm_completed: realmCompleted,
+  }
 }
 
 // ── Active sessions ───────────────────────────────────────────────────────────
@@ -288,6 +354,9 @@ class GameSession {
     // Update in-memory state
     this.gameState = result.newState
     result.observation.turn = this.turn
+    const extractionSucceeded =
+      (action.type === "use_portal" || action.type === "retreat") &&
+      result.observation.recent_events.some((event) => event.type === action.type)
 
     // Check death
     if (this.gameState.character.hp.current <= 0) {
@@ -310,21 +379,12 @@ class GameSession {
     }
 
     // Check extraction
-    if (action.type === "use_portal" || action.type === "retreat") {
-      const lootSummary = this.gameState.inventory.map((i) => ({
-        item_id: i.id,
-        template_id: i.template_id,
-        name: i.name,
-        quantity: i.quantity,
-        modifiers: i.modifiers,
-      }))
+    if (extractionSucceeded) {
+      const extractionData = applyExtractionOutcome(this.gameState)
       this.ws.send(
         JSON.stringify({
           type: "extracted",
-          data: {
-            loot_summary: lootSummary,
-            xp_gained: this.gameState.character.xp,
-          },
+          data: extractionData,
         }),
       )
       await this.endSession("extraction")

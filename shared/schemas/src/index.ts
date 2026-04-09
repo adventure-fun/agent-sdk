@@ -223,6 +223,8 @@ export interface GameState {
   mutatedEntities: string[]
   /** Realm completion state */
   realmStatus: "active" | "boss_floor" | "boss_cleared"
+  /** Portal escape is armed for extraction */
+  portalActive?: boolean
 }
 
 // ---- Realm --------------------------------------------------
@@ -395,7 +397,16 @@ export type ServerMessage =
   | { type: "observation"; data: Observation }
   | { type: "error"; message: string }
   | { type: "death"; data: { cause: string; floor: number; room: string; turn: number } }
-  | { type: "extracted"; data: { loot_summary: InventorySlot[]; xp_gained: number } }
+  | {
+      type: "extracted"
+      data: {
+        loot_summary: InventorySlot[]
+        xp_gained: number
+        gold_gained: number
+        completion_bonus?: { xp: number; gold: number }
+        realm_completed: boolean
+      }
+    }
 
 export type ClientMessage =
   | { type: "action"; data: Action }

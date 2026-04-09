@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback } from "react"
 import { useAdventureAuth } from "./use-adventure-auth"
-import type { Observation, Action } from "@adventure-fun/schemas"
+import type { Observation, Action, InventorySlot } from "@adventure-fun/schemas"
 
 const WS_URL = process.env["NEXT_PUBLIC_WS_URL"] ?? "ws://localhost:3001"
 
@@ -14,8 +14,11 @@ interface DeathData {
 }
 
 interface ExtractData {
-  loot_summary: unknown[]
+  loot_summary: InventorySlot[]
   xp_gained: number
+  gold_gained: number
+  completion_bonus?: { xp: number; gold: number }
+  realm_completed: boolean
 }
 
 export function useGameSession() {

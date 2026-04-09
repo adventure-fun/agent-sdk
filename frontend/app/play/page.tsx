@@ -497,22 +497,62 @@ export default function PlayPage() {
 
     // Extraction screen
     if (gameSession.isExtracted && gameSession.extractData) {
+      const {
+        realm_completed,
+        completion_bonus,
+        xp_gained,
+        gold_gained,
+        loot_summary,
+      } = gameSession.extractData
+      const title = realm_completed ? "REALM COMPLETED" : "YOU ESCAPED ALIVE"
+      const titleColor = realm_completed ? "text-amber-300" : "text-green-400"
+      const borderColor = realm_completed ? "border-amber-900/50" : "border-green-900/50"
+      const panelTone = realm_completed ? "bg-amber-950/20" : "bg-gray-900"
+      const flavorText = realm_completed
+        ? "The realm yields its bounty as you return in triumph."
+        : "You live to fight another day."
       return (
         <Shell>
-          <h1 className="text-3xl font-bold text-green-400">YOU ESCAPED ALIVE</h1>
-          <div className="bg-gray-900 border border-green-900/50 rounded p-4 text-sm space-y-2 text-left">
-            <p>
-              <span className="text-gray-500">XP Gained:</span>{" "}
-              <span className="text-gray-300">{gameSession.extractData.xp_gained}</span>
-            </p>
-            {gameSession.extractData.loot_summary.length > 0 && (
-              <p>
-                <span className="text-gray-500">Loot:</span>{" "}
-                <span className="text-gray-300">{gameSession.extractData.loot_summary.length} items</span>
-              </p>
+          <h1 className={`text-3xl font-bold ${titleColor}`}>{title}</h1>
+          <div className={`${panelTone} border ${borderColor} rounded p-4 text-sm space-y-3 text-left`}>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded border border-gray-800 bg-black/20 p-3">
+                <div className="text-[11px] uppercase tracking-wide text-gray-500">XP Reward</div>
+                <div className="mt-1 text-lg font-semibold text-gray-200">{xp_gained}</div>
+              </div>
+              <div className="rounded border border-gray-800 bg-black/20 p-3">
+                <div className="text-[11px] uppercase tracking-wide text-gray-500">Gold Reward</div>
+                <div className="mt-1 text-lg font-semibold text-gray-200">{gold_gained}</div>
+              </div>
+            </div>
+            {completion_bonus && (
+              <div className="rounded border border-amber-900/60 bg-amber-950/20 p-3">
+                <div className="text-[11px] uppercase tracking-wide text-amber-400">Completion Bonus</div>
+                <div className="mt-1 text-gray-200">
+                  +{completion_bonus.xp} XP and +{completion_bonus.gold} gold for clearing the realm boss.
+                </div>
+              </div>
             )}
+            <div>
+              <div className="text-[11px] uppercase tracking-wide text-gray-500">Recovered Loot</div>
+              {loot_summary.length > 0 ? (
+                <div className="mt-2 space-y-2">
+                  {loot_summary.map((item) => (
+                    <div
+                      key={item.item_id}
+                      className="flex items-center justify-between gap-3 rounded border border-gray-800 bg-black/20 px-3 py-2"
+                    >
+                      <span className="text-gray-200">{item.name}</span>
+                      <span className="text-xs text-gray-500">x{item.quantity}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-1 text-gray-500">No items were carried out this run.</p>
+              )}
+            </div>
           </div>
-          <p className="text-gray-500 text-sm italic">You live to fight another day.</p>
+          <p className="text-gray-500 text-sm italic">{flavorText}</p>
           <button
             onClick={returnToHub}
             className="px-8 py-2 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded transition-colors"
@@ -841,6 +881,20 @@ function DungeonView({
   const canPortal = legal_actions.some((a) => a.type === "use_portal")
   const canRetreat = legal_actions.some((a) => a.type === "retreat")
   const canPickup = legal_actions.filter((a): a is Action & { type: "pickup" } => a.type === "pickup")
+  const bossCleared = realm_info.status === "boss_cleared"
+  const portalScroll = inventory.find((item) => item.template_id === "portal-scroll")
+  const portalLabel = portalScroll
+    ? `Use Portal Scroll${portalScroll.quantity > 1 ? ` (${portalScroll.quantity})` : ""}`
+    : "Step Through Portal"
+  const extractionHint = bossCleared
+    ? canPortal
+      ? portalScroll
+        ? "Boss defeated. Escape now with your portal scroll or keep delving for more loot."
+        : "Boss defeated. Your portal is ready."
+      : canRetreat
+        ? "Boss defeated. You can retreat safely from the entrance."
+        : "Boss defeated. Find a portal scroll or return to the first-floor entrance to escape."
+    : null
   const usableAbilityIds = new Set(attackActions.map((action) => action.ability_id ?? "basic-attack"))
   const abilityMap = new Map(character.abilities.map((ability) => [ability.id, ability]))
   const visibleEnemies = visible_entities
@@ -898,6 +952,14 @@ function DungeonView({
           <span className="text-amber-400 font-bold">{realm_info.template_name}</span>
           <span>Floor {realm_info.current_floor} — Turn {observation.turn}</span>
         </div>
+        {extractionHint && (
+          <div className="rounded border border-amber-800/70 bg-amber-950/20 px-4 py-3 text-sm text-amber-200">
+            <div className="font-semibold uppercase tracking-wide text-[11px] text-amber-400">
+              Extraction Ready
+            </div>
+            <p className="mt-1">{extractionHint}</p>
+          </div>
+        )}
 
         {/* Main area: map + status */}
         <div className="flex flex-col md:flex-row gap-4 flex-1">
@@ -1260,21 +1322,28 @@ function DungeonView({
               <button
                 disabled={waitingForResponse}
                 onClick={() => onAction({ type: "use_portal" })}
-                className="px-3 py-1 text-xs bg-indigo-900/50 hover:bg-indigo-900 text-indigo-300 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className="px-3 py-2 text-left text-xs bg-indigo-900/60 hover:bg-indigo-900 text-indigo-200 rounded border border-indigo-700/60 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                Use Portal
+                <div className="font-medium">{portalLabel}</div>
+                <div className="text-[11px] opacity-80">
+                  {portalScroll ? "Consumes 1 scroll and ends the run safely." : "Escape through the active portal."}
+                </div>
               </button>
             )}
             {canRetreat && (
               <button
                 disabled={waitingForResponse}
                 onClick={onRetreat}
-                className="px-3 py-1 text-xs bg-indigo-900/50 hover:bg-indigo-900 text-indigo-300 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className="px-3 py-2 text-left text-xs bg-slate-900/70 hover:bg-slate-800 text-slate-200 rounded border border-slate-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                Retreat
+                <div className="font-medium">Retreat to Town</div>
+                <div className="text-[11px] opacity-80">Available only from the first-floor entrance.</div>
               </button>
             )}
           </div>
+          <p className="text-center text-[11px] text-gray-600">
+            Portal escape requires a portal scroll. Retreat works only from the first-floor entrance.
+          </p>
         </div>
       </div>
     </main>

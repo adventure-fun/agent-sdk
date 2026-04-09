@@ -252,6 +252,155 @@ describe("computeLegalActions ranged abilities", () => {
   })
 })
 
+describe("portal, retreat, and extraction legal actions", () => {
+  function makePortalScroll() {
+    return {
+      id: "portal-scroll-1",
+      template_id: "portal-scroll",
+      name: "Portal Scroll",
+      quantity: 1,
+      modifiers: {},
+      owner_type: "character" as const,
+      owner_id: "player-1",
+      slot: null,
+    }
+  }
+
+  it("does not offer use_portal when the room is clear but no portal is available", () => {
+    const state = makeState({
+      activeFloor: {
+        rooms: [{ ...makeState().activeFloor.rooms[0]!, enemies: [] }],
+      },
+    })
+
+    const actions = computeLegalActions(state, state.activeFloor.rooms[0], makeRealm())
+
+    expect(actions.some((action) => action.type === "use_portal")).toBe(false)
+  })
+
+  it("offers use_portal when the player has a portal scroll", () => {
+    const state = makeState({
+      inventory: [makePortalScroll()],
+      activeFloor: {
+        rooms: [{ ...makeState().activeFloor.rooms[0]!, enemies: [] }],
+      },
+    })
+
+    const actions = computeLegalActions(state, state.activeFloor.rooms[0], makeRealm())
+
+    expect(actions.some((action) => action.type === "use_portal")).toBe(true)
+  })
+
+  it("offers use_portal when a portal is already active", () => {
+    const state = makeState({
+      activeFloor: {
+        rooms: [{ ...makeState().activeFloor.rooms[0]!, enemies: [] }],
+      },
+    }) as GameState & { portalActive?: boolean }
+    state.portalActive = true
+
+    const actions = computeLegalActions(state, state.activeFloor.rooms[0], makeRealm())
+
+    expect(actions.some((action) => action.type === "use_portal")).toBe(true)
+  })
+
+  it("does not offer use_portal while enemies are alive even with a portal scroll", () => {
+    const state = makeState({
+      inventory: [makePortalScroll()],
+    })
+
+    const actions = computeLegalActions(state, state.activeFloor.rooms[0], makeRealm())
+
+    expect(actions.some((action) => action.type === "use_portal")).toBe(false)
+  })
+
+  it("only offers retreat from the entrance on floor 1", () => {
+    const state = makeState({
+      activeFloor: {
+        rooms: [{ ...makeState().activeFloor.rooms[0]!, enemies: [] }],
+      },
+    })
+
+    const actions = computeLegalActions(state, state.activeFloor.rooms[0], makeRealm())
+
+    expect(actions.some((action) => action.type === "retreat")).toBe(true)
+  })
+
+  it("does not offer retreat outside the entrance room", () => {
+    const state = makeState({
+      activeFloor: {
+        rooms: [{ ...makeState().activeFloor.rooms[0]!, enemies: [] }],
+      },
+    })
+    const realm = {
+      ...makeRealm(),
+      floors: [
+        {
+          ...makeRealm().floors[0]!,
+          entrance_room_id: "f1_r0_entrance",
+        },
+      ],
+    }
+
+    const actions = computeLegalActions(state, state.activeFloor.rooms[0], realm)
+
+    expect(actions.some((action) => action.type === "retreat")).toBe(false)
+  })
+
+  it("does not offer retreat on deeper floors", () => {
+    const state = makeState({
+      position: {
+        floor: 2,
+        room_id: "f1_r1_test-room",
+        tile: { x: 1, y: 1 },
+      },
+      activeFloor: {
+        rooms: [{ ...makeState().activeFloor.rooms[0]!, enemies: [] }],
+      },
+    })
+
+    const actions = computeLegalActions(state, state.activeFloor.rooms[0], makeRealm())
+
+    expect(actions.some((action) => action.type === "retreat")).toBe(false)
+  })
+
+  it("consumes a portal scroll when use_portal resolves", () => {
+    const state = makeState({
+      inventory: [makePortalScroll()],
+      activeFloor: {
+        rooms: [{ ...makeState().activeFloor.rooms[0]!, enemies: [] }],
+      },
+    })
+
+    const result = resolveTurn(
+      state,
+      { type: "use_portal" },
+      makeRealm(),
+      new SeededRng(22),
+    )
+
+    expect(result.newState.inventory).toHaveLength(0)
+  })
+
+  it("activates a portal when a portal scroll item is used", () => {
+    const state = makeState({
+      inventory: [makePortalScroll()],
+      activeFloor: {
+        rooms: [{ ...makeState().activeFloor.rooms[0]!, enemies: [] }],
+      },
+    }) as GameState & { portalActive?: boolean }
+
+    const result = resolveTurn(
+      state,
+      { type: "use_item", item_id: "portal-scroll-1" },
+      makeRealm(),
+      new SeededRng(23),
+    )
+
+    expect((result.newState as GameState & { portalActive?: boolean }).portalActive).toBe(true)
+  })
+})
+
 describe("resource regeneration", () => {
   it("regenerates knight stamina each turn", () => {
     const state = makeState({

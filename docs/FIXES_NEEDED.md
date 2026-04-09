@@ -199,18 +199,20 @@ Add notes under any item with `> NOTE: your note here` when needed.
 **Scope:** Engine legal actions, extraction mechanics
 **Why grouped:** Portal scrolls, retreat rules, and extraction conditions are all intertwined
 
-- [ ] **6.1 — Portal and retreat available anytime without enemies in room**
+- [x] **6.1 — Portal and retreat available anytime without enemies in room**
   - `computeLegalActions` (turn.ts line 1362-1452) offers `use_portal` and `retreat` whenever `!hasLiveEnemies`
   - Spec: portal requires a portal scroll item; retreat should only work at realm entrance
   - Portal scrolls are described as "the main balance lever" for the economy
   - **Fix:** Only offer `use_portal` if player has a portal scroll item in inventory (or a portal effect is active). Only offer `retreat` if player is in the entrance room of floor 1. Update `resolveUseItem` so that `portal-escape` effect sets a flag on GameState that enables `use_portal` for the current turn
   - **Files:** `shared/engine/src/turn.ts`, `shared/schemas/src/index.ts` (may need a `portalActive` flag on GameState)
+  > NOTE: Added `portalActive` to `GameState`, set it from both `portal-escape` items and abilities, and gated `computeLegalActions()` so `use_portal` only appears when a portal is active or a `portal-scroll` is in inventory. `retreat` is now restricted to the floor 1 entrance. `resolveTurn()` now enforces those rules server-side too, auto-consumes a portal scroll on direct `use_portal`, and only emits extraction events when the action is actually valid. TDD: 8 new engine tests in `shared/engine/__tests__/turn.test.ts`.
 
-- [ ] **6.2 — Completion rewards not granted**
+- [x] **6.2 — Completion rewards not granted**
   - Realm templates define `completion_rewards: { xp, gold }` but these are never applied
   - When realm status becomes `completed` (boss_cleared + extraction), no bonus XP/gold is given
   - **Fix:** In `endSession` when reason is `extraction` and `realmStatus === "boss_cleared"`, look up template's `completion_rewards` and add to character XP/gold before saving
   - **Files:** `backend/src/game/session.ts`
+  > NOTE: Added `applyExtractionOutcome()` in `backend/src/game/session.ts` to award completion XP/gold before `endSession("extraction")`, apply level-up stat growth when the bonus crosses an XP threshold, and send an enriched `extracted` payload (`xp_gained`, `gold_gained`, `completion_bonus`, `realm_completed`, named loot list). Frontend UX in `frontend/app/play/page.tsx` now highlights boss-cleared extraction state, gives clearer portal/retreat affordances, and shows a richer extraction summary screen. TDD: 4 tests in `backend/__tests__/session-extraction.test.ts`.
 
 ---
 
@@ -595,3 +597,5 @@ _Record completed fixes here with date and commit hash._
 | 2026-04-09 | 4.2 | pending | Implemented persistent boss phases with threshold events, cumulative ability swaps, boss markers, and highlighted phase announcements in the play UI |
 | 2026-04-09 | 5.1 | pending | Quadratic XP curve (`shared/engine/src/leveling.ts`), level-up in `handleEnemyDefeat` with stat_growth, 22 new tests, XP progress bar in hub + dungeon |
 | 2026-04-09 | 5.2 | pending | Skill tree validation (`backend/src/game/skill-tree.ts`), `POST /characters/skill` + `GET /characters/progression` endpoints, session skill-tree merge + passive-stat bonuses, skill tree UI panel in hub, 13 new tests |
+| 2026-04-09 | 6.1 | pending | Portal use now requires `portalActive` or a `portal-scroll`, retreat is limited to the floor 1 entrance, and direct `use_portal` auto-consumes a scroll with engine coverage |
+| 2026-04-09 | 6.2 | pending | Added extraction reward helper in `session.ts`, completion bonus XP/gold + level-up handling, richer extracted payload, and improved extraction UX with backend/frontend coverage |

@@ -175,6 +175,45 @@ function canUseAbility(
   )
 }
 
+function roomHasLiveEnemies(room: RoomState): boolean {
+  return room.enemies.some((enemy) => enemy.hp > 0)
+}
+
+function hasPortalScroll(state: GameState): boolean {
+  return state.inventory.some((item) => item.template_id === "portal-scroll")
+}
+
+function canUsePortal(state: GameState, room: RoomState): boolean {
+  return !roomHasLiveEnemies(room) && (state.portalActive === true || hasPortalScroll(state))
+}
+
+function isAtRealmEntrance(state: GameState, realm: GeneratedRealm): boolean {
+  return (
+    state.position.floor === 1 &&
+    state.position.room_id === (realm.floors[0]?.entrance_room_id ?? "")
+  )
+}
+
+function canRetreat(state: GameState, room: RoomState, realm: GeneratedRealm): boolean {
+  return !roomHasLiveEnemies(room) && isAtRealmEntrance(state, realm)
+}
+
+function consumePortalScroll(state: GameState): boolean {
+  const itemIdx = state.inventory.findIndex((item) => item.template_id === "portal-scroll")
+  if (itemIdx < 0) return false
+
+  const item = state.inventory[itemIdx]
+  if (!item) return false
+
+  if (item.quantity > 1) {
+    item.quantity -= 1
+  } else {
+    state.inventory.splice(itemIdx, 1)
+  }
+
+  return true
+}
+
 function applyHeal(
   current: number,
   max: number,
@@ -227,6 +266,7 @@ export function resolveTurn(
 
   const preTurnDebuffs = [...s.character.debuffs]
   let regenBonusEligible = false
+  let didExtract = false
 
   // 1. Status effect ticks (poison, etc.)
   const statusDmg = processStatusEffects(s, events)
@@ -296,10 +336,33 @@ export function resolveTurn(
       }
       case "use_portal":
       case "retreat": {
-        summary =
-          action.type === "use_portal"
-            ? "You step through the portal and return to safety."
-            : "You retreat from the realm."
+        if (action.type === "use_portal") {
+          if (!canUsePortal(s, room)) {
+            summary = "You need an active portal or a portal scroll to escape."
+            events.push({ turn: 0, type: "blocked", detail: summary, data: { action: action.type } })
+            break
+          }
+
+          if (!s.portalActive && !consumePortalScroll(s)) {
+            summary = "You reach for a portal scroll, but none is available."
+            events.push({ turn: 0, type: "blocked", detail: summary, data: { action: action.type } })
+            break
+          }
+
+          didExtract = true
+          summary = "You step through the portal and return to safety."
+          events.push({ turn: 0, type: action.type, detail: summary, data: {} })
+          break
+        }
+
+        if (!canRetreat(s, room, realm)) {
+          summary = "You can only retreat from the entrance to the first floor."
+          events.push({ turn: 0, type: "blocked", detail: summary, data: { action: action.type } })
+          break
+        }
+
+        didExtract = true
+        summary = "You retreat from the realm."
         events.push({ turn: 0, type: action.type, detail: summary, data: {} })
         break
       }
@@ -309,7 +372,7 @@ export function resolveTurn(
   const currentRoom = getCurrentRoom(s) ?? room
 
   // 3. Enemy turns (skip if extracting)
-  if (action.type !== "use_portal" && action.type !== "retreat") {
+  if (!didExtract) {
     const er = resolveEnemyTurns(s, currentRoom, rng, events, mutations)
     if (er.summary) summary += " " + er.summary
     if (er.playerDied) {
@@ -697,6 +760,7 @@ function applyAbilityToPlayerSelf(
       parts.push("Your debuffs are cleansed.")
       break
     case "portal-escape":
+      s.portalActive = true
       parts.push("A stable portal briefly opens nearby.")
       break
     case "reveal-room-enemies":
@@ -1238,7 +1302,7 @@ function resolveUseItem(
         break
       }
       case "portal-escape": {
-        // Signal portal usage — session layer handles extraction
+        s.portalActive = true
         parts.push("A portal opens before you.")
         break
       }
@@ -2229,9 +2293,10 @@ export function computeLegalActions(
   }
 
   // Extraction — available when no enemies are alive in the room
-  const hasLiveEnemies = room.enemies.some((e) => e.hp > 0)
-  if (!hasLiveEnemies) {
+  if (canUsePortal(state, room)) {
     actions.push({ type: "use_portal" })
+  }
+  if (canRetreat(state, room, realm)) {
     actions.push({ type: "retreat" })
   }
 
