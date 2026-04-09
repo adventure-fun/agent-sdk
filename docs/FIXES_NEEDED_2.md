@@ -278,25 +278,28 @@ Add notes under any item with `> NOTE: your note here` when needed.
 **Scope:** Spectator entry UX, legend navigation accuracy
 **Why grouped:** Both issues are primarily frontend/navigation cleanup with a small API addition
 
-- [ ] **7.1 -- Spectator mode has no entry page or discovery flow**
+- [x] **7.1 -- Spectator mode has no entry page or discovery flow**
   - `/spectate/[characterId]` exists and works
   - There is no way to browse active live runs or enter spectator mode from the app naturally
   - **Fix:** Add a public endpoint that lists active spectatable sessions and build a spectator index page that links into the existing per-character spectate route
-  - **Files:** `backend/src/game/active-sessions.ts`, `backend/src/index.ts`, `backend/src/server/security-config.ts`, `frontend/app/spectate/page.tsx`
+  - **Files:** `backend/src/game/active-sessions.ts`, `backend/src/routes/spectate.ts`, `backend/src/index.ts`, `backend/src/server/security-config.ts`, `frontend/app/spectate/page.tsx`, `frontend/app/hooks/use-active-spectate-sessions.ts`
+  > NOTE: Added `listSpectatableSessions()` and public `GET /spectate/active` (mounted under Hono), CORS for `/spectate/`, per-IP rate limit (`60/min` on `/spectate/active`), shared types `SpectatableSessionSummary` / `ActiveSpectateListResponse`, landing **Watch live** link, `useActiveSpectateSessions` hook with auto-refresh, and legend page footer links to live runs. Listing is **in-memory per server process** (same as WebSocket spectate); multi-node would need a shared registry later.
 
-- [ ] **7.2 -- Legends links are shown in places where there is nothing to show**
+- [x] **7.2 -- Legends links are shown in places where there is nothing to show**
   - The legends API only returns data for dead characters
   - The leaderboard currently links all entries to `/legends/:characterId`, including alive characters, which causes avoidable 404s
   - The death screen says "Your legend has been written" but does not link to the new legend
   - **Fix:** Only show legend links when a dead-character legend actually exists; for live characters, use a different action if appropriate (for example, `Spectate` if that run is active)
-  - **Files:** `frontend/app/leaderboard/page.tsx`, `frontend/app/play/page.tsx`, `backend/src/routes/legends.ts`
+  - **Files:** `frontend/app/leaderboard/page.tsx`, `frontend/app/play/page.tsx`, `frontend/app/spectate/[characterId]/page.tsx`, `frontend/app/lib/leaderboard-links.ts`, `backend/src/routes/legends.ts`
+  > NOTE: Leaderboard uses `entry.status === "dead"` for legend links; alive rows show **Spectate** when the character id appears in `/spectate/active`. Featured card shows **Spectate your run** or explanatory copy when still alive. Death screen adds **View your legend** when `observation.character.id` is present. Per-character spectate **Run Ended** panel shows **View legend** only for `session_ended` reason `death`; `extraction` links to Leaderboard + Play; `disconnect` explains pause/retry with no legend link. No backend change to `legends.ts` (client-side routing only).
 
-- [ ] **7.3 -- Add focused tests for active spectate listings and conditional legend links**
+- [x] **7.3 -- Add focused tests for active spectate listings and conditional legend links**
   - Tests should verify:
     - active sessions are exposed safely through the new API
     - alive characters do not render broken legend links
     - death flow provides a correct legend destination
-  - **Files:** backend route tests, relevant frontend tests if present
+  - **Files:** `backend/__tests__/spectate-active.test.ts`, `backend/__tests__/security-config.test.ts`, `frontend/app/lib/leaderboard-links.test.ts`
+  > NOTE: Backend `spectate-active.test.ts` covers `listSpectatableSessions` mapping plus `GET /spectate/active` JSON wiring; lobby test mocks now include `listSpectatableSessions`. Security-config test asserts `/spectate/active` is a public CORS path. Frontend `leaderboard-links.test.ts` covers legend vs spectate predicates (UI behavior follows those rules).
 
 > NOTE: During research, no actual "View Legends" button was found on the player info panel. The likely user-facing problem is the leaderboard linking alive characters to a legends page that only supports dead characters.
 
@@ -331,3 +334,4 @@ _Record completed fixes here with date and commit hash._
 | 2026-04-09 | 4.1-4.3 | uncommitted | Fixed floor-loot persistence by assigning UUID inventory IDs while preserving deterministic world mutation IDs, added syncInventory UUID/error observability plus focused regression tests, and polished the pickup UI with rarity badges, `NEW` inventory markers, and stronger pickup event feedback. |
 | 2026-04-09 | 5.1-5.4 | uncommitted | Added dungeon and hub equip/unequip controls with slot/stat messaging, introduced lobby equip/unequip endpoints plus tests, enforced one-choice-per-tier skill validation, clarified banked skill-point UI, and exposed shared item metadata through `/content/items` so the frontend can render gear details without duplicating item definitions. |
 | 2026-04-09 | 6.1-6.5 | uncommitted | Added bi-directional floor traversal with generated `stairs_up` tiles, surfaced stair direction/floor guidance in the dungeon UI, enforced tutorial-first realm generation in both backend and hub UX, auto-created the tutorial for fresh characters, added focused engine/backend regression tests, and aligned the DB realm-status constraint with `realm_cleared`. |
+| 2026-04-09 | 7.1-7.3 | uncommitted | Shipped `GET /spectate/active` with redacted session rows, `/spectate` index and discovery links, conditional leaderboard legend vs spectate CTAs from live-session polling, death-screen legend link, spectate end-state CTAs by end reason, `frontend/app/lib/leaderboard-links` tests, and backend spectate/security tests; lobby mocks extended with `listSpectatableSessions`. |

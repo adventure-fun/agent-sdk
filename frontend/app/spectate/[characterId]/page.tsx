@@ -206,6 +206,12 @@ export default function SpectatePage({ params }: Props) {
             <p className="mt-2 text-sm text-gray-400">
               This session ended due to <span className="text-gray-200">{endedReason}</span>.
             </p>
+            {endedReason === "disconnect" ? (
+              <p className="mt-2 text-sm text-gray-500">
+                The delver may still be connected elsewhere, or the run is paused after a disconnect. Try reconnecting if
+                they are still in the realm.
+              </p>
+            ) : null}
             <div className="mt-4 flex flex-wrap gap-3">
               <button
                 type="button"
@@ -214,12 +220,30 @@ export default function SpectatePage({ params }: Props) {
               >
                 Retry Connection
               </button>
-              <Link
-                href={`/legends/${characterId}`}
-                className="rounded border border-gray-700 px-4 py-2 text-sm text-gray-200 transition-colors hover:border-gray-500"
-              >
-                View Legend Page
-              </Link>
+              {endedReason === "death" ? (
+                <Link
+                  href={`/legends/${characterId}`}
+                  className="rounded border border-gray-700 px-4 py-2 text-sm text-gray-200 transition-colors hover:border-gray-500"
+                >
+                  View legend
+                </Link>
+              ) : null}
+              {endedReason === "extraction" ? (
+                <>
+                  <Link
+                    href="/leaderboard"
+                    className="rounded border border-gray-700 px-4 py-2 text-sm text-gray-200 transition-colors hover:border-gray-500"
+                  >
+                    Leaderboard
+                  </Link>
+                  <Link
+                    href="/play"
+                    className="rounded border border-gray-700 px-4 py-2 text-sm text-gray-200 transition-colors hover:border-gray-500"
+                  >
+                    Play
+                  </Link>
+                </>
+              ) : null}
             </div>
           </motion.div>
         ) : null}

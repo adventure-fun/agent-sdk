@@ -305,6 +305,21 @@ export function LegendPageClient({ characterId }: { characterId: string }) {
             </motion.div>
           </div>
         </motion.section>
+
+        <motion.div
+          variants={sectionReveal}
+          className="flex flex-wrap justify-center gap-4 border-t border-gray-800 pt-6 text-sm"
+        >
+          <Link href="/spectate" className="text-gray-400 transition-colors hover:text-amber-200">
+            Watch live runs
+          </Link>
+          <Link href="/leaderboard" className="text-gray-400 transition-colors hover:text-amber-200">
+            Leaderboard
+          </Link>
+          <Link href="/" className="text-gray-400 transition-colors hover:text-amber-200">
+            Home
+          </Link>
+        </motion.div>
       </div>
     </motion.main>
   )

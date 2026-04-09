@@ -14,6 +14,7 @@ export function resolveCorsOrigin(origin: string | undefined, pathname: string):
     || pathname.startsWith("/content/")
     || pathname.startsWith("/leaderboard/")
     || pathname.startsWith("/legends/")
+    || pathname.startsWith("/spectate/")
 
   if (!origin) return isPublicRoute ? "*" : ""
   if (isPublicRoute) return origin

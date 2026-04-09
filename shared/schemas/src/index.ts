@@ -406,6 +406,19 @@ export interface SpectatorObservation {
   }
 }
 
+/** Public row for GET /spectate/active (redacted fields only; same process in-memory as WS spectate). */
+export interface SpectatableSessionSummary {
+  character_id: string
+  turn: number
+  character: SpectatorObservation["character"]
+  realm_info: SpectatorObservation["realm_info"]
+  position: Pick<SpectatorObservation["position"], "floor" | "room_id">
+}
+
+export interface ActiveSpectateListResponse {
+  sessions: SpectatableSessionSummary[]
+}
+
 // ---- Actions ------------------------------------------------
 
 export type Action =

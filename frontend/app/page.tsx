@@ -53,6 +53,12 @@ export default function LandingPage() {
           >
             Leaderboard
           </Link>
+          <Link
+            href="/spectate"
+            className="px-8 py-3 border border-gray-700 hover:border-gray-500 text-gray-300 rounded transition-colors"
+          >
+            Watch live
+          </Link>
           <a
             href="https://github.com/adventure-fun/core"
             target="_blank"

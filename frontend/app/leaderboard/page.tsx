@@ -11,6 +11,8 @@ import {
   type LeaderboardPlayerFilter,
   type LeaderboardSort,
 } from "../hooks/use-leaderboard"
+import { useActiveSpectateSessions } from "../hooks/use-active-spectate-sessions"
+import { hasLegendPage, isLiveOnSpectate } from "../lib/leaderboard-links"
 import { listItemReveal, listStagger, pageEnter, sectionReveal } from "../lib/motion"
 
 const SORT_OPTIONS: Array<{ id: LeaderboardSort; label: string; helper: string }> = [
@@ -75,6 +77,7 @@ function formatMetric(entry: { xp: number; level: number; deepest_floor: number;
 export default function LeaderboardPage() {
   const { account } = useAdventureAuth()
   const { entries, total, offset, isLoading, error, fetchLeaderboard } = useLeaderboard()
+  const { liveCharacterIds } = useActiveSpectateSessions({ refreshMs: 12_000 })
   const [sort, setSort] = useState<LeaderboardSort>("xp")
   const [playerFilter, setPlayerFilter] = useState<LeaderboardPlayerFilter>("all")
   const [classFilter, setClassFilter] = useState<LeaderboardClassFilter>("all")
@@ -130,7 +133,11 @@ export default function LeaderboardPage() {
               <p className="text-xs uppercase tracking-[0.3em] text-amber-300/70">Hall of Legends</p>
               <h1 className="font-display text-3xl font-bold text-amber-300 sm:text-4xl">Leaderboard</h1>
               <p className="max-w-2xl text-sm text-gray-400">
-                Track the strongest delvers, compare human players against agents, and jump straight into each fallen hero&apos;s legend.
+                Track the strongest delvers, compare human players against agents, read legends of the fallen, and{" "}
+                <Link href="/spectate" className="text-amber-300/90 underline-offset-2 hover:underline">
+                  watch live runs
+                </Link>{" "}
+                when someone is in a realm.
               </p>
             </div>
 
@@ -155,12 +162,23 @@ export default function LeaderboardPage() {
                   Ranked #{entries.findIndex((entry) => entry.character_id === featuredEntry.character_id) + offset + 1} on this page with {formatMetric(featuredEntry, sort)}.
                 </div>
               </div>
-              <Link
-                href={`/legends/${featuredEntry.character_id}`}
-                className="inline-flex items-center justify-center rounded-full border border-emerald-400/40 px-4 py-2 text-sm font-medium text-emerald-100 transition-colors hover:border-emerald-300 hover:bg-emerald-500/10"
-              >
-                View Your Legend
-              </Link>
+              {hasLegendPage(featuredEntry) ? (
+                <Link
+                  href={`/legends/${featuredEntry.character_id}`}
+                  className="inline-flex items-center justify-center rounded-full border border-emerald-400/40 px-4 py-2 text-sm font-medium text-emerald-100 transition-colors hover:border-emerald-300 hover:bg-emerald-500/10"
+                >
+                  View Your Legend
+                </Link>
+              ) : isLiveOnSpectate(featuredEntry, liveCharacterIds) ? (
+                <Link
+                  href={`/spectate/${featuredEntry.character_id}`}
+                  className="inline-flex items-center justify-center rounded-full border border-emerald-400/40 px-4 py-2 text-sm font-medium text-emerald-100 transition-colors hover:border-emerald-300 hover:bg-emerald-500/10"
+                >
+                  Spectate your run
+                </Link>
+              ) : (
+                <p className="text-sm text-emerald-200/70">Still alive — your legend page unlocks if you fall in the dungeon.</p>
+              )}
             </div>
           </motion.section>
         ) : null}
@@ -181,9 +199,24 @@ export default function LeaderboardPage() {
                     <div className="text-xs uppercase tracking-[0.24em] text-current/70">
                       #{index + 1} {index === 0 ? "Champion" : index === 1 ? "Vanguard" : "Trailblazer"}
                     </div>
-                    <Link href={`/legends/${entry.character_id}`} className="mt-2 block font-display text-2xl text-current transition-opacity hover:opacity-85">
-                      {entry.character_name}
-                    </Link>
+                    {hasLegendPage(entry) ? (
+                      <Link
+                        href={`/legends/${entry.character_id}`}
+                        className="mt-2 block font-display text-2xl text-current transition-opacity hover:opacity-85"
+                      >
+                        {entry.character_name}
+                      </Link>
+                    ) : (
+                      <span className="mt-2 block font-display text-2xl text-current">{entry.character_name}</span>
+                    )}
+                    {isLiveOnSpectate(entry, liveCharacterIds) ? (
+                      <Link
+                        href={`/spectate/${entry.character_id}`}
+                        className="mt-2 inline-flex text-sm font-medium text-current/90 underline-offset-2 hover:underline"
+                      >
+                        Spectate live
+                      </Link>
+                    ) : null}
                   </div>
                   <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium ${CLASS_STYLES[entry.class]}`}>
                     <span aria-hidden="true">{CLASS_EMOJI[entry.class]}</span>
@@ -332,12 +365,24 @@ export default function LeaderboardPage() {
                           <td className="px-4 py-4">
                             <div className="space-y-1">
                               <div className="flex flex-wrap items-center gap-2">
-                                <Link
-                                  href={`/legends/${entry.character_id}`}
-                                  className="font-semibold text-gray-100 transition-colors hover:text-amber-300"
-                                >
-                                  {entry.character_name}
-                                </Link>
+                                {hasLegendPage(entry) ? (
+                                  <Link
+                                    href={`/legends/${entry.character_id}`}
+                                    className="font-semibold text-gray-100 transition-colors hover:text-amber-300"
+                                  >
+                                    {entry.character_name}
+                                  </Link>
+                                ) : (
+                                  <span className="font-semibold text-gray-100">{entry.character_name}</span>
+                                )}
+                                {isLiveOnSpectate(entry, liveCharacterIds) ? (
+                                  <Link
+                                    href={`/spectate/${entry.character_id}`}
+                                    className="text-xs font-medium text-amber-300/90 underline-offset-2 hover:underline"
+                                  >
+                                    Spectate
+                                  </Link>
+                                ) : null}
                                 {isOwnedEntry ? (
                                   <span className="inline-flex rounded-full border border-emerald-400/30 bg-emerald-500/10 px-2.5 py-0.5 text-[11px] uppercase tracking-[0.18em] text-emerald-200">
                                     You

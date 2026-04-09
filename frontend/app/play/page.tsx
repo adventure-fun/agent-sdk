@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useIsSignedIn, useIsInitialized, useCreateEvmEoaAccount } from "@coinbase/cdp-hooks"
 import { AuthButton } from "@coinbase/cdp-react/components/AuthButton"
 import { useAdventureAuth } from "../hooks/use-adventure-auth"
@@ -784,12 +785,22 @@ export default function PlayPage() {
             </p>
           </div>
           <p className="text-gray-500 text-sm italic">Your legend has been written.</p>
-          <button
-            onClick={returnToHub}
-            className="px-8 py-2 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded transition-colors"
-          >
-            Return to Hub
-          </button>
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            {gameSession.observation?.character.id ? (
+              <Link
+                href={`/legends/${gameSession.observation.character.id}`}
+                className="rounded border border-amber-500/50 px-6 py-2 text-sm font-semibold text-amber-200 transition-colors hover:border-amber-400 hover:bg-amber-500/10"
+              >
+                View your legend
+              </Link>
+            ) : null}
+            <button
+              onClick={returnToHub}
+              className="px-8 py-2 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded transition-colors"
+            >
+              Return to Hub
+            </button>
+          </div>
         </Shell>
       )
     }

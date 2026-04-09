@@ -8,6 +8,7 @@ import { lobbyRoutes } from "./routes/lobby.js"
 import { marketplaceRoutes } from "./routes/marketplace.js"
 import { leaderboardRoutes } from "./routes/leaderboard.js"
 import { legendsRoutes } from "./routes/legends.js"
+import { spectateRoutes } from "./routes/spectate.js"
 import { contentRoutes } from "./routes/content.js"
 import { verifySession } from "./auth/jwt.js"
 import { db } from "./db/client.js"
@@ -86,6 +87,12 @@ app.use("/realms/generate", createRateLimiter({
     return session?.account_id ?? getClientIp(c)
   },
 }))
+app.use("/spectate/active", createRateLimiter({
+  label: "spectate-active",
+  windowMs: 60_000,
+  maxRequests: 60,
+  keyFn: getClientIp,
+}))
 
 app.get("/health", (c) => c.json({ status: "ok", ts: new Date().toISOString() }))
 
@@ -96,6 +103,7 @@ app.route("/lobby", lobbyRoutes)
 app.route("/marketplace", marketplaceRoutes)
 app.route("/leaderboard", leaderboardRoutes)
 app.route("/legends", legendsRoutes)
+app.route("/spectate", spectateRoutes)
 app.route("/content", contentRoutes)
 
 const port = Number(process.env["PORT"] ?? 3001)

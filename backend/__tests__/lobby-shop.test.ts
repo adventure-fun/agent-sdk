@@ -24,6 +24,7 @@ async function importFreshLobbyRoutes(
     registerActiveSession: () => {},
     unregisterActiveSession: () => {},
     clearActiveSessions: () => {},
+    listSpectatableSessions: () => [],
   }))
   mock.module("../src/payments/x402.js", () => ({
     getRequestedNetworks: () => ["base"],

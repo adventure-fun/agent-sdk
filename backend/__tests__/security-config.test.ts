@@ -15,6 +15,7 @@ describe("10.5 / 10.7 — security config helpers", () => {
   it("allows public routes from any origin", () => {
     expect(resolveCorsOrigin("https://evil.example", "/health")).toBe("https://evil.example")
     expect(resolveCorsOrigin("https://evil.example", "/content/classes")).toBe("https://evil.example")
+    expect(resolveCorsOrigin("https://evil.example", "/spectate/active")).toBe("https://evil.example")
   })
 
   it("rejects non-whitelisted origins for protected routes", () => {
