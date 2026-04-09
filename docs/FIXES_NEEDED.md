@@ -8,6 +8,12 @@
 Each fix group is designed to be tackled as a single cohesive commit (or small PR).
 Work through groups roughly in order — later groups may depend on earlier ones.
 
+# IMPORTANT
+
+Use Red/Green Test Driven Development. Make sure that all enhancements are testable, wherever possible. 
+
+Write tests first, watch them fail, implement fixes, run tests again until passing. NO EXCEPTIONS!
+
 ### Task Status Key
 
 | Mark | Meaning |
