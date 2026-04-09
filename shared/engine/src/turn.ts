@@ -76,6 +76,18 @@ const PATROL_DETECTION_RANGE = 4
 const AMBUSH_TRIGGER_RANGE = 2
 const DEFENSIVE_RETREAT_HP_THRESHOLD = 0.4
 const ROGUE_DISARM_TRAP_ABILITY_ID = "rogue-disarm-trap"
+const CHARACTER_STAT_KEYS: Array<keyof CharacterStats> = [
+  "hp",
+  "attack",
+  "defense",
+  "accuracy",
+  "evasion",
+  "speed",
+]
+
+function isCharacterStatKey(key: string): key is keyof CharacterStats {
+  return CHARACTER_STAT_KEYS.includes(key as keyof CharacterStats)
+}
 
 function hasEffect(
   effects: ActiveEffect[],
@@ -386,6 +398,25 @@ function canRetreat(state: GameState, room: RoomState, realm: GeneratedRealm): b
   return !roomHasLiveEnemies(room) && isAtRealmEntrance(state, realm)
 }
 
+function isLastRoomOnLastFloor(state: GameState, room: RoomState, realm: GeneratedRealm): boolean {
+  if (state.position.floor !== realm.total_floors) {
+    return false
+  }
+
+  const currentFloor = realm.floors.find((floor) => floor.floor_number === state.position.floor)
+  const finalRoomId = currentFloor?.rooms.at(-1)?.id
+  return finalRoomId != null && room.id === finalRoomId
+}
+
+function isBosslessRealmCleared(state: GameState, room: RoomState, realm: GeneratedRealm): boolean {
+  const realmTemplate = REALMS[state.realm.template_id]
+  if (!realmTemplate || realmTemplate.boss_id != null) {
+    return false
+  }
+
+  return isLastRoomOnLastFloor(state, room, realm) && !roomHasLiveEnemies(room)
+}
+
 function consumePortalScroll(state: GameState): boolean {
   const itemIdx = state.inventory.findIndex((item) => item.template_id === "portal-scroll")
   if (itemIdx < 0) return false
@@ -483,7 +514,7 @@ export function resolveTurn(
         break
       }
       case "attack": {
-        const r = resolvePlayerAttack(s, room, action, rng, events, mutations, preTurnDebuffs)
+        const r = resolvePlayerAttack(s, room, action, realm, rng, events, mutations, preTurnDebuffs)
         summary = r.summary
         regenBonusEligible = r.regenBonusEligible
         if (r.notableEvent) notableEvents.push(r.notableEvent)
@@ -571,7 +602,7 @@ export function resolveTurn(
 
   // 3. Enemy turns (skip if extracting)
   if (!didExtract) {
-    const er = resolveEnemyTurns(s, currentRoom, rng, events, mutations)
+    const er = resolveEnemyTurns(s, currentRoom, realm, rng, events, mutations)
     if (er.summary) summary += " " + er.summary
     if (er.playerDied) {
       notableEvents.push(deathEvent(s, er.killedBy ?? "Killed by an enemy"))
@@ -718,6 +749,7 @@ function resolvePlayerAttack(
   s: GameState,
   room: RoomState,
   action: { type: "attack"; target_id: string; ability_id?: string },
+  realm: GeneratedRealm,
   rng: SeededRng,
   events: GameEvent[],
   mutations: WorldMutation[],
@@ -892,6 +924,8 @@ function resolvePlayerAttack(
     if (target.hp <= 0) {
       const killResult = handleEnemyDefeat(
         s,
+        room,
+        realm,
         target,
         enemyTemplate,
         mutations,
@@ -994,6 +1028,8 @@ function applyAbilityToPlayerSelf(
 
 function handleEnemyDefeat(
   s: GameState,
+  room: RoomState,
+  realm: GeneratedRealm,
   enemy: RoomState["enemies"][number],
   enemyTemplate: ReturnType<typeof getEnemy>,
   mutations: WorldMutation[],
@@ -1054,7 +1090,30 @@ function handleEnemyDefeat(
   }
 
   if (enemyTemplate.behavior !== "boss") {
-    return { notableEvent: null }
+    if (!isBosslessRealmCleared(s, room, realm)) {
+      return { notableEvent: null }
+    }
+
+    s.realmStatus = "realm_cleared"
+    const detail = "The final room falls silent. The realm is cleared."
+    events.push({
+      turn: 0,
+      type: "realm_clear",
+      detail,
+      data: {
+        floor: s.position.floor,
+        room_id: room.id,
+      },
+    })
+    return {
+      notableEvent: {
+        type: "realm_clear",
+        characterName: "",
+        characterClass: s.character.class,
+        detail,
+        timestamp: Date.now(),
+      },
+    }
   }
 
   s.realmStatus = "boss_cleared"
@@ -1072,6 +1131,7 @@ function handleEnemyDefeat(
 function resolveEnemyTurns(
   s: GameState,
   room: RoomState,
+  realm: GeneratedRealm,
   rng: SeededRng,
   events: GameEvent[],
   mutations: WorldMutation[],
@@ -1111,7 +1171,7 @@ function resolveEnemyTurns(
     }
 
     if (enemy.hp <= 0) {
-      handleEnemyDefeat(s, enemy, template, mutations, events)
+      handleEnemyDefeat(s, room, realm, enemy, template, mutations, events)
       parts.push(`${template.name} collapses from lingering effects.`)
       continue
     }
@@ -2395,9 +2455,8 @@ function recalcStats(s: GameState) {
       const template = getItem(slot.template_id)
       if (template.stats) {
         for (const [key, val] of Object.entries(template.stats)) {
-          if (key in effective && typeof val === "number") {
-            (effective as Record<string, number>)[key] =
-              ((effective as Record<string, number>)[key] ?? 0) + val
+          if (isCharacterStatKey(key) && typeof val === "number") {
+            effective[key] += val
           }
         }
       }

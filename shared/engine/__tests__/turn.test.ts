@@ -48,6 +48,37 @@ function makeRealm(roomId = "f1_r1_test-room"): GeneratedRealm {
   }
 }
 
+function makeBosslessRealm(): GeneratedRealm {
+  return {
+    template_id: "tutorial-cellar",
+    template_version: 1,
+    seed: 1,
+    total_floors: 2,
+    floors: [
+      {
+        floor_number: 1,
+        entrance_room_id: "f1_r1_entry",
+        exit_room_id: "f1_r2_mid",
+        boss_room_id: null,
+        rooms: [
+          makeGeneratedRoom("f1_r1_entry", 6, 4),
+          makeGeneratedRoom("f1_r2_mid", 6, 4),
+        ],
+      },
+      {
+        floor_number: 2,
+        entrance_room_id: "f2_r1_entry",
+        exit_room_id: null,
+        boss_room_id: null,
+        rooms: [
+          makeGeneratedRoom("f2_r1_entry", 6, 4),
+          makeGeneratedRoom("f2_r2_final", 6, 4),
+        ],
+      },
+    ],
+  }
+}
+
 function makeGeneratedRoom(
   roomId: string,
   width: number,
@@ -434,6 +465,131 @@ describe("portal, retreat, and extraction legal actions", () => {
     )
 
     expect((result.newState as GameState & { portalActive?: boolean }).portalActive).toBe(true)
+  })
+})
+
+describe("bossless realm completion", () => {
+  it("marks a bossless realm as cleared after the final room is defeated", () => {
+    const state = makeState({
+      position: {
+        floor: 2,
+        room_id: "f2_r2_final",
+        tile: { x: 1, y: 1 },
+      },
+      activeFloor: {
+        rooms: [
+          {
+            id: "f2_r2_final",
+            tiles: makeTiles(6, 4),
+            enemies: [makeEnemy({ id: "enemy-final", hp: 1, hp_max: 1 })],
+            items: [],
+          },
+        ],
+      },
+    })
+
+    const result = resolveTurn(
+      state,
+      { type: "attack", target_id: "enemy-final" },
+      makeBosslessRealm(),
+      new SeededRng(1),
+    )
+
+    expect(result.newState.realmStatus).toBe("realm_cleared")
+    expect(result.notableEvents).toContainEqual(
+      expect.objectContaining({
+        type: "realm_clear",
+      }),
+    )
+  })
+
+  it("does not mark a bossless realm as cleared in a non-final room", () => {
+    const state = makeState({
+      position: {
+        floor: 2,
+        room_id: "f2_r1_entry",
+        tile: { x: 1, y: 1 },
+      },
+      activeFloor: {
+        rooms: [
+          {
+            id: "f2_r1_entry",
+            tiles: makeTiles(6, 4),
+            enemies: [makeEnemy({ id: "enemy-mid", hp: 1, hp_max: 1 })],
+            items: [],
+          },
+        ],
+      },
+    })
+
+    const result = resolveTurn(
+      state,
+      { type: "attack", target_id: "enemy-mid" },
+      makeBosslessRealm(),
+      new SeededRng(1),
+    )
+
+    expect(result.newState.realmStatus).toBe("active")
+    expect(result.notableEvents).toEqual([])
+  })
+
+  it("does not mark a bossless realm as cleared on a non-final floor", () => {
+    const state = makeState({
+      position: {
+        floor: 1,
+        room_id: "f1_r2_mid",
+        tile: { x: 1, y: 1 },
+      },
+      activeFloor: {
+        rooms: [
+          {
+            id: "f1_r2_mid",
+            tiles: makeTiles(6, 4),
+            enemies: [makeEnemy({ id: "enemy-floor1", hp: 1, hp_max: 1 })],
+            items: [],
+          },
+        ],
+      },
+    })
+
+    const result = resolveTurn(
+      state,
+      { type: "attack", target_id: "enemy-floor1" },
+      makeBosslessRealm(),
+      new SeededRng(1),
+    )
+
+    expect(result.newState.realmStatus).toBe("active")
+    expect(result.notableEvents).toEqual([])
+  })
+
+  it("still marks boss realms with boss_cleared", () => {
+    const state = makeState({
+      activeFloor: {
+        rooms: [
+          {
+            id: "f1_r1_test-room",
+            tiles: makeTiles(6, 4),
+            enemies: [makeEnemy({ id: "boss-1", template_id: "hollow-warden", hp: 1, hp_max: 1 })],
+            items: [],
+          },
+        ],
+      },
+    })
+
+    const result = resolveTurn(
+      state,
+      { type: "attack", target_id: "boss-1" },
+      makeRealm(),
+      new SeededRng(1),
+    )
+
+    expect(result.newState.realmStatus).toBe("boss_cleared")
+    expect(result.notableEvents).toContainEqual(
+      expect.objectContaining({
+        type: "boss_kill",
+      }),
+    )
   })
 })
 

@@ -25,6 +25,7 @@ async function importFreshLobbyRoutes(
     clearActiveSessions: () => {},
   }))
   mock.module("../src/payments/x402.js", () => ({
+    getRequestedNetworks: () => ["base"],
     verifyAndSettle: async () => null,
     return402: () => new Response(),
     logPayment: async () => {},

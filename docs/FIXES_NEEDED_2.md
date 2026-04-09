@@ -34,7 +34,7 @@ Add notes under any item with `> NOTE: your note here` when needed.
 **Scope:** Engine realm completion state, backend extraction rewards
 **Why first:** Blocks XP/gold completion rewards in multiple realms
 
-- [ ] **1.1 -- Bossless realms can never award completion rewards**
+- [x] **1.1 -- Bossless realms can never award completion rewards**
   - `applyExtractionOutcome()` only awards `completion_rewards` when `realmStatus === "boss_cleared"`
   - The engine only sets `"boss_cleared"` when a killed enemy has `behavior === "boss"`
   - Realms with `boss_id: null` therefore can never count as completed, even if their template defines `completion_rewards`
@@ -45,8 +45,9 @@ Add notes under any item with `> NOTE: your note here` when needed.
   - **Design decision:** Reaching and clearing the final room of a bossless realm = completed
   - **Fix:** Add a new engine status such as `"realm_cleared"` and set it when all enemies in the last room of the last floor are defeated in a bossless realm
   - **Files:** `shared/engine/src/turn.ts`, `shared/schemas/src/index.ts`
+  > NOTE: Implemented `realm_cleared` as a first-class in-session status and set it when the last room on the last floor is emptied in bossless realms. The engine now also emits a `realm_clear` recent event plus lobby notable event for that transition.
 
-- [ ] **1.2 -- Backend completion reward flow must treat bossless clear like boss clear**
+- [x] **1.2 -- Backend completion reward flow must treat bossless clear like boss clear**
   - `backend/src/game/session.ts` currently only treats `"boss_cleared"` as a completed realm for reward purposes
   - `endSession()` also maps only `"boss_cleared"` to DB status `completed`
   - **Fix:** Treat `"realm_cleared"` exactly like `"boss_cleared"` in:
@@ -54,13 +55,15 @@ Add notes under any item with `> NOTE: your note here` when needed.
     - `endSession()`
     - any other completion checks used for extraction UX or reconnection guards
   - **Files:** `backend/src/game/session.ts`, `backend/src/index.ts`
+  > NOTE: `applyExtractionOutcome()` and `endSession()` now treat `realm_cleared` the same as `boss_cleared`, preserving `completed` persistence and finished-realm guard behavior. As a UX enhancement, the play UI now shows bossless-specific extraction banner copy, completion bonus copy, and a highlighted `realm_clear` event state.
 
-- [ ] **1.3 -- Add focused tests for bossless completion**
+- [x] **1.3 -- Add focused tests for bossless completion**
   - Add tests that prove:
     - clearing the final room in a bossless realm sets the new completion status
     - extracting after that awards the template's `completion_rewards`
     - the persisted `realm_instances.status` becomes `completed`
   - **Files:** `shared/engine/__tests__/turn.test.ts`, `backend/__tests__/session-extraction.test.ts`
+  > NOTE: Added engine coverage for final-room bossless clears and non-final-room/non-final-floor regressions, plus backend coverage for `realm_cleared` extraction rewards. Focused tests pass. Repo-wide `bun run test` is still blocked by an unrelated existing workspace issue: `@adventure-fun/agent-sdk` has a `test` script but no test files.
 
 ---
 
@@ -301,3 +304,4 @@ _Record completed fixes here with date and commit hash._
 
 | Date | Group.Item | Commit | Notes |
 |------|------------|--------|-------|
+| 2026-04-09 | 1.1-1.3 | uncommitted | Added `realm_cleared`, wired backend completion rewards/persistence, covered bossless completion with tests, and polished bossless completion UI copy/state messaging. |

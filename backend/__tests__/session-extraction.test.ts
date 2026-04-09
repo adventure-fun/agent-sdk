@@ -112,6 +112,23 @@ describe("applyExtractionOutcome", () => {
     expect(result.loot_summary).toHaveLength(1)
   })
 
+  it("adds completion rewards for bossless realms cleared with realm_cleared", () => {
+    const state = makeState({
+      realmStatus: "realm_cleared",
+    })
+
+    const result = applyExtractionOutcome(state)
+
+    expect(state.character.xp).toBe(50)
+    expect(state.character.gold).toBe(25)
+    expect(result).toMatchObject({
+      xp_gained: 25,
+      gold_gained: 15,
+      realm_completed: true,
+      completion_bonus: { xp: 25, gold: 15 },
+    })
+  })
+
   it("does not add completion rewards for non-completed runs", () => {
     const state = makeState({
       realmStatus: "active",
@@ -144,6 +161,17 @@ describe("applyExtractionOutcome", () => {
     expect(state.character.stats.attack).toBe(22)
     expect(state.character.stats.defense).toBe(10)
     expect(result.realm_completed).toBe(true)
+  })
+
+  it("treats realm_cleared as a completed run for the extraction payload", () => {
+    const state = makeState({
+      realmStatus: "realm_cleared",
+    })
+
+    const result = applyExtractionOutcome(state)
+
+    expect(result.realm_completed).toBe(true)
+    expect(result.completion_bonus).toEqual({ xp: 25, gold: 15 })
   })
 
   it("returns frontend-ready loot summaries with item names", () => {

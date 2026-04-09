@@ -15,6 +15,10 @@ type MemoryCounter = {
 
 const memoryCounters = new Map<string, MemoryCounter>()
 
+export function resetRateLimiterState(): void {
+  memoryCounters.clear()
+}
+
 function cleanupExpiredCounters(now: number): void {
   for (const [key, value] of memoryCounters) {
     if (value.resetAt <= now) {

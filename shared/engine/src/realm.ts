@@ -96,14 +96,16 @@ function generateHandcraftedRealm(
     for (let r = 1; r < rooms.length; r++) {
       const prevTemplateId = floorRoomIds[r - 1]
       const prevTemplate = prevTemplateId ? ROOMS[prevTemplateId] : undefined
+      const currentRoom = rooms[r]!
+      const previousRoom = rooms[r - 1]!
       if (prevTemplate?.locked_exit) {
         // Previous room has a locked exit — don't connect forward.
         // Player must unlock the door at runtime to create this connection.
         // Still connect backward so player can retreat.
-        rooms[r].connections.push(rooms[r - 1].id)
+        currentRoom.connections.push(previousRoom.id)
       } else {
-        rooms[r - 1].connections.push(rooms[r].id)
-        rooms[r].connections.push(rooms[r - 1].id)
+        previousRoom.connections.push(currentRoom.id)
+        currentRoom.connections.push(previousRoom.id)
       }
     }
 
@@ -336,7 +338,7 @@ function generateRoom(
 function pickRoomType(template: RealmTemplate, rng: SeededRng, isFinalFloor: boolean): string {
   if (isFinalFloor) {
     // No boss rooms mid-floor
-    const types = ["combat", "treasure", "trap", "rest", "event"] as const
+    const types = ["combat", "treasure", "trap", "rest", "event"]
     return rng.pick(types)
   }
 

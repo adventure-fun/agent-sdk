@@ -1,8 +1,12 @@
-import { describe, expect, it } from "bun:test"
+import { beforeEach, describe, expect, it } from "bun:test"
 import { Hono } from "hono"
-import { createRateLimiter } from "../src/middleware/rate-limit.js"
+import { createRateLimiter, resetRateLimiterState } from "../src/middleware/rate-limit.js"
 
 describe("10.4 — createRateLimiter", () => {
+  beforeEach(() => {
+    resetRateLimiterState()
+  })
+
   it("allows requests until the configured limit", async () => {
     const app = new Hono()
     app.use(

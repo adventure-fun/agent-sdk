@@ -247,7 +247,7 @@ export interface GameState {
   /** IDs of entities that have been mutated (killed, opened, looted, used, etc.) */
   mutatedEntities: string[]
   /** Realm completion state */
-  realmStatus: "active" | "boss_floor" | "boss_cleared"
+  realmStatus: "active" | "boss_floor" | "boss_cleared" | "realm_cleared"
   /** Portal escape is armed for extraction */
   portalActive?: boolean
 }
@@ -259,6 +259,7 @@ export type RealmStatus =
   | "active"
   | "paused"
   | "boss_cleared"
+  | "realm_cleared"
   | "completed"
   | "dead_end"
 
@@ -371,7 +372,7 @@ export interface Observation {
     template_name: string
     floor_count: number
     current_floor: number
-    status: "active" | "boss_floor" | "boss_cleared"
+    status: "active" | "boss_floor" | "boss_cleared" | "realm_cleared"
   }
 }
 
@@ -399,7 +400,7 @@ export interface SpectatorObservation {
   realm_info: {
     template_name: string
     current_floor: number
-    status: "active" | "boss_floor" | "boss_cleared"
+    status: "active" | "boss_floor" | "boss_cleared" | "realm_cleared"
   }
 }
 

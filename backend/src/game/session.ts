@@ -118,8 +118,12 @@ function applyCompletionLevelUps(state: GameState): void {
   state.character.level = newLevel
 }
 
+function isRealmCompletedStatus(status: GameState["realmStatus"]): boolean {
+  return status === "boss_cleared" || status === "realm_cleared"
+}
+
 export function applyExtractionOutcome(state: GameState): ExtractionOutcome {
-  const realmCompleted = state.realmStatus === "boss_cleared"
+  const realmCompleted = isRealmCompletedStatus(state.realmStatus)
   const completionRewards = realmCompleted
     ? REALMS[state.realm.template_id]?.completion_rewards
     : undefined
@@ -357,7 +361,9 @@ export class GameSession {
       })),
       mutatedEntities,
       realmStatus:
-        realm.status === "boss_cleared" ? "boss_cleared" : "active",
+        realm.status === "boss_cleared" || realm.status === "realm_cleared"
+          ? realm.status
+          : "active",
     }
 
     // 8.2: Restore enemy positions from persisted session state on reconnect
@@ -563,7 +569,7 @@ export class GameSession {
       const realmStatus =
         reason === "death"
           ? "dead_end"
-          : this.gameState.realmStatus === "boss_cleared"
+          : isRealmCompletedStatus(this.gameState.realmStatus)
             ? "completed"
             : "paused"
       const realmUpdate: Record<string, unknown> = {

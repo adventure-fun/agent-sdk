@@ -15,74 +15,74 @@ import type {
 
 // ---- Raw JSON imports (ESM, Bun/Node supports JSON imports) -
 
-import knightJson from "../content/classes/knight.json" assert { type: "json" }
-import mageJson from "../content/classes/mage.json" assert { type: "json" }
-import rogueJson from "../content/classes/rogue.json" assert { type: "json" }
-import archerJson from "../content/classes/archer.json" assert { type: "json" }
+import knightJson from "../content/classes/knight.json" with { type: "json" }
+import mageJson from "../content/classes/mage.json" with { type: "json" }
+import rogueJson from "../content/classes/rogue.json" with { type: "json" }
+import archerJson from "../content/classes/archer.json" with { type: "json" }
 
-import sharedAbilitiesJson from "../content/abilities/shared.json" assert { type: "json" }
-import knightAbilitiesJson from "../content/abilities/knight-abilities.json" assert { type: "json" }
-import mageAbilitiesJson from "../content/abilities/mage-abilities.json" assert { type: "json" }
-import rogueAbilitiesJson from "../content/abilities/rogue-abilities.json" assert { type: "json" }
-import archerAbilitiesJson from "../content/abilities/archer-abilities.json" assert { type: "json" }
-import enemyAbilitiesJson from "../content/abilities/enemy-abilities.json" assert { type: "json" }
+import sharedAbilitiesJson from "../content/abilities/shared.json" with { type: "json" }
+import knightAbilitiesJson from "../content/abilities/knight-abilities.json" with { type: "json" }
+import mageAbilitiesJson from "../content/abilities/mage-abilities.json" with { type: "json" }
+import rogueAbilitiesJson from "../content/abilities/rogue-abilities.json" with { type: "json" }
+import archerAbilitiesJson from "../content/abilities/archer-abilities.json" with { type: "json" }
+import enemyAbilitiesJson from "../content/abilities/enemy-abilities.json" with { type: "json" }
 
-import knightTreeJson from "../content/skill-trees/knight-tree.json" assert { type: "json" }
-import mageTreeJson from "../content/skill-trees/mage-tree.json" assert { type: "json" }
-import rogueTreeJson from "../content/skill-trees/rogue-tree.json" assert { type: "json" }
-import archerTreeJson from "../content/skill-trees/archer-tree.json" assert { type: "json" }
+import knightTreeJson from "../content/skill-trees/knight-tree.json" with { type: "json" }
+import mageTreeJson from "../content/skill-trees/mage-tree.json" with { type: "json" }
+import rogueTreeJson from "../content/skill-trees/rogue-tree.json" with { type: "json" }
+import archerTreeJson from "../content/skill-trees/archer-tree.json" with { type: "json" }
 
-import undeadJson from "../content/enemies/undead.json" assert { type: "json" }
-import hollowJson from "../content/enemies/hollow.json" assert { type: "json" }
-import bossesJson from "../content/enemies/bosses.json" assert { type: "json" }
+import undeadJson from "../content/enemies/undead.json" with { type: "json" }
+import hollowJson from "../content/enemies/hollow.json" with { type: "json" }
+import bossesJson from "../content/enemies/bosses.json" with { type: "json" }
 
-import consumablesJson from "../content/items/consumables.json" assert { type: "json" }
-import equipmentCommonJson from "../content/items/equipment-common.json" assert { type: "json" }
+import consumablesJson from "../content/items/consumables.json" with { type: "json" }
+import equipmentCommonJson from "../content/items/equipment-common.json" with { type: "json" }
 
 // ---- Room template JSON imports -----------------------------
 
 // Tutorial
-import tutorialStoreroomJson from "../content/rooms/tutorial/tutorial-storeroom.json" assert { type: "json" }
-import tutorialBurrowJson from "../content/rooms/tutorial/tutorial-burrow.json" assert { type: "json" }
+import tutorialStoreroomJson from "../content/rooms/tutorial/tutorial-storeroom.json" with { type: "json" }
+import tutorialBurrowJson from "../content/rooms/tutorial/tutorial-burrow.json" with { type: "json" }
 
 // Collapsed Passage
-import cpEntranceJson from "../content/rooms/collapsed-passage/cp-entrance.json" assert { type: "json" }
-import cpShaftJunctionJson from "../content/rooms/collapsed-passage/cp-shaft-junction.json" assert { type: "json" }
-import cpFloodedChamberJson from "../content/rooms/collapsed-passage/cp-flooded-chamber.json" assert { type: "json" }
-import cpToolStorageJson from "../content/rooms/collapsed-passage/cp-tool-storage.json" assert { type: "json" }
-import cpLockedGateJson from "../content/rooms/collapsed-passage/cp-locked-gate.json" assert { type: "json" }
-import cpOverseersdenJson from "../content/rooms/collapsed-passage/cp-overseers-den.json" assert { type: "json" }
+import cpEntranceJson from "../content/rooms/collapsed-passage/cp-entrance.json" with { type: "json" }
+import cpShaftJunctionJson from "../content/rooms/collapsed-passage/cp-shaft-junction.json" with { type: "json" }
+import cpFloodedChamberJson from "../content/rooms/collapsed-passage/cp-flooded-chamber.json" with { type: "json" }
+import cpToolStorageJson from "../content/rooms/collapsed-passage/cp-tool-storage.json" with { type: "json" }
+import cpLockedGateJson from "../content/rooms/collapsed-passage/cp-locked-gate.json" with { type: "json" }
+import cpOverseersdenJson from "../content/rooms/collapsed-passage/cp-overseers-den.json" with { type: "json" }
 
 // Blighted Hollow
-import bhEntranceClearingJson from "../content/rooms/blighted-hollow/bh-entrance-clearing.json" assert { type: "json" }
-import bhFungalCorridorJson from "../content/rooms/blighted-hollow/bh-fungal-corridor.json" assert { type: "json" }
-import bhSporeDenJson from "../content/rooms/blighted-hollow/bh-spore-den.json" assert { type: "json" }
-import bhRootChamberJson from "../content/rooms/blighted-hollow/bh-root-chamber.json" assert { type: "json" }
-import bhWolfDenJson from "../content/rooms/blighted-hollow/bh-wolf-den.json" assert { type: "json" }
-import bhHollowSpringJson from "../content/rooms/blighted-hollow/bh-hollow-spring.json" assert { type: "json" }
-import bhCorruptedHeartJson from "../content/rooms/blighted-hollow/bh-corrupted-heart.json" assert { type: "json" }
+import bhEntranceClearingJson from "../content/rooms/blighted-hollow/bh-entrance-clearing.json" with { type: "json" }
+import bhFungalCorridorJson from "../content/rooms/blighted-hollow/bh-fungal-corridor.json" with { type: "json" }
+import bhSporeDenJson from "../content/rooms/blighted-hollow/bh-spore-den.json" with { type: "json" }
+import bhRootChamberJson from "../content/rooms/blighted-hollow/bh-root-chamber.json" with { type: "json" }
+import bhWolfDenJson from "../content/rooms/blighted-hollow/bh-wolf-den.json" with { type: "json" }
+import bhHollowSpringJson from "../content/rooms/blighted-hollow/bh-hollow-spring.json" with { type: "json" }
+import bhCorruptedHeartJson from "../content/rooms/blighted-hollow/bh-corrupted-heart.json" with { type: "json" }
 
 // Sunken Crypt
-import scEntryHallJson from "../content/rooms/sunken-crypt/sc-entry-hall.json" assert { type: "json" }
-import scGalleryJson from "../content/rooms/sunken-crypt/sc-gallery.json" assert { type: "json" }
-import scSideVaultJson from "../content/rooms/sunken-crypt/sc-side-vault.json" assert { type: "json" }
-import scOfferingRoomJson from "../content/rooms/sunken-crypt/sc-offering-room.json" assert { type: "json" }
-import scFloodedPassageJson from "../content/rooms/sunken-crypt/sc-flooded-passage.json" assert { type: "json" }
-import scSubmergedHallJson from "../content/rooms/sunken-crypt/sc-submerged-hall.json" assert { type: "json" }
-import scTombOfWhispersJson from "../content/rooms/sunken-crypt/sc-tomb-of-whispers.json" assert { type: "json" }
-import scDrownedVaultJson from "../content/rooms/sunken-crypt/sc-drowned-vault.json" assert { type: "json" }
-import scRestShrineJson from "../content/rooms/sunken-crypt/sc-rest-shrine.json" assert { type: "json" }
-import scWardenAntechamberJson from "../content/rooms/sunken-crypt/sc-warden-antechamber.json" assert { type: "json" }
-import scWardenChamberJson from "../content/rooms/sunken-crypt/sc-warden-chamber.json" assert { type: "json" }
-import scTreasureVaultJson from "../content/rooms/sunken-crypt/sc-treasure-vault.json" assert { type: "json" }
+import scEntryHallJson from "../content/rooms/sunken-crypt/sc-entry-hall.json" with { type: "json" }
+import scGalleryJson from "../content/rooms/sunken-crypt/sc-gallery.json" with { type: "json" }
+import scSideVaultJson from "../content/rooms/sunken-crypt/sc-side-vault.json" with { type: "json" }
+import scOfferingRoomJson from "../content/rooms/sunken-crypt/sc-offering-room.json" with { type: "json" }
+import scFloodedPassageJson from "../content/rooms/sunken-crypt/sc-flooded-passage.json" with { type: "json" }
+import scSubmergedHallJson from "../content/rooms/sunken-crypt/sc-submerged-hall.json" with { type: "json" }
+import scTombOfWhispersJson from "../content/rooms/sunken-crypt/sc-tomb-of-whispers.json" with { type: "json" }
+import scDrownedVaultJson from "../content/rooms/sunken-crypt/sc-drowned-vault.json" with { type: "json" }
+import scRestShrineJson from "../content/rooms/sunken-crypt/sc-rest-shrine.json" with { type: "json" }
+import scWardenAntechamberJson from "../content/rooms/sunken-crypt/sc-warden-antechamber.json" with { type: "json" }
+import scWardenChamberJson from "../content/rooms/sunken-crypt/sc-warden-chamber.json" with { type: "json" }
+import scTreasureVaultJson from "../content/rooms/sunken-crypt/sc-treasure-vault.json" with { type: "json" }
 
 // ---- Realm JSON imports -------------------------------------
 
-import tutorialCellarJson from "../content/realms/tutorial-cellar.json" assert { type: "json" }
-import collapsedPassageJson from "../content/realms/collapsed-passage.json" assert { type: "json" }
-import blightedHollowJson from "../content/realms/blighted-hollow.json" assert { type: "json" }
-import sunkenCryptJson from "../content/realms/sunken-crypt.json" assert { type: "json" }
-import collapsedMinesJson from "../content/realms/collapsed-mines.json" assert { type: "json" }
+import tutorialCellarJson from "../content/realms/tutorial-cellar.json" with { type: "json" }
+import collapsedPassageJson from "../content/realms/collapsed-passage.json" with { type: "json" }
+import blightedHollowJson from "../content/realms/blighted-hollow.json" with { type: "json" }
+import sunkenCryptJson from "../content/realms/sunken-crypt.json" with { type: "json" }
+import collapsedMinesJson from "../content/realms/collapsed-mines.json" with { type: "json" }
 
 // ---- Classes ------------------------------------------------
 

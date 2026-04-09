@@ -2,9 +2,9 @@
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "rootDir": "./src",
+    "rootDir": "..",
     "types": ["bun"],
     "resolveJsonModule": true
   },
-  "include": ["src"]
+  "include": ["src", "../schemas/src"]
 }

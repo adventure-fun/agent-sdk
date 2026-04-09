@@ -26,7 +26,7 @@ const STAT_LABELS: Record<string, string> = {
 }
 const REALM_STATUS_LABELS: Record<string, string> = {
   generated: "Ready", active: "In Progress", paused: "Paused",
-  boss_cleared: "Boss Cleared", completed: "Completed", dead_end: "Lost",
+  boss_cleared: "Boss Cleared", realm_cleared: "Cleared", completed: "Completed", dead_end: "Lost",
 }
 
 type PageStep = "loading" | "class-select" | "name-input" | "stat-reveal" | "hub" | "dungeon"
@@ -52,6 +52,42 @@ function friendlyPaymentError(message: string) {
     return "The payment network is taking too long to respond. Please try again in a moment."
   }
   return message
+}
+
+type RealmCompletionStatus = Observation["realm_info"]["status"] | undefined
+
+function isRealmComplete(status: RealmCompletionStatus): status is "boss_cleared" | "realm_cleared" {
+  return status === "boss_cleared" || status === "realm_cleared"
+}
+
+function getExtractionHint(
+  status: RealmCompletionStatus,
+  canPortal: boolean,
+  canRetreat: boolean,
+  hasPortalScroll: boolean,
+) {
+  if (!isRealmComplete(status)) {
+    return null
+  }
+
+  const completionLead = status === "realm_cleared" ? "Realm cleared." : "Boss defeated."
+  if (canPortal) {
+    return hasPortalScroll
+      ? `${completionLead} Escape now with your portal scroll or keep delving for more loot.`
+      : `${completionLead} Your portal is ready.`
+  }
+
+  if (canRetreat) {
+    return `${completionLead} You can retreat safely from the entrance.`
+  }
+
+  return `${completionLead} Find a portal scroll or return to the first-floor entrance to escape.`
+}
+
+function getCompletionBonusText(status: RealmCompletionStatus) {
+  return status === "boss_cleared"
+    ? "for clearing the realm boss."
+    : "for completing the realm."
 }
 
 export default function PlayPage() {
@@ -677,6 +713,7 @@ export default function PlayPage() {
         gold_gained,
         loot_summary,
       } = gameSession.extractData
+      const completionStatus = gameSession.observation?.realm_info.status
       const title = realm_completed ? "REALM COMPLETED" : "YOU ESCAPED ALIVE"
       const titleColor = realm_completed ? "text-amber-300" : "text-green-400"
       const borderColor = realm_completed ? "border-amber-900/50" : "border-green-900/50"
@@ -702,7 +739,7 @@ export default function PlayPage() {
               <div className="rounded border border-amber-900/60 bg-amber-950/20 p-3">
                 <div className="text-[11px] uppercase tracking-wide text-amber-400">Completion Bonus</div>
                 <div className="mt-1 text-gray-200">
-                  +{completion_bonus.xp} XP and +{completion_bonus.gold} gold for clearing the realm boss.
+                  +{completion_bonus.xp} XP and +{completion_bonus.gold} gold {getCompletionBonusText(completionStatus)}
                 </div>
               </div>
             )}
@@ -1257,20 +1294,11 @@ function DungeonView({
   const canPortal = legal_actions.some((a) => a.type === "use_portal")
   const canRetreat = legal_actions.some((a) => a.type === "retreat")
   const canPickup = legal_actions.filter((a): a is Action & { type: "pickup" } => a.type === "pickup")
-  const bossCleared = realm_info.status === "boss_cleared"
   const portalScroll = inventory.find((item) => item.template_id === "portal-scroll")
   const portalLabel = portalScroll
     ? `Use Portal Scroll${portalScroll.quantity > 1 ? ` (${portalScroll.quantity})` : ""}`
     : "Step Through Portal"
-  const extractionHint = bossCleared
-    ? canPortal
-      ? portalScroll
-        ? "Boss defeated. Escape now with your portal scroll or keep delving for more loot."
-        : "Boss defeated. Your portal is ready."
-      : canRetreat
-        ? "Boss defeated. You can retreat safely from the entrance."
-        : "Boss defeated. Find a portal scroll or return to the first-floor entrance to escape."
-    : null
+  const extractionHint = getExtractionHint(realm_info.status, canPortal, canRetreat, portalScroll != null)
   const usableAbilityIds = new Set(attackActions.map((action) => action.ability_id ?? "basic-attack"))
   const abilityMap = new Map(character.abilities.map((ability) => [ability.id, ability]))
   const disarmAbility = abilityMap.get("rogue-disarm-trap")
@@ -2384,6 +2412,9 @@ function getRecentEventPalette(
 ) {
   if (event.type === "boss_phase") {
     return "border-amber-800/70 bg-amber-950/20 text-amber-200"
+  }
+  if (event.type === "realm_clear") {
+    return "border-emerald-800/70 bg-emerald-950/20 text-emerald-200"
   }
   if (event.type === "level_up") {
     return "border-yellow-700/70 bg-yellow-950/20 text-yellow-200"
