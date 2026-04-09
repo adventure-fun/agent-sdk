@@ -565,10 +565,14 @@ export default function PlayPage() {
 
     // Disconnected (unexpected)
     if (!gameSession.isConnected && !gameSession.isConnecting && gameSession.error) {
+      const activeRealm = realms.find((r) => r.status === "active" || r.status === "paused")
       return (
         <Shell>
-          <h1 className="text-3xl font-bold text-amber-400">DISCONNECTED</h1>
+          <h1 className="text-3xl font-bold text-amber-400">CONNECTION LOST</h1>
           <p className="text-red-400 text-sm">{gameSession.error}</p>
+          <div className="bg-gray-900 border border-gray-800 rounded p-3 text-sm text-gray-400 max-w-sm mx-auto">
+            <p>Your progress has been saved. Enemy positions, combat state, and all items are preserved.</p>
+          </div>
           <div className="flex gap-3 justify-center">
             <button
               onClick={returnToHub}
@@ -576,16 +580,14 @@ export default function PlayPage() {
             >
               Return to Hub
             </button>
-            <button
-              onClick={() => {
-                // Find the active realm to reconnect
-                const activeRealm = realms.find((r) => r.status === "active")
-                if (activeRealm) gameSession.connect(activeRealm.id)
-              }}
-              className="px-6 py-2 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded transition-colors"
-            >
-              Reconnect
-            </button>
+            {activeRealm && (
+              <button
+                onClick={() => gameSession.connect(activeRealm.id)}
+                className="px-6 py-2 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded transition-colors"
+              >
+                Reconnect
+              </button>
+            )}
           </div>
         </Shell>
       )
@@ -596,7 +598,14 @@ export default function PlayPage() {
       return (
         <Shell>
           <h1 className="text-3xl font-bold text-amber-400">ADVENTURE.FUN</h1>
-          <p className="text-gray-400">Entering realm...</p>
+          <p className="text-gray-400">
+            {realms.some((r) => r.status === "paused")
+              ? "Restoring session..."
+              : "Entering realm..."}
+          </p>
+          <div className="w-16 h-1 bg-gray-800 rounded overflow-hidden mx-auto">
+            <div className="h-full bg-amber-500 animate-pulse rounded" style={{ width: "60%" }} />
+          </div>
         </Shell>
       )
     }
@@ -736,27 +745,46 @@ export default function PlayPage() {
               const template = realmTemplateMap[realm.template_id]
               const statusLabel = REALM_STATUS_LABELS[realm.status] ?? realm.status
               const canEnter = realm.status === "generated" || realm.status === "paused" || realm.status === "active"
+              const isPaused = realm.status === "paused" || realm.status === "active"
+              const statusColor = realm.status === "completed"
+                ? "text-green-500"
+                : realm.status === "dead_end"
+                  ? "text-red-500"
+                  : isPaused
+                    ? "text-amber-400"
+                    : "text-gray-600"
 
               return (
                 <div
                   key={realm.id}
-                  className="bg-gray-900 border border-gray-800 rounded p-4 flex items-center justify-between"
+                  className={`bg-gray-900 border rounded p-4 flex items-center justify-between ${
+                    isPaused ? "border-amber-900/40" : "border-gray-800"
+                  }`}
                 >
                   <div>
                     <p className="text-gray-300 text-sm font-bold">
                       {template?.name ?? realm.template_id}
                     </p>
-                    <p className="text-gray-600 text-xs">
+                    <p className={`text-xs ${statusColor}`}>
                       {statusLabel} — Floor {realm.floor_reached}
                     </p>
+                    {isPaused && (
+                      <p className="text-gray-600 text-xs mt-0.5">
+                        Session saved — pick up where you left off
+                      </p>
+                    )}
                   </div>
                   <div>
                     {canEnter && (
                       <button
                         onClick={() => handleEnterRealm(realm.id)}
-                        className="px-4 py-1 bg-amber-500 hover:bg-amber-400 text-black font-bold text-sm rounded transition-colors"
+                        className={`px-4 py-1 font-bold text-sm rounded transition-colors ${
+                          isPaused
+                            ? "bg-amber-500 hover:bg-amber-400 text-black"
+                            : "bg-green-600 hover:bg-green-500 text-white"
+                        }`}
                       >
-                        {realm.status === "active" ? "Resume" : "Enter"}
+                        {isPaused ? "Resume" : "Enter"}
                       </button>
                     )}
                     {realm.status === "completed" && (

@@ -10,6 +10,7 @@ import { leaderboardRoutes } from "./routes/leaderboard.js"
 import { contentRoutes } from "./routes/content.js"
 import { verifySession } from "./auth/jwt.js"
 import { db } from "./db/client.js"
+import { getRedis } from "./redis/client.js"
 import {
   handleGameOpen,
   handleGameMessage,
@@ -17,6 +18,8 @@ import {
   type GameSessionData,
 } from "./game/session.js"
 import type { ServerWebSocket } from "bun"
+
+getRedis()
 
 const app = new Hono()
 

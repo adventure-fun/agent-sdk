@@ -36,6 +36,16 @@ export class SeededRng {
     return item
   }
 
+  /** Returns the internal state for serialization (e.g. DB persistence) */
+  getState(): number {
+    return this.state
+  }
+
+  /** Restores internal state from a previously saved value */
+  setState(state: number): void {
+    this.state = state >>> 0
+  }
+
   /** Clones the current RNG state */
   clone(): SeededRng {
     const clone = new SeededRng(0)

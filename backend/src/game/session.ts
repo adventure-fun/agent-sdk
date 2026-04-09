@@ -26,6 +26,14 @@ import {
 import type { GeneratedRealm } from "@adventure-fun/engine"
 import { db } from "../db/client.js"
 import type { SessionPayload } from "../auth/jwt.js"
+import {
+  batchPersistMutations,
+  serializeSessionState,
+  applySessionState,
+  countCompletedRealms,
+  buildRunSummaryFromEvents,
+  type SessionState,
+} from "./session-persistence.js"
 
 const TURN_TIMEOUT_MS =
   Number(process.env["TURN_TIMEOUT_SECONDS"] ?? 30) * 1000
@@ -311,8 +319,26 @@ class GameSession {
         realm.status === "boss_cleared" ? "boss_cleared" : "active",
     }
 
+    // 8.2: Restore enemy positions from persisted session state on reconnect
+    const dbSessionState = realm.session_state as SessionState | null
+    if (dbSessionState?.rooms?.length) {
+      applySessionState(gameState, dbSessionState)
+    }
+
+    // 8.5: Restore RNG state if persisted (exact replay fidelity across disconnects)
     const turn = gameState.turn
     const rng = new SeededRng(realm.seed + turn)
+    if (typeof realm.rng_state === "number") {
+      rng.setState(realm.rng_state)
+    }
+
+    // Clear session_state now that it's been consumed
+    if (dbSessionState || realm.rng_state != null) {
+      db.from("realm_instances")
+        .update({ session_state: null, rng_state: null })
+        .eq("id", realmId)
+        .then(() => {})
+    }
 
     return new GameSession(ws, gameState, generated, rng, turn)
   }
@@ -346,9 +372,13 @@ class GameSession {
       this.eventBuffer.push({ ...event, turn: this.turn })
     }
 
-    // Persist world mutations to DB (only when world state actually changed)
-    for (const mutation of result.worldMutations) {
-      await this.persistMutation(mutation)
+    // Persist world mutations in a single batch (8.1: was 2 DB writes per mutation)
+    if (result.worldMutations.length > 0) {
+      await batchPersistMutations(db, this.realmId, this.turn, result.worldMutations, {
+        room_id: this.gameState.position.room_id,
+        tile: this.gameState.position.tile,
+        floor: this.gameState.position.floor,
+      })
     }
 
     // Update in-memory state
@@ -419,24 +449,32 @@ class GameSession {
       // 2. Save character state
       await this.saveCharacterState(reason)
 
-      // 3. Update realm instance
+      // 3. Update realm instance (8.2: persist enemy state + RNG on disconnect)
       const realmStatus =
         reason === "death"
           ? "dead_end"
           : this.gameState.realmStatus === "boss_cleared"
             ? "completed"
             : "paused"
+      const realmUpdate: Record<string, unknown> = {
+        status: realmStatus,
+        last_turn: this.turn,
+        current_room_id: this.gameState.position.room_id,
+        tile_x: this.gameState.position.tile.x,
+        tile_y: this.gameState.position.tile.y,
+        floor_reached: this.gameState.position.floor,
+        last_active_at: new Date().toISOString(),
+      }
+      if (reason === "disconnect") {
+        realmUpdate.session_state = serializeSessionState(this.gameState)
+        realmUpdate.rng_state = this.rng.getState()
+      } else {
+        realmUpdate.session_state = null
+        realmUpdate.rng_state = null
+      }
       await db
         .from("realm_instances")
-        .update({
-          status: realmStatus,
-          last_turn: this.turn,
-          current_room_id: this.gameState.position.room_id,
-          tile_x: this.gameState.position.tile.x,
-          tile_y: this.gameState.position.tile.y,
-          floor_reached: this.gameState.position.floor,
-          last_active_at: new Date().toISOString(),
-        })
+        .update(realmUpdate)
         .eq("id", this.realmId)
 
       // 4. Persist fog-of-war
@@ -471,29 +509,7 @@ class GameSession {
 
   // ── Private persistence helpers ───────────────────────────────────────────
 
-  private async persistMutation(mutation: WorldMutation): Promise<void> {
-    // Write the mutation
-    await db.from("realm_mutations").insert({
-      realm_instance_id: this.realmId,
-      entity_id: mutation.entity_id,
-      mutation: mutation.mutation,
-      turn: this.turn,
-      floor: mutation.floor,
-      metadata: mutation.metadata,
-    })
-
-    // Piggyback position + turn update (no extra round trip needed later)
-    await db
-      .from("realm_instances")
-      .update({
-        last_turn: this.turn,
-        current_room_id: this.gameState.position.room_id,
-        tile_x: this.gameState.position.tile.x,
-        tile_y: this.gameState.position.tile.y,
-        floor_reached: this.gameState.position.floor,
-      })
-      .eq("id", this.realmId)
-  }
+  // persistMutation removed — replaced by batchPersistMutations (8.1)
 
   private async saveCharacterState(reason: string): Promise<void> {
     const char = this.gameState.character
@@ -519,13 +535,16 @@ class GameSession {
   }
 
   private async updateLeaderboard(reason: string): Promise<void> {
-    const { data: character } = await db
-      .from("characters")
-      .select(
-        "name, class, created_at, accounts(handle, wallet_address, x_handle, github_handle, player_type)",
-      )
-      .eq("id", this.characterId)
-      .single()
+    const [{ data: character }, realmsCompleted] = await Promise.all([
+      db
+        .from("characters")
+        .select(
+          "name, class, created_at, accounts(handle, wallet_address, x_handle, github_handle, player_type)",
+        )
+        .eq("id", this.characterId)
+        .single(),
+      countCompletedRealms(db, this.characterId),
+    ])
     if (!character) return
 
     const account = (character as Record<string, unknown>).accounts as
@@ -540,7 +559,7 @@ class GameSession {
       level: this.gameState.character.level,
       xp: this.gameState.character.xp,
       deepest_floor: this.gameState.position.floor,
-      realms_completed: 0, // TODO: query + increment
+      realms_completed: realmsCompleted,
       status: reason === "death" ? "dead" : "alive",
       cause_of_death:
         reason === "death"
@@ -640,59 +659,9 @@ class GameSession {
   }
 
   private buildRunSummary(): Record<string, unknown> {
-    let enemiesKilled = 0
-    let damageDealt = 0
-    let damageTaken = 0
-    let chestsOpened = 0
-    let xpEarned = 0
-    let potionsConsumed = 0
-    let turnsInCombat = 0
-    let turnsExploring = 0
-    let causeOfDeath: string | null = null
-    const abilitiesUsed: Record<string, number> = {}
-
-    for (const event of this.eventBuffer) {
-      switch (event.type) {
-        case "enemy_killed":
-          enemiesKilled++
-          xpEarned += (event.data.xp as number) ?? 0
-          break
-        case "attack_hit":
-          damageDealt += (event.data.damage as number) ?? 0
-          turnsInCombat++
-          break
-        case "enemy_attack":
-          damageTaken += (event.data.damage as number) ?? 0
-          if ((event.data.player_hp as number) <= 0) {
-            causeOfDeath = event.detail
-          }
-          break
-        case "interact":
-          chestsOpened++
-          break
-        case "move":
-        case "floor_change":
-          turnsExploring++
-          break
-        case "use_item":
-          potionsConsumed++
-          break
-      }
-    }
-
-    return {
-      enemies_killed: enemiesKilled,
-      damage_dealt: damageDealt,
-      damage_taken: damageTaken,
-      chests_opened: chestsOpened,
-      xp_earned: xpEarned,
-      deepest_floor: this.gameState.position.floor,
-      abilities_used: abilitiesUsed,
-      potions_consumed: potionsConsumed,
-      turns_in_combat: turnsInCombat,
-      turns_exploring: turnsExploring,
-      cause_of_death: causeOfDeath,
-    }
+    return buildRunSummaryFromEvents(this.eventBuffer, {
+      floor: this.gameState.position.floor,
+    })
   }
 }
 

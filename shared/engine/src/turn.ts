@@ -1639,8 +1639,24 @@ function resolveInteract(
   })
   s.mutatedEntities.push(action.target_id)
 
+  const hasLoot = interactable.effects.some(
+    (e) => e.type === "grant-item" || e.type === "grant-gold",
+  )
+  const category: string = interactable.lore_entry_id
+    ? "lore"
+    : hasLoot
+      ? "chest"
+      : interactable.effects.some((e) => e.type === "unlock-door" || e.type === "spawn-enemy")
+        ? "mechanism"
+        : "other"
+
   const summary = parts.join(" ")
-  events.push({ turn: 0, type: "interact", detail: summary, data: { target: action.target_id } })
+  events.push({
+    turn: 0,
+    type: "interact",
+    detail: summary,
+    data: { target: action.target_id, category, name: interactable.name },
+  })
   return summary
 }
 

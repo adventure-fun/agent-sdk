@@ -12,7 +12,8 @@
     "build": "turbo build",
     "test": "turbo test",
     "test:watch": "turbo test --watch",
-    "dev": "turbo dev --filter=@adventure-fun/web --filter=@adventure-fun/server",
+    "dev": "bash scripts/dev.sh",
+    "dev:no-redis": "turbo dev --filter=@adventure-fun/web --filter=@adventure-fun/server",
     "lint": "turbo lint",
     "typecheck": "turbo typecheck",
     "clean": "turbo clean && rm -rf node_modules"

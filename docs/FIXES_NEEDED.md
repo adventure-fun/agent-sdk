@@ -237,37 +237,42 @@ Add notes under any item with `> NOTE: your note here` when needed.
 
 **Scope:** Backend game session, DB write patterns
 
-- [ ] **8.1 — `persistMutation` does 2 DB writes per mutation**
+- [x] **8.1 — `persistMutation` does 2 DB writes per mutation**
   - Each mutation writes to `realm_mutations` AND updates `realm_instances` position
   - A turn with 3 mutations = 6 DB calls
   - **Fix:** Batch mutations into a single insert. Update `realm_instances` once after all mutations are processed, not per-mutation
   - **Files:** `backend/src/game/session.ts`
+  > NOTE: Extracted `batchPersistMutations()` into `backend/src/game/session-persistence.ts`. All mutations from a single turn are now inserted in one `db.from("realm_mutations").insert([...])` call, and `realm_instances` position is updated once per turn (only when mutations exist). A turn with N mutations now costs 2 DB calls instead of 2N. 3 TDD tests in `backend/__tests__/session-persistence.test.ts`.
 
-- [ ] **8.2 — Disconnect recovery loses enemy positions and room state**
+- [x] **8.2 — Disconnect recovery loses enemy positions and room state**
   - On disconnect, `endSession("disconnect")` pauses the realm
   - On reconnect, `GameSession.create` rebuilds from DB but enemies respawn at template positions (not where they moved to during the previous session)
   - Only killed/looted entities are properly recovered via mutations
   - **Fix:** Consider persisting active enemy positions to a session state column or Redis key. Alternatively, accept this as a design trade-off and document that disconnect resets enemy positions (non-mutated room state)
   - **Files:** `backend/src/game/session.ts`
+  > NOTE: Added `session_state` JSONB and `rng_state` INTEGER columns to `realm_instances` (migration: `supabase/migrations/20260409100000_session_state_columns.sql`). On disconnect, `serializeSessionState()` captures live enemy positions, HP, effects, cooldowns, and boss phase indexes. On reconnect, `applySessionState()` restores them onto the rebuilt room state. Session state is cleared after consumption. 4 TDD tests covering serialization, dead-enemy exclusion, restoration, and graceful no-op.
 
-- [ ] **8.3 — `updateLeaderboard` always sets `realms_completed: 0`**
+- [x] **8.3 — `updateLeaderboard` always sets `realms_completed: 0`**
   - Line 449: `realms_completed: 0` with a TODO comment
   - Should query existing leaderboard entry and increment, or count `realm_instances` with `status = 'completed'`
   - **Files:** `backend/src/game/session.ts`
+  > NOTE: Added `countCompletedRealms()` in `session-persistence.ts` that queries `realm_instances` where `status = 'completed'` for the character. `updateLeaderboard()` now runs this query in parallel with the character lookup and writes the actual count. 3 TDD tests. Removed the `// TODO: query + increment` comment.
 
-- [ ] **8.4 — `buildRunSummary` counts all interacts as "chests opened"**
+- [x] **8.4 — `buildRunSummary` counts all interacts as "chests opened"**
   - Line 576: every `interact` event type increments `chestsOpened`
   - Interacting with a lore object, NPC, or door should not count as a chest
   - **Fix:** Check the event data or mutation type to distinguish chest opens from other interacts
   - **Files:** `backend/src/game/session.ts`
+  > NOTE: Enhanced `resolveInteract()` in `shared/engine/src/turn.ts` to tag interact events with a `category` field: `"chest"` (grant-item/grant-gold effects), `"lore"` (has `lore_entry_id`), `"mechanism"` (unlock-door/spawn-enemy), or `"other"`. Extracted `buildRunSummaryFromEvents()` into `session-persistence.ts` — only counts `category === "chest"` as `chestsOpened`. Also added `traps_disarmed` tracking. Legacy events without `category` default to non-chest. 5 TDD tests.
 
-- [ ] **8.5 — Turn RNG may diverge on session resume**
+- [x] **8.5 — Turn RNG may diverge on session resume**
   - `SeededRng(realm.seed + turn)` on session create
   - But RNG state advances through `.next()` calls within a turn
   - If session disconnects mid-turn and resumes, the RNG restarts from a clean `seed + turn` state
   - This means the "same seed = same outcome" guarantee breaks across disconnects
   - **Fix:** This is largely mitigated by mutations (dead enemies stay dead). Consider storing RNG offset in `realm_instances` for exact replay fidelity, or accept as minor issue
   - **Files:** `backend/src/game/session.ts`
+  > NOTE: Added `getState()` and `setState()` to `SeededRng` in `shared/engine/src/rng.ts` for serialization of the internal Mulberry32 state. On disconnect, `rng_state` is persisted to `realm_instances`. On reconnect, if `rng_state` exists, the RNG is restored to exactly where it left off instead of restarting from `seed + turn`. Exact replay fidelity is now maintained across disconnects. 3 TDD tests proving state persistence produces identical sequences and diverges from fresh initialization.
 
 ---
 
@@ -390,13 +395,14 @@ Add notes under any item with `> NOTE: your note here` when needed.
 **Scope:** Backend Redis setup, pub/sub, session state
 **Why last:** Enables lobby chat, spectator broadcast, multi-instance support, but game works without it
 
-- [ ] **12.1 — `ioredis` is a dependency but never imported**
+- [~] **12.1 — `ioredis` is a dependency but never imported**
   - `backend/package.json` lists `ioredis`
   - `.env.example` has `REDIS_URL`
   - Zero imports of ioredis in any backend source file
   - The spec calls for Redis pub/sub for: spectator channels, lobby activity, lobby chat, leaderboard updates
   - **Fix:** Create `backend/src/redis/client.ts` with connection setup. Wire into session for spectator broadcast, lobby for chat/activity, and leaderboard for real-time updates. Make Redis optional (graceful no-op if `REDIS_URL` is not set) so the game still works without it during development
   - **Files:** New `backend/src/redis/client.ts`, `backend/src/game/session.ts`, `backend/src/routes/lobby.ts`
+  > NOTE: (Partial — foundation laid as part of Group 8 work) Created `backend/src/redis/client.ts` with optional connection (`getRedis()`, `redisGet`, `redisSet`, `redisDel`, `redisPublish`, `isRedisAvailable()`). Client gracefully logs and falls back to no-op when `REDIS_URL` is not set. Wired into `backend/src/index.ts` to initialize on startup. Added `docker-compose.yml` at project root with a Redis 7 Alpine service (health checks, persistence, memory limit). Created `scripts/dev.sh` that automatically starts Redis via docker-compose before launching turbo dev — root `bun run dev` now uses this script. `bun run dev:no-redis` is available as fallback. Remaining: wire pub/sub into spectator broadcast, lobby chat, and leaderboard real-time updates (depends on Groups 10, 11).
 
 ---
 
@@ -494,11 +500,12 @@ Add notes under any item with `> NOTE: your note here` when needed.
   - **Fix:** Change to `"@/*": ["./app/*"]` or remove the alias if unused. After that, run package-local frontend typecheck (`frontend/tsconfig.json`) rather than repo-root `tsc`
   - **Files:** `frontend/tsconfig.json`
 
-- [ ] **14.7 — `NEXT_PUBLIC_WS_URL` not documented in `.env.example`**
+- [x] **14.7 — `NEXT_PUBLIC_WS_URL` not documented in `.env.example`**
   - `use-game-session.ts` reads `NEXT_PUBLIC_WS_URL` with fallback to `ws://localhost:3001`
   - Not listed in root `.env.example`
   - **Fix:** Add `NEXT_PUBLIC_WS_URL=ws://localhost:3001` to `.env.example`
   - **Files:** `.env.example`
+  > NOTE: Added `NEXT_PUBLIC_WS_URL=ws://localhost:3001` to `.env.example` as part of Group 8 dev-experience improvements.
 
 ---
 
@@ -601,3 +608,10 @@ _Record completed fixes here with date and commit hash._
 | 2026-04-09 | 6.1 | pending | Portal use now requires `portalActive` or a `portal-scroll`, retreat is limited to the floor 1 entrance, and direct `use_portal` auto-consumes a scroll with engine coverage |
 | 2026-04-09 | 6.2 | pending | Added extraction reward helper in `session.ts`, completion bonus XP/gold + level-up handling, richer extracted payload, and improved extraction UX with backend/frontend coverage |
 | 2026-04-09 | 7.1 | pending | Implemented trapped loot resolution, Rogue `disarm_trap` action, trap visibility markers, 13 engine TDD cases, and dungeon UI trap warnings/disarm affordances |
+| 2026-04-09 | 8.1 | pending | Batch mutation persistence — single insert + single `realm_instances` update per turn; extracted `session-persistence.ts` with 3 tests |
+| 2026-04-09 | 8.2 | pending | Disconnect recovery — `session_state` JSONB + `rng_state` columns on `realm_instances`, serialize/restore enemy state on disconnect/reconnect; 4 tests |
+| 2026-04-09 | 8.3 | pending | `updateLeaderboard` now queries actual `realms_completed` count from DB instead of hardcoded 0; 3 tests |
+| 2026-04-09 | 8.4 | pending | Interact events now tagged with `category` (chest/lore/mechanism/other); `buildRunSummary` only counts chest category; added `traps_disarmed` tracking; 5 tests |
+| 2026-04-09 | 8.5 | pending | RNG state persistence — `getState()`/`setState()` on `SeededRng`, persisted on disconnect, restored on reconnect for exact replay fidelity; 3 tests |
+| 2026-04-09 | 12.1 | pending | (Partial) Redis client module, `docker-compose.yml`, `scripts/dev.sh` auto-starts Redis with `bun run dev` |
+| 2026-04-09 | 14.7 | pending | Added `NEXT_PUBLIC_WS_URL` to `.env.example` |
