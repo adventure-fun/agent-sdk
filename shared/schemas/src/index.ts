@@ -304,6 +304,7 @@ export interface Entity {
   type: EntityType
   name: string
   position: { x: number; y: number }
+  rarity?: ItemRarity
   hp_current?: number
   hp_max?: number
   effects?: ActiveEffect[]
@@ -353,6 +354,7 @@ export interface Observation {
     skill_tree: Record<string, boolean>
   }
   inventory: InventorySlot[]
+  new_item_ids?: string[]
   inventory_slots_used: number
   inventory_capacity: number
   equipment: Record<EquipSlot, InventoryItem | null>

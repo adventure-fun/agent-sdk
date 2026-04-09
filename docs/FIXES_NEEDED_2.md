@@ -150,7 +150,7 @@ Add notes under any item with `> NOTE: your note here` when needed.
 **Scope:** Engine pickup IDs, backend inventory sync
 **Why grouped alone:** This is a contained persistence bug with a concrete root cause
 
-- [ ] **4.1 -- Realm-picked items fail to persist because their IDs are not UUIDs**
+- [x] **4.1 -- Realm-picked items fail to persist because their IDs are not UUIDs**
   - `resolvePickup()` currently copies the floor entity ID into the inventory item ID
   - Example floor entity IDs look like `f1_r1_bh-corrupted-heart_loot_00`
   - `inventory_items.id` in Postgres is `UUID`
@@ -158,18 +158,23 @@ Add notes under any item with `> NOTE: your note here` when needed.
   - Shop items persist because they come from DB-generated UUIDs, and grant-item rewards persist because they already use `crypto.randomUUID()`
   - **Fix:** Change floor pickup item creation to use `crypto.randomUUID()` for the inventory item ID while continuing to use the floor entity ID for the world mutation (`"looted"`) record
   - **Files:** `shared/engine/src/turn.ts`, `backend/src/game/session.ts`, `supabase/migrations/20260407000000_initial_schema.sql`
+  > NOTE: Floor pickups now mint fresh UUID inventory IDs in `resolvePickup()` while keeping the deterministic floor entity ID for `looted` mutations and `mutatedEntities`. No schema migration change was required because the existing `inventory_items.id UUID` definition was already correct; the bug was entirely in the runtime pickup path.
 
-- [ ] **4.2 -- Inventory sync failure should be easier to detect**
+- [x] **4.2 -- Inventory sync failure should be easier to detect**
   - `syncInventory()` currently logs the upsert failure and aborts, which can make the bug easy to miss in gameplay
   - **Fix:** Improve observability around inventory sync failures so future persistence bugs are surfaced clearly in logs and tests
   - **Files:** `backend/src/game/session.ts`
+  > NOTE: `syncInventory()` now validates UUID formats before hitting Postgres, aborts loudly with structured logging when invalid IDs are present, includes character/item context on upsert failures, and also logs delete-phase failures instead of silently swallowing them.
 
-- [ ] **4.3 -- Add tests that cover realm pickup persistence**
+- [x] **4.3 -- Add tests that cover realm pickup persistence**
   - Tests should verify:
     - realm-picked items receive valid UUIDs
     - `syncInventory()` succeeds with realm-picked items
     - the bug cannot regress silently
   - **Files:** `shared/engine/__tests__/turn.test.ts`, backend session persistence tests
+  > NOTE: Added engine regression coverage for pickup UUID generation, preserved floor-entity mutation IDs, stack-merge behavior, and observation `new_item_ids`. Added focused backend `syncInventory()` tests for invalid-ID rejection, valid UUID upserts, and delete failure logging with the mock DB helper.
+
+> NOTE: Related UX enhancements shipped with this group. Pickup events now render with a highlighted amber palette, pickup buttons expose item rarity badges, and newly acquired bag items are labeled `NEW` in the dungeon inventory so players can immediately see that realm loot was collected and is being tracked.
 
 ---
 
@@ -314,3 +319,4 @@ _Record completed fixes here with date and commit hash._
 | 2026-04-09 | 1.1-1.3 | uncommitted | Added `realm_cleared`, wired backend completion rewards/persistence, covered bossless completion with tests, and polished bossless completion UI copy/state messaging. |
 | 2026-04-09 | 2.1-2.4 | uncommitted | Rebalanced all class starting stats, switched level-ups to percentage-based growth, tuned low-scale hit chance math, added focused regression tests, and polished the class selection/stat reveal UI for the new ranges. |
 | 2026-04-09 | 3.1-3.3 | uncommitted | Wired completed-realm regeneration into the play UI and payment modal with better replay messaging, filtered extraction loot to exclude items brought into the run, and added focused backend tests for regeneration plus loot-summary accuracy. |
+| 2026-04-09 | 4.1-4.3 | uncommitted | Fixed floor-loot persistence by assigning UUID inventory IDs while preserving deterministic world mutation IDs, added syncInventory UUID/error observability plus focused regression tests, and polished the pickup UI with rarity badges, `NEW` inventory markers, and stronger pickup event feedback. |

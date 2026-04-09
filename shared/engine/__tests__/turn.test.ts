@@ -6,6 +6,9 @@ import { SeededRng } from "../src/rng.js"
 import { xpForLevel } from "../src/leveling.js"
 import type { GeneratedRealm, GeneratedRoom } from "../src/realm.js"
 
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 function makeTiles(width: number, height: number): Tile[][] {
   return Array.from({ length: height }, (_, y) =>
     Array.from({ length: width }, (_, x) => ({
@@ -1265,7 +1268,7 @@ describe("level-up on enemy defeat", () => {
     const beforeAttack = state.character.stats.attack
     const beforeDefense = state.character.stats.defense
     const beforeAccuracy = state.character.stats.accuracy
-    const growth = CLASSES.knight.stat_growth
+    const growth = CLASSES.knight!.stat_growth
     const expectedHpGain = Math.max(1, Math.round(beforeHpMax * growth.hp))
     const expectedAttackGain = Math.max(1, Math.round(beforeAttack * growth.attack))
     const expectedDefenseGain = Math.max(1, Math.round(beforeDefense * growth.defense))
@@ -1613,6 +1616,142 @@ describe("trap system", () => {
 
     expect(result.newState.character.hp.current).toBe(28)
     expect(result.newState.character.debuffs).toEqual([])
+  })
+})
+
+describe("realm pickup persistence", () => {
+  it("assigns picked-up floor loot a fresh UUID inventory id", () => {
+    const floorItemId = "f1_r1_pickup-room_loot_00"
+    const state = makeState({
+      activeFloor: {
+        rooms: [
+          {
+            ...makeState().activeFloor.rooms[0]!,
+            enemies: [],
+            items: [makeFloorItem({ id: floorItemId, template_id: "antidote" })],
+          },
+        ],
+      },
+    })
+
+    const result = resolveTurn(
+      state,
+      { type: "pickup", item_id: floorItemId },
+      makeRealm(),
+      new SeededRng(31),
+    )
+
+    expect(result.newState.inventory).toHaveLength(1)
+    expect(result.newState.inventory[0]?.id).toMatch(UUID_REGEX)
+    expect(result.newState.inventory[0]?.id).not.toBe(floorItemId)
+  })
+
+  it("keeps the looted world mutation keyed by the floor entity id", () => {
+    const floorItemId = "f1_r1_pickup-room_loot_01"
+    const state = makeState({
+      activeFloor: {
+        rooms: [
+          {
+            ...makeState().activeFloor.rooms[0]!,
+            enemies: [],
+            items: [makeFloorItem({ id: floorItemId, template_id: "portal-scroll" })],
+          },
+        ],
+      },
+    })
+
+    const result = resolveTurn(
+      state,
+      { type: "pickup", item_id: floorItemId },
+      makeRealm(),
+      new SeededRng(32),
+    )
+
+    expect(result.worldMutations).toContainEqual(
+      expect.objectContaining({
+        entity_id: floorItemId,
+        mutation: "looted",
+      }),
+    )
+    expect(result.newState.mutatedEntities).toContain(floorItemId)
+  })
+
+  it("merges stacked pickups without creating a new inventory entry", () => {
+    const existingItemId = "0f6a3f8c-e8ce-4c8d-88f6-d75ea3c0db6d"
+    const floorItemId = "f1_r1_pickup-room_loot_02"
+    const state = makeState({
+      inventory: [
+        {
+          id: existingItemId,
+          template_id: "health-potion",
+          name: "Health Potion",
+          quantity: 1,
+          modifiers: {},
+          owner_type: "character",
+          owner_id: "player-1",
+        },
+      ],
+      activeFloor: {
+        rooms: [
+          {
+            ...makeState().activeFloor.rooms[0]!,
+            enemies: [],
+            items: [makeFloorItem({ id: floorItemId, template_id: "health-potion" })],
+          },
+        ],
+      },
+    })
+
+    const result = resolveTurn(
+      state,
+      { type: "pickup", item_id: floorItemId },
+      makeRealm(),
+      new SeededRng(33),
+    )
+
+    expect(result.newState.inventory).toHaveLength(1)
+    expect(result.newState.inventory[0]).toMatchObject({
+      id: existingItemId,
+      quantity: 2,
+    })
+  })
+
+  it("marks freshly collected bag items in the observation payload", () => {
+    const acquiredItemId = "7be6bcb6-09bc-4bbb-bf17-01ebf675ffa2"
+    const state = makeState({
+      inventory: [
+        {
+          id: "c3de3c0d-15e4-46bc-9a6c-b6d53590a6e4",
+          template_id: "minor-healing-potion",
+          name: "Minor Healing Potion",
+          quantity: 1,
+          modifiers: {},
+          owner_type: "character",
+          owner_id: "player-1",
+        },
+        {
+          id: acquiredItemId,
+          template_id: "portal-scroll",
+          name: "Portal Scroll",
+          quantity: 1,
+          modifiers: {},
+          owner_type: "character",
+          owner_id: "player-1",
+        },
+      ],
+      activeFloor: {
+        rooms: [{ ...makeState().activeFloor.rooms[0]!, enemies: [], items: [] }],
+      },
+    })
+
+    const observation = buildObservationFromState(
+      state,
+      [],
+      makeRealm(),
+      new Set(["c3de3c0d-15e4-46bc-9a6c-b6d53590a6e4"]),
+    )
+
+    expect(observation.new_item_ids).toEqual([acquiredItemId])
   })
 })
 

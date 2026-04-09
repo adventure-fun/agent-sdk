@@ -62,6 +62,9 @@ import {
 const TURN_TIMEOUT_MS =
   Number(process.env["TURN_TIMEOUT_SECONDS"] ?? 30) * 1000
 
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface GameSessionData {
@@ -416,6 +419,7 @@ export class GameSession {
       this.gameState,
       [],
       this.generatedRealm,
+      this.startingItemIds,
     )
     this.markCurrentRoomVisited()
     obs.turn = this.turn
@@ -499,6 +503,12 @@ export class GameSession {
 
     // Update in-memory state
     this.gameState = result.newState
+    result.observation = buildObservationFromState(
+      this.gameState,
+      result.observation.recent_events,
+      this.generatedRealm,
+      this.startingItemIds,
+    )
     result.observation.turn = this.turn
     const extractionSucceeded =
       (action.type === "use_portal" || action.type === "retreat") &&
@@ -785,13 +795,31 @@ export class GameSession {
       })
     }
 
+    const invalidItemIds = rows
+      .map((row) => row.id)
+      .filter((id): id is string => typeof id === "string" && !UUID_REGEX.test(id))
+
+    if (invalidItemIds.length > 0) {
+      console.error("syncInventory aborted: invalid inventory item IDs", {
+        characterId: this.characterId,
+        itemCount: rows.length,
+        invalidItemIds,
+      })
+      return
+    }
+
     // Upsert all current items first (safe — creates or updates)
     if (rows.length > 0) {
       const { error: upsertErr } = await db
         .from("inventory_items")
         .upsert(rows, { onConflict: "id" })
       if (upsertErr) {
-        console.error("syncInventory upsert failed:", upsertErr)
+        console.error("syncInventory upsert failed", {
+          characterId: this.characterId,
+          itemCount: rows.length,
+          itemIds: keepIds,
+          error: upsertErr,
+        })
         return // abort — don't delete anything if upsert failed
       }
     }
@@ -805,7 +833,14 @@ export class GameSession {
     if (keepIds.length > 0) {
       deleteQuery = deleteQuery.not("id", "in", `(${keepIds.join(",")})`)
     }
-    await deleteQuery
+    const { error: deleteErr } = await deleteQuery
+    if (deleteErr) {
+      console.error("syncInventory delete failed", {
+        characterId: this.characterId,
+        keepIds,
+        error: deleteErr,
+      })
+    }
   }
 
   private buildRunSummary(): Record<string, unknown> {

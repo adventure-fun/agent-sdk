@@ -1365,6 +1365,7 @@ function DungeonView({
     realm_info,
     room_text,
     inventory,
+    new_item_ids,
     inventory_slots_used,
     inventory_capacity,
     equipment,
@@ -1426,6 +1427,7 @@ function DungeonView({
   const hpColor = hpPct > 50 ? "bg-green-500" : hpPct > 25 ? "bg-yellow-500" : "bg-red-500"
   const resourceColor = getResourceBarColor(character.resource.type)
   const inventoryNearlyFull = inventory_slots_used >= Math.max(1, inventory_capacity - 2)
+  const newItemIds = useMemo(() => new Set(new_item_ids ?? []), [new_item_ids])
   const statRows = [
     { label: "ATK", base: character.base_stats.attack, effective: character.effective_stats.attack },
     { label: "DEF", base: character.base_stats.defense, effective: character.effective_stats.defense },
@@ -1773,7 +1775,16 @@ function DungeonView({
               <div className="text-xs text-gray-400 space-y-0.5">
                 {inventory.length > 0 ? (
                   inventory.map((item) => (
-                    <p key={item.item_id}>{item.name} x{item.quantity}</p>
+                    <div key={item.item_id} className="flex items-center justify-between gap-2">
+                      <p>
+                        {item.name} x{item.quantity}
+                      </p>
+                      {newItemIds.has(item.item_id) && (
+                        <span className="rounded border border-emerald-800/70 bg-emerald-950/20 px-2 py-0.5 text-[10px] uppercase tracking-wide text-emerald-200">
+                          New
+                        </span>
+                      )}
+                    </div>
                   ))
                 ) : (
                   <p className="text-gray-600">Pack is empty.</p>
@@ -1939,6 +1950,13 @@ function DungeonView({
                   >
                     <div className="flex items-center gap-2">
                       <span>Pick up {entity?.name ?? action.item_id}</span>
+                      {entity?.type === "item" && entity.rarity && (
+                        <span
+                          className={`rounded border px-2 py-0.5 text-[10px] uppercase tracking-wide ${getItemRarityBadgePalette(entity.rarity)}`}
+                        >
+                          {entity.rarity}
+                        </span>
+                      )}
                       {disarmableItemIds.has(action.item_id) && (
                         <span className="rounded border border-red-800/70 bg-red-950/30 px-2 py-0.5 text-[10px] uppercase tracking-wide text-red-200">
                           Trapped
@@ -2514,6 +2532,9 @@ function getRecentEventPalette(
   if (event.type === "trap_disarmed") {
     return "border-teal-800/70 bg-teal-950/20 text-teal-200"
   }
+  if (event.type === "pickup") {
+    return "border-amber-700/70 bg-amber-950/20 text-amber-200"
+  }
   if (event.type === "pickup_blocked") {
     return "border-red-900/70 bg-red-950/30 text-red-200"
   }
@@ -2530,6 +2551,19 @@ function getRecentEventPalette(
 
 function formatAbilityRange(range: number | "melee") {
   return range === "melee" ? "Melee" : `${range} tiles`
+}
+
+function getItemRarityBadgePalette(rarity: NonNullable<Observation["visible_entities"][number]["rarity"]>) {
+  switch (rarity) {
+    case "common":
+      return "border-gray-700/70 bg-gray-950/30 text-gray-300"
+    case "uncommon":
+      return "border-emerald-800/70 bg-emerald-950/20 text-emerald-200"
+    case "rare":
+      return "border-blue-800/70 bg-blue-950/20 text-blue-200"
+    case "epic":
+      return "border-violet-800/70 bg-violet-950/20 text-violet-200"
+  }
 }
 
 function formatLoreLabel(loreId: string) {

@@ -72,6 +72,8 @@ const RESOURCE_COLOR_HINTS: Record<GameState["character"]["resource"]["type"], s
   focus: "violet",
 }
 
+const EMPTY_ITEM_ID_SET = new Set<string>()
+
 const PATROL_DETECTION_RANGE = 4
 const AMBUSH_TRIGGER_RANGE = 2
 const DEFENSIVE_RETREAT_HP_THRESHOLD = 0.4
@@ -1720,7 +1722,7 @@ function resolvePickup(
     return summaryParts.join(" ")
   } else {
     s.inventory.push({
-      id: floorItem.id,
+      id: crypto.randomUUID(),
       template_id: floorItem.template_id,
       name: template.name,
       quantity: qty,
@@ -2501,6 +2503,7 @@ export function buildObservationFromState(
   state: GameState,
   events: GameEvent[],
   realm: GeneratedRealm,
+  startingItemIds: ReadonlySet<string> = EMPTY_ITEM_ID_SET,
 ): Observation {
   const room = getCurrentRoom(state)
   const genFloor = realm.floors.find((f) => f.floor_number === state.position.floor)
@@ -2559,6 +2562,7 @@ export function buildObservationFromState(
         type: "item",
         name: template?.name ?? item.template_id,
         position: item.position,
+        ...(template?.rarity ? { rarity: template.rarity } : {}),
         trapped: canSenseTraps && item.trapped === true && item.trap_disarmed !== true,
       })
 
@@ -2657,6 +2661,9 @@ export function buildObservationFromState(
     quantity: item.quantity,
     modifiers: item.modifiers,
   }))
+  const newItemIds = inventorySlots
+    .map((item) => item.item_id)
+    .filter((itemId) => !startingItemIds.has(itemId))
   const inventoryCapacity = getEffectiveInventoryCapacity(state)
 
   // Legal actions
@@ -2683,6 +2690,7 @@ export function buildObservationFromState(
       skill_tree: { ...(state.character.skill_tree ?? {}) },
     },
     inventory: inventorySlots,
+    new_item_ids: newItemIds,
     inventory_slots_used: state.inventory.length,
     inventory_capacity: inventoryCapacity,
     equipment: { ...state.equipment },
