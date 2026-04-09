@@ -16,8 +16,8 @@ import { AsciiMap } from "../components/ascii-map"
 import { PaymentModal } from "../components/payment-modal"
 import { UiToast } from "../components/ui-toast"
 import { useUsdcBalance } from "../hooks/use-usdc-balance"
-import { useEffect, useState, useMemo } from "react"
-import { getInventoryCapacity, type CharacterClass, type Action, type Observation, type ActiveEffect, type InventoryItem, type ItemTemplate } from "@adventure-fun/schemas"
+import { useEffect, useState, useMemo, useRef } from "react"
+import { getInventoryCapacity, type CharacterClass, type Action, type Observation, type ActiveEffect, type InventoryItem, type ItemTemplate, type Tile } from "@adventure-fun/schemas"
 
 const STAT_KEYS = ["hp", "attack", "defense", "accuracy", "evasion", "speed"] as const
 const STAT_LABELS: Record<string, string> = {
@@ -1317,6 +1317,30 @@ function DungeonView({
     { label: "SPD", base: character.base_stats.speed, effective: character.effective_stats.speed },
   ]
 
+  // Fog-of-war: accumulate visible tiles so previously-seen areas stay on the map (dimmed)
+  const tileAccumRef = useRef<Map<string, Tile>>(new Map())
+  const lastRoomRef = useRef<string>("")
+
+  const currentRoomId = position.room_id
+  if (currentRoomId !== lastRoomRef.current) {
+    tileAccumRef.current = new Map()
+    lastRoomRef.current = currentRoomId
+  }
+  const visibleKeySet = new Set<string>()
+  for (const tile of visible_tiles) {
+    const key = `${tile.x},${tile.y}`
+    visibleKeySet.add(key)
+    tileAccumRef.current.set(key, tile)
+  }
+  const knownTiles = useMemo(() => {
+    const result: Tile[] = []
+    for (const [key, tile] of tileAccumRef.current) {
+      if (!visibleKeySet.has(key)) result.push(tile)
+    }
+    return result
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible_tiles])
+
   // Arrow key → movement mapping
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -1369,6 +1393,7 @@ function DungeonView({
           <div className="md:w-2/3 border border-gray-800 rounded p-4 bg-gray-950 min-h-[200px]">
             <AsciiMap
               visibleTiles={visible_tiles}
+              knownTiles={knownTiles}
               playerPosition={position.tile}
               entities={visible_entities}
             />

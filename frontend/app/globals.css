@@ -129,6 +129,7 @@ textarea:focus-visible {
 .map-stairs { color: #6366f1; }
 .map-trap   { color: #dc2626; }
 .map-fog    { color: #111827; }
+.map-dim    { opacity: 0.3; }
 
 /* HP/Resource bars */
 .bar-hp       { background-color: #22c55e; }

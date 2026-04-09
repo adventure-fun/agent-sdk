@@ -2,19 +2,21 @@ import type { Tile, Entity, SpectatorEntity } from "@adventure-fun/schemas"
 
 interface AsciiMapProps {
   visibleTiles: Tile[]
+  knownTiles?: Tile[]
   playerPosition: { x: number; y: number }
   entities: (Entity | SpectatorEntity)[]
 }
 
-export function AsciiMap({ visibleTiles, playerPosition, entities }: AsciiMapProps) {
-  if (visibleTiles.length === 0) {
+export function AsciiMap({ visibleTiles, knownTiles = [], playerPosition, entities }: AsciiMapProps) {
+  const allTiles = [...visibleTiles, ...knownTiles]
+  if (allTiles.length === 0) {
     return <pre className="text-xs leading-none font-mono text-gray-600">No map data</pre>
   }
 
-  const rows = renderMap(visibleTiles, playerPosition, entities)
+  const rows = renderMap(visibleTiles, knownTiles, playerPosition, entities)
 
   return (
-    <pre className="text-xs leading-tight font-mono select-none">
+    <pre className="text-xs leading-tight font-mono select-none w-fit mx-auto">
       {rows.map((row, y) => (
         <div key={y}>
           {row.map((cell, x) => (
@@ -34,18 +36,21 @@ interface Cell {
 }
 
 function renderMap(
-  tiles: Tile[],
+  visibleTiles: Tile[],
+  knownTiles: Tile[],
   playerPos: { x: number; y: number },
   entities: (Entity | SpectatorEntity)[],
 ): Cell[][] {
-  const xs = tiles.map((t) => t.x)
-  const ys = tiles.map((t) => t.y)
+  const allTiles = [...visibleTiles, ...knownTiles]
+  const xs = allTiles.map((t) => t.x)
+  const ys = allTiles.map((t) => t.y)
   const minX = Math.min(...xs)
   const maxX = Math.max(...xs)
   const minY = Math.min(...ys)
   const maxY = Math.max(...ys)
 
-  const tileMap = new Map(tiles.map((t) => [`${t.x},${t.y}`, t]))
+  const visibleMap = new Map(visibleTiles.map((t) => [`${t.x},${t.y}`, t]))
+  const knownMap = new Map(knownTiles.map((t) => [`${t.x},${t.y}`, t]))
   const entityMap = new Map(entities.map((e) => [`${e.position.x},${e.position.y}`, e]))
 
   const rows: Cell[][] = []
@@ -56,12 +61,13 @@ function renderMap(
 
       if (x === playerPos.x && y === playerPos.y) {
         row.push({ char: "@", className: "map-player" })
-      } else if (entityMap.has(key)) {
+      } else if (entityMap.has(key) && visibleMap.has(key)) {
         const entity = entityMap.get(key)!
+        const isBoss = "is_boss" in entity && entity.is_boss
         if (entity.type === "enemy") {
           row.push({
-            char: entity.is_boss ? "B" : "E",
-            className: entity.is_boss ? "map-boss" : "map-enemy",
+            char: isBoss ? "B" : "E",
+            className: isBoss ? "map-boss" : "map-enemy",
           })
         } else if (entity.type === "item") {
           row.push({ char: "?", className: "map-chest" })
@@ -72,34 +78,35 @@ function renderMap(
         } else {
           row.push({ char: "?", className: "map-chest" })
         }
+      } else if (visibleMap.has(key)) {
+        const tile = visibleMap.get(key)!
+        row.push(tileToCell(tile, false))
+      } else if (knownMap.has(key)) {
+        const tile = knownMap.get(key)!
+        row.push(tileToCell(tile, true))
       } else {
-        const tile = tileMap.get(key)
-        if (!tile) {
-          row.push({ char: " ", className: "map-fog" })
-        } else {
-          switch (tile.type) {
-            case "wall":
-              row.push({ char: "#", className: "map-wall" })
-              break
-            case "floor":
-              row.push({ char: ".", className: "map-floor" })
-              break
-            case "door":
-              row.push({ char: "D", className: "map-door" })
-              break
-            case "stairs":
-              row.push({ char: ">", className: "map-stairs" })
-              break
-            case "entrance":
-              row.push({ char: "<", className: "map-stairs" })
-              break
-            default:
-              row.push({ char: ".", className: "map-floor" })
-          }
-        }
+        row.push({ char: " ", className: "map-fog" })
       }
     }
     rows.push(row)
   }
   return rows
+}
+
+function tileToCell(tile: Tile, dimmed: boolean): Cell {
+  const suffix = dimmed ? " map-dim" : ""
+  switch (tile.type) {
+    case "wall":
+      return { char: "#", className: `map-wall${suffix}` }
+    case "floor":
+      return { char: ".", className: `map-floor${suffix}` }
+    case "door":
+      return { char: "D", className: `map-door${suffix}` }
+    case "stairs":
+      return { char: ">", className: `map-stairs${suffix}` }
+    case "entrance":
+      return { char: "<", className: `map-stairs${suffix}` }
+    default:
+      return { char: ".", className: `map-floor${suffix}` }
+  }
 }
