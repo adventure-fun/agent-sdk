@@ -1,4 +1,4 @@
-import type { Action, Observation, ServerMessage } from "@adventure-fun/schemas"
+import type { Action, Observation, ServerMessage } from "./protocol.js"
 import type { SessionToken } from "./auth.js"
 
 export type ObservationHandler = (obs: Observation) => void
