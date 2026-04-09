@@ -323,6 +323,78 @@ describe("computeLegalActions ranged abilities", () => {
   })
 })
 
+describe("equipment legal actions", () => {
+  it("offers equip and unequip actions for usable gear", () => {
+    const state = makeState({
+      inventory: [
+        {
+          id: "bag-weapon",
+          template_id: "iron-sword",
+          name: "Iron Sword",
+          quantity: 1,
+          modifiers: {},
+          owner_type: "character",
+          owner_id: "player-1",
+          slot: null,
+        },
+      ],
+      equipment: {
+        weapon: {
+          id: "equipped-ring",
+          template_id: "iron-ring",
+          name: "Iron Ring",
+          quantity: 1,
+          modifiers: {},
+          owner_type: "character",
+          owner_id: "player-1",
+          slot: "weapon",
+        },
+        armor: null,
+        accessory: null,
+        "class-specific": null,
+      },
+    })
+
+    const actions = computeLegalActions(state, state.activeFloor.rooms[0], makeRealm())
+
+    expect(actions).toContainEqual({ type: "equip", item_id: "bag-weapon" })
+    expect(actions).toContainEqual({ type: "unequip", slot: "weapon" })
+  })
+
+  it("omits off-class equipment from legal actions and rejects equipping it", () => {
+    const state = makeState({
+      character: {
+        ...makeState().character,
+        class: "mage",
+      },
+      inventory: [
+        {
+          id: "bag-shield",
+          template_id: "wooden-shield",
+          name: "Wooden Shield",
+          quantity: 1,
+          modifiers: {},
+          owner_type: "character",
+          owner_id: "player-1",
+          slot: null,
+        },
+      ],
+    })
+
+    const actions = computeLegalActions(state, state.activeFloor.rooms[0], makeRealm())
+    expect(actions).not.toContainEqual({ type: "equip", item_id: "bag-shield" })
+
+    const result = resolveTurn(
+      state,
+      { type: "equip", item_id: "bag-shield" },
+      makeRealm(),
+      new SeededRng(34),
+    )
+    expect(result.summary).toContain("cannot equip")
+    expect(result.newState.equipment["class-specific"]).toBeNull()
+  })
+})
+
 describe("portal, retreat, and extraction legal actions", () => {
   function makePortalScroll() {
     return {

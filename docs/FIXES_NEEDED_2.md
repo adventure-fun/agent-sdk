@@ -183,7 +183,7 @@ Add notes under any item with `> NOTE: your note here` when needed.
 **Scope:** Frontend inventory/equipment actions, skill tree validation and messaging
 **Depends on:** Group 4
 
-- [ ] **5.1 -- Equip and unequip logic exists but the UI does not expose it**
+- [x] **5.1 -- Equip and unequip logic exists but the UI does not expose it**
   - The engine and action validator already support:
     - `equip`
     - `unequip`
@@ -192,27 +192,31 @@ Add notes under any item with `> NOTE: your note here` when needed.
   - **Fix:** In the dungeon UI, render equip/unequip controls based on `legal_actions`
   - Equip buttons should show the target slot and any meaningful stat bonuses
   - **Files:** `frontend/app/play/page.tsx`, `frontend/app/hooks/use-game-session.ts`, `shared/engine/src/turn.ts`
+  > NOTE: Added dungeon-side equip and unequip buttons directly to the equipment and bag panels, including slot badges, item stat summaries, and hover comparison copy so players can tell what a swap changes before committing.
 
-- [ ] **5.2 -- Skill point accrual is technically working but the UX is confusing**
+- [x] **5.2 -- Skill point accrual is technically working but the UX is confusing**
   - Available points are derived from `max(0, (level - 1) - unlocked_count)`
   - Tier 1 unlocks at level 3
   - That means a level 2 character can earn their first point but still be unable to spend it
   - This may be acceptable design, but the current experience is unclear
   - **Fix:** Keep the current point accrual model unless testing proves it broken, but improve the UI text so players understand when their saved points become usable
   - **Files:** `frontend/app/play/page.tsx`, `backend/src/routes/characters.ts`
+  > NOTE: The skill tree now explains banked-but-tier-locked points explicitly, and unlocked tiers with an already chosen node now show `Choice made` messaging plus disabled sibling copy so the one-per-tier rule is legible in the UI.
 
-- [ ] **5.3 -- Skill tree validation does not enforce one choice per tier**
+- [x] **5.3 -- Skill tree validation does not enforce one choice per tier**
   - `docs/ABILITIES_AND_SKILLS.md` describes a one-choice-per-tier model
   - `validateSkillAllocation()` currently checks level gates, prerequisites, duplicates, and available points, but not mutual exclusion within the same tier
   - **Fix:** Reject allocations when another node in the same tier is already unlocked
   - **Files:** `backend/src/game/skill-tree.ts`, `backend/__tests__/skill-tree.test.ts`, `shared/engine/content/skill-trees/*.json`
+  > NOTE: `validateSkillAllocation()` now rejects sibling unlocks inside the same tier while still allowing normal cross-tier progression. Focused regression coverage was added for same-tier rejection and cross-tier success cases.
 
-- [ ] **5.4 -- Add tests and UI messaging coverage**
+- [x] **5.4 -- Add tests and UI messaging coverage**
   - Add focused tests around:
     - one-choice-per-tier enforcement
     - equip/unequip action rendering or behavior where practical
   - Update player-facing text to explicitly explain when points are banked but tier-locked
   - **Files:** `backend/__tests__/skill-tree.test.ts`, frontend tests if present
+  > NOTE: Added focused backend route coverage for hub-side equip/unequip, engine coverage for dungeon equip/unequip action availability plus class-restriction filtering, and kept the item metadata flow maintainable by exposing a shared `GET /content/items` endpoint consumed by the frontend `useContent()` hook instead of duplicating item lookups in the web app.
 
 > NOTE: If hub-side equip/unequip is desired, document the chosen approach inside the implementation. Dungeon-side equip controls are the minimum required to resolve the reported issue.
 
@@ -320,3 +324,4 @@ _Record completed fixes here with date and commit hash._
 | 2026-04-09 | 2.1-2.4 | uncommitted | Rebalanced all class starting stats, switched level-ups to percentage-based growth, tuned low-scale hit chance math, added focused regression tests, and polished the class selection/stat reveal UI for the new ranges. |
 | 2026-04-09 | 3.1-3.3 | uncommitted | Wired completed-realm regeneration into the play UI and payment modal with better replay messaging, filtered extraction loot to exclude items brought into the run, and added focused backend tests for regeneration plus loot-summary accuracy. |
 | 2026-04-09 | 4.1-4.3 | uncommitted | Fixed floor-loot persistence by assigning UUID inventory IDs while preserving deterministic world mutation IDs, added syncInventory UUID/error observability plus focused regression tests, and polished the pickup UI with rarity badges, `NEW` inventory markers, and stronger pickup event feedback. |
+| 2026-04-09 | 5.1-5.4 | uncommitted | Added dungeon and hub equip/unequip controls with slot/stat messaging, introduced lobby equip/unequip endpoints plus tests, enforced one-choice-per-tier skill validation, clarified banked skill-point UI, and exposed shared item metadata through `/content/items` so the frontend can render gear details without duplicating item definitions. |

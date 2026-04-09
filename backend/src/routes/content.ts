@@ -1,5 +1,5 @@
 import { Hono } from "hono"
-import { REALMS, CLASSES, ABILITIES, SKILL_TREES } from "@adventure-fun/engine"
+import { REALMS, CLASSES, ABILITIES, ITEMS, SKILL_TREES } from "@adventure-fun/engine"
 
 const content = new Hono()
 
@@ -29,6 +29,28 @@ content.get("/classes", (c) => {
     visibility_radius: cls.visibility_radius,
   }))
   return c.json({ classes })
+})
+
+// GET /content/items — item template metadata (no auth required)
+content.get("/items", (c) => {
+  const items = Object.values(ITEMS)
+    .sort((left, right) => left.name.localeCompare(right.name))
+    .map((item) => ({
+      id: item.id,
+      name: item.name,
+      description: item.description,
+      type: item.type,
+      rarity: item.rarity,
+      equip_slot: item.equip_slot ?? null,
+      class_restriction: item.class_restriction ?? null,
+      stats: item.stats ?? {},
+      effects: item.effects ?? [],
+      stack_limit: item.stack_limit,
+      sell_price: item.sell_price,
+      buy_price: item.buy_price,
+      range: "range" in item && typeof item.range === "number" ? item.range : undefined,
+    }))
+  return c.json({ items })
 })
 
 // GET /content/classes/:id/abilities — abilities for a class (no auth required)

@@ -128,6 +128,60 @@ export function useShop() {
     }
   }, [authHeaders, fetchInventory, token])
 
+  const equipItem = useCallback(async (itemId: string) => {
+    if (!token) return { ok: false as const, error: "Not authenticated" }
+    setIsLoading(true)
+    setError(null)
+    try {
+      const response = await fetch(`${API_URL}/lobby/equip`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ item_id: itemId }),
+      })
+      const body = await response.json()
+      if (!response.ok) {
+        const message = body.error ?? "Failed to equip item"
+        setError(message)
+        return { ok: false as const, error: message }
+      }
+      await fetchInventory()
+      return { ok: true as const, message: body.message as string }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to equip item"
+      setError(message)
+      return { ok: false as const, error: message }
+    } finally {
+      setIsLoading(false)
+    }
+  }, [authHeaders, fetchInventory, token])
+
+  const unequipItem = useCallback(async (slot: NonNullable<InventoryItem["slot"]>) => {
+    if (!token) return { ok: false as const, error: "Not authenticated" }
+    setIsLoading(true)
+    setError(null)
+    try {
+      const response = await fetch(`${API_URL}/lobby/unequip`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ slot }),
+      })
+      const body = await response.json()
+      if (!response.ok) {
+        const message = body.error ?? "Failed to unequip item"
+        setError(message)
+        return { ok: false as const, error: message }
+      }
+      await fetchInventory()
+      return { ok: true as const, message: body.message as string }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to unequip item"
+      setError(message)
+      return { ok: false as const, error: message }
+    } finally {
+      setIsLoading(false)
+    }
+  }, [authHeaders, fetchInventory, token])
+
   return {
     sections,
     featured,
@@ -139,5 +193,7 @@ export function useShop() {
     fetchInventory,
     buyItem,
     sellItem,
+    equipItem,
+    unequipItem,
   }
 }

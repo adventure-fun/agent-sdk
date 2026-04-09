@@ -6,13 +6,16 @@ import { getRequestedNetworks, logPayment, return402, verifyAndSettle } from "..
 import { getPubSub } from "../redis/pubsub.js"
 import { publishChatMessage, validateChatMessage } from "../redis/publishers.js"
 import { getLobbyManager } from "../game/lobby-live.js"
-import type { SanitizedChatMessage } from "@adventure-fun/schemas"
+import type { EquipSlot, SanitizedChatMessage } from "@adventure-fun/schemas"
 import {
   getShopCatalog,
   parseShopQuantity,
   toInventoryResponse,
   validateBuyItem,
+  validateLobbyEquip,
+  validateLobbyUnequip,
   validateSellItem,
+  VALID_EQUIP_SLOTS,
   type LobbyCharacterRecord,
   type LobbyInventoryRecord,
 } from "./lobby-helpers.js"
@@ -36,6 +39,24 @@ async function loadInventory(characterId: string) {
     .eq("owner_id", characterId)
 }
 
+function serializeInventory(rows: LobbyInventoryRecord[]) {
+  return rows.map((row) => {
+    const validation = validateSellItem([row], row.id, 1)
+    if (validation.ok) return toInventoryResponse(row, validation.template)
+
+    return {
+      id: row.id,
+      template_id: row.template_id,
+      name: row.template_id,
+      quantity: row.quantity,
+      modifiers: row.modifiers ?? {},
+      owner_type: row.owner_type as "character",
+      owner_id: row.owner_id,
+      slot: (row.slot as null | "weapon" | "armor" | "accessory" | "class-specific") ?? null,
+    }
+  })
+}
+
 // GET /lobby/shops
 lobby.get("/shops", async (c) => {
   const sections = getShopCatalog()
@@ -57,21 +78,7 @@ lobby.get("/shop/inventory", requireAuth, async (c) => {
 
   return c.json({
     gold: character.gold,
-    inventory: ((inventoryRows ?? []) as LobbyInventoryRecord[]).map((row) => {
-      const validation = validateSellItem([row], row.id, 1)
-      if (validation.ok) return toInventoryResponse(row, validation.template)
-
-      return {
-        id: row.id,
-        template_id: row.template_id,
-        name: row.template_id,
-        quantity: row.quantity,
-        modifiers: row.modifiers ?? {},
-        owner_type: row.owner_type as "character",
-        owner_id: row.owner_id,
-        slot: (row.slot as null | "weapon" | "armor" | "accessory" | "class-specific") ?? null,
-      }
-    }),
+    inventory: serializeInventory((inventoryRows ?? []) as LobbyInventoryRecord[]),
   })
 })
 
@@ -200,6 +207,96 @@ lobby.post("/shop/sell", requireAuth, async (c) => {
       total_gold: validation.totalGold,
     },
     message: `Sold ${validation.quantity} ${validation.template.name}${validation.quantity === 1 ? "" : "s"}.`,
+  })
+})
+
+// POST /lobby/equip
+lobby.post("/equip", requireAuth, async (c) => {
+  const { account_id } = c.get("session")
+  const body = await c.req.json<{ item_id?: string }>()
+  const itemId = body.item_id?.trim()
+  if (!itemId) return c.json({ error: "item_id is required" }, 400)
+
+  const { data: character, error: characterError } = await loadActiveCharacter(account_id)
+  if (characterError) return c.json({ error: characterError.message }, 500)
+  if (!character) return c.json({ error: "No living character" }, 404)
+  if (hasActiveSession(character.id)) {
+    return c.json({ error: "Leave the dungeon before changing equipment." }, 409)
+  }
+
+  const { data: inventoryRows, error: inventoryError } = await loadInventory(character.id)
+  if (inventoryError) return c.json({ error: inventoryError.message }, 500)
+
+  const inventory = (inventoryRows ?? []) as LobbyInventoryRecord[]
+  const validation = validateLobbyEquip(character as LobbyCharacterRecord, inventory, itemId)
+  if (!validation.ok) return c.json({ error: validation.error }, 400)
+
+  if (validation.equippedRow) {
+    const { error } = await db
+      .from("inventory_items")
+      .update({ slot: null })
+      .eq("id", validation.equippedRow.id)
+    if (error) return c.json({ error: error.message }, 500)
+  }
+
+  const { error: equipError } = await db
+    .from("inventory_items")
+    .update({ slot: validation.slot })
+    .eq("id", validation.row.id)
+  if (equipError) return c.json({ error: equipError.message }, 500)
+
+  const updatedInventory = inventory.map((row) => {
+    if (validation.equippedRow && row.id === validation.equippedRow.id) {
+      return { ...row, slot: null }
+    }
+    if (row.id === validation.row.id) {
+      return { ...row, slot: validation.slot }
+    }
+    return row
+  })
+
+  return c.json({
+    inventory: serializeInventory(updatedInventory),
+    message: `Equipped ${validation.template.name}.`,
+  })
+})
+
+// POST /lobby/unequip
+lobby.post("/unequip", requireAuth, async (c) => {
+  const { account_id } = c.get("session")
+  const body = await c.req.json<{ slot?: string }>()
+  const slot = body.slot?.trim()
+  if (!slot || !VALID_EQUIP_SLOTS.has(slot as EquipSlot)) {
+    return c.json({ error: "slot is required" }, 400)
+  }
+
+  const { data: character, error: characterError } = await loadActiveCharacter(account_id)
+  if (characterError) return c.json({ error: characterError.message }, 500)
+  if (!character) return c.json({ error: "No living character" }, 404)
+  if (hasActiveSession(character.id)) {
+    return c.json({ error: "Leave the dungeon before changing equipment." }, 409)
+  }
+
+  const { data: inventoryRows, error: inventoryError } = await loadInventory(character.id)
+  if (inventoryError) return c.json({ error: inventoryError.message }, 500)
+
+  const inventory = (inventoryRows ?? []) as LobbyInventoryRecord[]
+  const validation = validateLobbyUnequip(inventory, slot as EquipSlot)
+  if (!validation.ok) return c.json({ error: validation.error }, 400)
+
+  const { error: unequipError } = await db
+    .from("inventory_items")
+    .update({ slot: null })
+    .eq("id", validation.row.id)
+  if (unequipError) return c.json({ error: unequipError.message }, 500)
+
+  const updatedInventory = inventory.map((row) =>
+    row.id === validation.row.id ? { ...row, slot: null } : row,
+  )
+
+  return c.json({
+    inventory: serializeInventory(updatedInventory),
+    message: `Unequipped ${validation.template.name}.`,
   })
 })
 

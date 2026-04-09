@@ -56,6 +56,41 @@ describe("validateSkillAllocation", () => {
     expect(result.ok).toBe(true)
   })
 
+  it("rejects unlocking a second choice from the same tier", () => {
+    const result = validateSkillAllocation(
+      "knight",
+      4,
+      { "knight-t1-shield-wall": true },
+      "knight-t1-cleave",
+    )
+    expect(result.ok).toBe(false)
+    expect(result.error).toContain("tier")
+  })
+
+  it("still allows unlocking a different tier after a choice is made", () => {
+    const result = validateSkillAllocation(
+      "knight",
+      6,
+      { "knight-t1-shield-wall": true },
+      "knight-t2-iron-skin",
+    )
+    expect(result.ok).toBe(true)
+  })
+
+  it("rejects a same-tier choice even when other tiers are already unlocked", () => {
+    const result = validateSkillAllocation(
+      "knight",
+      10,
+      {
+        "knight-t1-shield-wall": true,
+        "knight-t2-iron-skin": true,
+      },
+      "knight-t1-cleave",
+    )
+    expect(result.ok).toBe(false)
+    expect(result.error).toContain("tier")
+  })
+
   it("rejects an unknown skill node ID", () => {
     const result = validateSkillAllocation("knight", 10, {}, "nonexistent-node")
     expect(result.ok).toBe(false)

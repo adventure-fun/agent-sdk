@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useCallback } from "react"
+import type { ItemTemplate } from "@adventure-fun/schemas"
 
 const API_URL = process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:3001"
 
@@ -24,9 +25,12 @@ export interface ClassTemplateSummary {
   visibility_radius: number
 }
 
+export interface ItemTemplateSummary extends ItemTemplate {}
+
 export function useContent() {
   const [realmTemplates, setRealmTemplates] = useState<RealmTemplateSummary[]>([])
   const [classTemplates, setClassTemplates] = useState<ClassTemplateSummary[]>([])
+  const [itemTemplates, setItemTemplates] = useState<ItemTemplateSummary[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -72,5 +76,35 @@ export function useContent() {
     }
   }, [])
 
-  return { realmTemplates, classTemplates, isLoading, error, fetchRealmTemplates, fetchClassTemplates }
+  const fetchItemTemplates = useCallback(async () => {
+    setIsLoading(true)
+    setError(null)
+    try {
+      const res = await fetch(`${API_URL}/content/items`)
+      if (!res.ok) {
+        setError("Failed to fetch item templates")
+        return []
+      }
+      const data = await res.json()
+      const list = (data.items ?? []) as ItemTemplateSummary[]
+      setItemTemplates(list)
+      return list
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to fetch item templates")
+      return []
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
+
+  return {
+    realmTemplates,
+    classTemplates,
+    itemTemplates,
+    isLoading,
+    error,
+    fetchRealmTemplates,
+    fetchClassTemplates,
+    fetchItemTemplates,
+  }
 }

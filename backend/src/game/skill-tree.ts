@@ -1,5 +1,5 @@
 import { CLASSES, SKILL_TREES } from "@adventure-fun/engine"
-import type { CharacterClass, CharacterStats, SkillNodeTemplate } from "@adventure-fun/schemas"
+import type { CharacterClass, CharacterStats, SkillNodeTemplate, SkillTier } from "@adventure-fun/schemas"
 
 export interface SkillAllocationResult {
   ok: boolean
@@ -20,12 +20,15 @@ export function validateSkillAllocation(
   const classTemplate = CLASSES[characterClass]
   if (!classTemplate) return { ok: false, error: "Unknown class" }
 
-  const treeId = (classTemplate as Record<string, unknown>).skill_tree_id as string | undefined
-  const tree = treeId ? SKILL_TREES[treeId] : classTemplate.skill_tree
+  const treeId =
+    "skill_tree_id" in classTemplate && typeof classTemplate.skill_tree_id === "string"
+      ? classTemplate.skill_tree_id
+      : undefined
+  const tree: { tiers: SkillTier[] } | undefined = treeId ? SKILL_TREES[treeId] : classTemplate.skill_tree
   if (!tree) return { ok: false, error: "No skill tree for class" }
 
   let targetNode: SkillNodeTemplate | undefined
-  let targetTier: { tier: number; unlock_level: number } | undefined
+  let targetTier: SkillTier | undefined
 
   for (const tier of tree.tiers) {
     for (const choice of tier.choices) {
@@ -60,6 +63,12 @@ export function validateSkillAllocation(
     }
   }
 
+  for (const sibling of targetTier.choices) {
+    if (sibling.id !== nodeId && currentSkillTree[sibling.id]) {
+      return { ok: false, error: "Another skill in this tier is already unlocked" }
+    }
+  }
+
   return { ok: true, node: targetNode }
 }
 
@@ -76,8 +85,11 @@ export function applySkillTreePassives(
   const classTemplate = CLASSES[characterClass]
   if (!classTemplate) return result
 
-  const treeId = (classTemplate as Record<string, unknown>).skill_tree_id as string | undefined
-  const tree = treeId ? SKILL_TREES[treeId] : classTemplate.skill_tree
+  const treeId =
+    "skill_tree_id" in classTemplate && typeof classTemplate.skill_tree_id === "string"
+      ? classTemplate.skill_tree_id
+      : undefined
+  const tree: { tiers: SkillTier[] } | undefined = treeId ? SKILL_TREES[treeId] : classTemplate.skill_tree
   if (!tree) return result
 
   for (const tier of tree.tiers) {

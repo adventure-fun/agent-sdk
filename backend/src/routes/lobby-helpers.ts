@@ -1,5 +1,11 @@
 import { ITEMS, getItem } from "@adventure-fun/engine"
-import { getInventoryCapacity, type CharacterClass, type InventoryItem, type ItemTemplate } from "@adventure-fun/schemas"
+import {
+  getInventoryCapacity,
+  type CharacterClass,
+  type EquipSlot,
+  type InventoryItem,
+  type ItemTemplate,
+} from "@adventure-fun/schemas"
 
 export interface LobbyCharacterRecord {
   id: string
@@ -59,6 +65,13 @@ export function parseShopQuantity(value: unknown): number {
 function usedInventorySlots(items: LobbyInventoryRecord[]): number {
   return items.filter((item) => !item.slot).length
 }
+
+export const VALID_EQUIP_SLOTS: ReadonlySet<EquipSlot> = new Set([
+  "weapon",
+  "armor",
+  "accessory",
+  "class-specific",
+])
 
 function findStackTarget(
   items: LobbyInventoryRecord[],
@@ -172,4 +185,76 @@ export function validateSellItem(
     quantity,
     totalGold: template.sell_price * quantity,
   }
+}
+
+export function validateLobbyEquip(
+  character: LobbyCharacterRecord,
+  inventory: LobbyInventoryRecord[],
+  itemId: string,
+):
+  | {
+    ok: true
+    row: LobbyInventoryRecord
+    template: ItemTemplate
+    slot: EquipSlot
+    equippedRow: LobbyInventoryRecord | null
+  }
+  | { ok: false; error: string } {
+  const row = inventory.find((item) => item.id === itemId)
+  if (!row) {
+    return { ok: false, error: "Item not found in your inventory." }
+  }
+  if (row.slot) {
+    return { ok: false, error: "That item is already equipped." }
+  }
+
+  let template: ItemTemplate
+  try {
+    template = getItem(row.template_id)
+  } catch {
+    return { ok: false, error: "Unknown item template." }
+  }
+
+  if (template.type !== "equipment" || !template.equip_slot) {
+    return { ok: false, error: "That item cannot be equipped." }
+  }
+  if (template.class_restriction && template.class_restriction !== character.class) {
+    return {
+      ok: false,
+      error: `${template.name} can only be equipped by ${template.class_restriction}s.`,
+    }
+  }
+
+  const equippedRow = inventory.find((item) => item.slot === template.equip_slot) ?? null
+  return {
+    ok: true,
+    row,
+    template,
+    slot: template.equip_slot,
+    equippedRow,
+  }
+}
+
+export function validateLobbyUnequip(
+  inventory: LobbyInventoryRecord[],
+  slot: EquipSlot,
+):
+  | { ok: true; row: LobbyInventoryRecord; template: ItemTemplate }
+  | { ok: false; error: string } {
+  const row = inventory.find((item) => item.slot === slot)
+  if (!row) {
+    return { ok: false, error: "Nothing is equipped in that slot." }
+  }
+  if (usedInventorySlots(inventory) >= getInventoryCapacity()) {
+    return { ok: false, error: "Inventory full." }
+  }
+
+  let template: ItemTemplate
+  try {
+    template = getItem(row.template_id)
+  } catch {
+    return { ok: false, error: "Unknown item template." }
+  }
+
+  return { ok: true, row, template }
 }

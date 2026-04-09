@@ -17,7 +17,17 @@ import { PaymentModal } from "../components/payment-modal"
 import { UiToast } from "../components/ui-toast"
 import { useUsdcBalance } from "../hooks/use-usdc-balance"
 import { useEffect, useState, useMemo, useRef } from "react"
-import { getInventoryCapacity, type CharacterClass, type Action, type Observation, type ActiveEffect, type InventoryItem, type ItemTemplate, type Tile } from "@adventure-fun/schemas"
+import {
+  getInventoryCapacity,
+  type CharacterClass,
+  type EquipSlot,
+  type Action,
+  type Observation,
+  type ActiveEffect,
+  type InventoryItem,
+  type ItemTemplate,
+  type Tile,
+} from "@adventure-fun/schemas"
 
 const STAT_KEYS = ["hp", "attack", "defense", "accuracy", "evasion", "speed"] as const
 const STAT_LABELS: Record<string, string> = {
@@ -36,6 +46,13 @@ const REALM_STATUS_LABELS: Record<string, string> = {
 }
 const REALM_REGEN_GOLD_COST = 100
 const REALM_REGEN_USDC_PRICE = "0.25"
+const EQUIP_SLOT_ORDER: EquipSlot[] = ["weapon", "armor", "accessory", "class-specific"]
+const EQUIP_SLOT_LABELS: Record<EquipSlot, string> = {
+  weapon: "Weapon",
+  armor: "Armor",
+  accessory: "Accessory",
+  "class-specific": "Class Slot",
+}
 
 type PageStep = "loading" | "class-select" | "name-input" | "stat-reveal" | "hub" | "dungeon"
 type PendingPayment =
@@ -150,6 +167,8 @@ export default function PlayPage() {
     fetchInventory,
     buyItem,
     sellItem,
+    equipItem,
+    unequipItem,
   } = useShop()
 
   const {
@@ -161,8 +180,10 @@ export default function PlayPage() {
   const {
     realmTemplates,
     classTemplates,
+    itemTemplates,
     fetchRealmTemplates,
     fetchClassTemplates,
+    fetchItemTemplates,
   } = useContent()
 
   const { createEvmEoaAccount } = useCreateEvmEoaAccount()
@@ -214,8 +235,15 @@ export default function PlayPage() {
   useEffect(() => {
     fetchClassTemplates()
     fetchRealmTemplates()
+    fetchItemTemplates()
     fetchShopCatalog()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const itemTemplateMap = useMemo(
+    () =>
+      Object.fromEntries(itemTemplates.map((item) => [item.id, item])) as Record<string, ItemTemplate>,
+    [itemTemplates],
+  )
 
   // Create EVM wallet if signed in but no wallet exists
   useEffect(() => {
@@ -856,6 +884,7 @@ export default function PlayPage() {
     return (
       <DungeonView
         observation={gameSession.observation}
+        itemTemplateMap={itemTemplateMap}
         waitingForResponse={gameSession.waitingForResponse}
         actionError={gameSession.actionError}
         walletAddress={evmAddress}
@@ -936,6 +965,26 @@ export default function PlayPage() {
       }
     }
 
+    const handleEquipLobbyItem = async (itemId: string) => {
+      const result = await equipItem(itemId)
+      if (result.ok) {
+        setShopMessage(result.message)
+        await fetchCharacter()
+      } else {
+        setShopMessage(result.error)
+      }
+    }
+
+    const handleUnequipLobbySlot = async (slot: EquipSlot) => {
+      const result = await unequipItem(slot)
+      if (result.ok) {
+        setShopMessage(result.message)
+        await fetchCharacter()
+      } else {
+        setShopMessage(result.error)
+      }
+    }
+
     return (
       <>
         <UiToast
@@ -1001,6 +1050,15 @@ export default function PlayPage() {
               <p className="text-xs text-gray-600">
                 ATK {character.stats.attack} | DEF {character.stats.defense} | ACC {character.stats.accuracy} | EVA {character.stats.evasion} | SPD {character.stats.speed}
               </p>
+
+              <GearManagementPanel
+                inventory={shopInventory}
+                itemTemplateMap={itemTemplateMap}
+                characterClass={character.class}
+                isLoading={shopLoading}
+                onEquip={handleEquipLobbyItem}
+                onUnequip={handleUnequipLobbySlot}
+              />
 
               {(character.lore_discovered?.length ?? 0) > 0 && (
                 <div className="rounded border border-amber-900/40 bg-amber-950/10 p-3">
@@ -1332,6 +1390,7 @@ export default function PlayPage() {
 
 function DungeonView({
   observation,
+  itemTemplateMap,
   waitingForResponse,
   actionError,
   walletAddress,
@@ -1344,6 +1403,7 @@ function DungeonView({
   onDismissError,
 }: {
   observation: Observation
+  itemTemplateMap: Record<string, ItemTemplate>
   waitingForResponse: boolean
   actionError: string | null
   walletAddress: string | null | undefined
@@ -1355,6 +1415,7 @@ function DungeonView({
   onRetreat: () => void
   onDismissError: () => void
 }) {
+  const observationWithNewItems = observation as Observation & { new_item_ids?: string[] }
   const {
     character,
     position,
@@ -1365,7 +1426,6 @@ function DungeonView({
     realm_info,
     room_text,
     inventory,
-    new_item_ids,
     inventory_slots_used,
     inventory_capacity,
     equipment,
@@ -1380,6 +1440,8 @@ function DungeonView({
   ) as unknown as Array<{ type: "disarm_trap"; item_id: string }>
   const interactActions = legal_actions.filter((a): a is Action & { type: "interact" } => a.type === "interact")
   const useItemActions = legal_actions.filter((a): a is Action & { type: "use_item" } => a.type === "use_item")
+  const equipActions = legal_actions.filter((a): a is Action & { type: "equip" } => a.type === "equip")
+  const unequipActions = legal_actions.filter((a): a is Action & { type: "unequip" } => a.type === "unequip")
   const canWait = legal_actions.some((a) => a.type === "wait")
   const canPortal = legal_actions.some((a) => a.type === "use_portal")
   const canRetreat = legal_actions.some((a) => a.type === "retreat")
@@ -1427,7 +1489,18 @@ function DungeonView({
   const hpColor = hpPct > 50 ? "bg-green-500" : hpPct > 25 ? "bg-yellow-500" : "bg-red-500"
   const resourceColor = getResourceBarColor(character.resource.type)
   const inventoryNearlyFull = inventory_slots_used >= Math.max(1, inventory_capacity - 2)
-  const newItemIds = useMemo(() => new Set(new_item_ids ?? []), [new_item_ids])
+  const newItemIds = useMemo(
+    () => new Set(observationWithNewItems.new_item_ids ?? []),
+    [observationWithNewItems.new_item_ids],
+  )
+  const equipActionByItemId = useMemo(
+    () => new Map(equipActions.map((action) => [action.item_id, action])),
+    [equipActions],
+  )
+  const unequipActionBySlot = useMemo(
+    () => new Map(unequipActions.map((action) => [action.slot, action])),
+    [unequipActions],
+  )
   const statRows = [
     { label: "ATK", base: character.base_stats.attack, effective: character.effective_stats.attack },
     { label: "DEF", base: character.base_stats.defense, effective: character.effective_stats.defense },
@@ -1740,57 +1813,18 @@ function DungeonView({
               </div>
             </div>
 
-            {/* Equipment */}
-            <div>
-              <div className="text-xs text-gray-500 uppercase mb-1">Equipment</div>
-              <div className="text-xs text-gray-600 space-y-0.5">
-                {(["weapon", "armor", "accessory", "class-specific"] as const).map((slot) => (
-                  <p key={slot}>
-                    <span className="text-gray-500 capitalize">{slot.replace("-", " ")}:</span>{" "}
-                    <span className={equipment[slot] ? "text-gray-300" : "text-gray-700"}>
-                      {equipment[slot]?.name ?? "Empty"}
-                    </span>
-                  </p>
-                ))}
-              </div>
-            </div>
-
-            {/* Inventory */}
-            <div>
-              <div className="flex items-center justify-between gap-3 mb-1">
-                <div className="text-xs text-gray-500 uppercase">
-                  Inventory ({inventory_slots_used}/{inventory_capacity})
-                </div>
-                {inventory_slots_used >= inventory_capacity && (
-                  <span className="rounded border border-red-800/70 bg-red-950/30 px-2 py-1 text-[10px] uppercase tracking-wide text-red-200">
-                    Full
-                  </span>
-                )}
-                {inventory_slots_used < inventory_capacity && inventoryNearlyFull && (
-                  <span className="rounded border border-amber-800/70 bg-amber-950/20 px-2 py-1 text-[10px] uppercase tracking-wide text-amber-200">
-                    Nearly full
-                  </span>
-                )}
-              </div>
-              <div className="text-xs text-gray-400 space-y-0.5">
-                {inventory.length > 0 ? (
-                  inventory.map((item) => (
-                    <div key={item.item_id} className="flex items-center justify-between gap-2">
-                      <p>
-                        {item.name} x{item.quantity}
-                      </p>
-                      {newItemIds.has(item.item_id) && (
-                        <span className="rounded border border-emerald-800/70 bg-emerald-950/20 px-2 py-0.5 text-[10px] uppercase tracking-wide text-emerald-200">
-                          New
-                        </span>
-                      )}
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-gray-600">Pack is empty.</p>
-                )}
-              </div>
-            </div>
+            <DungeonEquipmentPanel
+              inventory={inventory}
+              equipment={equipment}
+              itemTemplateMap={itemTemplateMap}
+              inventorySlotsUsed={inventory_slots_used}
+              inventoryCapacity={inventory_capacity}
+              newItemIds={newItemIds}
+              equipActionByItemId={equipActionByItemId}
+              unequipActionBySlot={unequipActionBySlot}
+              waitingForResponse={waitingForResponse}
+              onAction={onAction}
+            />
           </div>
         </div>
 
@@ -1941,6 +1975,10 @@ function DungeonView({
             <div className="flex flex-wrap gap-2 justify-center">
               {canPickup.map((action, i) => {
                 const entity = visible_entities.find((e) => e.id === action.item_id)
+                const itemRarity =
+                  entity?.type === "item" && "rarity" in entity && typeof entity.rarity === "string"
+                    ? entity.rarity
+                    : null
                 return (
                   <button
                     key={i}
@@ -1950,11 +1988,11 @@ function DungeonView({
                   >
                     <div className="flex items-center gap-2">
                       <span>Pick up {entity?.name ?? action.item_id}</span>
-                      {entity?.type === "item" && entity.rarity && (
+                      {itemRarity && (
                         <span
-                          className={`rounded border px-2 py-0.5 text-[10px] uppercase tracking-wide ${getItemRarityBadgePalette(entity.rarity)}`}
+                          className={`rounded border px-2 py-0.5 text-[10px] uppercase tracking-wide ${getItemRarityBadgePalette(itemRarity)}`}
                         >
-                          {entity.rarity}
+                          {itemRarity}
                         </span>
                       )}
                       {disarmableItemIds.has(action.item_id) && (
@@ -2141,6 +2179,276 @@ function StatusMeter({
       </div>
       <div className="h-2 bg-gray-800 rounded overflow-hidden">
         <div className={`h-full rounded ${colorClass}`} style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  )
+}
+
+export function DungeonEquipmentPanel({
+  inventory,
+  equipment,
+  itemTemplateMap,
+  inventorySlotsUsed,
+  inventoryCapacity,
+  newItemIds,
+  equipActionByItemId,
+  unequipActionBySlot,
+  waitingForResponse,
+  onAction,
+}: {
+  inventory: Observation["inventory"]
+  equipment: Observation["equipment"]
+  itemTemplateMap: Record<string, ItemTemplate>
+  inventorySlotsUsed: number
+  inventoryCapacity: number
+  newItemIds: Set<string>
+  equipActionByItemId: Map<string, Extract<Action, { type: "equip" }>>
+  unequipActionBySlot: Map<EquipSlot, Extract<Action, { type: "unequip" }>>
+  waitingForResponse: boolean
+  onAction: (action: Action) => void
+}) {
+  const inventoryNearlyFull = inventorySlotsUsed >= Math.max(1, inventoryCapacity - 2)
+
+  return (
+    <>
+      <div>
+        <div className="text-xs text-gray-500 uppercase mb-1">Equipment</div>
+        <div className="space-y-2 text-xs">
+          {EQUIP_SLOT_ORDER.map((slot) => {
+            const item = equipment[slot]
+            const template = item ? safeGetItemTemplate(item.template_id, itemTemplateMap) : null
+            const action = unequipActionBySlot.get(slot)
+            return (
+              <div
+                key={slot}
+                className="flex items-center justify-between gap-3 rounded border border-gray-800 bg-gray-950/50 px-2 py-1.5"
+              >
+                <div className="min-w-0">
+                  <p className="text-gray-500">{EQUIP_SLOT_LABELS[slot]}</p>
+                  <p className={item ? "truncate text-gray-300" : "text-gray-700"}>
+                    {item?.name ?? "Empty"}
+                  </p>
+                  {template?.stats ? (
+                    <p className="text-[11px] text-gray-500">{formatItemStats(template.stats)}</p>
+                  ) : null}
+                </div>
+                {item && action ? (
+                  <button
+                    type="button"
+                    disabled={waitingForResponse}
+                    onClick={() => onAction(action)}
+                    className="rounded border border-gray-700 px-2 py-1 text-[11px] text-gray-300 transition-colors hover:border-gray-500 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    Unequip
+                  </button>
+                ) : null}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      <div>
+        <div className="flex items-center justify-between gap-3 mb-1">
+          <div className="text-xs text-gray-500 uppercase">
+            Inventory ({inventorySlotsUsed}/{inventoryCapacity})
+          </div>
+          {inventorySlotsUsed >= inventoryCapacity && (
+            <span className="rounded border border-red-800/70 bg-red-950/30 px-2 py-1 text-[10px] uppercase tracking-wide text-red-200">
+              Full
+            </span>
+          )}
+          {inventorySlotsUsed < inventoryCapacity && inventoryNearlyFull && (
+            <span className="rounded border border-amber-800/70 bg-amber-950/20 px-2 py-1 text-[10px] uppercase tracking-wide text-amber-200">
+              Nearly full
+            </span>
+          )}
+        </div>
+        <div className="text-xs text-gray-400 space-y-2">
+          {inventory.length > 0 ? (
+            inventory.map((item) => {
+              const template = safeGetItemTemplate(item.template_id, itemTemplateMap)
+              const equipAction = equipActionByItemId.get(item.item_id)
+              const equippedInSlot =
+                template?.type === "equipment" && template.equip_slot
+                  ? equipment[template.equip_slot]
+                  : null
+
+              return (
+                <div
+                  key={item.item_id}
+                  className="flex items-start justify-between gap-3 rounded border border-gray-800 bg-gray-950/50 px-2 py-1.5"
+                >
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="truncate">
+                        {item.name} x{item.quantity}
+                      </p>
+                      {template?.type === "equipment" && template.equip_slot ? (
+                        <span className="rounded border border-blue-800/60 bg-blue-950/20 px-2 py-0.5 text-[10px] uppercase tracking-wide text-blue-200">
+                          {EQUIP_SLOT_LABELS[template.equip_slot]}
+                        </span>
+                      ) : null}
+                      {newItemIds.has(item.item_id) && (
+                        <span className="rounded border border-emerald-800/70 bg-emerald-950/20 px-2 py-0.5 text-[10px] uppercase tracking-wide text-emerald-200">
+                          New
+                        </span>
+                      )}
+                    </div>
+                    {template?.stats ? (
+                      <p className="text-[11px] text-gray-500">{formatItemStats(template.stats)}</p>
+                    ) : null}
+                  </div>
+                  {equipAction ? (
+                    <button
+                      type="button"
+                      disabled={waitingForResponse}
+                      onClick={() => onAction(equipAction)}
+                      title={template ? getEquipComparisonTitle(template, equippedInSlot, itemTemplateMap) : undefined}
+                      className="rounded border border-cyan-700/70 bg-cyan-950/20 px-2 py-1 text-[11px] font-semibold text-cyan-200 transition-colors hover:bg-cyan-900/30 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Equip
+                    </button>
+                  ) : null}
+                </div>
+              )
+            })
+          ) : (
+            <p className="text-gray-600">Pack is empty.</p>
+          )}
+        </div>
+      </div>
+    </>
+  )
+}
+
+export function GearManagementPanel({
+  inventory,
+  itemTemplateMap,
+  characterClass,
+  isLoading,
+  onEquip,
+  onUnequip,
+}: {
+  inventory: InventoryItem[]
+  itemTemplateMap: Record<string, ItemTemplate>
+  characterClass: CharacterClass
+  isLoading: boolean
+  onEquip: (itemId: string) => Promise<void>
+  onUnequip: (slot: EquipSlot) => Promise<void>
+}) {
+  const equippedItems = Object.fromEntries(
+    EQUIP_SLOT_ORDER.map((slot) => [slot, inventory.find((item) => item.slot === slot) ?? null]),
+  ) as Record<EquipSlot, InventoryItem | null>
+  const bagItems = inventory.filter((item) => !item.slot)
+  const bagCapacity = getInventoryCapacity()
+  const bagFull = bagItems.length >= bagCapacity
+
+  return (
+    <div className="rounded border border-gray-800 bg-gray-950/60 p-3 space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-wider text-gray-500">Equipment and Inventory</p>
+          <p className="text-[11px] text-gray-600">{bagItems.length}/{bagCapacity} bag slots used</p>
+        </div>
+        {bagFull ? (
+          <span className="rounded border border-red-800/70 bg-red-950/30 px-2 py-1 text-[10px] uppercase tracking-wide text-red-200">
+            Bag full
+          </span>
+        ) : null}
+      </div>
+
+      <div className="space-y-2">
+        {EQUIP_SLOT_ORDER.map((slot) => {
+          const item = equippedItems[slot]
+          const template = item ? safeGetItemTemplate(item.template_id, itemTemplateMap) : null
+          return (
+            <div
+              key={slot}
+              className="flex items-center justify-between gap-3 rounded border border-gray-800 bg-gray-900/70 px-3 py-2 text-xs"
+            >
+              <div className="min-w-0">
+                <p className="text-gray-500">{EQUIP_SLOT_LABELS[slot]}</p>
+                <p className={item ? "truncate text-gray-200" : "text-gray-600"}>{item?.name ?? "Empty"}</p>
+                {template?.stats ? (
+                  <p className="text-[11px] text-gray-500">{formatItemStats(template.stats)}</p>
+                ) : null}
+              </div>
+              {item ? (
+                <button
+                  type="button"
+                  disabled={isLoading || bagFull}
+                  onClick={() => void onUnequip(slot)}
+                  title={bagFull ? "Free a bag slot before unequipping." : `Unequip ${item.name}`}
+                  className="rounded border border-gray-700 px-2 py-1 text-[11px] text-gray-300 transition-colors hover:border-gray-500 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Unequip
+                </button>
+              ) : null}
+            </div>
+          )
+        })}
+      </div>
+
+      <div className="space-y-2">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs font-bold uppercase tracking-wider text-gray-500">Bag Gear</p>
+          <span className="text-[11px] text-gray-600">Unequip here, then sell in the shop</span>
+        </div>
+        {bagItems.length === 0 ? (
+          <div className="rounded border border-dashed border-gray-700 p-3 text-center text-xs text-gray-500">
+            Your pack is empty.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {bagItems.map((item) => {
+              const template = safeGetItemTemplate(item.template_id, itemTemplateMap)
+              const canEquip = template?.type === "equipment" && !!template.equip_slot
+              const classLocked =
+                canEquip && template.class_restriction && template.class_restriction !== characterClass
+              const equippedInSlot =
+                canEquip && template.equip_slot ? equippedItems[template.equip_slot] : null
+
+              return (
+                <div
+                  key={item.id}
+                  className="flex items-start justify-between gap-3 rounded border border-gray-800 bg-gray-900/70 px-3 py-2 text-xs"
+                >
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-medium text-gray-200">{item.name}</p>
+                      {canEquip && template.equip_slot ? (
+                        <span className="rounded border border-blue-800/60 bg-blue-950/20 px-2 py-0.5 text-[10px] uppercase tracking-wide text-blue-200">
+                          {EQUIP_SLOT_LABELS[template.equip_slot]}
+                        </span>
+                      ) : null}
+                      {classLocked ? (
+                        <span className="rounded border border-violet-800/60 bg-violet-950/20 px-2 py-0.5 text-[10px] uppercase tracking-wide text-violet-200">
+                          {template.class_restriction} only
+                        </span>
+                      ) : null}
+                    </div>
+                    <p className="text-gray-500">x{item.quantity}</p>
+                    {template?.stats ? (
+                      <p className="text-[11px] text-gray-500">{formatItemStats(template.stats)}</p>
+                    ) : null}
+                  </div>
+                  {canEquip ? (
+                    <button
+                      type="button"
+                      disabled={isLoading || Boolean(classLocked)}
+                      onClick={() => void onEquip(item.id)}
+                      title={getEquipComparisonTitle(template, equippedInSlot, itemTemplateMap)}
+                      className="rounded border border-cyan-700/70 bg-cyan-950/20 px-2 py-1 text-[11px] font-semibold text-cyan-200 transition-colors hover:bg-cyan-900/30 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Equip
+                    </button>
+                  ) : null}
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -2553,7 +2861,7 @@ function formatAbilityRange(range: number | "melee") {
   return range === "melee" ? "Melee" : `${range} tiles`
 }
 
-function getItemRarityBadgePalette(rarity: NonNullable<Observation["visible_entities"][number]["rarity"]>) {
+function getItemRarityBadgePalette(rarity: string) {
   switch (rarity) {
     case "common":
       return "border-gray-700/70 bg-gray-950/30 text-gray-300"
@@ -2564,6 +2872,38 @@ function getItemRarityBadgePalette(rarity: NonNullable<Observation["visible_enti
     case "epic":
       return "border-violet-800/70 bg-violet-950/20 text-violet-200"
   }
+}
+
+function safeGetItemTemplate(
+  templateId: string,
+  itemTemplateMap: Record<string, ItemTemplate>,
+): ItemTemplate | null {
+  return itemTemplateMap[templateId] ?? null
+}
+
+function formatItemStats(stats: ItemTemplate["stats"] | undefined) {
+  if (!stats) return null
+  const entries = Object.entries(stats).filter(([, value]) => typeof value === "number" && value !== 0)
+  if (entries.length === 0) return null
+  return entries
+    .map(([stat, value]) => `${value > 0 ? "+" : ""}${value} ${STAT_LABELS[stat] ?? stat.toUpperCase()}`)
+    .join(" · ")
+}
+
+function getEquipComparisonTitle(
+  template: ItemTemplate,
+  equippedItem: { template_id: string; name: string } | null | undefined,
+  itemTemplateMap: Record<string, ItemTemplate>,
+) {
+  const slotLabel = template.equip_slot ? EQUIP_SLOT_LABELS[template.equip_slot] : "Slot"
+  const incomingStats = formatItemStats(template.stats) ?? "no stat bonuses"
+  if (!equippedItem) {
+    return `${slotLabel}: empty -> ${template.name} (${incomingStats})`
+  }
+
+  const equippedTemplate = safeGetItemTemplate(equippedItem.template_id, itemTemplateMap)
+  const equippedStats = formatItemStats(equippedTemplate?.stats) ?? "no stat bonuses"
+  return `${slotLabel}: ${template.name} (${incomingStats}) replaces ${equippedItem.name} (${equippedStats})`
 }
 
 function formatLoreLabel(loreId: string) {
@@ -2741,6 +3081,11 @@ function SkillTreePanel({
 }) {
   const tree = progression.skill_tree_template
   if (!tree) return null
+  const nextLockedTier = tree.tiers.find((tier) => progression.level < tier.unlock_level)
+  const bankedPointsMessage =
+    progression.skill_points > 0 && nextLockedTier
+      ? `You have ${progression.skill_points} point${progression.skill_points !== 1 ? "s" : ""} banked. Tier ${nextLockedTier.tier} unlocks at level ${nextLockedTier.unlock_level}.`
+      : null
 
   return (
     <div className="bg-gray-900 border border-gray-800 rounded p-4 space-y-4">
@@ -2757,10 +3102,16 @@ function SkillTreePanel({
       </div>
 
       {error && <p className="text-red-400 text-xs">{error}</p>}
+      {bankedPointsMessage && (
+        <p className="rounded border border-violet-800/60 bg-violet-950/20 px-3 py-2 text-xs text-violet-200">
+          {bankedPointsMessage}
+        </p>
+      )}
 
       <div className="space-y-4">
         {tree.tiers.map((tier) => {
           const isLocked = progression.level < tier.unlock_level
+          const chosenNode = tier.choices.find((node) => progression.skill_tree_unlocked[node.id] === true) ?? null
           return (
             <div key={tier.tier} className="space-y-2">
               <div className="flex items-center gap-2">
@@ -2770,15 +3121,19 @@ function SkillTreePanel({
                 ) : (
                   <span className="text-[10px] text-green-400/70">Unlocked</span>
                 )}
+                {chosenNode ? (
+                  <span className="text-[10px] text-blue-300/80">Choice made: {chosenNode.name}</span>
+                ) : null}
               </div>
               <div className="grid gap-2 sm:grid-cols-2">
                 {tier.choices.map((node) => {
                   const isUnlocked = progression.skill_tree_unlocked[node.id] === true
+                  const blockedByTierChoice = Boolean(chosenNode && chosenNode.id !== node.id)
                   const canAfford = progression.skill_points >= node.cost
                   const prereqsMet = node.prerequisites.every(
                     (p) => progression.skill_tree_unlocked[p] === true,
                   )
-                  const canUnlock = !isUnlocked && !isLocked && canAfford && prereqsMet
+                  const canUnlock = !isUnlocked && !isLocked && !blockedByTierChoice && canAfford && prereqsMet
 
                   return (
                     <div
@@ -2786,6 +3141,8 @@ function SkillTreePanel({
                       className={`rounded border p-3 text-xs ${
                         isUnlocked
                           ? "border-green-800/60 bg-green-950/20"
+                          : blockedByTierChoice
+                            ? "border-slate-800 bg-slate-950/40 opacity-50"
                           : canUnlock
                             ? "border-amber-800/50 bg-amber-950/10"
                             : "border-gray-800 bg-gray-950/50 opacity-60"
@@ -2817,6 +3174,11 @@ function SkillTreePanel({
                           >
                             Learn ({node.cost} pt)
                           </button>
+                        )}
+                        {!isUnlocked && blockedByTierChoice && (
+                          <span className="text-[10px] text-slate-400">
+                            Another choice was made in this tier.
+                          </span>
                         )}
                         {!isUnlocked && !canUnlock && !isLocked && !prereqsMet && (
                           <span className="text-[10px] text-red-400/60">

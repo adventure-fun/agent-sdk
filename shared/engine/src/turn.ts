@@ -2099,6 +2099,9 @@ function resolveEquip(
   }
 
   if (template.type !== "equipment" || !template.equip_slot) return "Cannot equip that."
+  if (template.class_restriction && template.class_restriction !== s.character.class) {
+    return `Your class cannot equip ${template.name}.`
+  }
 
   const slot = template.equip_slot as EquipSlot
 
@@ -2881,7 +2884,11 @@ export function computeLegalActions(
   for (const item of state.inventory) {
     try {
       const template = getItem(item.template_id)
-      if (template.type === "equipment" && template.equip_slot) {
+      if (
+        template.type === "equipment"
+        && template.equip_slot
+        && (!template.class_restriction || template.class_restriction === state.character.class)
+      ) {
         actions.push({ type: "equip", item_id: item.id })
       }
     } catch {
