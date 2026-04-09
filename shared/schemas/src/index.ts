@@ -40,6 +40,17 @@ export interface ActiveEffect {
   magnitude: number
 }
 
+export interface AbilitySummary {
+  id: string
+  name: string
+  description: string
+  resource_cost: number
+  cooldown_turns: number
+  current_cooldown: number
+  range: "melee" | number
+  target: "single" | "aoe" | "self" | "single-or-self" | "single_or_self"
+}
+
 // ---- Items --------------------------------------------------
 
 export type ItemType = "consumable" | "equipment" | "loot" | "key-item"
@@ -158,6 +169,7 @@ export interface TurnResult {
 
 /** Full in-memory game state held by the server during a session */
 export interface GameState {
+  turn: number
   realm: {
     template_id: string
     template_version: number
@@ -176,6 +188,7 @@ export interface GameState {
     effective_stats: CharacterStats
     buffs: ActiveEffect[]
     debuffs: ActiveEffect[]
+    abilities: string[]
     cooldowns: Record<string, number>
   }
   position: {
@@ -190,7 +203,15 @@ export interface GameState {
     rooms: Array<{
       id: string
       tiles: Tile[][]
-      enemies: Array<{ id: string; template_id: string; hp: number; hp_max: number; position: { x: number; y: number } }>
+      enemies: Array<{
+        id: string
+        template_id: string
+        hp: number
+        hp_max: number
+        position: { x: number; y: number }
+        effects: ActiveEffect[]
+        cooldowns: Record<string, number>
+      }>
       items: Array<{ id: string; template_id: string; quantity?: number; position: { x: number; y: number } }>
     }>
   }
@@ -288,6 +309,7 @@ export interface Observation {
     buffs: ActiveEffect[]
     debuffs: ActiveEffect[]
     cooldowns: Record<string, number>
+    abilities: AbilitySummary[]
     base_stats: CharacterStats
     effective_stats: CharacterStats
   }
@@ -383,7 +405,7 @@ export interface AbilityTemplate {
     scaling_factor: number
   }
   effects: StatusEffect[]
-  target: "single" | "aoe" | "self" | "single_or_self"
+  target: "single" | "aoe" | "self" | "single-or-self" | "single_or_self"
   aoe_radius?: number
   special?: string             // engine-hardcoded behavior (e.g. "counter_on_hit", "disarm_trap")
 }
@@ -418,7 +440,7 @@ export interface ClassTemplate {
   resource_type: ResourceType
   resource_max: number
   resource_regen_rule: {
-    type: "passive" | "burst_reset" | "accumulate" | "none"
+    type: "passive" | "burst_reset" | "burst-reset" | "accumulate" | "none"
     amount?: number
     interval?: number
     on_defend_bonus?: number

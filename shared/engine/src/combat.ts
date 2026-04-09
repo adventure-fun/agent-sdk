@@ -42,10 +42,12 @@ export function resolveAttack(
   critChance = 0.05,
 ): CombatResult {
   const events: CombatEvent[] = []
+  const attackerStats = getEffectiveCombatStats(attacker.stats, attacker.active_effects)
+  const defenderStats = getEffectiveCombatStats(defender.stats, defender.active_effects)
 
   // Hit/miss check
   const hitRoll = rng.next()
-  const hitThreshold = calcHitThreshold(attacker.stats, defender.stats)
+  const hitThreshold = calcHitThreshold(attackerStats, defenderStats)
   const hit = hitRoll < hitThreshold
 
   if (!hit) {
@@ -68,10 +70,10 @@ export function resolveAttack(
   // Damage calculation
   let rawDamage: number
   if (formula) {
-    const scalingStat = attacker.stats[formula.stat_scaling] ?? 0
+    const scalingStat = attackerStats[formula.stat_scaling] ?? 0
     rawDamage = formula.base + scalingStat * formula.scaling_factor
   } else {
-    rawDamage = attacker.stats.attack
+    rawDamage = attackerStats.attack
   }
 
   if (critical) {
@@ -80,7 +82,7 @@ export function resolveAttack(
   }
 
   // Defense reduction — minimum 1 damage always
-  const damage = Math.max(1, Math.floor(rawDamage - defender.stats.defense))
+  const damage = Math.max(1, Math.floor(rawDamage - defenderStats.defense))
   events.push({ type: "hit", detail: `${attacker.id} dealt ${damage} damage to ${defender.id}` })
 
   // Status effects
@@ -129,6 +131,30 @@ export function calcHitThreshold(attacker: CharacterStats, defender: CharacterSt
 
   const hitChance = BASE_HIT_CHANCE + (effectiveAccuracy - effectiveEvasion) / 100
   return Math.min(0.95, Math.max(0.05, hitChance))
+}
+
+function getEffectiveCombatStats(
+  stats: CharacterStats,
+  effects: ActiveEffect[],
+): CharacterStats {
+  const effective: CharacterStats = { ...stats }
+
+  for (const effect of effects) {
+    if (effect.type === "buff-attack") {
+      effective.attack += effect.magnitude
+    }
+    if (effect.type === "buff-defense") {
+      effective.defense += effect.magnitude
+    }
+    if (effect.type === "blind") {
+      effective.accuracy = Math.max(1, effective.accuracy - effect.magnitude * 10)
+    }
+    if (effect.type === "slow") {
+      effective.speed = Math.max(1, effective.speed - effect.magnitude)
+    }
+  }
+
+  return effective
 }
 
 /**

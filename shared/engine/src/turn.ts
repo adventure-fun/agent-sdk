@@ -30,6 +30,8 @@ import type {
   SpectatorEntity,
   ItemTemplate,
   RoomTemplate,
+  AbilitySummary,
+  AbilityTemplate,
 } from "@adventure-fun/schemas"
 import type { GeneratedRealm, GeneratedFloor, GeneratedRoom } from "./realm.js"
 import {
@@ -39,12 +41,13 @@ import {
 } from "./combat.js"
 import {
   computeVisibleTiles,
+  hasLineOfSight,
   tileKey,
   parseTileKey,
   mergeDiscoveredTiles,
   type Position,
 } from "./visibility.js"
-import { getEnemy, getItem, CLASSES, ROOMS, REALMS } from "./content.js"
+import { getAbility, getEnemy, getItem, CLASSES, ROOMS, REALMS } from "./content.js"
 import { SeededRng, deriveSeed } from "./rng.js"
 
 // ── Internal types ────────────────────────────────────────────────────────────
@@ -60,6 +63,142 @@ const DIRECTION_DELTA: Record<Direction, { dx: number; dy: number }> = {
   right: { dx: 1, dy: 0 },
 }
 
+const RESOURCE_COLOR_HINTS: Record<GameState["character"]["resource"]["type"], string> = {
+  stamina: "amber",
+  mana: "blue",
+  energy: "emerald",
+  focus: "violet",
+}
+
+function hasEffect(
+  effects: ActiveEffect[],
+  type: ActiveEffect["type"],
+): boolean {
+  return effects.some((effect) => effect.type === type)
+}
+
+function getCombinedEffects(
+  ...effectLists: Array<ActiveEffect[] | undefined>
+): ActiveEffect[] {
+  return effectLists.flatMap((effects) => effects ?? [])
+}
+
+function applyEffects(
+  target: ActiveEffect[],
+  effects: AbilityTemplate["effects"] | undefined,
+) {
+  for (const effect of effects ?? []) {
+    if (Math.random() < 0) {
+      // never reached; keeps TS from narrowing runtime-authored JSON effects too aggressively
+      continue
+    }
+    target.push({
+      type: effect.type,
+      turns_remaining: effect.duration_turns,
+      magnitude: effect.magnitude,
+    })
+  }
+}
+
+function normalizeAbilityTarget(
+  target: AbilityTemplate["target"],
+): "single" | "aoe" | "self" | "single-or-self" {
+  return target === "single_or_self" ? "single-or-self" : target
+}
+
+function getPlayerAbilityIds(state: GameState): string[] {
+  return [...new Set(["basic-attack", ...state.character.abilities])]
+}
+
+function buildAbilitySummaries(state: GameState): AbilitySummary[] {
+  return getPlayerAbilityIds(state).flatMap((abilityId) => {
+    try {
+      const ability = getAbility(abilityId)
+      return [{
+        id: ability.id,
+        name: ability.name,
+        description: ability.description,
+        resource_cost: ability.resource_cost,
+        cooldown_turns: ability.cooldown_turns,
+        current_cooldown: state.character.cooldowns[ability.id] ?? 0,
+        range: ability.range,
+        target: normalizeAbilityTarget(ability.target),
+      }]
+    } catch {
+      return []
+    }
+  })
+}
+
+function getAbilityRangeDistance(
+  from: Position,
+  to: Position,
+): number {
+  return Math.abs(from.x - to.x) + Math.abs(from.y - to.y)
+}
+
+function roomToVisibilityRoom(room: RoomState) {
+  return {
+    id: room.id,
+    width: room.tiles[0]?.length ?? 0,
+    height: room.tiles.length,
+    tiles: room.tiles,
+  }
+}
+
+function isAbilityTargetInRange(
+  room: RoomState,
+  from: Position,
+  to: Position,
+  ability: AbilityTemplate,
+): boolean {
+  const dist = getAbilityRangeDistance(from, to)
+  if (ability.range === "melee") {
+    return dist <= 1
+  }
+
+  return dist <= ability.range && hasLineOfSight(roomToVisibilityRoom(room), from, to)
+}
+
+function canUseAbility(
+  state: GameState,
+  ability: AbilityTemplate,
+): boolean {
+  return (
+    (state.character.cooldowns[ability.id] ?? 0) <= 0 &&
+    state.character.resource.current >= ability.resource_cost
+  )
+}
+
+function applyHeal(
+  current: number,
+  max: number,
+  amount: number,
+): number {
+  return Math.min(max, current + Math.max(0, amount))
+}
+
+function getAbilityDamageFormula(
+  ability: AbilityTemplate,
+): {
+  base: number
+  stat_scaling: keyof CharacterStats
+  scaling_factor: number
+} {
+  const statScaling = ability.damage_formula.stat_scaling
+  const validStat = (
+    ["hp", "attack", "defense", "accuracy", "evasion", "speed"] as const
+  ).includes(statScaling as keyof CharacterStats)
+    ? (statScaling as keyof CharacterStats)
+    : "attack"
+
+  return {
+    base: ability.damage_formula.base,
+    stat_scaling: validStat,
+    scaling_factor: ability.damage_formula.scaling_factor,
+  }
+}
+
 // ── Main entry point ──────────────────────────────────────────────────────────
 
 export function resolveTurn(
@@ -69,6 +208,7 @@ export function resolveTurn(
   rng: SeededRng,
 ): TurnResult {
   const s = structuredClone(state)
+  s.turn += 1
   const mutations: WorldMutation[] = []
   const events: GameEvent[] = []
   const notableEvents: LobbyEvent[] = []
@@ -80,6 +220,9 @@ export function resolveTurn(
     return result(s, mutations, events, "Error: invalid room", false, notableEvents, realm)
   }
 
+  const preTurnDebuffs = [...s.character.debuffs]
+  let regenBonusEligible = false
+
   // 1. Status effect ticks (poison, etc.)
   const statusDmg = processStatusEffects(s, events)
   if (s.character.hp.current <= 0) {
@@ -87,78 +230,92 @@ export function resolveTurn(
     return result(s, mutations, events, "You succumbed to your wounds.", false, notableEvents, realm)
   }
 
+  tickCooldowns(s, room)
+
   // 2. Resolve player action
-  switch (action.type) {
-    case "move": {
-      const r = resolveMove(s, room, action.direction, realm, events)
-      summary = r.summary
-      roomChanged = r.roomChanged
-      break
-    }
-    case "attack": {
-      const r = resolvePlayerAttack(s, room, action, rng, events, mutations)
-      summary = r.summary
-      if (r.notableEvent) notableEvents.push(r.notableEvent)
-      break
-    }
-    case "use_item": {
-      summary = resolveUseItem(s, action, events)
-      break
-    }
-    case "pickup": {
-      summary = resolvePickup(s, room, action, events, mutations)
-      break
-    }
-    case "interact": {
-      summary = resolveInteract(s, room, action, realm, events, mutations)
-      break
-    }
-    case "inspect": {
-      summary = resolveInspect(room, action, events)
-      break
-    }
-    case "equip": {
-      summary = resolveEquip(s, action, events)
-      break
-    }
-    case "unequip": {
-      summary = resolveUnequip(s, action, events)
-      break
-    }
-    case "drop": {
-      summary = resolveDrop(s, room, action, events)
-      break
-    }
-    case "wait": {
-      summary = "You wait and watch."
-      events.push({ turn: 0, type: "wait", detail: "Waited", data: {} })
-      break
-    }
-    case "use_portal":
-    case "retreat": {
-      summary =
-        action.type === "use_portal"
-          ? "You step through the portal and return to safety."
-          : "You retreat from the realm."
-      events.push({ turn: 0, type: action.type, detail: summary, data: {} })
-      break
+  if (hasEffect(preTurnDebuffs, "stun")) {
+    summary = "You are stunned and cannot act."
+    events.push({ turn: 0, type: "status_stun", detail: summary, data: {} })
+  } else {
+    switch (action.type) {
+      case "move": {
+        if (hasEffect(preTurnDebuffs, "slow")) {
+          summary = "You are slowed and fail to reposition in time."
+          events.push({ turn: 0, type: "status_slow", detail: summary, data: {} })
+          break
+        }
+        const r = resolveMove(s, room, action.direction, realm, events)
+        summary = r.summary
+        roomChanged = r.roomChanged
+        break
+      }
+      case "attack": {
+        const r = resolvePlayerAttack(s, room, action, rng, events, mutations, preTurnDebuffs)
+        summary = r.summary
+        regenBonusEligible = r.regenBonusEligible
+        if (r.notableEvent) notableEvents.push(r.notableEvent)
+        break
+      }
+      case "use_item": {
+        summary = resolveUseItem(s, action, events)
+        break
+      }
+      case "pickup": {
+        summary = resolvePickup(s, room, action, events, mutations)
+        break
+      }
+      case "interact": {
+        summary = resolveInteract(s, room, action, realm, events, mutations)
+        break
+      }
+      case "inspect": {
+        summary = resolveInspect(room, action, events)
+        break
+      }
+      case "equip": {
+        summary = resolveEquip(s, action, events)
+        break
+      }
+      case "unequip": {
+        summary = resolveUnequip(s, action, events)
+        break
+      }
+      case "drop": {
+        summary = resolveDrop(s, room, action, events)
+        break
+      }
+      case "wait": {
+        summary = "You wait and watch."
+        events.push({ turn: 0, type: "wait", detail: "Waited", data: {} })
+        break
+      }
+      case "use_portal":
+      case "retreat": {
+        summary =
+          action.type === "use_portal"
+            ? "You step through the portal and return to safety."
+            : "You retreat from the realm."
+        events.push({ turn: 0, type: action.type, detail: summary, data: {} })
+        break
+      }
     }
   }
 
+  const currentRoom = getCurrentRoom(s) ?? room
+
   // 3. Enemy turns (skip if extracting)
   if (action.type !== "use_portal" && action.type !== "retreat") {
-    const er = resolveEnemyTurns(s, room, rng, events)
+    const er = resolveEnemyTurns(s, currentRoom, rng, events, mutations)
     if (er.summary) summary += " " + er.summary
     if (er.playerDied) {
       notableEvents.push(deathEvent(s, er.killedBy ?? "Killed by an enemy"))
     }
   }
 
-  // 4. Visibility
-  updateVisibility(s, room, realm)
+  applyResourceRegen(s, regenBonusEligible)
 
-  // 5. Cooldowns
-  tickCooldowns(s)
+  // 4. Visibility
+  updateVisibility(s, currentRoom, realm)
 
   return result(s, mutations, events, summary.trim(), roomChanged, notableEvents, realm)
 }
@@ -298,100 +455,311 @@ function resolvePlayerAttack(
   rng: SeededRng,
   events: GameEvent[],
   mutations: WorldMutation[],
-): { summary: string; notableEvent: LobbyEvent | null } {
-  const enemy = room.enemies.find((e) => e.id === action.target_id && e.hp > 0)
-  if (!enemy) {
-    events.push({ turn: 0, type: "attack_miss", detail: "No valid target", data: {} })
-    return { summary: "No valid target.", notableEvent: null }
-  }
+  preTurnDebuffs: ActiveEffect[],
+): { summary: string; notableEvent: LobbyEvent | null; regenBonusEligible: boolean } {
+  const abilityId = action.ability_id ?? "basic-attack"
+  let ability: AbilityTemplate
 
-  // Check range — must be adjacent (Manhattan distance ≤ 1) for melee
-  const dist =
-    Math.abs(s.position.tile.x - enemy.position.x) +
-    Math.abs(s.position.tile.y - enemy.position.y)
-  if (dist > 1) {
-    return { summary: "Target is out of range.", notableEvent: null }
-  }
-
-  const enemyTemplate = getEnemy(enemy.template_id)
-  const attacker: Combatant = {
-    id: s.character.id,
-    stats: s.character.effective_stats,
-    hp: s.character.hp.current,
-    active_effects: s.character.buffs,
-  }
-  const defender: Combatant = {
-    id: enemy.id,
-    stats: enemyTemplate.stats,
-    hp: enemy.hp,
-    active_effects: [],
-  }
-
-  const combatResult = resolveAttack(attacker, defender, rng)
-
-  // Apply damage to enemy
-  enemy.hp = combatResult.defender_hp_after
-
-  let summary: string
-  let notableEvent: LobbyEvent | null = null
-
-  if (!combatResult.hit) {
-    summary = `You miss the ${enemyTemplate.name}.`
-    events.push({ turn: 0, type: "attack_miss", detail: summary, data: { target: enemy.id } })
-  } else {
-    const critText = combatResult.critical ? " Critical hit!" : ""
-    summary = `You deal ${combatResult.damage} damage to the ${enemyTemplate.name}.${critText}`
-    events.push({
-      turn: 0,
-      type: "attack_hit",
-      detail: summary,
-      data: {
-        target: enemy.id,
-        damage: combatResult.damage,
-        critical: combatResult.critical,
-        defender_hp: enemy.hp,
-      },
-    })
-
-    if (enemy.hp <= 0) {
-      summary += ` The ${enemyTemplate.name} is defeated!`
-      events.push({
-        turn: 0,
-        type: "enemy_killed",
-        detail: `${enemyTemplate.name} defeated`,
-        data: { enemy_id: enemy.id, xp: enemyTemplate.xp_value },
-      })
-
-      // Award XP
-      s.character.xp += enemyTemplate.xp_value
-
-      // Produce world mutation
-      mutations.push({
-        entity_id: enemy.id,
-        mutation: "killed",
-        floor: s.position.floor,
-        metadata: {
-          xp_awarded: enemyTemplate.xp_value,
-          template_id: enemy.template_id,
-        },
-      })
-      s.mutatedEntities.push(enemy.id)
-
-      // Check for boss kill
-      if (enemyTemplate.behavior === "boss") {
-        s.realmStatus = "boss_cleared"
-        notableEvent = {
-          type: "boss_kill",
-          characterName: "",
-          characterClass: s.character.class,
-          detail: `Defeated ${enemyTemplate.name}`,
-          timestamp: Date.now(),
-        }
-      }
+  try {
+    ability = getAbility(abilityId)
+  } catch {
+    return {
+      summary: "Unknown ability.",
+      notableEvent: null,
+      regenBonusEligible: false,
     }
   }
 
-  return { summary, notableEvent }
+  if (
+    ability.id !== "basic-attack" &&
+    !s.character.abilities.includes(ability.id)
+  ) {
+    return {
+      summary: "You have not learned that ability.",
+      notableEvent: null,
+      regenBonusEligible: false,
+    }
+  }
+
+  if ((s.character.cooldowns[ability.id] ?? 0) > 0) {
+    return {
+      summary: `${ability.name} is still on cooldown.`,
+      notableEvent: null,
+      regenBonusEligible: false,
+    }
+  }
+
+  if (s.character.resource.current < ability.resource_cost) {
+    return {
+      summary: `Not enough ${s.character.resource.type} for ${ability.name}.`,
+      notableEvent: null,
+      regenBonusEligible: false,
+    }
+  }
+
+  const normalizedTarget = normalizeAbilityTarget(ability.target)
+  const isSelfTarget = action.target_id === "self" || normalizedTarget === "self"
+  const regenBonusEligible =
+    isSelfTarget &&
+    ability.effects.some((effect) => effect.type === "buff-defense")
+
+  if (isSelfTarget) {
+    s.character.resource.current -= ability.resource_cost
+    if (ability.cooldown_turns > 0) {
+      s.character.cooldowns[ability.id] = ability.cooldown_turns
+    }
+
+    const summary = applyAbilityToPlayerSelf(s, ability, events)
+    recalcStats(s)
+    return { summary, notableEvent: null, regenBonusEligible }
+  }
+
+  const enemy = room.enemies.find((candidate) => candidate.id === action.target_id && candidate.hp > 0)
+  if (!enemy) {
+    events.push({ turn: 0, type: "attack_miss", detail: "No valid target", data: {} })
+    return { summary: "No valid target.", notableEvent: null, regenBonusEligible: false }
+  }
+
+  if (!isAbilityTargetInRange(room, s.position.tile, enemy.position, ability)) {
+    return {
+      summary: "Target is out of range.",
+      notableEvent: null,
+      regenBonusEligible: false,
+    }
+  }
+
+  s.character.resource.current -= ability.resource_cost
+  if (ability.cooldown_turns > 0) {
+    s.character.cooldowns[ability.id] = ability.cooldown_turns
+  }
+
+  if (ability.special === "self-damage-20pct") {
+    s.character.hp.current = Math.max(
+      1,
+      s.character.hp.current - Math.max(1, Math.floor(s.character.hp.max * 0.2)),
+    )
+  }
+
+  const targets =
+    normalizedTarget === "aoe"
+      ? room.enemies.filter(
+          (candidate) =>
+            candidate.hp > 0 &&
+            getAbilityRangeDistance(candidate.position, enemy.position) <=
+              (ability.aoe_radius ?? 1),
+        )
+      : [enemy]
+
+  const parts: string[] = []
+  let notableEvent: LobbyEvent | null = null
+  let anyHit = false
+
+  for (const target of targets) {
+    const enemyTemplate = getEnemy(target.template_id)
+    const defenderStats =
+      ability.special === "piercing-shot"
+        ? { ...enemyTemplate.stats, defense: 0 }
+        : enemyTemplate.stats
+    const combatResult = resolveAttack(
+      {
+        id: s.character.id,
+        stats: s.character.effective_stats,
+        hp: s.character.hp.current,
+        active_effects: getCombinedEffects(s.character.buffs, preTurnDebuffs),
+      },
+      {
+        id: target.id,
+        stats: defenderStats,
+        hp: target.hp,
+        active_effects: target.effects,
+      },
+      rng,
+      getAbilityDamageFormula(ability),
+      ability.effects,
+    )
+
+    target.hp = combatResult.defender_hp_after
+
+    if (!combatResult.hit) {
+      parts.push(`${ability.name} misses ${enemyTemplate.name}.`)
+      events.push({
+        turn: 0,
+        type: "attack_miss",
+        detail: `${ability.name} misses ${enemyTemplate.name}.`,
+        data: { target: target.id, ability_id: ability.id },
+      })
+      continue
+    }
+
+    anyHit = true
+    target.effects.push(...combatResult.effects_applied)
+    if (ability.special === "restore-resource-on-hit") {
+      s.character.resource.current = applyHeal(
+        s.character.resource.current,
+        s.character.resource.max,
+        8,
+      )
+    }
+
+    const critText = combatResult.critical ? " Critical hit!" : ""
+    parts.push(
+      `${ability.name} deals ${combatResult.damage} damage to ${enemyTemplate.name}.${critText}`,
+    )
+    events.push({
+      turn: 0,
+      type: "attack_hit",
+      detail: `${ability.name} hit ${enemyTemplate.name} for ${combatResult.damage}.${critText}`.trim(),
+      data: {
+        target: target.id,
+        ability_id: ability.id,
+        damage: combatResult.damage,
+        critical: combatResult.critical,
+        defender_hp: target.hp,
+      },
+    })
+
+    if (target.hp <= 0) {
+      const killResult = handleEnemyDefeat(
+        s,
+        target,
+        enemyTemplate,
+        mutations,
+        events,
+      )
+      notableEvent = killResult.notableEvent ?? notableEvent
+      parts.push(`The ${enemyTemplate.name} is defeated!`)
+    }
+  }
+
+  if (!anyHit && parts.length === 0) {
+    parts.push(`${ability.name} fails to connect.`)
+  }
+
+  recalcStats(s)
+  return {
+    summary: parts.join(" ").trim(),
+    notableEvent,
+    regenBonusEligible,
+  }
+}
+
+function applyAbilityToPlayerSelf(
+  s: GameState,
+  ability: AbilityTemplate,
+  events: GameEvent[],
+): string {
+  const parts = [`You use ${ability.name}.`]
+
+  for (const effect of ability.effects) {
+    const effectType = effect.type as string
+    if (effectType === "buff-attack" || effectType === "buff-defense") {
+      s.character.buffs.push({
+        type: effect.type,
+        turns_remaining: effect.duration_turns,
+        magnitude: effect.magnitude,
+      })
+      parts.push(`${ability.name} empowers you for ${effect.duration_turns} turns.`)
+      continue
+    }
+
+    if (effectType === "heal-hp") {
+      s.character.hp.current = applyHeal(
+        s.character.hp.current,
+        s.character.hp.max,
+        effect.magnitude,
+      )
+      parts.push(`You recover ${effect.magnitude} HP.`)
+      continue
+    }
+
+    s.character.debuffs.push({
+      type: effect.type,
+      turns_remaining: effect.duration_turns,
+      magnitude: effect.magnitude,
+    })
+  }
+
+  switch (ability.special) {
+    case "self-damage-20pct":
+      s.character.hp.current = Math.max(
+        1,
+        s.character.hp.current - Math.max(1, Math.floor(s.character.hp.max * 0.2)),
+      )
+      parts.push("The power comes at the cost of your own blood.")
+      break
+    case "cure-debuffs":
+      s.character.debuffs = []
+      parts.push("Your debuffs are cleansed.")
+      break
+    case "portal-escape":
+      parts.push("A stable portal briefly opens nearby.")
+      break
+    case "reveal-room-enemies":
+      parts.push("Arcane sight sharpens your awareness.")
+      break
+    case "stealth":
+      parts.push("You vanish into the shadows.")
+      break
+    case "heal-self":
+      s.character.hp.current = applyHeal(
+        s.character.hp.current,
+        s.character.hp.max,
+        Math.max(8, Math.floor(s.character.hp.max * 0.15)),
+      )
+      parts.push("You recover some health.")
+      break
+  }
+
+  const summary = parts.join(" ").trim()
+  events.push({
+    turn: 0,
+    type: "attack_hit",
+    detail: summary,
+    data: { ability_id: ability.id, target: "self" },
+  })
+  return summary
+}
+
+function handleEnemyDefeat(
+  s: GameState,
+  enemy: RoomState["enemies"][number],
+  enemyTemplate: ReturnType<typeof getEnemy>,
+  mutations: WorldMutation[],
+  events: GameEvent[],
+): { notableEvent: LobbyEvent | null } {
+  events.push({
+    turn: 0,
+    type: "enemy_killed",
+    detail: `${enemyTemplate.name} defeated`,
+    data: { enemy_id: enemy.id, xp: enemyTemplate.xp_value },
+  })
+
+  s.character.xp += enemyTemplate.xp_value
+  mutations.push({
+    entity_id: enemy.id,
+    mutation: "killed",
+    floor: s.position.floor,
+    metadata: {
+      xp_awarded: enemyTemplate.xp_value,
+      template_id: enemy.template_id,
+    },
+  })
+  s.mutatedEntities.push(enemy.id)
+
+  if (enemyTemplate.behavior !== "boss") {
+    return { notableEvent: null }
+  }
+
+  s.realmStatus = "boss_cleared"
+  return {
+    notableEvent: {
+      type: "boss_kill",
+      characterName: "",
+      characterClass: s.character.class,
+      detail: `Defeated ${enemyTemplate.name}`,
+      timestamp: Date.now(),
+    },
+  }
 }
 
 function resolveEnemyTurns(
@@ -399,6 +767,7 @@ function resolveEnemyTurns(
   room: RoomState,
   rng: SeededRng,
   events: GameEvent[],
+  mutations: WorldMutation[],
 ): { summary: string; playerDied: boolean; killedBy: string | null } {
   const aliveEnemies = room.enemies.filter((e) => e.hp > 0)
   if (aliveEnemies.length === 0) return { summary: "", playerDied: false, killedBy: null }
@@ -408,64 +777,130 @@ function resolveEnemyTurns(
 
   for (const enemy of aliveEnemies) {
     const template = getEnemy(enemy.template_id)
-    const dist =
-      Math.abs(s.position.tile.x - enemy.position.x) +
-      Math.abs(s.position.tile.y - enemy.position.y)
+    const preTurnEffects = [...enemy.effects]
+    const { damage, updated_effects } = resolveStatusEffectTick({
+      id: enemy.id,
+      stats: template.stats,
+      hp: enemy.hp,
+      active_effects: enemy.effects,
+    })
+    enemy.effects = updated_effects
+    enemy.hp -= damage
 
-    if (dist <= 1) {
-      // Adjacent — attack the player
-      const attacker: Combatant = {
+    if (damage > 0) {
+      parts.push(`${template.name} suffers ${damage} poison damage.`)
+      events.push({
+        turn: 0,
+        type: "status_tick",
+        detail: `${template.name} takes ${damage} damage from status effects.`,
+        data: { enemy_id: enemy.id, damage },
+      })
+    }
+
+    if (enemy.hp <= 0) {
+      handleEnemyDefeat(s, enemy, template, mutations, events)
+      parts.push(`${template.name} collapses from lingering effects.`)
+      continue
+    }
+
+    if (hasEffect(preTurnEffects, "stun")) {
+      parts.push(`${template.name} is stunned and cannot act.`)
+      events.push({
+        turn: 0,
+        type: "status_stun",
+        detail: `${template.name} is stunned.`,
+        data: { enemy_id: enemy.id },
+      })
+      continue
+    }
+
+    const ability = chooseEnemyAbility(enemy, template, room, s.position.tile)
+    const inRange = ability
+      ? normalizeAbilityTarget(ability.target) === "self" ||
+        isAbilityTargetInRange(room, enemy.position, s.position.tile, ability)
+      : false
+
+    if (!ability || !inRange) {
+      if (hasEffect(preTurnEffects, "slow")) {
+        parts.push(`${template.name} struggles to move while slowed.`)
+        continue
+      }
+      moveEnemyToward(enemy, s.position.tile, room)
+      continue
+    }
+
+    if (ability.cooldown_turns > 0) {
+      enemy.cooldowns[ability.id] = ability.cooldown_turns
+    }
+
+    if (normalizeAbilityTarget(ability.target) === "self") {
+      applyEnemySelfAbility(enemy, ability)
+      parts.push(`${template.name} uses ${ability.name}.`)
+      events.push({
+        turn: 0,
+        type: "enemy_attack",
+        detail: `${template.name} uses ${ability.name}.`,
+        data: { enemy_id: enemy.id, ability_id: ability.id },
+      })
+      continue
+    }
+
+    const combatResult = resolveAttack(
+      {
         id: enemy.id,
         stats: template.stats,
         hp: enemy.hp,
-        active_effects: [],
-      }
-      const defender: Combatant = {
+        active_effects: preTurnEffects,
+      },
+      {
         id: s.character.id,
         stats: s.character.effective_stats,
         hp: s.character.hp.current,
-        active_effects: s.character.debuffs,
-      }
+        active_effects: getCombinedEffects(s.character.buffs, s.character.debuffs),
+      },
+      rng,
+      getAbilityDamageFormula(ability),
+      ability.effects,
+    )
+    s.character.hp.current = combatResult.defender_hp_after
 
-      const combatResult = resolveAttack(attacker, defender, rng)
-      s.character.hp.current = combatResult.defender_hp_after
+    if (!combatResult.hit) {
+      parts.push(`${template.name}'s ${ability.name} misses.`)
+      events.push({
+        turn: 0,
+        type: "enemy_miss",
+        detail: `${template.name}'s ${ability.name} missed.`,
+        data: { enemy_id: enemy.id, ability_id: ability.id },
+      })
+      continue
+    }
 
-      if (combatResult.hit) {
-        const critText = combatResult.critical ? " Critical hit!" : ""
-        parts.push(`${template.name} deals ${combatResult.damage} damage.${critText}`)
-        events.push({
-          turn: 0,
-          type: "enemy_attack",
-          detail: `${template.name} hit for ${combatResult.damage}`,
-          data: {
-            enemy_id: enemy.id,
-            damage: combatResult.damage,
-            critical: combatResult.critical,
-            player_hp: s.character.hp.current,
-          },
-        })
-      } else {
-        parts.push(`${template.name} misses.`)
-        events.push({
-          turn: 0,
-          type: "enemy_miss",
-          detail: `${template.name} missed`,
-          data: { enemy_id: enemy.id },
-        })
-      }
+    s.character.debuffs.push(...combatResult.effects_applied)
 
-      // Apply status effects from combat
-      for (const eff of combatResult.effects_applied) {
-        s.character.debuffs.push(eff)
-      }
+    if (ability.special === "drain-life") {
+      enemy.hp = applyHeal(enemy.hp, enemy.hp_max, combatResult.damage)
+    }
 
-      if (s.character.hp.current <= 0) {
-        killedBy = template.name
-        break
-      }
-    } else {
-      // Not adjacent — move one tile toward player
-      moveEnemyToward(enemy, s.position.tile, room)
+    const critText = combatResult.critical ? " Critical hit!" : ""
+    parts.push(
+      `${template.name} hits you with ${ability.name} for ${combatResult.damage} damage.${critText}`,
+    )
+    events.push({
+      turn: 0,
+      type: "enemy_attack",
+      detail: `${template.name} hit for ${combatResult.damage} with ${ability.name}.${critText}`.trim(),
+      data: {
+        enemy_id: enemy.id,
+        ability_id: ability.id,
+        damage: combatResult.damage,
+        critical: combatResult.critical,
+        player_hp: s.character.hp.current,
+      },
+    })
+
+    if (s.character.hp.current <= 0) {
+      killedBy = template.name
+      break
     }
   }
 
@@ -473,6 +908,64 @@ function resolveEnemyTurns(
     summary: parts.join(" "),
     playerDied: s.character.hp.current <= 0,
     killedBy,
+  }
+}
+
+function chooseEnemyAbility(
+  enemy: RoomState["enemies"][number],
+  template: ReturnType<typeof getEnemy>,
+  room: RoomState,
+  playerPosition: Position,
+): AbilityTemplate | null {
+  const abilities = template.abilities.flatMap((abilityId) => {
+    try {
+      return [getAbility(abilityId)]
+    } catch {
+      return []
+    }
+  })
+
+  const usable = abilities.filter((ability) => {
+    if ((enemy.cooldowns[ability.id] ?? 0) > 0) return false
+    const target = normalizeAbilityTarget(ability.target)
+    if (target === "self") return true
+    return isAbilityTargetInRange(room, enemy.position, playerPosition, ability)
+  })
+
+  if (usable.length === 0) {
+    return null
+  }
+
+  usable.sort((left, right) => {
+    const leftSelf = normalizeAbilityTarget(left.target) === "self" ? 1 : 0
+    const rightSelf = normalizeAbilityTarget(right.target) === "self" ? 1 : 0
+    if (enemy.hp <= enemy.hp_max / 2 && leftSelf !== rightSelf) {
+      return rightSelf - leftSelf
+    }
+    return right.resource_cost - left.resource_cost
+  })
+
+  return usable[0] ?? null
+}
+
+function applyEnemySelfAbility(
+  enemy: RoomState["enemies"][number],
+  ability: AbilityTemplate,
+) {
+  for (const effect of ability.effects) {
+    enemy.effects.push({
+      type: effect.type,
+      turns_remaining: effect.duration_turns,
+      magnitude: effect.magnitude,
+    })
+  }
+
+  if (ability.special === "heal-self") {
+    enemy.hp = applyHeal(
+      enemy.hp,
+      enemy.hp_max,
+      Math.max(10, Math.floor(enemy.hp_max * 0.15)),
+    )
   }
 }
 
@@ -1009,6 +1502,8 @@ export function buildRoomState(
       hp,
       hp_max: hp,
       position: mapped?.pos ? { ...mapped.pos } : { x: 3, y: 3 },
+      effects: [],
+      cooldowns: {},
     })
   }
 
@@ -1068,7 +1563,13 @@ function findRoomTemplateFromId(generatedRoomId: string): RoomTemplate | null {
 }
 
 function processStatusEffects(s: GameState, events: GameEvent[]): number {
-  if (s.character.debuffs.length === 0) return 0
+  if (s.character.debuffs.length === 0) {
+    s.character.buffs = s.character.buffs
+      .map((b) => ({ ...b, turns_remaining: b.turns_remaining - 1 }))
+      .filter((b) => b.turns_remaining > 0)
+    recalcStats(s)
+    return 0
+  }
 
   const combatant: Combatant = {
     id: s.character.id,
@@ -1095,10 +1596,12 @@ function processStatusEffects(s: GameState, events: GameEvent[]): number {
     .map((b) => ({ ...b, turns_remaining: b.turns_remaining - 1 }))
     .filter((b) => b.turns_remaining > 0)
 
+  recalcStats(s)
+
   return damage
 }
 
-function tickCooldowns(s: GameState) {
+function tickCooldowns(s: GameState, room: RoomState) {
   for (const key of Object.keys(s.character.cooldowns)) {
     const val = s.character.cooldowns[key]
     if (val !== undefined && val > 0) {
@@ -1107,6 +1610,57 @@ function tickCooldowns(s: GameState) {
     if (s.character.cooldowns[key] === 0) {
       delete s.character.cooldowns[key]
     }
+  }
+
+  for (const enemy of room.enemies) {
+    for (const key of Object.keys(enemy.cooldowns)) {
+      const val = enemy.cooldowns[key]
+      if (val !== undefined && val > 0) {
+        enemy.cooldowns[key] = val - 1
+      }
+      if (enemy.cooldowns[key] === 0) {
+        delete enemy.cooldowns[key]
+      }
+    }
+  }
+}
+
+function applyResourceRegen(
+  s: GameState,
+  defendBonusTriggered: boolean,
+) {
+  const rule = CLASSES[s.character.class]?.resource_regen_rule
+  if (!rule || rule.type === "none") return
+  const ruleType =
+    rule.type === "burst-reset" ? "burst_reset" : rule.type
+
+  const currentTurn = Math.max(1, s.turn)
+  if (
+    ruleType === "burst_reset" &&
+    rule.interval &&
+    currentTurn % rule.interval === 0
+  ) {
+    s.character.resource.current = s.character.resource.max
+    return
+  }
+
+  if (
+    (ruleType === "passive" || ruleType === "accumulate") &&
+    rule.interval &&
+    rule.amount &&
+    currentTurn % rule.interval === 0
+  ) {
+    s.character.resource.current = Math.min(
+      s.character.resource.max,
+      s.character.resource.current + rule.amount,
+    )
+  }
+
+  if (ruleType === "passive" && defendBonusTriggered && rule.on_defend_bonus) {
+    s.character.resource.current = Math.min(
+      s.character.resource.max,
+      s.character.resource.current + rule.on_defend_bonus,
+    )
   }
 }
 
@@ -1280,6 +1834,7 @@ export function buildObservationFromState(
 
   // Legal actions
   const legalActions = computeLegalActions(state, room, realm)
+  const abilities = buildAbilitySummaries(state)
 
   return {
     turn: 0, // filled by session layer
@@ -1293,6 +1848,7 @@ export function buildObservationFromState(
       buffs: [...state.character.buffs],
       debuffs: [...state.character.debuffs],
       cooldowns: { ...state.character.cooldowns },
+      abilities,
       base_stats: state.character.stats,
       effective_stats: state.character.effective_stats,
     },
@@ -1376,14 +1932,40 @@ export function computeLegalActions(
 
   if (!room) return actions
 
-  // Attack adjacent enemies
-  for (const enemy of room.enemies) {
-    if (enemy.hp <= 0) continue
-    const dist =
-      Math.abs(state.position.tile.x - enemy.position.x) +
-      Math.abs(state.position.tile.y - enemy.position.y)
-    if (dist <= 1) {
-      actions.push({ type: "attack", target_id: enemy.id })
+  // Attack / abilities
+  for (const abilityId of getPlayerAbilityIds(state)) {
+    let ability: AbilityTemplate
+    try {
+      ability = getAbility(abilityId)
+    } catch {
+      continue
+    }
+
+    if (!canUseAbility(state, ability)) {
+      continue
+    }
+
+    const targetType = normalizeAbilityTarget(ability.target)
+    if (targetType === "self" || targetType === "single-or-self") {
+      actions.push({
+        type: "attack",
+        target_id: "self",
+        ability_id: ability.id,
+      })
+    }
+
+    if (targetType === "self") continue
+
+    for (const enemy of room.enemies) {
+      if (enemy.hp <= 0) continue
+      if (!isAbilityTargetInRange(room, state.position.tile, enemy.position, ability)) {
+        continue
+      }
+      actions.push({
+        type: "attack",
+        target_id: enemy.id,
+        ability_id: ability.id,
+      })
     }
   }
 

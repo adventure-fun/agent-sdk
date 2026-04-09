@@ -759,7 +759,19 @@ function DungeonView({
   onAction: (action: Action) => void
   onRetreat: () => void
 }) {
-  const { character, position, visible_tiles, visible_entities, recent_events, legal_actions, realm_info, room_text, inventory, equipment, gold } = observation
+  const {
+    character,
+    position,
+    visible_tiles,
+    visible_entities,
+    recent_events,
+    legal_actions,
+    realm_info,
+    room_text,
+    inventory,
+    equipment,
+    gold,
+  } = observation
 
   // Group legal actions by type
   const moveActions = legal_actions.filter((a): a is Action & { type: "move" } => a.type === "move")
@@ -770,9 +782,19 @@ function DungeonView({
   const canPortal = legal_actions.some((a) => a.type === "use_portal")
   const canRetreat = legal_actions.some((a) => a.type === "retreat")
   const canPickup = legal_actions.filter((a): a is Action & { type: "pickup" } => a.type === "pickup")
+  const usableAbilityIds = new Set(attackActions.map((action) => action.ability_id ?? "basic-attack"))
+  const abilityMap = new Map(character.abilities.map((ability) => [ability.id, ability]))
 
   const hpPct = character.hp.max > 0 ? (character.hp.current / character.hp.max) * 100 : 0
   const hpColor = hpPct > 50 ? "bg-green-500" : hpPct > 25 ? "bg-yellow-500" : "bg-red-500"
+  const resourceColor = getResourceBarColor(character.resource.type)
+  const statRows = [
+    { label: "ATK", base: character.base_stats.attack, effective: character.effective_stats.attack },
+    { label: "DEF", base: character.base_stats.defense, effective: character.effective_stats.defense },
+    { label: "ACC", base: character.base_stats.accuracy, effective: character.effective_stats.accuracy },
+    { label: "EVA", base: character.base_stats.evasion, effective: character.effective_stats.evasion },
+    { label: "SPD", base: character.base_stats.speed, effective: character.effective_stats.speed },
+  ]
 
   // Arrow key → movement mapping
   useEffect(() => {
@@ -842,27 +864,87 @@ function DungeonView({
               label={character.resource.type}
               current={character.resource.current}
               max={character.resource.max}
-              colorClass="bg-blue-500"
+              colorClass={resourceColor}
             />
 
             {/* Stats */}
-            <div className="text-xs text-gray-600 space-y-0.5">
-              <p>ATK {character.base_stats.attack} | DEF {character.base_stats.defense}</p>
-              <p>ACC {character.base_stats.accuracy} | EVA {character.base_stats.evasion}</p>
-              <p>SPD {character.base_stats.speed}</p>
+            <div className="text-xs text-gray-600 space-y-1">
+              {statRows.map((stat) => (
+                <div key={stat.label} className="flex justify-between gap-3">
+                  <span>{stat.label}</span>
+                  <span className="text-gray-300">
+                    {stat.effective}
+                    {stat.effective !== stat.base && (
+                      <span className={stat.effective > stat.base ? "text-green-400" : "text-red-400"}>
+                        {" "}
+                        ({stat.effective > stat.base ? "+" : ""}
+                        {stat.effective - stat.base})
+                      </span>
+                    )}
+                  </span>
+                </div>
+              ))}
             </div>
 
             {/* Buffs/Debuffs */}
             {(character.buffs.length > 0 || character.debuffs.length > 0) && (
-              <div className="text-xs space-y-1">
-                {character.buffs.map((b, i) => (
-                  <span key={i} className="text-green-400 mr-2">{b.type} ({b.turns_remaining}t)</span>
-                ))}
-                {character.debuffs.map((d, i) => (
-                  <span key={i} className="text-red-400 mr-2">{d.type} ({d.turns_remaining}t)</span>
-                ))}
+              <div>
+                <div className="text-xs text-gray-500 uppercase mb-1">Effects</div>
+                <div className="flex flex-wrap gap-2">
+                  {character.buffs.map((buff, index) => (
+                    <StatusEffectBadge key={`buff-${index}`} effect={buff} tone="buff" />
+                  ))}
+                  {character.debuffs.map((debuff, index) => (
+                    <StatusEffectBadge key={`debuff-${index}`} effect={debuff} tone="debuff" />
+                  ))}
+                </div>
               </div>
             )}
+
+            <div>
+              <div className="text-xs text-gray-500 uppercase mb-1">Abilities</div>
+              <div className="space-y-2">
+                {character.abilities.map((ability) => {
+                  const usable = usableAbilityIds.has(ability.id)
+                  const onCooldown = ability.current_cooldown > 0
+                  const missingResource =
+                    character.resource.current < ability.resource_cost && !onCooldown
+                  const tone = onCooldown
+                    ? "border-gray-800 bg-gray-950 text-gray-500"
+                    : missingResource
+                      ? "border-red-900/70 bg-red-950/30 text-red-300"
+                      : usable
+                        ? "border-emerald-800/70 bg-emerald-950/20 text-emerald-300"
+                        : "border-gray-800 bg-gray-950 text-gray-400"
+
+                  return (
+                    <div key={ability.id} className={`rounded border p-2 text-xs ${tone}`}>
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="font-medium">{ability.name}</span>
+                        <span className="text-[10px] uppercase tracking-wide">
+                          {formatAbilityRange(ability.range)}
+                        </span>
+                      </div>
+                      <div className="mt-1 flex items-center justify-between gap-3 text-[11px]">
+                        <span>
+                          Cost {ability.resource_cost} {character.resource.type}
+                        </span>
+                        <span>
+                          {onCooldown
+                            ? `${ability.current_cooldown}t cooldown`
+                            : missingResource
+                              ? "Need more resource"
+                              : usable
+                                ? "Ready"
+                                : "No target"}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-[11px] text-gray-400">{ability.description}</p>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
 
             {/* Equipment */}
             <div>
@@ -940,14 +1022,25 @@ function DungeonView({
             <div className="flex flex-wrap gap-2 justify-center">
               {attackActions.map((action, i) => {
                 const entity = visible_entities.find((e) => e.id === action.target_id)
+                const ability = abilityMap.get(action.ability_id ?? "basic-attack")
+                const targetLabel = action.target_id === "self" ? "Self" : (entity?.name ?? action.target_id)
                 return (
                   <button
                     key={i}
                     disabled={waitingForResponse}
                     onClick={() => onAction(action)}
-                    className="px-3 py-1 text-xs bg-red-900/50 hover:bg-red-900 text-red-300 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    className={`px-3 py-2 text-left text-xs rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                      action.target_id === "self"
+                        ? "bg-violet-900/50 hover:bg-violet-900 text-violet-200"
+                        : "bg-red-900/50 hover:bg-red-900 text-red-200"
+                    }`}
                   >
-                    Attack {entity?.name ?? action.target_id}
+                    <div className="font-medium">{ability?.name ?? "Attack"}: {targetLabel}</div>
+                    <div className="text-[11px] opacity-80">
+                      {ability
+                        ? `${ability.resource_cost} ${character.resource.type} • ${formatAbilityRange(ability.range)}`
+                        : "Basic attack"}
+                    </div>
                   </button>
                 )
               })}
@@ -1085,6 +1178,66 @@ function StatusMeter({
       </div>
     </div>
   )
+}
+
+function StatusEffectBadge({
+  effect,
+  tone,
+}: {
+  effect: Observation["character"]["buffs"][number]
+  tone: "buff" | "debuff"
+}) {
+  const palette =
+    tone === "buff"
+      ? "bg-emerald-950/40 border-emerald-900/60 text-emerald-300"
+      : getDebuffPalette(effect.type)
+
+  return (
+    <span className={`rounded border px-2 py-1 text-[11px] ${palette}`}>
+      {formatEffectLabel(effect)}
+    </span>
+  )
+}
+
+function getResourceBarColor(resourceType: Observation["character"]["resource"]["type"]) {
+  switch (resourceType) {
+    case "stamina":
+      return "bg-amber-500"
+    case "mana":
+      return "bg-blue-500"
+    case "energy":
+      return "bg-emerald-500"
+    case "focus":
+      return "bg-violet-500"
+  }
+}
+
+function getDebuffPalette(effectType: Observation["character"]["debuffs"][number]["type"]) {
+  switch (effectType) {
+    case "poison":
+      return "bg-green-950/40 border-green-900/60 text-green-300"
+    case "stun":
+      return "bg-yellow-950/40 border-yellow-900/60 text-yellow-300"
+    case "slow":
+      return "bg-blue-950/40 border-blue-900/60 text-blue-300"
+    case "blind":
+      return "bg-violet-950/40 border-violet-900/60 text-violet-300"
+    case "buff-attack":
+    case "buff-defense":
+      return "bg-amber-950/40 border-amber-900/60 text-amber-300"
+  }
+}
+
+function formatEffectLabel(effect: Observation["character"]["buffs"][number]) {
+  const base = `${effect.type} ${effect.turns_remaining}t`
+  if (effect.type === "poison") {
+    return `${base} • ${effect.magnitude} dmg`
+  }
+  return `${base} • ${effect.magnitude}`
+}
+
+function formatAbilityRange(range: number | "melee") {
+  return range === "melee" ? "Melee" : `${range} tiles`
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

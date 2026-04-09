@@ -94,20 +94,22 @@ Add notes under any item with `> NOTE: your note here` when needed.
 **Scope:** Engine turn resolution, combat system
 **Why grouped:** These are tightly coupled — abilities consume resources, apply effects, etc.
 
-- [ ] **3.1 — `ability_id` on attack actions is completely ignored**
+- [x] **3.1 — `ability_id` on attack actions is completely ignored**
   - `resolvePlayerAttack` in `turn.ts` (line 294-395) receives `ability_id` in the action but never looks it up
   - Always calls `resolveAttack(attacker, defender, rng)` with no formula or on-hit effects
   - `combat.ts` `resolveAttack` already supports `formula` and `onHitEffects` parameters — they're just never passed
   - **Fix:** When `ability_id` is present, look up `AbilityTemplate` via `getAbility()`, check resource cost, check cooldown, compute `AbilityDamageFormula` from template, pass `effects` as `onHitEffects`, deduct resource, set cooldown. Fall back to basic attack when no `ability_id` or using `basic-attack`
   - **Files:** `shared/engine/src/turn.ts`, possibly `shared/engine/src/combat.ts`
+  > NOTE: Implemented full player ability resolution in `shared/engine/src/turn.ts`. Attack actions now honor `ability_id`, consume resources, apply cooldowns, use ability formulas/effects, support self-target abilities, and fall back to `basic-attack`. Observation payloads now include ability summaries so the UI can explain costs, range, and cooldown state.
 
-- [ ] **3.2 — Resource system is entirely cosmetic**
+- [x] **3.2 — Resource system is entirely cosmetic**
   - Resource values (stamina/mana/energy/focus) are loaded from DB and sent in observations but never consumed or regenerated
   - Class templates define `resource_regen_rule` with different regen styles (passive, burst_reset, accumulate)
   - **Fix:** Add resource cost checking in ability resolution (3.1). Add resource regeneration at start or end of turn based on class regen rules. Handle Rogue's "burst_reset" (full reset every 3 turns) and Knight's "on_defend_bonus"
   - **Files:** `shared/engine/src/turn.ts`
+  > NOTE: Resource costs are now enforced during ability use, and turn-based regen now follows class rules (`passive`, runtime content value `burst-reset`, `accumulate`, `none`). Knight defend-style self buffs trigger bonus stamina regen, Rogue energy fully resets on cadence, and the frontend meters now reflect real combat spending.
 
-- [ ] **3.3 — Status effects beyond poison have no gameplay impact**
+- [x] **3.3 — Status effects beyond poison have no gameplay impact**
   - `resolveStatusEffectTick` in `combat.ts` (line 138-157) only handles `poison` (damage per tick)
   - `stun` should prevent the affected entity from acting
   - `slow` should reduce speed or limit movement
@@ -115,19 +117,22 @@ Add notes under any item with `> NOTE: your note here` when needed.
   - `buff-attack` and `buff-defense` are partially handled in `recalcStats` but not in status tick
   - **Fix:** In `resolveTurn`, check for stun before processing player/enemy actions. Apply blind as accuracy debuff in `resolveAttack`. Apply slow as movement restriction. Ensure buff/debuff magnitudes are applied to effective stats each turn
   - **Files:** `shared/engine/src/turn.ts`, `shared/engine/src/combat.ts`
+  > NOTE: `stun` now skips turns for players and enemies, `slow` now blocks repositioning/movement, `blind` now penalizes hit chance inside combat resolution, and combat stat recalculation now respects temporary attack/defense effects during real fights. Added engine tests covering stun gating, ranged targeting, regen cadence, and enemy ranged ability use.
 
-- [ ] **3.4 — Enemy attacks don't use their defined abilities**
+- [x] **3.4 — Enemy attacks don't use their defined abilities**
   - `resolveEnemyTurns` (turn.ts line 397-477) always uses basic `resolveAttack` with raw stats
   - Enemies have `abilities: string[]` in templates with specific damage formulas and effects
   - **Fix:** When an enemy attacks, select an ability (weighted by AI behavior), check cooldown, compute damage formula, pass on-hit effects to `resolveAttack`
   - **Files:** `shared/engine/src/turn.ts`
+  > NOTE: Added `shared/engine/content/abilities/enemy-abilities.json` and loaded it into the shared ability registry. Enemy turns now pick usable abilities by range/cooldown, apply self-buffs/heals where appropriate, use ranged attacks when available, and apply on-hit status effects instead of always defaulting to a basic melee strike.
 
-- [ ] **3.5 — Ranged combat not implemented (Archer is melee-only)**
+- [x] **3.5 — Ranged combat not implemented (Archer is melee-only)**
   - All attacks require Manhattan distance <= 1 (adjacent tiles)
   - Abilities have a `range` field (`"melee" | number`) but it's never checked
   - Archer class should have ranged attacks; spec mentions "melee vs ranged LOS"
   - **Fix:** In `resolvePlayerAttack`, check ability range. For ranged abilities, check `hasLineOfSight` from `visibility.ts` instead of adjacency. Update `computeLegalActions` to offer attack targets within ability range
   - **Files:** `shared/engine/src/turn.ts`
+  > NOTE: `computeLegalActions` now emits per-ability attack options, including ranged LOS-valid targets, self-cast abilities, and AoE centers. The play UI now surfaces these as named ability actions and adds an ability bar showing cost, range, readiness, cooldowns, and richer status badges/effective stat deltas for player clarity.
 
 ---
 
@@ -473,7 +478,8 @@ Add notes under any item with `> NOTE: your note here` when needed.
 
 - [ ] **14.6 — `tsconfig.json` path alias points to nonexistent directory**
   - `"@/*": ["./src/*"]` but there's no `frontend/src/` directory — app code is under `frontend/app/`
-  - **Fix:** Change to `"@/*": ["./app/*"]` or remove the alias if unused
+  - This also contributes noise to frontend typechecking because the local alias is invalid even before real app errors are evaluated
+  - **Fix:** Change to `"@/*": ["./app/*"]` or remove the alias if unused. After that, run package-local frontend typecheck (`frontend/tsconfig.json`) rather than repo-root `tsc`
   - **Files:** `frontend/tsconfig.json`
 
 - [ ] **14.7 — `NEXT_PUBLIC_WS_URL` not documented in `.env.example`**
@@ -500,6 +506,12 @@ Add notes under any item with `> NOTE: your note here` when needed.
   - **Fix:** Return full ability template objects, not just IDs. Add `GET /content/abilities` for the complete ability registry
   - **Files:** `backend/src/routes/content.ts`
 
+- [ ] **15.3 — `player-agent` typecheck breaks on workspace source imports**
+  - `player-agent/tsconfig.json` uses `rootDir: "./src"` while importing `@adventure-fun/agent-sdk`, which under workspace source resolution can point at `agent-sdk/src/*`
+  - That causes `TS6059` "file is not under rootDir" failures once package path mappings are corrected
+  - **Fix:** Split build-vs-typecheck configs or relax `rootDir` for package-local typecheck. Alternative: adopt TS project references so workspace packages are typechecked as referenced projects instead of raw source imports
+  - **Files:** `player-agent/tsconfig.json`, possibly `agent-sdk/tsconfig.json`, root `tsconfig.json`
+
 ---
 
 ## Group 16: CI, Build, and Deployment
@@ -512,6 +524,24 @@ Add notes under any item with `> NOTE: your note here` when needed.
   - Engine exports raw `.ts` so it works, but schemas uses `dist/` in its exports
   - **Fix:** Add a build step or ensure Bun can resolve the raw TS sources. Verify the import chain works on Railway
   - **Files:** `railway.toml`, `shared/schemas/package.json`
+
+- [ ] **16.3 — Monorepo typecheck flow is not aligned with workspace package boundaries**
+  - Running repo-root `tsc --noEmit` uses the root config and produces misleading frontend JSX errors because it is not the intended Next.js/frontend typecheck path
+  - Internal packages also mix "build" assumptions (`rootDir`, `outDir`, `dist` exports) with "typecheck source in workspace" assumptions, which causes cascading failures before real code issues are visible
+  - **Fix:** Standardize on `turbo typecheck` for repo checks. Create package-specific typecheck configs (or TS project references) so workspace imports do not violate `rootDir`, and keep build-only settings isolated from `--noEmit` typecheck
+  - **Files:** root `package.json`, root `tsconfig.json`, `turbo.json`, per-package `tsconfig.json`
+
+- [ ] **16.4 — Internal package type exports assume built `dist/` artifacts during development**
+  - `@adventure-fun/schemas` and `@adventure-fun/agent-sdk` advertise `types` from `dist/`, but those files may not exist in fresh worktrees or CI steps that run typecheck before build
+  - This hides real errors behind stale or missing declaration output
+  - **Fix:** Either build those packages before dependents typecheck, or point workspace/development type resolution at source while keeping runtime exports stable for published artifacts
+  - **Files:** `shared/schemas/package.json`, `agent-sdk/package.json`, potentially root `tsconfig.json`
+
+- [ ] **16.5 — Engine package uses outdated JSON import syntax for current TypeScript**
+  - `shared/engine/src/content.ts` still uses `assert { type: "json" }`
+  - Current TypeScript expects `with { type: "json" }`, so engine typecheck fails before reaching deeper logic issues
+  - **Fix:** Migrate JSON imports in engine content loader to import attributes and rerun package typecheck
+  - **Files:** `shared/engine/src/content.ts`
 
 - [x] **16.2 — Dead import in `realms.ts`**
   - `generateRealm` is imported from `@adventure-fun/engine` but never used
@@ -530,7 +560,7 @@ Add notes under any item with `> NOTE: your note here` when needed.
 | **P2 — Persistence and correctness** | 8, 9 | Session bugs, server authority |
 | **P3 — Security and infrastructure** | 10, 12 | Auth hardening, Redis, rate limits |
 | **P4 — Feature completeness** | 11, 13, 15 | Stub routes, edge cases, SDK |
-| **P5 — Frontend and deployment** | 14, 16 | UI integration, CI, deploy config |
+| **P5 — Frontend and deployment** | 14, 16 | UI integration, CI, deploy config, monorepo typecheck/tooling |
 
 ---
 
@@ -547,3 +577,8 @@ _Record completed fixes here with date and commit hash._
 | 2026-04-09 | 16.2 | pending | Removed dead `generateRealm` import from realms.ts (done as part of 1.2) |
 | 2026-04-09 | 2.1 | pending | Replaced hardcoded `resource_max` with engine `CLASSES` values; added backend tests and surfaced max resource in class select + hub UI |
 | 2026-04-09 | 2.2 | pending | Removed duplicated stat roll ranges from `stats.ts`; now rolls directly from engine template ranges with test coverage |
+| 2026-04-09 | 3.1 | pending | Wired `ability_id` into player turn resolution, added ability summaries to observations, and surfaced named ability actions in the play UI |
+| 2026-04-09 | 3.2 | pending | Resource costs and class regen rules now affect combat turns, including Knight defend bonus and Rogue burst reset cadence |
+| 2026-04-09 | 3.3 | pending | Stun/slow/blind now have gameplay impact in turn resolution and combat hit calculation; added focused engine coverage |
+| 2026-04-09 | 3.4 | pending | Added enemy ability registry and upgraded enemy turns to choose ranged/self/offensive abilities with cooldown handling |
+| 2026-04-09 | 3.5 | pending | Implemented ranged LOS-aware legal actions and player targeting; upgraded dungeon UI with cooldowns, effect badges, and effective stat display |

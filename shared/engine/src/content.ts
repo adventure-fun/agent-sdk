@@ -25,6 +25,7 @@ import knightAbilitiesJson from "../content/abilities/knight-abilities.json" ass
 import mageAbilitiesJson from "../content/abilities/mage-abilities.json" assert { type: "json" }
 import rogueAbilitiesJson from "../content/abilities/rogue-abilities.json" assert { type: "json" }
 import archerAbilitiesJson from "../content/abilities/archer-abilities.json" assert { type: "json" }
+import enemyAbilitiesJson from "../content/abilities/enemy-abilities.json" assert { type: "json" }
 
 import knightTreeJson from "../content/skill-trees/knight-tree.json" assert { type: "json" }
 import mageTreeJson from "../content/skill-trees/mage-tree.json" assert { type: "json" }
@@ -100,6 +101,7 @@ const allAbilities: AbilityTemplate[] = [
   ...(mageAbilitiesJson as unknown as AbilityTemplate[]),
   ...(rogueAbilitiesJson as unknown as AbilityTemplate[]),
   ...(archerAbilitiesJson as unknown as AbilityTemplate[]),
+  ...(enemyAbilitiesJson as unknown as AbilityTemplate[]),
 ]
 
 export const ABILITIES: Record<string, AbilityTemplate> = Object.fromEntries(

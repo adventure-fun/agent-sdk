@@ -1,0 +1,564 @@
+[
+  {
+    "id": "basic-bite",
+    "name": "Basic Bite",
+    "description": "A quick bite attack.",
+    "resource_cost": 0,
+    "cooldown_turns": 0,
+    "range": "melee",
+    "damage_formula": {
+      "base": 2,
+      "stat_scaling": "attack",
+      "scaling_factor": 0.8
+    },
+    "effects": [],
+    "target": "single"
+  },
+  {
+    "id": "surprise-attack",
+    "name": "Surprise Attack",
+    "description": "A sudden lunge from the shadows.",
+    "resource_cost": 0,
+    "cooldown_turns": 2,
+    "range": "melee",
+    "damage_formula": {
+      "base": 6,
+      "stat_scaling": "attack",
+      "scaling_factor": 1.1
+    },
+    "effects": [],
+    "target": "single"
+  },
+  {
+    "id": "slow-bite",
+    "name": "Hamstring Bite",
+    "description": "A bite that slows the target.",
+    "resource_cost": 0,
+    "cooldown_turns": 2,
+    "range": "melee",
+    "damage_formula": {
+      "base": 3,
+      "stat_scaling": "attack",
+      "scaling_factor": 0.8
+    },
+    "effects": [
+      {
+        "type": "slow",
+        "duration_turns": 2,
+        "magnitude": 3,
+        "apply_chance": 0.8
+      }
+    ],
+    "target": "single"
+  },
+  {
+    "id": "poison-burst",
+    "name": "Poison Burst",
+    "description": "Release poisonous spores over a small area.",
+    "resource_cost": 0,
+    "cooldown_turns": 3,
+    "range": 3,
+    "damage_formula": {
+      "base": 4,
+      "stat_scaling": "attack",
+      "scaling_factor": 0.6
+    },
+    "effects": [
+      {
+        "type": "poison",
+        "duration_turns": 3,
+        "magnitude": 4,
+        "apply_chance": 0.9
+      }
+    ],
+    "target": "aoe",
+    "aoe_radius": 1
+  },
+  {
+    "id": "basic-slam",
+    "name": "Basic Slam",
+    "description": "A heavy slam with brute force.",
+    "resource_cost": 0,
+    "cooldown_turns": 0,
+    "range": "melee",
+    "damage_formula": {
+      "base": 4,
+      "stat_scaling": "attack",
+      "scaling_factor": 1.0
+    },
+    "effects": [],
+    "target": "single"
+  },
+  {
+    "id": "waterlogged-grasp",
+    "name": "Waterlogged Grasp",
+    "description": "A grasp that drags the target down and slows them.",
+    "resource_cost": 0,
+    "cooldown_turns": 3,
+    "range": "melee",
+    "damage_formula": {
+      "base": 3,
+      "stat_scaling": "attack",
+      "scaling_factor": 0.9
+    },
+    "effects": [
+      {
+        "type": "slow",
+        "duration_turns": 2,
+        "magnitude": 4,
+        "apply_chance": 0.8
+      }
+    ],
+    "target": "single"
+  },
+  {
+    "id": "basic-slash",
+    "name": "Basic Slash",
+    "description": "A weapon slash.",
+    "resource_cost": 0,
+    "cooldown_turns": 0,
+    "range": "melee",
+    "damage_formula": {
+      "base": 4,
+      "stat_scaling": "attack",
+      "scaling_factor": 1.0
+    },
+    "effects": [],
+    "target": "single"
+  },
+  {
+    "id": "bone-rattle",
+    "name": "Bone Rattle",
+    "description": "A terrifying rattle that throws off the target's aim.",
+    "resource_cost": 0,
+    "cooldown_turns": 3,
+    "range": 3,
+    "damage_formula": {
+      "base": 2,
+      "stat_scaling": "attack",
+      "scaling_factor": 0.5
+    },
+    "effects": [
+      {
+        "type": "blind",
+        "duration_turns": 2,
+        "magnitude": 2,
+        "apply_chance": 0.75
+      }
+    ],
+    "target": "single"
+  },
+  {
+    "id": "infectious-bite",
+    "name": "Infectious Bite",
+    "description": "A rotten bite that leaves poison behind.",
+    "resource_cost": 0,
+    "cooldown_turns": 2,
+    "range": "melee",
+    "damage_formula": {
+      "base": 3,
+      "stat_scaling": "attack",
+      "scaling_factor": 0.8
+    },
+    "effects": [
+      {
+        "type": "poison",
+        "duration_turns": 3,
+        "magnitude": 3,
+        "apply_chance": 0.85
+      }
+    ],
+    "target": "single"
+  },
+  {
+    "id": "spectral-touch",
+    "name": "Spectral Touch",
+    "description": "A chilling touch that clouds the senses.",
+    "resource_cost": 0,
+    "cooldown_turns": 2,
+    "range": 2,
+    "damage_formula": {
+      "base": 5,
+      "stat_scaling": "attack",
+      "scaling_factor": 0.7
+    },
+    "effects": [
+      {
+        "type": "blind",
+        "duration_turns": 2,
+        "magnitude": 3,
+        "apply_chance": 0.8
+      }
+    ],
+    "target": "single"
+  },
+  {
+    "id": "phase-shift",
+    "name": "Phase Shift",
+    "description": "Slip partially out of phase, becoming harder to hit.",
+    "resource_cost": 0,
+    "cooldown_turns": 4,
+    "range": "melee",
+    "damage_formula": {
+      "base": 0,
+      "stat_scaling": "defense",
+      "scaling_factor": 0.0
+    },
+    "effects": [
+      {
+        "type": "buff-defense",
+        "duration_turns": 2,
+        "magnitude": 8,
+        "apply_chance": 1.0
+      }
+    ],
+    "target": "self"
+  },
+  {
+    "id": "death-bolt",
+    "name": "Death Bolt",
+    "description": "A ranged blast of necrotic energy.",
+    "resource_cost": 0,
+    "cooldown_turns": 1,
+    "range": 4,
+    "damage_formula": {
+      "base": 8,
+      "stat_scaling": "attack",
+      "scaling_factor": 1.0
+    },
+    "effects": [],
+    "target": "single"
+  },
+  {
+    "id": "raise-dead",
+    "name": "Raise Dead",
+    "description": "Dark ritual energy swells around the caster.",
+    "resource_cost": 0,
+    "cooldown_turns": 5,
+    "range": "melee",
+    "damage_formula": {
+      "base": 0,
+      "stat_scaling": "attack",
+      "scaling_factor": 0.0
+    },
+    "effects": [
+      {
+        "type": "buff-attack",
+        "duration_turns": 3,
+        "magnitude": 5,
+        "apply_chance": 1.0
+      }
+    ],
+    "target": "self"
+  },
+  {
+    "id": "bone-shield",
+    "name": "Bone Shield",
+    "description": "A shield of rattling bones absorbs incoming blows.",
+    "resource_cost": 0,
+    "cooldown_turns": 4,
+    "range": "melee",
+    "damage_formula": {
+      "base": 0,
+      "stat_scaling": "defense",
+      "scaling_factor": 0.0
+    },
+    "effects": [
+      {
+        "type": "buff-defense",
+        "duration_turns": 3,
+        "magnitude": 8,
+        "apply_chance": 1.0
+      }
+    ],
+    "target": "self"
+  },
+  {
+    "id": "ground-slam",
+    "name": "Ground Slam",
+    "description": "Smash the floor and stagger everything nearby.",
+    "resource_cost": 0,
+    "cooldown_turns": 3,
+    "range": "melee",
+    "damage_formula": {
+      "base": 7,
+      "stat_scaling": "attack",
+      "scaling_factor": 0.9
+    },
+    "effects": [
+      {
+        "type": "slow",
+        "duration_turns": 2,
+        "magnitude": 3,
+        "apply_chance": 0.8
+      }
+    ],
+    "target": "aoe",
+    "aoe_radius": 1
+  },
+  {
+    "id": "stone-skin",
+    "name": "Stone Skin",
+    "description": "Harden the body into living stone.",
+    "resource_cost": 0,
+    "cooldown_turns": 4,
+    "range": "melee",
+    "damage_formula": {
+      "base": 0,
+      "stat_scaling": "defense",
+      "scaling_factor": 0.0
+    },
+    "effects": [
+      {
+        "type": "buff-defense",
+        "duration_turns": 3,
+        "magnitude": 10,
+        "apply_chance": 1.0
+      }
+    ],
+    "target": "self"
+  },
+  {
+    "id": "gear-grind",
+    "name": "Gear Grind",
+    "description": "Grinding gears shred the target at close range.",
+    "resource_cost": 0,
+    "cooldown_turns": 2,
+    "range": "melee",
+    "damage_formula": {
+      "base": 5,
+      "stat_scaling": "attack",
+      "scaling_factor": 1.0
+    },
+    "effects": [],
+    "target": "single"
+  },
+  {
+    "id": "piston-punch",
+    "name": "Piston Punch",
+    "description": "A powerful mechanical punch.",
+    "resource_cost": 0,
+    "cooldown_turns": 1,
+    "range": "melee",
+    "damage_formula": {
+      "base": 8,
+      "stat_scaling": "attack",
+      "scaling_factor": 1.1
+    },
+    "effects": [],
+    "target": "single"
+  },
+  {
+    "id": "emergency-repair",
+    "name": "Emergency Repair",
+    "description": "Repair subsystems and recover health.",
+    "resource_cost": 0,
+    "cooldown_turns": 5,
+    "range": "melee",
+    "damage_formula": {
+      "base": 0,
+      "stat_scaling": "defense",
+      "scaling_factor": 0.0
+    },
+    "effects": [],
+    "target": "self",
+    "special": "heal-self"
+  },
+  {
+    "id": "soul-drain",
+    "name": "Soul Drain",
+    "description": "Drain life from the target and restore the caster.",
+    "resource_cost": 0,
+    "cooldown_turns": 3,
+    "range": 3,
+    "damage_formula": {
+      "base": 7,
+      "stat_scaling": "attack",
+      "scaling_factor": 0.9
+    },
+    "effects": [],
+    "target": "single",
+    "special": "drain-life"
+  },
+  {
+    "id": "undead-summon",
+    "name": "Undead Summon",
+    "description": "A dark ritual empowers the undead host.",
+    "resource_cost": 0,
+    "cooldown_turns": 5,
+    "range": "melee",
+    "damage_formula": {
+      "base": 0,
+      "stat_scaling": "attack",
+      "scaling_factor": 0.0
+    },
+    "effects": [
+      {
+        "type": "buff-attack",
+        "duration_turns": 3,
+        "magnitude": 6,
+        "apply_chance": 1.0
+      }
+    ],
+    "target": "self"
+  },
+  {
+    "id": "phylactery-shield",
+    "name": "Phylactery Shield",
+    "description": "A desperate shield of necromantic energy.",
+    "resource_cost": 0,
+    "cooldown_turns": 6,
+    "range": "melee",
+    "damage_formula": {
+      "base": 0,
+      "stat_scaling": "defense",
+      "scaling_factor": 0.0
+    },
+    "effects": [
+      {
+        "type": "buff-defense",
+        "duration_turns": 3,
+        "magnitude": 12,
+        "apply_chance": 1.0
+      }
+    ],
+    "target": "self"
+  },
+  {
+    "id": "dark-nova",
+    "name": "Dark Nova",
+    "description": "A violent burst of dark energy in a wide radius.",
+    "resource_cost": 0,
+    "cooldown_turns": 5,
+    "range": 4,
+    "damage_formula": {
+      "base": 10,
+      "stat_scaling": "attack",
+      "scaling_factor": 0.9
+    },
+    "effects": [],
+    "target": "aoe",
+    "aoe_radius": 2
+  },
+  {
+    "id": "warden-slam",
+    "name": "Warden Slam",
+    "description": "A wide armored slam that hits nearby targets.",
+    "resource_cost": 0,
+    "cooldown_turns": 3,
+    "range": "melee",
+    "damage_formula": {
+      "base": 8,
+      "stat_scaling": "attack",
+      "scaling_factor": 1.0
+    },
+    "effects": [],
+    "target": "aoe",
+    "aoe_radius": 1
+  },
+  {
+    "id": "corrupted-strike",
+    "name": "Corrupted Strike",
+    "description": "A corrupted blow that poisons the victim.",
+    "resource_cost": 0,
+    "cooldown_turns": 2,
+    "range": "melee",
+    "damage_formula": {
+      "base": 6,
+      "stat_scaling": "attack",
+      "scaling_factor": 1.0
+    },
+    "effects": [
+      {
+        "type": "poison",
+        "duration_turns": 3,
+        "magnitude": 4,
+        "apply_chance": 0.8
+      }
+    ],
+    "target": "single"
+  },
+  {
+    "id": "cannon-blast",
+    "name": "Cannon Blast",
+    "description": "A ranged explosive shell.",
+    "resource_cost": 0,
+    "cooldown_turns": 4,
+    "range": 5,
+    "damage_formula": {
+      "base": 12,
+      "stat_scaling": "attack",
+      "scaling_factor": 1.0
+    },
+    "effects": [],
+    "target": "aoe",
+    "aoe_radius": 1
+  },
+  {
+    "id": "lockdown-protocol",
+    "name": "Lockdown Protocol",
+    "description": "Immobilize nearby targets with crushing force.",
+    "resource_cost": 0,
+    "cooldown_turns": 5,
+    "range": 4,
+    "damage_formula": {
+      "base": 6,
+      "stat_scaling": "attack",
+      "scaling_factor": 0.7
+    },
+    "effects": [
+      {
+        "type": "stun",
+        "duration_turns": 1,
+        "magnitude": 1,
+        "apply_chance": 0.65
+      }
+    ],
+    "target": "aoe",
+    "aoe_radius": 2
+  },
+  {
+    "id": "summon-skeletons",
+    "name": "Summon Skeletons",
+    "description": "Dark energy rallies nearby undead.",
+    "resource_cost": 0,
+    "cooldown_turns": 5,
+    "range": "melee",
+    "damage_formula": {
+      "base": 0,
+      "stat_scaling": "attack",
+      "scaling_factor": 0.0
+    },
+    "effects": [
+      {
+        "type": "buff-attack",
+        "duration_turns": 3,
+        "magnitude": 5,
+        "apply_chance": 1.0
+      }
+    ],
+    "target": "self"
+  },
+  {
+    "id": "corrupted-bolt",
+    "name": "Corrupted Bolt",
+    "description": "Launch a ranged bolt of corrupting energy.",
+    "resource_cost": 0,
+    "cooldown_turns": 2,
+    "range": 4,
+    "damage_formula": {
+      "base": 7,
+      "stat_scaling": "attack",
+      "scaling_factor": 0.9
+    },
+    "effects": [
+      {
+        "type": "poison",
+        "duration_turns": 2,
+        "magnitude": 3,
+        "apply_chance": 0.7
+      }
+    ],
+    "target": "single"
+  }
+]

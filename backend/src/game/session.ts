@@ -13,6 +13,7 @@ import type {
 import {
   generateRealm,
   REALMS,
+  CLASSES,
   SeededRng,
   resolveTurn,
   buildObservationFromState,
@@ -172,8 +173,11 @@ class GameSession {
             : "focus"
 
     const stats = character.stats as CharacterStats
+    const classTemplate = CLASSES[character.class]
+    const abilities = [...new Set(classTemplate?.starting_abilities ?? [])]
 
     const gameState: GameState = {
+      turn: (realm.last_turn as number) ?? 0,
       realm: {
         template_id: realm.template_id,
         template_version: realm.template_version,
@@ -196,6 +200,7 @@ class GameSession {
         effective_stats: { ...stats },
         buffs: [],
         debuffs: [],
+        abilities,
         cooldowns: {},
       },
       position: {
@@ -212,7 +217,7 @@ class GameSession {
         realm.status === "boss_cleared" ? "boss_cleared" : "active",
     }
 
-    const turn = (realm.last_turn as number) ?? 0
+    const turn = gameState.turn
     const rng = new SeededRng(realm.seed + turn)
 
     return new GameSession(ws, gameState, generated, rng, turn)
