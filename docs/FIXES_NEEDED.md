@@ -438,54 +438,62 @@ Add notes under any item with `> NOTE: your note here` when needed.
 
 **Scope:** Engine logic fixes that aren't critical but affect game quality
 
-- [ ] **13.1 — Interactable proximity not checked**
+- [x] **13.1 — Interactable proximity not checked**
   - `computeLegalActions` adds interact actions for all non-mutated interactables regardless of player distance
   - Interactables have no tracked position (hardcoded to `{x: 0, y: 0}` in observation builder)
   - **Fix:** Either assign positions to interactables in room generation and check proximity, or document that interactables are room-wide (accessible from anywhere in the room) as a design decision
   - **Files:** `shared/engine/src/turn.ts`
+  > NOTE: Chose the documented room-wide interaction design because content templates still do not carry interactable coordinates. `computeLegalActions()` now only exposes interactables for the player's current room, observation entities render interactables at room center instead of `{0,0}`, and the dungeon UI now surfaces visible interactables as labeled map chips.
 
-- [ ] **13.2 — Enemy positions can collide on spawn**
+- [x] **13.2 — Enemy positions can collide on spawn**
   - `buildRoomState` places enemies at positions from room template slots
   - Multiple enemies with same `position` in template will stack on the same tile
   - `position: "random"` falls back to `{x: 3, y: 3}` — all "random" enemies land on same tile
   - **Fix:** When building room state, use the item/enemy seed RNG to place entities on valid floor tiles, avoiding collisions
   - **Files:** `shared/engine/src/turn.ts`
+  > NOTE: Added deterministic spawn placement in `buildRoomState()` using room-local floor-tile discovery plus per-entity seeded RNG. Random enemies now land on unique valid tiles, explicit coordinate collisions are nudged to the nearest open tile, and positions stay deterministic for the same seed. Covered in `shared/engine/__tests__/turn.test.ts`.
 
-- [ ] **13.3 — Item positions always `{x: 2, y: 2}`**
+- [x] **13.3 — Item positions always `{x: 2, y: 2}`**
   - All loot items in `buildRoomState` get `position: { x: 2, y: 2 }` regardless of room template
   - Players must always go to (2,2) to pick up any item
   - **Fix:** Derive positions from `loot_slots[i].position` or use seeded random placement on floor tiles
   - **Files:** `shared/engine/src/turn.ts`
+  > NOTE: Loot placement now shares the same deterministic placement helper as enemy spawns. Explicit `loot_slots[i].position` values are still honored when available, random/missing positions now resolve to open floor tiles, and loot no longer stacks on enemy spawn points.
 
-- [ ] **13.4 — Inventory capacity not enforced**
+- [x] **13.4 — Inventory capacity not enforced**
   - Spec: 12 inventory slots
   - No check in `resolvePickup` or `applyEffect` (grant-item) for inventory being full
-  - **Fix:** Add `MAX_INVENTORY_SLOTS` constant, check before adding items, return "Inventory full" if at capacity. May also need a backpack upgrade system per spec
+  - **Fix:** Add shared base-capacity config, check before adding items, return "Inventory full" if at capacity. May also need a backpack upgrade system per spec
   - **Files:** `shared/engine/src/turn.ts`, `shared/schemas/src/index.ts` (constant)
+  > NOTE: Implemented inventory capacity from a shared helper in `shared/schemas/src/index.ts` using the documented `12` base slots while leaving room for future backpack bonuses. The engine now blocks non-stackable pickups / grant-item rewards when full, still allows stack merges at capacity, lobby buy validation now uses the same shared helper, and the play UI shows used/capacity plus full or near-full warnings.
 
-- [ ] **13.5 — `rooms_visited` tracking not implemented**
+- [x] **13.5 — `rooms_visited` tracking not implemented**
   - `buildObservationFromState` line 1258: `rooms_visited: []` with TODO comment
   - Known map data always reports empty rooms_visited
   - **Fix:** Track visited room IDs on GameState, merge on room transitions
   - **Files:** `shared/engine/src/turn.ts`, `shared/schemas/src/index.ts` (add to GameState if needed)
+  > NOTE: Added `roomsVisited` to `GameState`, now populate `known_map.floors[*].rooms_visited` from engine state, mark current rooms as visited after observations are built, and persist the visited-room set through disconnect recovery via `session_state`.
 
-- [ ] **13.6 — Room text always shows first-visit text**
+- [x] **13.6 — Room text always shows first-visit text**
   - `isFirstVisit` check is flawed — it checks if the exact tile position was already discovered, not whether the room was previously entered
   - Without `rooms_visited` tracking (13.5), revisit text is never shown
   - **Fix:** Use `rooms_visited` (once 13.5 is done) to determine first visit vs revisit and select appropriate text
   - **Files:** `shared/engine/src/turn.ts`
+  > NOTE: Room text selection now keys off `roomsVisited` instead of discovered tile coordinates. First observation in a room uses `text_first_visit` / `description_first_visit`; subsequent observations fall back to `text_revisit` / `description_revisit` when available.
 
-- [ ] **13.7 — `reveal-map` item effect is a no-op**
+- [x] **13.7 — `reveal-map` item effect is a no-op**
   - `resolveUseItem` case `"reveal-map"` just pushes text "The map reveals itself" but doesn't actually reveal tiles
   - **Fix:** Mark all tiles on the current floor as discovered in `s.discoveredTiles`
   - **Files:** `shared/engine/src/turn.ts`
+  > NOTE: `reveal-map` now expands `discoveredTiles` across every room on the current floor and marks those rooms as visited. The effect text was upgraded to make the reveal explicit, and the dungeon event feed now highlights map-reveal uses. No shipped item template currently uses `reveal-map`, but the engine path is now fully implemented.
 
-- [ ] **13.8 — Lore discovery not persisted**
+- [x] **13.8 — Lore discovery not persisted**
   - `lore_discovered` table exists in DB
   - `reveal-lore` effect type exists in `applyEffect` but only pushes text
   - No write to `lore_discovered` table
   - **Fix:** Collect lore discoveries during turn resolution and persist them in `endSession` or per-turn
   - **Files:** `shared/engine/src/turn.ts`, `backend/src/game/session.ts`
+  > NOTE: Added `loreDiscovered` tracking to `GameState`, collect lore discoveries from both interactable `lore_entry_id` values and `reveal-lore` effects, persist them from `endSession()` through a new `persistLoreDiscoveries()` helper, and load them again in `GameSession.create()`. `GET /characters/me` now includes `lore_discovered`, and the hub gained a lore journal while dungeon events highlight lore finds distinctly. TDD: `shared/engine/__tests__/turn.test.ts` plus new `backend/__tests__/session-lore.test.ts`.
 
 ---
 
@@ -657,4 +665,12 @@ _Record completed fixes here with date and commit hash._
 | 2026-04-09 | 11.5 | pending | Added spectator WebSocket path, session fan-out helpers, reconnect-safe spectate page, and spectator tests |
 | 2026-04-09 | 11.6 | pending | Added legends API plus full legend memorial page composed from corpse, run-log, and leaderboard data |
 | 2026-04-09 | 12.1 | pending | Complete: Redis pub/sub infrastructure, spectator cross-instance broadcast, lobby activity/chat/leaderboard via Redis, `/lobby/live` WS endpoint, `POST /lobby/chat`, 28 new TDD tests |
+| 2026-04-09 | 13.1 | pending | Documented interactables as room-wide for the current room, centered their map positions, and surfaced labeled interactable chips in the dungeon UI |
+| 2026-04-09 | 13.2 | pending | Replaced stacked/random enemy spawn fallbacks with deterministic seeded placement on open floor tiles, avoiding collisions |
+| 2026-04-09 | 13.3 | pending | Loot now uses deterministic open-tile placement instead of defaulting to `{ x: 2, y: 2 }`, while still honoring explicit slot coordinates |
+| 2026-04-09 | 13.4 | pending | Added shared base inventory-capacity helper, enforced full-inventory checks in engine + lobby flows, and exposed slot usage in the play UI |
+| 2026-04-09 | 13.5 | pending | Added `roomsVisited` state, populated `known_map.rooms_visited`, and preserved room-visit history across disconnect recovery |
+| 2026-04-09 | 13.6 | pending | Room text now switches from first-visit copy to revisit copy based on tracked room visits instead of discovered tile coordinates |
+| 2026-04-09 | 13.7 | pending | Implemented `reveal-map` to uncover the full current floor and mark rooms visited; play UI now highlights those map-reveal events |
+| 2026-04-09 | 13.8 | pending | Added lore discovery tracking/persistence via `lore_discovered`, enriched `/characters/me`, and shipped a hub lore journal plus lore-highlighted dungeon events |
 | 2026-04-09 | 14.7 | pending | Added `NEXT_PUBLIC_WS_URL` to `.env.example` |

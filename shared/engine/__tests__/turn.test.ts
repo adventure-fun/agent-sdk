@@ -1,9 +1,9 @@
 import { describe, expect, it } from "bun:test"
-import type { Action, GameState, Tile } from "@adventure-fun/schemas"
-import { buildObservationFromState, computeLegalActions, resolveTurn } from "../src/turn.js"
+import { getInventoryCapacity, type Action, type GameState, type Tile } from "@adventure-fun/schemas"
+import { buildObservationFromState, buildRoomState, computeLegalActions, resolveTurn } from "../src/turn.js"
 import { SeededRng } from "../src/rng.js"
 import { xpForLevel } from "../src/leveling.js"
-import type { GeneratedRealm } from "../src/realm.js"
+import type { GeneratedRealm, GeneratedRoom } from "../src/realm.js"
 
 function makeTiles(width: number, height: number): Tile[][] {
   return Array.from({ length: height }, (_, y) =>
@@ -45,6 +45,28 @@ function makeRealm(roomId = "f1_r1_test-room"): GeneratedRealm {
         ],
       },
     ],
+  }
+}
+
+function makeGeneratedRoom(
+  roomId: string,
+  width: number,
+  height: number,
+  overrides?: Partial<GeneratedRoom>,
+): GeneratedRoom {
+  return {
+    id: roomId,
+    type: "test-room",
+    width,
+    height,
+    tiles: makeTiles(width, height),
+    enemy_ids: [],
+    item_ids: [],
+    trap_ids: [],
+    connections: [],
+    description_first_visit: "Test room",
+    description_revisit: "Visited room",
+    ...overrides,
   }
 }
 
@@ -120,6 +142,8 @@ function makeState(overrides?: Partial<GameState>): GameState {
       ],
     },
     discoveredTiles: { 1: [{ x: 1, y: 1 }] },
+    roomsVisited: {},
+    loreDiscovered: [],
     mutatedEntities: [],
     realmStatus: "active",
     ...overrides,
@@ -1416,5 +1440,241 @@ describe("trap system", () => {
 
     expect(result.newState.character.hp.current).toBe(28)
     expect(result.newState.character.debuffs).toEqual([])
+  })
+})
+
+describe("Group 13 — placement polish", () => {
+  it("buildRoomState places random enemies on unique tiles deterministically", () => {
+    const genRoom = makeGeneratedRoom("f1_r1_bh-wolf-den", 9, 7, {
+      enemy_ids: [
+        "f1_r1_bh-wolf-den_enemy_00",
+        "f1_r1_bh-wolf-den_enemy_01",
+      ],
+      item_ids: ["f1_r1_bh-wolf-den_loot_00"],
+    })
+
+    const first = buildRoomState(genRoom, [], "blighted-hollow", 1234)
+    const second = buildRoomState(genRoom, [], "blighted-hollow", 1234)
+
+    expect(first.enemies).toHaveLength(2)
+    expect(first.enemies.map((enemy) => enemy.position)).toEqual(
+      second.enemies.map((enemy) => enemy.position),
+    )
+    expect(
+      new Set(first.enemies.map((enemy) => `${enemy.position.x},${enemy.position.y}`)).size,
+    ).toBe(2)
+    expect(
+      first.items.every(
+        (item) =>
+          !first.enemies.some(
+            (enemy) =>
+              enemy.position.x === item.position.x
+              && enemy.position.y === item.position.y,
+          ),
+      ),
+    ).toBe(true)
+  })
+})
+
+describe("Group 13 — interactables, inventory, visits, and lore", () => {
+  const tutorialRoomId = "f1_r1_tutorial-burrow"
+
+  function makeTutorialRealm(): GeneratedRealm {
+    return {
+      template_id: "tutorial-cellar",
+      template_version: 1,
+      seed: 9,
+      total_floors: 1,
+      floors: [
+        {
+          floor_number: 1,
+          entrance_room_id: tutorialRoomId,
+          exit_room_id: null,
+          boss_room_id: null,
+          rooms: [
+            makeGeneratedRoom(tutorialRoomId, 7, 7, {
+              enemy_ids: ["f1_r1_tutorial-burrow_enemy_00"],
+              description_first_visit: "The cellar opens into a dug-out burrow.",
+              description_revisit: "The burrow is still.",
+            }),
+          ],
+        },
+      ],
+    }
+  }
+
+  function makeTutorialState(overrides?: Partial<GameState>): GameState {
+    const room = buildRoomState(
+      makeTutorialRealm().floors[0]!.rooms[0]!,
+      [],
+      "tutorial-cellar",
+      9,
+    )
+    return makeState({
+      position: {
+        floor: 1,
+        room_id: tutorialRoomId,
+        tile: { x: 1, y: 1 },
+      },
+      activeFloor: { rooms: [room] },
+      discoveredTiles: { 1: [{ x: 1, y: 1 }] },
+      roomsVisited: {},
+      ...overrides,
+    })
+  }
+
+  it("does not offer interact actions for a non-current room", () => {
+    const state = makeTutorialState({
+      position: {
+        floor: 1,
+        room_id: "f1_r9_somewhere-else",
+        tile: { x: 1, y: 1 },
+      },
+    })
+
+    const actions = computeLegalActions(
+      state,
+      state.activeFloor.rooms[0],
+      makeTutorialRealm(),
+    )
+
+    expect(actions.some((action) => action.type === "interact")).toBe(false)
+  })
+
+  it("renders room-wide interactables at the room center", () => {
+    const state = makeTutorialState()
+    const observation = buildObservationFromState(state, [], makeTutorialRealm())
+    const interactable = observation.visible_entities.find(
+      (entity) => entity.type === "interactable" && entity.id === "tutorial-wall-scratches",
+    )
+
+    expect(interactable?.position).toEqual({ x: 3, y: 3 })
+  })
+
+  it("blocks pickups when inventory is full and the item cannot stack", () => {
+    const fullInventory = Array.from({ length: getInventoryCapacity() }, (_, index) => ({
+      id: `item-${index}`,
+      template_id: `unique-item-${index}`,
+      name: `Item ${index}`,
+      quantity: 1,
+      modifiers: {},
+      owner_type: "character" as const,
+      owner_id: "player-1",
+    }))
+    const baseState = makeState()
+    const state = makeState({
+      inventory: fullInventory,
+      activeFloor: {
+        rooms: [
+          {
+            ...baseState.activeFloor.rooms[0]!,
+            items: [makeFloorItem({ id: "loot-full", template_id: "antidote", position: { x: 2, y: 1 } })],
+          },
+        ],
+      },
+    })
+
+    const actions = computeLegalActions(state, state.activeFloor.rooms[0], makeRealm())
+    expect(actions.some((action) => action.type === "pickup" && action.item_id === "loot-full")).toBe(false)
+
+    const result = resolveTurn(
+      state,
+      { type: "pickup", item_id: "loot-full" },
+      makeRealm(),
+      new SeededRng(1),
+    )
+
+    expect(result.summary).toContain("Inventory full")
+    expect(result.newState.activeFloor.rooms[0]?.items).toHaveLength(1)
+    expect(result.observation.inventory_slots_used).toBe(getInventoryCapacity())
+    expect(result.observation.inventory_capacity).toBe(getInventoryCapacity())
+  })
+
+  it("still allows pickups to merge into an existing stack when inventory is full", () => {
+    const fullInventory = Array.from({ length: getInventoryCapacity() }, (_, index) => ({
+      id: `item-${index}`,
+      template_id: index === 0 ? "health-potion" : `unique-item-${index}`,
+      name: index === 0 ? "Health Potion" : `Item ${index}`,
+      quantity: 1,
+      modifiers: {},
+      owner_type: "character" as const,
+      owner_id: "player-1",
+    }))
+    const baseState = makeState()
+    const state = makeState({
+      inventory: fullInventory,
+      activeFloor: {
+        rooms: [
+          {
+            ...baseState.activeFloor.rooms[0]!,
+            items: [makeFloorItem({ id: "loot-stack", template_id: "health-potion", position: { x: 2, y: 1 } })],
+          },
+        ],
+      },
+    })
+
+    const actions = computeLegalActions(state, state.activeFloor.rooms[0], makeRealm())
+    expect(actions.some((action) => action.type === "pickup" && action.item_id === "loot-stack")).toBe(true)
+
+    const result = resolveTurn(
+      state,
+      { type: "pickup", item_id: "loot-stack" },
+      makeRealm(),
+      new SeededRng(1),
+    )
+
+    expect(result.newState.inventory[0]?.quantity).toBe(2)
+    expect(result.newState.activeFloor.rooms[0]?.items).toHaveLength(0)
+  })
+
+  it("tracks rooms visited and switches to revisit text after the first observation", () => {
+    const state = makeTutorialState()
+
+    const firstTurn = resolveTurn(
+      state,
+      { type: "wait" },
+      makeTutorialRealm(),
+      new SeededRng(1),
+    )
+    const secondTurn = resolveTurn(
+      firstTurn.newState,
+      { type: "wait" },
+      makeTutorialRealm(),
+      new SeededRng(2),
+    )
+
+    expect(firstTurn.observation.room_text).toContain("dug-out burrow")
+    expect(firstTurn.newState.roomsVisited?.[1]).toContain(tutorialRoomId)
+    expect(secondTurn.observation.room_text).toContain("The burrow is still")
+    expect(secondTurn.observation.known_map.floors[1]?.rooms_visited).toContain(tutorialRoomId)
+  })
+
+  it("records lore discoveries when interacting with lore objects", () => {
+    const currentRoom = makeTutorialState().activeFloor.rooms[0]!
+    const state = makeTutorialState({
+      activeFloor: {
+        rooms: [{ ...currentRoom, enemies: [] }],
+      },
+    })
+
+    const result = resolveTurn(
+      state,
+      { type: "interact", target_id: "tutorial-wall-scratches" },
+      makeTutorialRealm(),
+      new SeededRng(4),
+    )
+
+    expect(result.newState.loreDiscovered).toContainEqual({
+      lore_entry_id: "cellar-warning-01",
+      discovered_at_turn: 1,
+    })
+    expect(
+      result.worldMutations.some(
+        (mutation) =>
+          mutation.entity_id === "tutorial-wall-scratches"
+          && mutation.metadata.lore_entry_id === "cellar-warning-01",
+      ),
+    ).toBe(true)
+    expect(result.summary).toContain("Cellar Warning 01")
   })
 })

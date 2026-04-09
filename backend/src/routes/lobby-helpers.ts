@@ -1,7 +1,5 @@
 import { ITEMS, getItem } from "@adventure-fun/engine"
-import type { CharacterClass, InventoryItem, ItemTemplate } from "@adventure-fun/schemas"
-
-export const MAX_LOBBY_INVENTORY_SLOTS = 12
+import { getInventoryCapacity, type CharacterClass, type InventoryItem, type ItemTemplate } from "@adventure-fun/schemas"
 
 export interface LobbyCharacterRecord {
   id: string
@@ -126,7 +124,7 @@ export function validateBuyItem(
     ? stackTarget.quantity + quantity <= template.stack_limit
     : false
 
-  if (!canFitIntoExistingStack && usedInventorySlots(inventory) >= MAX_LOBBY_INVENTORY_SLOTS) {
+  if (!canFitIntoExistingStack && usedInventorySlots(inventory) >= getInventoryCapacity()) {
     return { ok: false, error: "Inventory full." }
   }
 

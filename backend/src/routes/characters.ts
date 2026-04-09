@@ -25,7 +25,20 @@ characters.get("/me", requireAuth, async (c) => {
 
   if (error) return c.json({ error: error.message }, 500)
   if (!data) return c.json({ error: "No living character" }, 404)
-  return c.json(data)
+  const { data: loreRows, error: loreError } = await db
+    .from("lore_discovered")
+    .select("*")
+    .eq("character_id", data.id)
+    .order("discovered_at_turn")
+
+  if (loreError) return c.json({ error: loreError.message }, 500)
+  return c.json({
+    ...data,
+    lore_discovered: (loreRows ?? []).map((row) => ({
+      lore_entry_id: row.lore_entry_id,
+      discovered_at_turn: row.discovered_at_turn,
+    })),
+  })
 })
 
 // POST /characters/roll — free, one alive character per account

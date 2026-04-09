@@ -102,6 +102,8 @@ function makeState(overrides?: Partial<GameState>): GameState {
       ],
     },
     discoveredTiles: { 1: [{ x: 1, y: 1 }, { x: 2, y: 2 }] },
+    roomsVisited: { 1: ["f1_r1_test-room", "f1_r2_test-room"] },
+    loreDiscovered: [],
     mutatedEntities: ["f1_r1_encounter_01_enemy_01"],
     realmStatus: "active",
     ...overrides,
@@ -181,6 +183,7 @@ describe("8.2 — session state serialization", () => {
     expect(enemy.position).toEqual({ x: 4, y: 3 })
     expect(enemy.effects).toHaveLength(1)
     expect(enemy.cooldowns).toEqual({ "goblin-strike": 1 })
+    expect(result.roomsVisited).toEqual({ 1: ["f1_r1_test-room", "f1_r2_test-room"] })
   })
 
   it("excludes dead enemies from serialized state", async () => {
@@ -219,6 +222,7 @@ describe("8.2 — session state serialization", () => {
           ],
         },
       ],
+      roomsVisited: { 1: ["f1_r1_test-room", "f1_r2_test-room"] },
     }
 
     applySessionState(state, sessionState)
@@ -229,6 +233,7 @@ describe("8.2 — session state serialization", () => {
     expect(enemy.effects).toHaveLength(1)
     expect(enemy.effects[0]!.type).toBe("poison")
     expect(enemy.cooldowns).toEqual({ "goblin-strike": 1 })
+    expect(state.roomsVisited).toEqual({ 1: ["f1_r1_test-room", "f1_r2_test-room"] })
   })
 
   it("handles rooms with no matching session state gracefully", async () => {

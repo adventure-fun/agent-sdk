@@ -16,7 +16,7 @@ import { AsciiMap } from "../components/ascii-map"
 import { PaymentModal } from "../components/payment-modal"
 import { useUsdcBalance } from "../hooks/use-usdc-balance"
 import { useEffect, useState, useMemo } from "react"
-import type { CharacterClass, Action, Observation, ActiveEffect, InventoryItem, ItemTemplate } from "@adventure-fun/schemas"
+import { getInventoryCapacity, type CharacterClass, type Action, type Observation, type ActiveEffect, type InventoryItem, type ItemTemplate } from "@adventure-fun/schemas"
 
 const STAT_KEYS = ["hp", "attack", "defense", "accuracy", "evasion", "speed"] as const
 const STAT_LABELS: Record<string, string> = {
@@ -863,6 +863,28 @@ export default function PlayPage() {
                 ATK {character.stats.attack} | DEF {character.stats.defense} | ACC {character.stats.accuracy} | EVA {character.stats.evasion} | SPD {character.stats.speed}
               </p>
 
+              {(character.lore_discovered?.length ?? 0) > 0 && (
+                <div className="rounded border border-amber-900/40 bg-amber-950/10 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs font-bold uppercase tracking-wider text-amber-300/70">Lore Journal</p>
+                    <span className="text-[11px] text-amber-200/70">
+                      {character.lore_discovered?.length} discovered
+                    </span>
+                  </div>
+                  <div className="mt-2 space-y-1 text-xs text-gray-300">
+                    {[...(character.lore_discovered ?? [])]
+                      .sort((left, right) => right.discovered_at_turn - left.discovered_at_turn)
+                      .slice(0, 6)
+                      .map((entry) => (
+                        <div key={entry.lore_entry_id} className="flex items-center justify-between gap-3">
+                          <span>{formatLoreLabel(entry.lore_entry_id)}</span>
+                          <span className="text-[11px] text-gray-500">Turn {entry.discovered_at_turn}</span>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
+
               {progression && progression.skill_points > 0 && (
                 <button
                   onClick={() => setShowSkillTree(true)}
@@ -1157,6 +1179,8 @@ function DungeonView({
     realm_info,
     room_text,
     inventory,
+    inventory_slots_used,
+    inventory_capacity,
     equipment,
     gold,
   } = observation
@@ -1212,6 +1236,10 @@ function DungeonView({
     (entity): entity is Observation["visible_entities"][number] & { type: "trap_visible" } =>
       entity.type === "trap_visible",
   )
+  const visibleInteractables = visible_entities.filter(
+    (entity): entity is Observation["visible_entities"][number] & { type: "interactable" } =>
+      entity.type === "interactable",
+  )
   const dungeonXpToNext =
     "xp_to_next_level" in character && typeof character.xp_to_next_level === "number"
       ? character.xp_to_next_level
@@ -1220,6 +1248,7 @@ function DungeonView({
   const hpPct = character.hp.max > 0 ? (character.hp.current / character.hp.max) * 100 : 0
   const hpColor = hpPct > 50 ? "bg-green-500" : hpPct > 25 ? "bg-yellow-500" : "bg-red-500"
   const resourceColor = getResourceBarColor(character.resource.type)
+  const inventoryNearlyFull = inventory_slots_used >= Math.max(1, inventory_capacity - 2)
   const statRows = [
     { label: "ATK", base: character.base_stats.attack, effective: character.effective_stats.attack },
     { label: "DEF", base: character.base_stats.defense, effective: character.effective_stats.defense },
@@ -1283,6 +1312,19 @@ function DungeonView({
               playerPosition={position.tile}
               entities={visible_entities}
             />
+            {visibleInteractables.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-2 border-t border-gray-800 pt-2">
+                {visibleInteractables.map((entity) => (
+                  <span
+                    key={entity.id}
+                    className="rounded-full border border-amber-800/60 bg-amber-950/20 px-3 py-1 text-[11px] text-amber-200"
+                    title="Room-wide interactable"
+                  >
+                    ! {entity.name}
+                  </span>
+                ))}
+              </div>
+            )}
             {room_text && (
               <p className="text-gray-400 text-xs mt-3 italic border-t border-gray-800 pt-2">
                 {room_text}
@@ -1510,16 +1552,32 @@ function DungeonView({
             </div>
 
             {/* Inventory */}
-            {inventory.length > 0 && (
-              <div>
-                <div className="text-xs text-gray-500 uppercase mb-1">Inventory ({inventory.length})</div>
-                <div className="text-xs text-gray-400 space-y-0.5">
-                  {inventory.map((item) => (
-                    <p key={item.item_id}>{item.name} x{item.quantity}</p>
-                  ))}
+            <div>
+              <div className="flex items-center justify-between gap-3 mb-1">
+                <div className="text-xs text-gray-500 uppercase">
+                  Inventory ({inventory_slots_used}/{inventory_capacity})
                 </div>
+                {inventory_slots_used >= inventory_capacity && (
+                  <span className="rounded border border-red-800/70 bg-red-950/30 px-2 py-1 text-[10px] uppercase tracking-wide text-red-200">
+                    Full
+                  </span>
+                )}
+                {inventory_slots_used < inventory_capacity && inventoryNearlyFull && (
+                  <span className="rounded border border-amber-800/70 bg-amber-950/20 px-2 py-1 text-[10px] uppercase tracking-wide text-amber-200">
+                    Nearly full
+                  </span>
+                )}
               </div>
-            )}
+              <div className="text-xs text-gray-400 space-y-0.5">
+                {inventory.length > 0 ? (
+                  inventory.map((item) => (
+                    <p key={item.item_id}>{item.name} x{item.quantity}</p>
+                  ))
+                ) : (
+                  <p className="text-gray-600">Pack is empty.</p>
+                )}
+              </div>
+            </div>
           </div>
         </div>
 
@@ -1531,7 +1589,7 @@ function DungeonView({
               <div
                 key={i}
                 className={`text-xs rounded border px-2 py-1 ${
-                  getRecentEventPalette(e.type, i >= recent_events.length - 2)
+                  getRecentEventPalette(e, i >= recent_events.length - 2)
                 }`}
               >
                 &gt; {e.detail}
@@ -1876,6 +1934,7 @@ function ShopPanel({
     : sections.filter((section) => section.id === category)
 
   const bagSlotsUsed = inventory.filter((item) => !item.slot).length
+  const bagCapacity = getInventoryCapacity()
 
   return (
     <div className="grid gap-6 xl:grid-cols-[1.35fr_1fr]">
@@ -1944,7 +2003,7 @@ function ShopPanel({
                         && inventoryItem.template_id === item.id
                         && inventoryItem.quantity < item.stack_limit,
                     )
-                    const inventoryFull = bagSlotsUsed >= 12 && !canStack
+                    const inventoryFull = bagSlotsUsed >= bagCapacity && !canStack
                     const tooExpensive = gold < item.buy_price * quantity
                     const disabled = tooExpensive || inventoryFull
 
@@ -2032,7 +2091,7 @@ function ShopPanel({
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-sm font-bold uppercase tracking-wider text-gray-500">Sell Inventory</h3>
-              <p className="text-xs text-gray-600">{bagSlotsUsed}/12 bag slots used</p>
+              <p className="text-xs text-gray-600">{bagSlotsUsed}/{bagCapacity} bag slots used</p>
             </div>
             <span className="text-xs text-gray-500">Equipped items stay protected</span>
           </div>
@@ -2214,18 +2273,30 @@ function EnemyBehaviorBadge({
   )
 }
 
-function getRecentEventPalette(eventType: string, isRecent: boolean) {
-  if (eventType === "boss_phase") {
+function getRecentEventPalette(
+  event: Observation["recent_events"][number],
+  isRecent: boolean,
+) {
+  if (event.type === "boss_phase") {
     return "border-amber-800/70 bg-amber-950/20 text-amber-200"
   }
-  if (eventType === "level_up") {
+  if (event.type === "level_up") {
     return "border-yellow-700/70 bg-yellow-950/20 text-yellow-200"
   }
-  if (eventType === "trap_triggered") {
+  if (event.type === "trap_triggered") {
     return "border-red-800/70 bg-red-950/20 text-red-200"
   }
-  if (eventType === "trap_disarmed") {
+  if (event.type === "trap_disarmed") {
     return "border-teal-800/70 bg-teal-950/20 text-teal-200"
+  }
+  if (event.type === "pickup_blocked") {
+    return "border-red-900/70 bg-red-950/30 text-red-200"
+  }
+  if (event.type === "interact" && event.data?.category === "lore") {
+    return "border-amber-800/70 bg-amber-950/20 text-amber-200"
+  }
+  if (event.type === "use_item" && event.detail.includes("layout of this entire floor")) {
+    return "border-indigo-800/70 bg-indigo-950/20 text-indigo-200"
   }
   return isRecent
     ? "border-gray-800 bg-gray-950 text-gray-300"
@@ -2234,6 +2305,13 @@ function getRecentEventPalette(eventType: string, isRecent: boolean) {
 
 function formatAbilityRange(range: number | "melee") {
   return range === "melee" ? "Melee" : `${range} tiles`
+}
+
+function formatLoreLabel(loreId: string) {
+  return loreId
+    .split("-")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ")
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

@@ -65,6 +65,7 @@ interface SerializedRoomState {
 
 export interface SessionState {
   rooms: SerializedRoomState[]
+  roomsVisited?: Record<number, string[]>
 }
 
 export function serializeSessionState(state: GameState): SessionState {
@@ -79,9 +80,12 @@ export function serializeSessionState(state: GameState): SessionState {
           position: { ...e.position },
           effects: e.effects.map((eff) => ({ ...eff })),
           cooldowns: { ...e.cooldowns },
-          boss_phase_index: e.boss_phase_index,
+          ...(e.boss_phase_index !== undefined
+            ? { boss_phase_index: e.boss_phase_index }
+            : {}),
         })),
     })),
+    roomsVisited: state.roomsVisited ? { ...state.roomsVisited } : undefined,
   }
 }
 
@@ -89,6 +93,15 @@ export function applySessionState(
   state: GameState,
   sessionState: SessionState,
 ): void {
+  if (sessionState.roomsVisited) {
+    state.roomsVisited = Object.fromEntries(
+      Object.entries(sessionState.roomsVisited).map(([floor, rooms]) => [
+        Number(floor),
+        [...rooms],
+      ]),
+    )
+  }
+
   for (const savedRoom of sessionState.rooms) {
     const room = state.activeFloor.rooms.find((r) => r.id === savedRoom.room_id)
     if (!room) continue
@@ -106,6 +119,22 @@ export function applySessionState(
       }
     }
   }
+}
+
+export async function persistLoreDiscoveries(
+  db: { from: (t: string) => any },
+  characterId: string,
+  loreDiscovered: GameState["loreDiscovered"],
+): Promise<void> {
+  if (!loreDiscovered || loreDiscovered.length === 0) return
+
+  await db.from("lore_discovered").upsert(
+    loreDiscovered.map((entry) => ({
+      character_id: characterId,
+      lore_entry_id: entry.lore_entry_id,
+      discovered_at_turn: entry.discovered_at_turn,
+    })),
+  )
 }
 
 // ── 8.3 — Count completed realms ────────────────────────────────────────────

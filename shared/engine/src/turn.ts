@@ -9,6 +9,7 @@
  * observation to the player.
  */
 
+import { getInventoryCapacity } from "@adventure-fun/schemas"
 import type {
   GameState,
   Action,
@@ -195,6 +196,181 @@ function hasPortalScroll(state: GameState): boolean {
   return state.inventory.some((item) => item.template_id === "portal-scroll")
 }
 
+function getEffectiveInventoryCapacity(_state: GameState): number {
+  return getInventoryCapacity()
+}
+
+function getInventoryStackTarget(
+  inventory: GameState["inventory"],
+  templateId: string,
+  stackLimit: number,
+): InventoryItem | undefined {
+  return inventory.find(
+    (item) => item.template_id === templateId && item.quantity < stackLimit,
+  )
+}
+
+function canAddInventoryItem(
+  state: GameState,
+  templateId: string,
+  stackLimit: number,
+): { stackTarget: InventoryItem | undefined; hasSpace: boolean; slotsUsed: number; capacity: number } {
+  const stackTarget = getInventoryStackTarget(state.inventory, templateId, stackLimit)
+  const slotsUsed = state.inventory.length
+  const capacity = getEffectiveInventoryCapacity(state)
+  return {
+    stackTarget,
+    hasSpace: Boolean(stackTarget) || slotsUsed < capacity,
+    slotsUsed,
+    capacity,
+  }
+}
+
+function getVisitedRooms(
+  state: GameState,
+  floor: number,
+): string[] {
+  return state.roomsVisited?.[floor] ?? []
+}
+
+function hasVisitedRoom(
+  state: GameState,
+  floor: number,
+  roomId: string,
+): boolean {
+  return getVisitedRooms(state, floor).includes(roomId)
+}
+
+function markRoomVisited(
+  state: GameState,
+  floor: number,
+  roomId: string,
+): void {
+  if (!state.roomsVisited) {
+    state.roomsVisited = {}
+  }
+  const visited = state.roomsVisited[floor] ?? []
+  if (!visited.includes(roomId)) {
+    state.roomsVisited[floor] = [...visited, roomId]
+  }
+}
+
+function rememberLoreDiscovery(
+  state: GameState,
+  loreEntryId: string | null | undefined,
+): void {
+  if (!loreEntryId) return
+  if (!state.loreDiscovered) {
+    state.loreDiscovered = []
+  }
+  if (
+    state.loreDiscovered.some(
+      (entry) => entry.lore_entry_id === loreEntryId,
+    )
+  ) {
+    return
+  }
+  state.loreDiscovered.push({
+    lore_entry_id: loreEntryId,
+    discovered_at_turn: state.turn,
+  })
+}
+
+function formatLoreLabel(loreId: string): string {
+  return loreId
+    .split("-")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ")
+}
+
+function getPlacementTiles(tiles: Tile[][]): Position[] {
+  const floorTiles: Position[] = []
+  const fallbackTiles: Position[] = []
+  for (const row of tiles) {
+    for (const tile of row) {
+      if (tile.type !== "wall") {
+        fallbackTiles.push({ x: tile.x, y: tile.y })
+      }
+      if (tile.type === "floor") {
+        floorTiles.push({ x: tile.x, y: tile.y })
+      }
+    }
+  }
+  return floorTiles.length > 0
+    ? floorTiles
+    : fallbackTiles.length > 0
+      ? fallbackTiles
+      : [{ x: 1, y: 1 }]
+}
+
+function claimPlacementPosition(
+  availableTiles: Position[],
+  occupied: Set<string>,
+  rng: SeededRng,
+  preferred?: Position,
+): Position {
+  const candidates = availableTiles.filter((tile) => !occupied.has(tileKey(tile)))
+  if (candidates.length === 0) {
+    return preferred ? { ...preferred } : { x: 1, y: 1 }
+  }
+
+  let chosen: Position | undefined
+  if (preferred) {
+    chosen = candidates.find(
+      (tile) => tile.x === preferred.x && tile.y === preferred.y,
+    )
+    if (!chosen) {
+      chosen = [...candidates].sort((left, right) => {
+        const leftDistance = getAbilityRangeDistance(left, preferred)
+        const rightDistance = getAbilityRangeDistance(right, preferred)
+        if (leftDistance !== rightDistance) return leftDistance - rightDistance
+        if (left.y !== right.y) return left.y - right.y
+        return left.x - right.x
+      })[0]
+    }
+  } else {
+    chosen = candidates[Math.floor(rng.next() * candidates.length)]
+  }
+
+  const resolved = chosen ?? candidates[0] ?? { x: 1, y: 1 }
+  occupied.add(tileKey(resolved))
+  return { ...resolved }
+}
+
+function getInteractableMapPosition(room: RoomState): Position {
+  return {
+    x: Math.max(1, Math.floor((room.tiles[0]?.length ?? 1) / 2)),
+    y: Math.max(1, Math.floor(room.tiles.length / 2)),
+  }
+}
+
+function revealCurrentFloorMap(
+  state: GameState,
+  realm: GeneratedRealm,
+): number {
+  const floor = state.position.floor
+  const generatedFloor = realm.floors.find((entry) => entry.floor_number === floor)
+  if (!generatedFloor) return 0
+
+  const existing = new Set(
+    (state.discoveredTiles[floor] ?? []).map((tile) => tileKey(tile)),
+  )
+  let revealed = 0
+  for (const room of generatedFloor.rooms) {
+    markRoomVisited(state, floor, room.id)
+    for (const row of room.tiles) {
+      for (const tile of row) {
+        const key = tileKey(tile)
+        if (existing.has(key)) continue
+        existing.add(key)
+        revealed++
+      }
+    }
+  }
+  state.discoveredTiles[floor] = [...existing].map(parseTileKey)
+  return revealed
+}
+
 function canUsePortal(state: GameState, room: RoomState): boolean {
   return !roomHasLiveEnemies(room) && (state.portalActive === true || hasPortalScroll(state))
 }
@@ -314,7 +490,7 @@ export function resolveTurn(
         break
       }
       case "use_item": {
-        summary = resolveUseItem(s, action, events)
+        summary = resolveUseItem(s, action, events, realm)
         break
       }
       case "pickup": {
@@ -1276,6 +1452,7 @@ function resolveUseItem(
   s: GameState,
   action: { type: "use_item"; item_id: string; target_id?: string },
   events: GameEvent[],
+  realm: GeneratedRealm,
 ): string {
   const itemIdx = s.inventory.findIndex((i) => i.id === action.item_id)
   if (itemIdx < 0) return "Item not found in inventory."
@@ -1329,7 +1506,12 @@ function resolveUseItem(
         break
       }
       case "reveal-map": {
-        parts.push("The map reveals itself.")
+        const revealedCount = revealCurrentFloorMap(s, realm)
+        parts.push(
+          revealedCount > 0
+            ? "The map reveals itself. You now know the layout of this entire floor."
+            : "The map reveals itself, but there is nothing new to uncover here.",
+        )
         break
       }
     }
@@ -1448,11 +1630,28 @@ function resolvePickup(
   }
 
   // Add to inventory
-  const existing = s.inventory.find(
-    (i) => i.template_id === floorItem.template_id && i.quantity < template.stack_limit,
+  const inventoryCheck = canAddInventoryItem(
+    s,
+    floorItem.template_id,
+    template.stack_limit,
   )
-  if (existing) {
-    existing.quantity += qty
+  if (inventoryCheck.stackTarget) {
+    inventoryCheck.stackTarget.quantity += qty
+  } else if (!inventoryCheck.hasSpace) {
+    const fullSummary = `Inventory full (${inventoryCheck.slotsUsed}/${inventoryCheck.capacity}).`
+    summaryParts.push(fullSummary)
+    events.push({
+      turn: 0,
+      type: "pickup_blocked",
+      detail: fullSummary,
+      data: {
+        item_id: floorItem.id,
+        template_id: floorItem.template_id,
+        slots_used: inventoryCheck.slotsUsed,
+        capacity: inventoryCheck.capacity,
+      },
+    })
+    return summaryParts.join(" ")
   } else {
     s.inventory.push({
       id: floorItem.id,
@@ -1603,6 +1802,7 @@ function resolveInteract(
   for (const effect of interactable.effects) {
     applyEffect(s, effect, parts, room, realm)
   }
+  rememberLoreDiscovery(s, interactable.lore_entry_id)
 
   // Check triggers for this interactable
   for (const trigger of roomTemplate.triggers) {
@@ -1635,7 +1835,12 @@ function resolveInteract(
     entity_id: action.target_id,
     mutation: mutationType,
     floor: s.position.floor,
-    metadata: { name: interactable.name },
+    metadata: {
+      name: interactable.name,
+      ...(interactable.lore_entry_id
+        ? { lore_entry_id: interactable.lore_entry_id }
+        : {}),
+    },
   })
   s.mutatedEntities.push(action.target_id)
 
@@ -1673,11 +1878,17 @@ function applyEffect(
       const qty = (effect.quantity as number) ?? 1
       try {
         const template = getItem(templateId)
-        const existing = s.inventory.find(
-          (i) => i.template_id === templateId && i.quantity < template.stack_limit,
+        const inventoryCheck = canAddInventoryItem(
+          s,
+          templateId,
+          template.stack_limit,
         )
-        if (existing) {
-          existing.quantity += qty
+        if (inventoryCheck.stackTarget) {
+          inventoryCheck.stackTarget.quantity += qty
+        } else if (!inventoryCheck.hasSpace) {
+          parts.push(
+            `Inventory full (${inventoryCheck.slotsUsed}/${inventoryCheck.capacity}) — could not receive ${template.name}.`,
+          )
         } else {
           s.inventory.push({
             id: crypto.randomUUID(),
@@ -1708,7 +1919,18 @@ function applyEffect(
       break
     }
     case "reveal-lore": {
-      parts.push("You discover a piece of lore.")
+      const loreId =
+        typeof effect.lore_entry_id === "string"
+          ? effect.lore_entry_id
+          : typeof effect.lore_id === "string"
+            ? effect.lore_id
+            : null
+      rememberLoreDiscovery(s, loreId)
+      parts.push(
+        loreId
+          ? `You discover a piece of lore: ${formatLoreLabel(loreId)}.`
+          : "You discover a piece of lore.",
+      )
       break
     }
     case "show-text": {
@@ -1890,21 +2112,37 @@ export function buildRoomState(
   seed?: number,
 ): RoomState {
   const roomTemplate = findRoomTemplateFromId(genRoom.id)
+  const placementTiles = getPlacementTiles(genRoom.tiles)
+  const occupied = new Set<string>()
+  const placementSeed = seed ?? 1
 
   // Map enemy index → template_id using room template's enemy_slots order
-  const enemyTemplateMap: Array<{ templateId: string; pos: { x: number; y: number } }> = []
+  const enemyTemplateMap: Array<{ templateId: string; preferredPos?: Position }> = []
   if (roomTemplate) {
     for (const slot of roomTemplate.enemy_slots) {
       const count = slot.count.max
-      const pos =
+      const preferredPos =
         typeof slot.position === "object"
           ? { x: slot.position.x, y: slot.position.y }
-          : { x: 3, y: 3 }
+          : undefined
       for (let e = 0; e < count; e++) {
-        enemyTemplateMap.push({ templateId: slot.enemy_template_id, pos })
+        enemyTemplateMap.push({
+          templateId: slot.enemy_template_id,
+          ...(preferredPos ? { preferredPos } : {}),
+        })
       }
     }
   }
+
+  const enemyPositions = genRoom.enemy_ids.map((enemyId, index) => {
+    const mapped = enemyTemplateMap[index]
+    return claimPlacementPosition(
+      placementTiles,
+      occupied,
+      new SeededRng(deriveSeed(placementSeed, `${genRoom.id}:${enemyId}:enemy`)),
+      mapped?.preferredPos,
+    )
+  })
 
   const enemies: RoomState["enemies"] = []
   for (let i = 0; i < genRoom.enemy_ids.length; i++) {
@@ -1925,7 +2163,7 @@ export function buildRoomState(
       template_id: templateId,
       hp,
       hp_max: hp,
-      position: mapped?.pos ? { ...mapped.pos } : { x: 3, y: 3 },
+      position: enemyPositions[i] ?? { x: 1, y: 1 },
       effects: [],
       cooldowns: {},
     })
@@ -1935,6 +2173,19 @@ export function buildRoomState(
   const items: RoomState["items"] = []
   const realmTemplate = realmTemplateId ? REALMS[realmTemplateId] : undefined
   const lootTables = realmTemplate?.loot_tables
+  const itemPositions = genRoom.item_ids.map((itemId, index) => {
+    const lootSlot = roomTemplate?.loot_slots[index]
+    const preferredPos =
+      lootSlot?.position && typeof lootSlot.position === "object"
+        ? { x: lootSlot.position.x, y: lootSlot.position.y }
+        : undefined
+    return claimPlacementPosition(
+      placementTiles,
+      occupied,
+      new SeededRng(deriveSeed(placementSeed, `${genRoom.id}:${itemId}:item`)),
+      preferredPos,
+    )
+  })
 
   for (let i = 0; i < genRoom.item_ids.length; i++) {
     const itemId = genRoom.item_ids[i]!
@@ -1968,10 +2219,7 @@ export function buildRoomState(
       id: itemId,
       template_id: templateId,
       quantity,
-      position:
-        lootSlot?.position && typeof lootSlot.position === "object"
-          ? { x: lootSlot.position.x, y: lootSlot.position.y }
-          : { x: 2, y: 2 },
+      position: itemPositions[i] ?? { x: 1, y: 1 },
       ...(lootSlot?.trapped !== undefined ? { trapped: lootSlot.trapped } : {}),
       ...(lootSlot?.trap_damage !== undefined ? { trap_damage: lootSlot.trap_damage } : {}),
       ...(lootSlot ? { trap_effect: lootSlot.trap_effect ?? null } : {}),
@@ -2205,8 +2453,8 @@ export function buildObservationFromState(
         hp_current: enemy.hp,
         hp_max: enemy.hp_max,
         effects: [...enemy.effects],
-        behavior: template?.behavior,
-        is_boss: template?.behavior === "boss",
+        ...(template?.behavior ? { behavior: template.behavior } : {}),
+        ...(template?.behavior === "boss" ? { is_boss: true } : {}),
       })
     }
     for (const item of room.items) {
@@ -2254,11 +2502,12 @@ export function buildObservationFromState(
 
       for (const inter of obsRoomTemplate.interactables) {
         if (state.mutatedEntities.includes(inter.id)) continue
+        // Interactables are room-wide by design; templates do not define positions.
         visibleEntities.push({
           id: inter.id,
           type: "interactable",
           name: inter.name,
-          position: { x: 0, y: 0 },
+          position: getInteractableMapPosition(room),
         })
       }
     }
@@ -2274,19 +2523,23 @@ export function buildObservationFromState(
         type: "floor" as const,
         entities: [],
       })),
-      rooms_visited: [], // TODO: track visited rooms
+      rooms_visited: [...getVisitedRooms(state, Number(floor))],
     }
   }
 
   // Room text
   const roomTemplate = room ? findRoomTemplate(room.id) : null
   const isFirstVisit = genRoom
-    ? !state.discoveredTiles[state.position.floor]?.some(
-        (t) => t.x === state.position.tile.x && t.y === state.position.tile.y,
-      )
+    ? !hasVisitedRoom(state, state.position.floor, state.position.room_id)
     : true
   const baseRoomText =
-    roomTemplate?.text_first_visit ?? genRoom?.description_first_visit ?? null
+    isFirstVisit
+      ? (roomTemplate?.text_first_visit ?? genRoom?.description_first_visit ?? null)
+      : (roomTemplate?.text_revisit
+          ?? genRoom?.description_revisit
+          ?? roomTemplate?.text_first_visit
+          ?? genRoom?.description_first_visit
+          ?? null)
   const behaviorHints = visibleEntities.flatMap((entity) => {
     if (entity.type !== "enemy" || !entity.behavior) return []
     const distance = getAbilityRangeDistance(entity.position, state.position.tile)
@@ -2310,6 +2563,7 @@ export function buildObservationFromState(
     quantity: item.quantity,
     modifiers: item.modifiers,
   }))
+  const inventoryCapacity = getEffectiveInventoryCapacity(state)
 
   // Legal actions
   const legalActions = computeLegalActions(state, room, realm)
@@ -2335,6 +2589,8 @@ export function buildObservationFromState(
       skill_tree: { ...(state.character.skill_tree ?? {}) },
     },
     inventory: inventorySlots,
+    inventory_slots_used: state.inventory.length,
+    inventory_capacity: inventoryCapacity,
     equipment: { ...state.equipment },
     gold: state.character.gold,
     position: { ...state.position },
@@ -2393,9 +2649,9 @@ function entityToSpectator(entity: Entity): SpectatorEntity {
     type: entity.type === "trap_visible" ? "interactable" : entity.type,
     name: entity.name,
     position: entity.position,
-    health_indicator,
-    behavior: entity.behavior,
-    is_boss: entity.is_boss,
+    ...(health_indicator ? { health_indicator } : {}),
+    ...(entity.behavior ? { behavior: entity.behavior } : {}),
+    ...(entity.is_boss ? { is_boss: entity.is_boss } : {}),
   }
 }
 
@@ -2458,7 +2714,20 @@ export function computeLegalActions(
     const dist =
       Math.abs(state.position.tile.x - item.position.x) +
       Math.abs(state.position.tile.y - item.position.y)
-    if (dist <= 1) {
+    let canPickUp = dist <= 1
+    if (canPickUp) {
+      try {
+        const template = getItem(item.template_id)
+        canPickUp = canAddInventoryItem(
+          state,
+          item.template_id,
+          template.stack_limit,
+        ).hasSpace || item.template_id === "gold-coins"
+      } catch {
+        canPickUp = false
+      }
+    }
+    if (canPickUp) {
       actions.push({ type: "pickup", item_id: item.id })
     }
   }
@@ -2485,7 +2754,8 @@ export function computeLegalActions(
 
   // Interact with available interactables
   const roomTemplate = findRoomTemplate(room.id)
-  if (roomTemplate) {
+  if (roomTemplate && room.id === state.position.room_id) {
+    // Interactables are room-wide within the current room because templates do not store positions.
     for (const inter of roomTemplate.interactables) {
       if (!state.mutatedEntities.includes(inter.id)) {
         actions.push({ type: "interact", target_id: inter.id })
@@ -2559,10 +2829,12 @@ function result(
   notableEvents: LobbyEvent[],
   realm: GeneratedRealm,
 ): TurnResult {
+  const observation = buildObservationFromState(s, events, realm)
+  markRoomVisited(s, s.position.floor, s.position.room_id)
   return {
     newState: s,
     worldMutations: mutations,
-    observation: buildObservationFromState(s, events, realm),
+    observation,
     summary,
     roomChanged,
     notableEvents,

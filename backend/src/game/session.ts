@@ -35,6 +35,7 @@ import {
   applySessionState,
   countCompletedRealms,
   buildRunSummaryFromEvents,
+  persistLoreDiscoveries,
   type SessionState,
 } from "./session-persistence.js"
 import { parseAction, isActionLegal } from "./action-validator.js"
@@ -133,9 +134,14 @@ export function applyExtractionOutcome(state: GameState): ExtractionOutcome {
     loot_summary: buildLootSummary(state.inventory),
     xp_gained: completionRewards?.xp ?? 0,
     gold_gained: completionRewards?.gold ?? 0,
-    completion_bonus: completionRewards
-      ? { xp: completionRewards.xp, gold: completionRewards.gold }
-      : undefined,
+    ...(completionRewards
+      ? {
+          completion_bonus: {
+            xp: completionRewards.xp,
+            gold: completionRewards.gold,
+          },
+        }
+      : {}),
     realm_completed: realmCompleted,
   }
 }
@@ -181,7 +187,7 @@ export class GameSession {
   ): Promise<GameSession | null> {
     const { realmId, characterId } = ws.data
 
-    const [realmRes, charRes, mutRes, mapRes, invRes] = await Promise.all([
+    const [realmRes, charRes, mutRes, mapRes, invRes, loreRes] = await Promise.all([
       db.from("realm_instances").select("*").eq("id", realmId).single(),
       db.from("characters").select("*").eq("id", characterId).single(),
       db
@@ -198,6 +204,10 @@ export class GameSession {
         .select("*")
         .eq("owner_type", "character")
         .eq("owner_id", characterId),
+      db
+        .from("lore_discovered")
+        .select("*")
+        .eq("character_id", characterId),
     ])
 
     const realm = realmRes.data
@@ -340,6 +350,11 @@ export class GameSession {
       equipment,
       activeFloor: { rooms: activeFloorRooms },
       discoveredTiles,
+      roomsVisited: {},
+      loreDiscovered: (loreRes.data ?? []).map((row) => ({
+        lore_entry_id: row.lore_entry_id as string,
+        discovered_at_turn: row.discovered_at_turn as number,
+      })),
       mutatedEntities,
       realmStatus:
         realm.status === "boss_cleared" ? "boss_cleared" : "active",
@@ -377,8 +392,21 @@ export class GameSession {
       [],
       this.generatedRealm,
     )
+    this.markCurrentRoomVisited()
     obs.turn = this.turn
     return obs
+  }
+
+  private markCurrentRoomVisited(): void {
+    const floor = this.gameState.position.floor
+    const roomId = this.gameState.position.room_id
+    if (!this.gameState.roomsVisited) {
+      this.gameState.roomsVisited = {}
+    }
+    const visited = this.gameState.roomsVisited[floor] ?? []
+    if (!visited.includes(roomId)) {
+      this.gameState.roomsVisited[floor] = [...visited, roomId]
+    }
   }
 
   getInitialObservation(): Observation {
@@ -525,6 +553,11 @@ export class GameSession {
 
       // 2. Save character state
       await this.saveCharacterState(reason)
+      await persistLoreDiscoveries(
+        db,
+        this.characterId,
+        this.gameState.loreDiscovered,
+      )
 
       // 3. Update realm instance (8.2: persist enemy state + RNG on disconnect)
       const realmStatus =

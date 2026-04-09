@@ -58,6 +58,12 @@ export type ItemRarity = "common" | "uncommon" | "rare" | "epic"
 export type EquipSlot = "weapon" | "armor" | "accessory" | "class-specific"
 export type OwnerType = "character" | "escrow" | "corpse"
 
+export const BASE_INVENTORY_SLOTS = 12
+
+export function getInventoryCapacity(capacityBonus = 0): number {
+  return BASE_INVENTORY_SLOTS + Math.max(0, capacityBonus)
+}
+
 export interface ItemEffect {
   type: "heal-hp" | "restore-resource" | "cure-debuffs" | "portal-escape" | "buff" | "reveal-map"
   magnitude?: number
@@ -134,6 +140,7 @@ export interface Character {
   skill_tree: Record<string, string>
   status: CharacterStatus
   stat_rerolled: boolean
+  lore_discovered?: LoreDiscovery[]
   created_at: string
   died_at?: string
 }
@@ -155,6 +162,11 @@ export interface WorldMutation {
   mutation: MutationType
   floor: number
   metadata: Record<string, unknown>
+}
+
+export interface LoreDiscovery {
+  lore_entry_id: string
+  discovered_at_turn: number
 }
 
 /** Result of resolving a single turn via the engine */
@@ -228,6 +240,10 @@ export interface GameState {
   }
   /** Tiles the player has seen — persisted to realm_discovered_map */
   discoveredTiles: Record<number, Array<{ x: number; y: number }>>
+  /** Room IDs the player has already entered on each floor. */
+  roomsVisited?: Record<number, string[]>
+  /** Lore entries discovered during this life. */
+  loreDiscovered?: LoreDiscovery[]
   /** IDs of entities that have been mutated (killed, opened, looted, used, etc.) */
   mutatedEntities: string[]
   /** Realm completion state */
@@ -336,6 +352,8 @@ export interface Observation {
     skill_tree: Record<string, boolean>
   }
   inventory: InventorySlot[]
+  inventory_slots_used: number
+  inventory_capacity: number
   equipment: Record<EquipSlot, InventoryItem | null>
   gold: number
   position: {
