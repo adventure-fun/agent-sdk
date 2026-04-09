@@ -14,6 +14,7 @@ import { useShop } from "../hooks/use-shop"
 import { useInn } from "../hooks/use-inn"
 import { AsciiMap } from "../components/ascii-map"
 import { PaymentModal } from "../components/payment-modal"
+import { UiToast } from "../components/ui-toast"
 import { useUsdcBalance } from "../hooks/use-usdc-balance"
 import { useEffect, useState, useMemo } from "react"
 import { getInventoryCapacity, type CharacterClass, type Action, type Observation, type ActiveEffect, type InventoryItem, type ItemTemplate } from "@adventure-fun/schemas"
@@ -34,6 +35,24 @@ type PendingPayment =
   | { kind: "generate"; templateId: string; templateName: string }
   | { kind: "inn-rest" }
   | null
+
+function delay(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms))
+}
+
+function friendlyPaymentError(message: string) {
+  const normalized = message.toLowerCase()
+  if (normalized.includes("rejected") || normalized.includes("cancelled")) {
+    return "Payment was cancelled before settlement completed."
+  }
+  if (normalized.includes("insufficient")) {
+    return "There is not enough USDC available to settle this payment yet."
+  }
+  if (normalized.includes("network") || normalized.includes("timeout")) {
+    return "The payment network is taking too long to respond. Please try again in a moment."
+  }
+  return message
+}
 
 export default function PlayPage() {
   const { isInitialized } = useIsInitialized()
@@ -140,6 +159,8 @@ export default function PlayPage() {
   const [pendingPayment, setPendingPayment] = useState<PendingPayment>(null)
   const [isProcessingPayment, setIsProcessingPayment] = useState(false)
   const [paymentError, setPaymentError] = useState<string | null>(null)
+  const [paymentSuccess, setPaymentSuccess] = useState<string | null>(null)
+  const [paymentToast, setPaymentToast] = useState<string | null>(null)
   const [shopMessage, setShopMessage] = useState<string | null>(null)
   const [innMessage, setInnMessage] = useState<string | null>(null)
 
@@ -180,6 +201,12 @@ export default function PlayPage() {
     }
   }, [isAuthenticated]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    if (!paymentToast) return
+    const timer = window.setTimeout(() => setPaymentToast(null), 2600)
+    return () => window.clearTimeout(timer)
+  }, [paymentToast])
+
   // Return to hub helper (after death/extraction)
   const returnToHub = () => {
     gameSession.disconnect()
@@ -199,46 +226,60 @@ export default function PlayPage() {
     if (isProcessingPayment) return
     setPendingPayment(null)
     setPaymentError(null)
+    setPaymentSuccess(null)
   }
 
   const confirmPendingPayment = async () => {
     if (!pendingPayment) return
     setIsProcessingPayment(true)
     setPaymentError(null)
+    setPaymentSuccess(null)
+    setPaymentToast(null)
 
     try {
+      let successMessage = "Payment settled."
       if (pendingPayment.kind === "reroll") {
         const result = await rerollStats()
         if (result.message) {
           setRerollMessage(result.message)
           setRerollDisabled(true)
+          if (!result.character) {
+            setPaymentError(friendlyPaymentError(result.message))
+            return
+          }
         } else {
           setRerollMessage("Payment settled and stats re-rolled.")
           setRerollDisabled(true)
         }
+        successMessage = "Payment settled. Your hero's stats have been re-rolled."
       } else if (pendingPayment.kind === "generate") {
         setGeneratingTemplate(pendingPayment.templateId)
         const result = await generateRealm(pendingPayment.templateId)
         if (result.error) {
           setRealmError(result.error)
-          setPaymentError(result.error)
+          setPaymentError(friendlyPaymentError(result.error))
           return
         }
+        successMessage = `${pendingPayment.templateName} is now woven into the world.`
       } else if (pendingPayment.kind === "inn-rest") {
         const result = await restAtInn()
         if (!result.ok) {
-          setPaymentError(result.error)
+          setPaymentError(friendlyPaymentError(result.error))
           return
         }
         setInnMessage(result.data.message)
         await fetchCharacter()
+        successMessage = "Payment settled. The inn restores you to fighting form."
       }
 
+      setPaymentSuccess(successMessage)
       await refetchUsdcBalance()
       await fetchInventory()
+      await delay(950)
       setPendingPayment(null)
+      setPaymentToast(successMessage)
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Payment failed"
+      const message = friendlyPaymentError(err instanceof Error ? err.message : "Payment failed")
       setPaymentError(message)
       if (pendingPayment.kind === "generate") {
         setRealmError(message)
@@ -250,6 +291,7 @@ export default function PlayPage() {
     } finally {
       setGeneratingTemplate(null)
       setIsProcessingPayment(false)
+      setPaymentSuccess(null)
     }
   }
 
@@ -257,6 +299,7 @@ export default function PlayPage() {
   if (!isInitialized) {
     return (
       <Shell>
+        <UiToast open={!!paymentToast} tone="success" title="Payment Complete" message={paymentToast ?? ""} onClose={() => setPaymentToast(null)} />
         <h1 className="text-3xl font-bold text-amber-400">ADVENTURE.FUN</h1>
         <p className="text-gray-400">Loading CDP SDK...</p>
         <p className="text-xs text-gray-600">
@@ -270,6 +313,7 @@ export default function PlayPage() {
   if (!isSignedIn) {
     return (
       <Shell>
+        <UiToast open={!!paymentToast} tone="success" title="Payment Complete" message={paymentToast ?? ""} onClose={() => setPaymentToast(null)} />
         <h1 className="text-3xl font-bold text-amber-400">ADVENTURE.FUN</h1>
         <p className="text-gray-400">Sign in to play</p>
         <div className="flex justify-center">
@@ -510,6 +554,13 @@ export default function PlayPage() {
 
     return (
       <>
+        <UiToast
+          open={!!paymentToast}
+          tone="success"
+          title="Payment Complete"
+          message={paymentToast ?? ""}
+          onClose={() => setPaymentToast(null)}
+        />
         <Shell wide>
           <AccountPanel
             walletAddress={evmAddress}
@@ -572,6 +623,7 @@ export default function PlayPage() {
           priceUsd="0.10"
           balanceLabel={balanceLabel}
           isProcessing={isProcessingPayment}
+          successMessage={paymentSuccess}
           error={paymentError}
           onCancel={closePaymentModal}
           onConfirm={confirmPendingPayment}
@@ -806,6 +858,13 @@ export default function PlayPage() {
 
     return (
       <>
+        <UiToast
+          open={!!paymentToast}
+          tone="success"
+          title="Payment Complete"
+          message={paymentToast ?? ""}
+          onClose={() => setPaymentToast(null)}
+        />
         <main className="min-h-screen flex flex-col items-center p-8">
           <div className="max-w-5xl w-full space-y-6">
             <AccountPanel
@@ -1103,6 +1162,7 @@ export default function PlayPage() {
           priceUsd={pendingPayment?.kind === "inn-rest" ? "0.05" : "0.25"}
           balanceLabel={balanceLabel}
           isProcessing={isProcessingPayment || !!generatingTemplate || innLoading}
+          successMessage={paymentSuccess}
           error={paymentError}
           onCancel={closePaymentModal}
           onConfirm={confirmPendingPayment}

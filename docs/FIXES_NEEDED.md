@@ -502,39 +502,45 @@ Add notes under any item with `> NOTE: your note here` when needed.
 **Scope:** Next.js frontend issues
 **Depends on:** Groups 11 (API endpoints need to exist first)
 
-- [ ] **14.1 — Leaderboard page has no data fetching**
+- [x] **14.1 — Leaderboard page has no data fetching**
   - `frontend/app/leaderboard/page.tsx` — static table with "No legends yet"
   - Filter buttons (All / Humans / Agents) are non-functional
   - **Fix:** Add `useLeaderboard` hook, fetch from `/leaderboard/xp` when endpoint exists (Group 11.1), wire filter buttons
   - **Files:** `frontend/app/leaderboard/page.tsx`, new hook
+  > NOTE: Functionally completed earlier via `frontend/app/hooks/use-leaderboard.ts` and live `/leaderboard/:type` wiring, then polished here into a premium leaderboard experience. Added Framer Motion page/row transitions, a top-3 podium, retry CTA on fetch failures, and per-account row/highlight treatment so the current player's legends stand out.
 
-- [ ] **14.2 — Legends page is a placeholder**
+- [x] **14.2 — Legends page is a placeholder**
   - `frontend/app/legends/[characterId]/page.tsx` — shows character ID and "API not yet connected"
   - **Fix:** Fetch from `/legends/:characterId` when endpoint exists (Group 11.6), render full legend page with stats, history, cause of death
   - **Files:** `frontend/app/legends/[characterId]/page.tsx`
+  > NOTE: Functionally completed earlier with `legend-page-client.tsx`, then upgraded here with a more memorial-style presentation: staged motion reveals, ambient hero glow, retry + navigation actions on load failure, clipboard/share feedback via toast, and richer equipment storytelling using modifier summaries instead of raw `template_id` strings.
 
-- [ ] **14.3 — Payment integration stubs**
+- [x] **14.3 — Payment integration stubs**
   - `play/page.tsx` shows "Payment integration coming soon" for reroll and realm generation
   - **Fix:** Integrate Coinbase CDP payment flow for x402 actions. This depends on x402 verification being implemented (Group 10.1)
   - **Files:** `frontend/app/play/page.tsx`
+  > NOTE: Functional x402 support was already in place from Group 10.1. This pass elevated the UX: `frontend/app/components/payment-modal.tsx` now has animated presentation, a processing state with settlement messaging, a brief success confirmation before returning control, and friendlier user-facing payment error copy. Added reusable `UiToast` feedback for completed purchases/rests/rerolls.
 
-- [ ] **14.4 — Spectate page error handling**
+- [x] **14.4 — Spectate page error handling**
   - `spectate/[characterId]/page.tsx` — `JSON.parse(event.data)` with no try/catch
   - Spectator WebSocket URL pattern may not match backend (depends on Group 11.5)
   - **Fix:** Add try/catch around JSON.parse, add connection error states, align WS URL with backend spectator endpoint
   - **Files:** `frontend/app/spectate/[characterId]/page.tsx`
+  > NOTE: Core reconnect/error handling landed earlier with Group 11.5. This pass replaced the blank initial render with a proper loading shell, swapped hard page reloads for in-app reconnect controls, added richer broadcast-status skeletons while waiting for the first observation, and now highlights the newest incoming event for better spectator readability.
 
-- [ ] **14.5 — `vercel.json` rewrite URL is a placeholder**
+- [x] **14.5 — `vercel.json` rewrite URL is a placeholder**
   - Rewrites `/api/:path*` to `https://your-railway-server.railway.app/:path*`
   - Must be updated for actual deployment
   - **Fix:** Update to actual Railway deployment URL or use environment variable
   - **Files:** `frontend/vercel.json`
+  > NOTE: Removed the hardcoded placeholder rewrite from `frontend/vercel.json` and moved API proxying into `frontend/next.config.ts` via `rewrites()` using `process.env.BACKEND_URL ?? "http://localhost:3001"`. Added `BACKEND_URL` to `.env.example` for environment-specific deployment config.
 
-- [ ] **14.6 — `tsconfig.json` path alias points to nonexistent directory**
+- [x] **14.6 — `tsconfig.json` path alias points to nonexistent directory**
   - `"@/*": ["./src/*"]` but there's no `frontend/src/` directory — app code is under `frontend/app/`
   - This also contributes noise to frontend typechecking because the local alias is invalid even before real app errors are evaluated
   - **Fix:** Change to `"@/*": ["./app/*"]` or remove the alias if unused. After that, run package-local frontend typecheck (`frontend/tsconfig.json`) rather than repo-root `tsc`
   - **Files:** `frontend/tsconfig.json`
+  > NOTE: Updated the alias to `"@/*": ["./app/*"]`. Also verified the alias is currently unused, so this is a safe cleanup that removes misleading frontend config drift.
 
 - [x] **14.7 — `NEXT_PUBLIC_WS_URL` not documented in `.env.example`**
   - `use-game-session.ts` reads `NEXT_PUBLIC_WS_URL` with fallback to `ws://localhost:3001`
@@ -674,3 +680,9 @@ _Record completed fixes here with date and commit hash._
 | 2026-04-09 | 13.7 | pending | Implemented `reveal-map` to uncover the full current floor and mark rooms visited; play UI now highlights those map-reveal events |
 | 2026-04-09 | 13.8 | pending | Added lore discovery tracking/persistence via `lore_discovered`, enriched `/characters/me`, and shipped a hub lore journal plus lore-highlighted dungeon events |
 | 2026-04-09 | 14.7 | pending | Added `NEXT_PUBLIC_WS_URL` to `.env.example` |
+| 2026-04-09 | 14.1 | pending | Verified existing live leaderboard wiring, then upgraded the page with Framer Motion reveals, podium cards, retry CTA, and current-player highlighting |
+| 2026-04-09 | 14.2 | pending | Verified legends API wiring, then added memorial motion polish, clipboard toast feedback, richer equipment storytelling, and error recovery actions |
+| 2026-04-09 | 14.3 | pending | Polished x402 UX with animated payment modal states, success confirmation, friendlier payment copy, and reusable toast feedback |
+| 2026-04-09 | 14.4 | pending | Upgraded spectate UX with loading shells, in-app reconnect controls, richer waiting/error states, and newest-event highlighting |
+| 2026-04-09 | 14.5 | pending | Replaced hardcoded Vercel rewrite placeholder with env-driven `rewrites()` in `frontend/next.config.ts`; added `BACKEND_URL` to `.env.example` |
+| 2026-04-09 | 14.6 | pending | Fixed frontend TS alias from nonexistent `./src/*` to `./app/*` |

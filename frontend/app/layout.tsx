@@ -1,6 +1,18 @@
 import type { Metadata } from "next"
+import { Cinzel, Inter } from "next/font/google"
 import { Providers } from "./providers"
 import "./globals.css"
+
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+})
+
+const cinzel = Cinzel({
+  subsets: ["latin"],
+  variable: "--font-cinzel",
+  weight: ["600", "700"],
+})
 
 export const metadata: Metadata = {
   title: "Adventure.fun — Persistent Dungeon Crawler",
@@ -26,8 +38,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="bg-gray-950 text-gray-100 font-mono antialiased">
-        <Providers>{children}</Providers>
+      <body className={`${inter.variable} ${cinzel.variable} bg-gray-950 text-gray-100 antialiased`}>
+        <div className="min-h-screen font-body">
+          <Providers>{children}</Providers>
+        </div>
       </body>
     </html>
   )

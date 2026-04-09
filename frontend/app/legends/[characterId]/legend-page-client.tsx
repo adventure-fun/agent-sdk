@@ -1,7 +1,11 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import Link from "next/link"
+import { motion } from "framer-motion"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import type { LegendPage } from "@adventure-fun/schemas"
+import { UiToast } from "../../components/ui-toast"
+import { listItemReveal, pageEnter, sectionReveal } from "../../lib/motion"
 
 const API_URL = process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:3001"
 
@@ -38,43 +42,63 @@ function socialLink(label: string, href: string | null | undefined) {
   )
 }
 
+function formatModifiers(modifiers: Record<string, number>) {
+  const parts = Object.entries(modifiers)
+    .filter(([, value]) => value !== 0)
+    .map(([key, value]) => `${value > 0 ? "+" : ""}${value} ${key.replaceAll("_", " ")}`)
+
+  return parts.length > 0 ? parts.join(" · ") : "No recorded modifiers"
+}
+
 export function LegendPageClient({ characterId }: { characterId: string }) {
   const [legend, setLegend] = useState<LegendPage | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [toast, setToast] = useState<{ tone: "success" | "error"; message: string } | null>(null)
   const skillNodes = useMemo(() => Object.keys(legend?.character.skill_tree ?? {}), [legend])
 
   useEffect(() => {
-    let cancelled = false
+    if (!toast) return
+    const timer = window.setTimeout(() => setToast(null), 2200)
+    return () => window.clearTimeout(timer)
+  }, [toast])
 
-    async function loadLegend() {
-      setIsLoading(true)
-      setError(null)
-      try {
-        const response = await fetch(`${API_URL}/legends/${characterId}`)
-        const body = await response.json()
-        if (!response.ok) {
-          throw new Error(body.error ?? "Failed to load legend")
-        }
-        if (!cancelled) {
-          setLegend(body as LegendPage)
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Failed to load legend")
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false)
-        }
+  const loadLegend = useCallback(async (signal?: AbortSignal) => {
+    setIsLoading(true)
+    setError(null)
+    try {
+      const response = await fetch(`${API_URL}/legends/${characterId}`, { signal })
+      const body = await response.json()
+      if (!response.ok) {
+        throw new Error(body.error ?? "Failed to load legend")
+      }
+      setLegend(body as LegendPage)
+    } catch (err) {
+      if (signal?.aborted) return
+      setError(err instanceof Error ? err.message : "Failed to load legend")
+    } finally {
+      if (!signal?.aborted) {
+        setIsLoading(false)
       }
     }
-
-    void loadLegend()
-    return () => {
-      cancelled = true
-    }
   }, [characterId])
+
+  useEffect(() => {
+    const controller = new AbortController()
+    void loadLegend(controller.signal)
+    return () => {
+      controller.abort()
+    }
+  }, [loadLegend])
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href)
+      setToast({ tone: "success", message: "Legend link copied to your clipboard." })
+    } catch {
+      setToast({ tone: "error", message: "Unable to copy the legend link on this device." })
+    }
+  }
 
   if (isLoading) {
     return (
@@ -96,8 +120,29 @@ export function LegendPageClient({ characterId }: { characterId: string }) {
     return (
       <main className="min-h-screen bg-gradient-to-b from-gray-950 via-black to-gray-950 p-6 sm:p-8">
         <div className="mx-auto max-w-2xl rounded-2xl border border-red-500/20 bg-red-500/5 p-8 text-center">
-          <h1 className="text-2xl font-bold text-red-300">Legend Unavailable</h1>
+          <h1 className="font-display text-2xl font-bold text-red-300">Legend Unavailable</h1>
           <p className="mt-3 text-sm text-gray-400">{error ?? "This fallen hero could not be found."}</p>
+          <div className="mt-6 flex flex-wrap justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => void loadLegend()}
+              className="rounded-full bg-amber-500 px-4 py-2 text-sm font-semibold text-black transition-colors hover:bg-amber-400"
+            >
+              Retry
+            </button>
+            <Link
+              href="/leaderboard"
+              className="rounded-full border border-gray-700 px-4 py-2 text-sm text-gray-200 transition-colors hover:border-gray-500"
+            >
+              Leaderboard
+            </Link>
+            <Link
+              href="/"
+              className="rounded-full border border-gray-700 px-4 py-2 text-sm text-gray-200 transition-colors hover:border-gray-500"
+            >
+              Home
+            </Link>
+          </div>
         </div>
       </main>
     )
@@ -109,9 +154,21 @@ export function LegendPageClient({ characterId }: { characterId: string }) {
   ].filter(Boolean)
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-gray-950 via-black to-gray-950 p-6 sm:p-8">
+    <motion.main
+      variants={pageEnter}
+      initial="hidden"
+      animate="visible"
+      className="min-h-screen bg-gradient-to-b from-gray-950 via-black to-gray-950 p-6 sm:p-8"
+    >
+      <UiToast
+        open={!!toast}
+        tone={toast?.tone ?? "success"}
+        title={toast?.tone === "error" ? "Copy Failed" : "Link Ready"}
+        message={toast?.message ?? ""}
+        onClose={() => setToast(null)}
+      />
       <div className="mx-auto max-w-5xl space-y-6">
-        <section className="rounded-3xl border border-amber-500/20 bg-amber-500/5 p-6 shadow-[0_0_80px_rgba(245,158,11,0.08)]">
+        <motion.section variants={sectionReveal} className="ambient-glow rounded-3xl border border-amber-500/20 bg-amber-500/5 p-6 shadow-[0_0_80px_rgba(245,158,11,0.08)]">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="space-y-3">
               <div className={`inline-flex items-center gap-3 rounded-full border px-4 py-2 text-sm font-semibold ${CLASS_TONES[legend.character.class]}`}>
@@ -119,7 +176,7 @@ export function LegendPageClient({ characterId }: { characterId: string }) {
                 <span className="capitalize">{legend.character.class}</span>
               </div>
               <div>
-                <h1 className="text-3xl font-bold text-amber-300 sm:text-4xl">{legend.character.name}</h1>
+                <h1 className="font-display text-3xl font-bold text-amber-200 sm:text-4xl">{legend.character.name}</h1>
                 <p className="mt-2 text-sm text-gray-400">
                   Fallen on floor {legend.history.death_floor} in {legend.history.death_room}.
                 </p>
@@ -131,43 +188,45 @@ export function LegendPageClient({ characterId }: { characterId: string }) {
               <div className="mt-1 font-semibold text-red-300">{legend.history.cause_of_death}</div>
             </div>
           </div>
-        </section>
+        </motion.section>
 
-        <section className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+        <motion.section variants={sectionReveal} className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
           <div className="space-y-6">
-            <div className="rounded-2xl border border-gray-800 bg-gray-900/70 p-5">
+            <motion.div variants={sectionReveal} className="rounded-2xl border border-gray-800 bg-gray-900/70 p-5">
               <h2 className="text-sm font-bold uppercase tracking-wider text-gray-500">Final Stats</h2>
               <div className="mt-4 grid gap-3 sm:grid-cols-3">
                 {Object.entries(legend.character.stats).map(([stat, value]) => (
-                  <div key={stat} className="rounded-xl border border-gray-800 bg-gray-950/70 p-4">
+                  <motion.div key={stat} variants={listItemReveal} className="rounded-xl border border-gray-800 bg-gray-950/70 p-4">
                     <div className="text-xs uppercase text-gray-500">{stat}</div>
                     <div className="mt-1 text-xl font-semibold text-gray-100">{value}</div>
-                  </div>
+                  </motion.div>
                 ))}
               </div>
-            </div>
+            </motion.div>
 
-            <div className="rounded-2xl border border-gray-800 bg-gray-900/70 p-5">
+            <motion.div variants={sectionReveal} className="rounded-2xl border border-gray-800 bg-gray-900/70 p-5">
               <h2 className="text-sm font-bold uppercase tracking-wider text-gray-500">Equipment at Death</h2>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 {Object.entries(legend.character.equipment_at_death).map(([slot, item]) => (
-                  <div key={slot} className="rounded-xl border border-gray-800 bg-gray-950/70 p-4">
+                  <motion.div key={slot} variants={listItemReveal} className="rounded-xl border border-gray-800 bg-gray-950/70 p-4">
                     <div className="text-xs uppercase text-gray-500">{slot}</div>
                     {item ? (
-                      <div className="mt-2 space-y-1">
+                      <div className="mt-2 space-y-2">
                         <div className="font-semibold text-gray-100">{item.name}</div>
-                        <div className="text-xs text-gray-500">{item.template_id}</div>
-                        <div className="text-xs text-gray-400">Quantity: {item.quantity}</div>
+                        <div className="text-xs text-gray-400">{formatModifiers(item.modifiers)}</div>
+                        <div className="text-xs text-gray-500">
+                          {item.quantity > 1 ? `${item.quantity} copies carried into the final battle.` : "A signature piece from the final loadout."}
+                        </div>
                       </div>
                     ) : (
                       <div className="mt-2 text-sm text-gray-500">Empty slot</div>
                     )}
-                  </div>
+                  </motion.div>
                 ))}
               </div>
-            </div>
+            </motion.div>
 
-            <div className="rounded-2xl border border-gray-800 bg-gray-900/70 p-5">
+            <motion.div variants={sectionReveal} className="rounded-2xl border border-gray-800 bg-gray-900/70 p-5">
               <h2 className="text-sm font-bold uppercase tracking-wider text-gray-500">Run History</h2>
               <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <HistoryCard label="Realms Cleared" value={legend.history.realms_completed} />
@@ -175,11 +234,11 @@ export function LegendPageClient({ characterId }: { characterId: string }) {
                 <HistoryCard label="Enemies Defeated" value={legend.history.enemies_killed} />
                 <HistoryCard label="Turns Survived" value={legend.history.turns_survived} />
               </div>
-            </div>
+            </motion.div>
           </div>
 
           <div className="space-y-6">
-            <div className="rounded-2xl border border-gray-800 bg-gray-900/70 p-5">
+            <motion.div variants={sectionReveal} className="rounded-2xl border border-gray-800 bg-gray-900/70 p-5">
               <h2 className="text-sm font-bold uppercase tracking-wider text-gray-500">Memorial</h2>
               <div className="mt-4 space-y-3 text-sm text-gray-300">
                 <div className="flex items-center justify-between gap-3">
@@ -203,9 +262,9 @@ export function LegendPageClient({ characterId }: { characterId: string }) {
                   <span>{formatDate(legend.history.died_at)}</span>
                 </div>
               </div>
-            </div>
+            </motion.div>
 
-            <div className="rounded-2xl border border-gray-800 bg-gray-900/70 p-5">
+            <motion.div variants={sectionReveal} className="rounded-2xl border border-gray-800 bg-gray-900/70 p-5">
               <h2 className="text-sm font-bold uppercase tracking-wider text-gray-500">Owner</h2>
               <div className="mt-4 space-y-2 text-sm text-gray-300">
                 <div className="font-semibold text-gray-100">{legend.owner.handle || "Anonymous adventurer"}</div>
@@ -215,14 +274,14 @@ export function LegendPageClient({ characterId }: { characterId: string }) {
               {socialLinks.length > 0 ? (
                 <div className="mt-4 flex flex-wrap gap-2">{socialLinks}</div>
               ) : null}
-            </div>
+            </motion.div>
 
-            <div className="rounded-2xl border border-gray-800 bg-gray-900/70 p-5">
+            <motion.div variants={sectionReveal} className="rounded-2xl border border-gray-800 bg-gray-900/70 p-5">
               <div className="flex items-center justify-between gap-3">
                 <h2 className="text-sm font-bold uppercase tracking-wider text-gray-500">Skill Tree Snapshot</h2>
                 <button
                   type="button"
-                  onClick={() => navigator.clipboard.writeText(window.location.href).catch(() => {})}
+                  onClick={() => void handleCopyLink()}
                   className="rounded-full border border-gray-700 px-3 py-1 text-xs text-gray-300 transition-colors hover:border-gray-500"
                 >
                   Copy Link
@@ -231,22 +290,23 @@ export function LegendPageClient({ characterId }: { characterId: string }) {
               <div className="mt-4 flex flex-wrap gap-2">
                 {skillNodes.length > 0 ? (
                   skillNodes.map((nodeId) => (
-                    <span
+                    <motion.span
                       key={nodeId}
+                      variants={listItemReveal}
                       className="rounded-full border border-purple-700/40 bg-purple-950/30 px-3 py-1 text-xs text-purple-200"
                     >
                       {nodeId}
-                    </span>
+                    </motion.span>
                   ))
                 ) : (
                   <p className="text-sm text-gray-500">No unlocked skill nodes were recorded.</p>
                 )}
               </div>
-            </div>
+            </motion.div>
           </div>
-        </section>
+        </motion.section>
       </div>
-    </main>
+    </motion.main>
   )
 }
 

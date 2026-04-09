@@ -3,11 +3,5 @@
   "framework": "nextjs",
   "buildCommand": "cd .. && bun run build --filter=@adventure-fun/web",
   "outputDirectory": "frontend/.next",
-  "installCommand": "bun install",
-  "rewrites": [
-    {
-      "source": "/api/:path*",
-      "destination": "https://your-railway-server.railway.app/:path*"
-    }
-  ]
+  "installCommand": "bun install"
 }

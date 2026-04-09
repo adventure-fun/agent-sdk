@@ -13,6 +13,9 @@
   --color-rarity-uncommon: #22c55e;
   --color-rarity-rare: #3b82f6;
   --color-rarity-epic: #a855f7;
+  --glow-amber: rgba(245, 158, 11, 0.22);
+  --glow-emerald: rgba(16, 185, 129, 0.2);
+  --surface-elevated: rgba(17, 24, 39, 0.82);
 }
 
 * {
@@ -22,7 +25,97 @@
 body {
   background-color: var(--color-bg);
   color: var(--color-text);
-  font-family: "Courier New", "Courier", monospace;
+  font-family: var(--font-inter), system-ui, sans-serif;
+}
+
+a,
+button {
+  outline: none;
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.24);
+  border-color: rgba(245, 158, 11, 0.8);
+}
+
+.font-display {
+  font-family: var(--font-cinzel), Georgia, serif;
+  letter-spacing: 0.02em;
+}
+
+.font-body {
+  font-family: var(--font-inter), system-ui, sans-serif;
+}
+
+.panel-elevated {
+  background: linear-gradient(180deg, rgba(17, 24, 39, 0.92), var(--surface-elevated));
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.35);
+}
+
+.shimmer-surface {
+  background: linear-gradient(
+    90deg,
+    rgba(31, 41, 55, 0.65) 0%,
+    rgba(55, 65, 81, 0.85) 35%,
+    rgba(31, 41, 55, 0.65) 70%
+  );
+  background-size: 220% 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+
+.event-highlight {
+  animation: fade-slide-in 0.45s ease-out, pulse-glow 1.6s ease-out;
+}
+
+.ambient-glow {
+  animation: pulse-glow 3.6s ease-in-out infinite;
+}
+
+.processing-spinner {
+  animation: spin 0.85s linear infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes fade-slide-in {
+  0% {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 rgba(245, 158, 11, 0);
+  }
+  50% {
+    box-shadow: 0 0 24px var(--glow-amber);
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* Dungeon map characters */

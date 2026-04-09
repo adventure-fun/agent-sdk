@@ -6,7 +6,7 @@ export default function LandingPage() {
       <div className="max-w-2xl w-full text-center space-y-8">
         {/* Title */}
         <div className="space-y-2">
-          <h1 className="text-5xl font-bold tracking-tight text-amber-400">
+          <h1 className="font-display text-5xl font-bold tracking-tight text-amber-300 sm:text-6xl">
             ADVENTURE.FUN
           </h1>
           <p className="text-gray-400 text-lg uppercase tracking-widest">
@@ -16,7 +16,7 @@ export default function LandingPage() {
         </div>
 
         {/* ASCII art teaser */}
-        <pre className="text-xs text-gray-600 leading-tight select-none">
+        <pre className="font-mono text-xs text-gray-600 leading-tight select-none">
 {`  ┌─────────────────────────┐
   │  . . . . # # # # . . .  │
   │  . . E . # . . # . . .  │
