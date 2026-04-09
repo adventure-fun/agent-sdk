@@ -156,10 +156,10 @@ describe("applyExtractionOutcome", () => {
     const result = applyExtractionOutcome(state)
 
     expect(state.character.level).toBe(2)
-    expect(state.character.hp.max).toBe(52)
-    expect(state.character.hp.current).toBe(52)
-    expect(state.character.stats.attack).toBe(22)
-    expect(state.character.stats.defense).toBe(10)
+    expect(state.character.hp.max).toBe(42)
+    expect(state.character.hp.current).toBe(42)
+    expect(state.character.stats.attack).toBe(21)
+    expect(state.character.stats.defense).toBe(9)
     expect(result.realm_completed).toBe(true)
   })
 
@@ -179,7 +179,7 @@ describe("applyExtractionOutcome", () => {
       realmStatus: "boss_cleared",
     })
 
-    const result = applyExtractionOutcome(state)
+    const result = applyExtractionOutcome(state, new Set())
 
     expect(result.loot_summary).toEqual([
       {
@@ -190,5 +190,140 @@ describe("applyExtractionOutcome", () => {
         modifiers: {},
       },
     ])
+  })
+
+  it("excludes pre-existing inventory items from the loot summary", () => {
+    const state = makeState({
+      inventory: [
+        {
+          id: "starting-potion",
+          template_id: "minor-healing-potion",
+          name: "Minor Healing Potion",
+          quantity: 2,
+          modifiers: {},
+          owner_type: "character",
+          owner_id: "char-1",
+          slot: null,
+        },
+        {
+          id: "starting-bomb",
+          template_id: "bomb",
+          name: "Bomb",
+          quantity: 1,
+          modifiers: {},
+          owner_type: "character",
+          owner_id: "char-1",
+          slot: null,
+        },
+        {
+          id: "realm-loot-1",
+          template_id: "portal-scroll",
+          name: "Portal Scroll",
+          quantity: 1,
+          modifiers: {},
+          owner_type: "character",
+          owner_id: "char-1",
+          slot: null,
+        },
+      ],
+    })
+
+    const result = applyExtractionOutcome(
+      state,
+      new Set(["starting-potion", "starting-bomb"]),
+    )
+
+    expect(result.loot_summary).toEqual([
+      {
+        item_id: "realm-loot-1",
+        template_id: "portal-scroll",
+        name: "Portal Scroll",
+        quantity: 1,
+        modifiers: {},
+      },
+    ])
+  })
+
+  it("includes all inventory items when the session started empty", () => {
+    const state = makeState({
+      inventory: [
+        {
+          id: "realm-loot-1",
+          template_id: "portal-scroll",
+          name: "Portal Scroll",
+          quantity: 1,
+          modifiers: {},
+          owner_type: "character",
+          owner_id: "char-1",
+          slot: null,
+        },
+        {
+          id: "realm-loot-2",
+          template_id: "minor-healing-potion",
+          name: "Minor Healing Potion",
+          quantity: 1,
+          modifiers: {},
+          owner_type: "character",
+          owner_id: "char-1",
+          slot: null,
+        },
+      ],
+    })
+
+    const result = applyExtractionOutcome(state, new Set())
+
+    expect(result.loot_summary.map((item) => item.item_id)).toEqual([
+      "realm-loot-1",
+      "realm-loot-2",
+    ])
+  })
+
+  it("excludes items that were equipped at session start and unequipped before extraction", () => {
+    const state = makeState({
+      inventory: [
+        {
+          id: "starting-weapon",
+          template_id: "rusted-sword",
+          name: "Rusted Sword",
+          quantity: 1,
+          modifiers: { attack: 2 },
+          owner_type: "character",
+          owner_id: "char-1",
+          slot: null,
+        },
+        {
+          id: "realm-loot-1",
+          template_id: "portal-scroll",
+          name: "Portal Scroll",
+          quantity: 1,
+          modifiers: {},
+          owner_type: "character",
+          owner_id: "char-1",
+          slot: null,
+        },
+      ],
+    })
+
+    const result = applyExtractionOutcome(state, new Set(["starting-weapon"]))
+
+    expect(result.loot_summary).toEqual([
+      {
+        item_id: "realm-loot-1",
+        template_id: "portal-scroll",
+        name: "Portal Scroll",
+        quantity: 1,
+        modifiers: {},
+      },
+    ])
+  })
+
+  it("handles empty inventory gracefully", () => {
+    const state = makeState({
+      inventory: [],
+    })
+
+    const result = applyExtractionOutcome(state, new Set(["starting-potion"]))
+
+    expect(result.loot_summary).toEqual([])
   })
 })

@@ -83,5 +83,45 @@ export function useRealm() {
     [token],
   )
 
-  return { realms, isLoading, error, fetchRealms, generateRealm }
+  const regenerateRealm = useCallback(
+    async (realmId: string): Promise<{ realm?: RealmInstance; paymentRequired?: boolean; error?: string }> => {
+      if (!token) return { error: "Not authenticated" }
+      setIsLoading(true)
+      setError(null)
+      try {
+        const res = await fetchWithPayment(`${API_URL}/realms/${realmId}/regenerate`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        })
+
+        if (res.ok) {
+          const realm = (await res.json()) as RealmInstance
+          setRealms((prev) =>
+            prev.map((entry) => (entry.id === realm.id ? realm : entry)),
+          )
+          return { realm }
+        }
+
+        if (res.status === 402) {
+          return { paymentRequired: true }
+        }
+
+        const data = await res.json()
+        const msg = data.error ?? "Failed to regenerate realm"
+        setError(msg)
+        return { error: msg }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Failed to regenerate realm"
+        setError(msg)
+        return { error: msg }
+      } finally {
+        setIsLoading(false)
+      }
+    },
+    [fetchWithPayment, token],
+  )
+
+  return { realms, isLoading, error, fetchRealms, generateRealm, regenerateRealm }
 }

@@ -34,11 +34,14 @@ const REALM_STATUS_LABELS: Record<string, string> = {
   generated: "Ready", active: "In Progress", paused: "Paused",
   boss_cleared: "Boss Cleared", realm_cleared: "Cleared", completed: "Completed", dead_end: "Lost",
 }
+const REALM_REGEN_GOLD_COST = 100
+const REALM_REGEN_USDC_PRICE = "0.25"
 
 type PageStep = "loading" | "class-select" | "name-input" | "stat-reveal" | "hub" | "dungeon"
 type PendingPayment =
   | { kind: "reroll" }
   | { kind: "generate"; templateId: string; templateName: string }
+  | { kind: "regenerate"; realmId: string; realmName: string }
   | { kind: "inn-rest" }
   | null
 
@@ -124,6 +127,7 @@ export default function PlayPage() {
     error: realmsError,
     fetchRealms,
     generateRealm,
+    regenerateRealm,
   } = useRealm()
 
   const gameSession = useGameSession()
@@ -303,6 +307,16 @@ export default function PlayPage() {
           return
         }
         successMessage = `${pendingPayment.templateName} is now woven into the world.`
+      } else if (pendingPayment.kind === "regenerate") {
+        setGeneratingTemplate(pendingPayment.realmId)
+        const result = await regenerateRealm(pendingPayment.realmId)
+        if (result.error) {
+          setRealmError(result.error)
+          setPaymentError(friendlyPaymentError(result.error))
+          return
+        }
+        await Promise.all([fetchCharacter(), fetchRealms()])
+        successMessage = `${pendingPayment.realmName} has been regenerated with a fresh layout, enemies, and loot.`
       } else if (pendingPayment.kind === "inn-rest") {
         const result = await restAtInn()
         if (!result.ok) {
@@ -323,7 +337,7 @@ export default function PlayPage() {
     } catch (err) {
       const message = friendlyPaymentError(err instanceof Error ? err.message : "Payment failed")
       setPaymentError(message)
-      if (pendingPayment.kind === "generate") {
+      if (pendingPayment.kind === "generate" || pendingPayment.kind === "regenerate") {
         setRealmError(message)
       } else if (pendingPayment.kind === "reroll") {
         setRerollMessage(message)
@@ -886,6 +900,17 @@ export default function PlayPage() {
       }
     }
 
+    const handleRegenerateRealm = (realmId: string, realmName: string) => {
+      setRealmError(null)
+      if (displayedGold < REALM_REGEN_GOLD_COST) {
+        setRealmError(`Requires ${REALM_REGEN_GOLD_COST} gold to regenerate this realm.`)
+        return
+      }
+
+      setPaymentError(null)
+      setPendingPayment({ kind: "regenerate", realmId, realmName })
+    }
+
     const handleEnterRealm = (realmId: string) => {
       gameSession.connect(realmId)
       setStep("dungeon")
@@ -1098,9 +1123,13 @@ export default function PlayPage() {
 
                 {realms.map((realm) => {
                   const template = realmTemplateMap[realm.template_id]
+                  const realmName = template?.name ?? realm.template_id
                   const statusLabel = REALM_STATUS_LABELS[realm.status] ?? realm.status
                   const canEnter = realm.status === "generated" || realm.status === "paused" || realm.status === "active"
                   const isPaused = realm.status === "paused" || realm.status === "active"
+                  const canRegenerate = realm.status === "completed"
+                  const canAffordRegeneration = displayedGold >= REALM_REGEN_GOLD_COST
+                  const isRegenerating = generatingTemplate === realm.id
                   const statusColor = realm.status === "completed"
                     ? "text-green-500"
                     : realm.status === "dead_end"
@@ -1118,7 +1147,7 @@ export default function PlayPage() {
                     >
                       <div>
                         <p className="text-gray-300 text-sm font-bold">
-                          {template?.name ?? realm.template_id}
+                          {realmName}
                         </p>
                         <p className={`text-xs ${statusColor}`}>
                           {statusLabel} — Floor {realm.floor_reached}
@@ -1128,8 +1157,18 @@ export default function PlayPage() {
                             Session saved — pick up where you left off
                           </p>
                         )}
+                        {canRegenerate && (
+                          <div className="mt-1.5 space-y-1 text-xs">
+                            <p className="text-amber-200/80">
+                              Replay cost: {REALM_REGEN_GOLD_COST} gold + ${REALM_REGEN_USDC_PRICE} USDC
+                            </p>
+                            <p className="text-gray-500">
+                              Fully resets the realm with a new seed, enemies, and loot. Current gold: {displayedGold}
+                            </p>
+                          </div>
+                        )}
                       </div>
-                      <div>
+                      <div className="flex flex-col items-end gap-2">
                         {canEnter && (
                           <button
                             onClick={() => handleEnterRealm(realm.id)}
@@ -1142,13 +1181,27 @@ export default function PlayPage() {
                             {isPaused ? "Resume" : "Enter"}
                           </button>
                         )}
-                        {realm.status === "completed" && (
+                        {canRegenerate && (
                           <button
-                            disabled
-                            className="px-4 py-1 border border-gray-700 text-gray-500 text-sm rounded opacity-40 cursor-not-allowed"
+                            type="button"
+                            onClick={() => handleRegenerateRealm(realm.id, realmName)}
+                            disabled={!canAffordRegeneration || isProcessingPayment || !!generatingTemplate}
+                            title={
+                              canAffordRegeneration
+                                ? "Reset this completed realm with a new seed."
+                                : `Requires ${REALM_REGEN_GOLD_COST} gold`
+                            }
+                            className="px-4 py-1 border border-cyan-700/70 bg-cyan-950/20 text-cyan-200 text-sm font-bold rounded transition-colors hover:bg-cyan-900/30 disabled:border-gray-700 disabled:bg-transparent disabled:text-gray-500 disabled:cursor-not-allowed disabled:opacity-60"
                           >
-                            Regenerate ($0.25)
+                            {isRegenerating
+                              ? "Regenerating..."
+                              : `Regenerate (${REALM_REGEN_GOLD_COST}g + $${REALM_REGEN_USDC_PRICE})`}
                           </button>
+                        )}
+                        {canRegenerate && !canAffordRegeneration && (
+                          <p className="text-[11px] text-red-400">
+                            Requires {REALM_REGEN_GOLD_COST} gold
+                          </p>
                         )}
                       </div>
                     </div>
@@ -1207,14 +1260,32 @@ export default function PlayPage() {
           </div>
         </main>
         <PaymentModal
-          open={pendingPayment?.kind === "generate" || pendingPayment?.kind === "inn-rest"}
-          title={pendingPayment?.kind === "inn-rest" ? "Confirm Inn Rest" : "Confirm Realm Purchase"}
+          open={
+            pendingPayment?.kind === "generate" ||
+            pendingPayment?.kind === "regenerate" ||
+            pendingPayment?.kind === "inn-rest"
+          }
+          title={
+            pendingPayment?.kind === "inn-rest"
+              ? "Confirm Inn Rest"
+              : pendingPayment?.kind === "regenerate"
+                ? "Confirm Realm Regeneration"
+                : "Confirm Realm Purchase"
+          }
           description={
             pendingPayment?.kind === "inn-rest"
               ? `Approve a 0.05 USDC x402 payment to rest at the inn and restore your HP and ${resourceLabel} to full.`
-              : `Approve a 0.25 USDC x402 payment to generate ${pendingPayment?.kind === "generate" ? pendingPayment.templateName : "this realm"}. Your first realm stays free.`
+              : pendingPayment?.kind === "regenerate"
+                ? `Approve a ${REALM_REGEN_USDC_PRICE} USDC x402 payment and spend ${REALM_REGEN_GOLD_COST} gold to fully reset ${pendingPayment.realmName}. This creates a fresh layout with new enemies and loot for a new run.`
+                : `Approve a 0.25 USDC x402 payment to generate ${pendingPayment?.kind === "generate" ? pendingPayment.templateName : "this realm"}. Your first realm stays free.`
           }
-          priceUsd={pendingPayment?.kind === "inn-rest" ? "0.05" : "0.25"}
+          priceUsd={
+            pendingPayment?.kind === "inn-rest"
+              ? "0.05"
+              : pendingPayment?.kind === "regenerate"
+                ? REALM_REGEN_USDC_PRICE
+                : "0.25"
+          }
           balanceLabel={balanceLabel}
           isProcessing={isProcessingPayment || !!generatingTemplate || innLoading}
           successMessage={paymentSuccess}

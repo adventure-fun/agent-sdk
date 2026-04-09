@@ -117,7 +117,7 @@ Add notes under any item with `> NOTE: your note here` when needed.
 **Scope:** Frontend realm management, extraction summary payloads
 **Depends on:** Group 1
 
-- [ ] **3.1 -- Realm regeneration exists in the backend but is unusable in the UI**
+- [x] **3.1 -- Realm regeneration exists in the backend but is unusable in the UI**
   - `POST /realms/:id/regenerate` is already implemented server-side
   - It resets the realm seed/state and charges both:
     - `100` gold
@@ -126,19 +126,22 @@ Add notes under any item with `> NOTE: your note here` when needed.
   - `frontend/app/hooks/use-realm.ts` does not expose a `regenerateRealm()` helper
   - **Fix:** Wire the frontend to the existing backend regeneration flow, payment modal, and realm refresh
   - **Files:** `frontend/app/hooks/use-realm.ts`, `frontend/app/play/page.tsx`, `backend/src/routes/realms.ts`
+  > NOTE: Added `regenerateRealm()` to the realm hook, wired completed realm cards into the shared x402 payment modal, refreshed realm/character state after successful regeneration, and upgraded the replay UX with explicit reset messaging, dual-cost copy (`100` gold + `$0.25`), affordability feedback, and immediate `Ready` state recovery.
 
-- [ ] **3.2 -- Extraction loot summary incorrectly includes items brought into the realm**
+- [x] **3.2 -- Extraction loot summary incorrectly includes items brought into the realm**
   - `buildLootSummary(state.inventory)` currently returns the entire in-memory inventory on extraction
   - That includes shop-bought items or any other inventory loaded at session start
   - Result: the extraction screen claims those items were "Recovered Loot" even when they were never found in the realm
   - **Fix:** Snapshot starting inventory item IDs when the session is created and exclude those IDs from the extraction summary so only realm-gained items are listed
   - **Files:** `backend/src/game/session.ts`
+  > NOTE: `GameSession.create()` now snapshots every starting inventory/equipment item ID and `applyExtractionOutcome()` filters those IDs out of `loot_summary`, so extraction only lists realm-earned loot even if starting gear was later unequipped into the bag.
 
-- [ ] **3.3 -- Add tests for regeneration flow and loot filtering**
+- [x] **3.3 -- Add tests for regeneration flow and loot filtering**
   - Tests should verify:
     - completed realms can actually be regenerated through the intended UI/backend path
     - extraction summaries only show items gained during that run
   - **Files:** `backend/__tests__/session-extraction.test.ts`, relevant frontend hook/UI tests if present
+  > NOTE: Added focused backend coverage for loot-summary filtering, regeneration rejection states, and successful paid regeneration. Updated the existing level-up extraction assertion to match the current percentage-growth system so the focused Group 3 suite stays accurate.
 
 ---
 
@@ -310,3 +313,4 @@ _Record completed fixes here with date and commit hash._
 |------|------------|--------|-------|
 | 2026-04-09 | 1.1-1.3 | uncommitted | Added `realm_cleared`, wired backend completion rewards/persistence, covered bossless completion with tests, and polished bossless completion UI copy/state messaging. |
 | 2026-04-09 | 2.1-2.4 | uncommitted | Rebalanced all class starting stats, switched level-ups to percentage-based growth, tuned low-scale hit chance math, added focused regression tests, and polished the class selection/stat reveal UI for the new ranges. |
+| 2026-04-09 | 3.1-3.3 | uncommitted | Wired completed-realm regeneration into the play UI and payment modal with better replay messaging, filtered extraction loot to exclude items brought into the run, and added focused backend tests for regeneration plus loot-summary accuracy. |

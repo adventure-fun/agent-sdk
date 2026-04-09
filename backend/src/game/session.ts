@@ -81,14 +81,19 @@ export type SocketSessionData = GameSessionData | SpectatorSessionData
 
 export type ExtractionOutcome = Extract<ServerMessage, { type: "extracted" }>["data"]
 
-function buildLootSummary(inventory: InventoryItem[]): InventorySlot[] {
-  return inventory.map((item) => ({
-    item_id: item.id,
-    template_id: item.template_id,
-    name: item.name,
-    quantity: item.quantity,
-    modifiers: item.modifiers,
-  }))
+function buildLootSummary(
+  inventory: InventoryItem[],
+  startingItemIds: ReadonlySet<string>,
+): InventorySlot[] {
+  return inventory
+    .filter((item) => !startingItemIds.has(item.id))
+    .map((item) => ({
+      item_id: item.id,
+      template_id: item.template_id,
+      name: item.name,
+      quantity: item.quantity,
+      modifiers: item.modifiers,
+    }))
 }
 
 function applyCompletionLevelUps(state: GameState): void {
@@ -117,7 +122,10 @@ function isRealmCompletedStatus(status: GameState["realmStatus"]): boolean {
   return status === "boss_cleared" || status === "realm_cleared"
 }
 
-export function applyExtractionOutcome(state: GameState): ExtractionOutcome {
+export function applyExtractionOutcome(
+  state: GameState,
+  startingItemIds: ReadonlySet<string> = new Set(),
+): ExtractionOutcome {
   const realmCompleted = isRealmCompletedStatus(state.realmStatus)
   const completionRewards = realmCompleted
     ? REALMS[state.realm.template_id]?.completion_rewards
@@ -130,7 +138,7 @@ export function applyExtractionOutcome(state: GameState): ExtractionOutcome {
   }
 
   return {
-    loot_summary: buildLootSummary(state.inventory),
+    loot_summary: buildLootSummary(state.inventory, startingItemIds),
     xp_gained: completionRewards?.xp ?? 0,
     gold_gained: completionRewards?.gold ?? 0,
     ...(completionRewards
@@ -158,6 +166,7 @@ export class GameSession {
   private eventBuffer: GameEvent[]
   private sessionStartedAt: Date
   private ws: ServerWebSocket<GameSessionData>
+  private startingItemIds: Set<string>
   private ended = false
   private spectators = new Set<SpectatorSocketLike>()
 
@@ -167,6 +176,7 @@ export class GameSession {
     realm: GeneratedRealm,
     rng: SeededRng,
     turn: number,
+    startingItemIds: Set<string>,
   ) {
     this.ws = ws
     this.realmId = ws.data.realmId
@@ -175,6 +185,7 @@ export class GameSession {
     this.generatedRealm = realm
     this.rng = rng
     this.turn = turn
+    this.startingItemIds = startingItemIds
     this.eventBuffer = []
     this.sessionStartedAt = new Date()
   }
@@ -272,6 +283,12 @@ export class GameSession {
         inventory.push(inv)
       }
     }
+    const startingItemIds = new Set([
+      ...inventory.map((item) => item.id),
+      ...Object.values(equipment)
+        .filter((item): item is InventoryItem => item != null)
+        .map((item) => item.id),
+    ])
 
     const resourceType: ResourceType =
       character.class === "knight"
@@ -382,7 +399,14 @@ export class GameSession {
         .then(() => {})
     }
 
-    return new GameSession(ws, gameState, generated, rng, turn)
+    return new GameSession(
+      ws,
+      gameState,
+      generated,
+      rng,
+      turn,
+      startingItemIds,
+    )
   }
 
   // ── Public API ────────────────────────────────────────────────────────────
@@ -510,7 +534,10 @@ export class GameSession {
 
     // Check extraction
     if (extractionSucceeded) {
-      const extractionData = applyExtractionOutcome(this.gameState)
+      const extractionData = applyExtractionOutcome(
+        this.gameState,
+        this.startingItemIds,
+      )
       this.ws.send(
         JSON.stringify({
           type: "extracted",
