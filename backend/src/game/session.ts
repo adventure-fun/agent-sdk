@@ -11,6 +11,7 @@ import type {
   EquipSlot,
   ResourceType,
   ServerMessage,
+  SpectatorObservation,
 } from "@adventure-fun/schemas"
 import {
   generateRealm,
@@ -23,6 +24,7 @@ import {
   buildRoomState,
   computeLegalActions,
   checkLevelUp,
+  toSpectatorObservation,
 } from "@adventure-fun/engine"
 import type { GeneratedRealm } from "@adventure-fun/engine"
 import { db } from "../db/client.js"
@@ -36,6 +38,18 @@ import {
   type SessionState,
 } from "./session-persistence.js"
 import { parseAction, isActionLegal } from "./action-validator.js"
+import {
+  addSpectator,
+  broadcastSpectatorObservation,
+  closeSpectators,
+  removeSpectator,
+  type SpectatorSocketLike,
+} from "./spectators.js"
+import {
+  getActiveSession,
+  registerActiveSession,
+  unregisterActiveSession,
+} from "./active-sessions.js"
 
 const TURN_TIMEOUT_MS =
   Number(process.env["TURN_TIMEOUT_SECONDS"] ?? 30) * 1000
@@ -43,11 +57,19 @@ const TURN_TIMEOUT_MS =
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface GameSessionData {
+  role: "player"
   realmId: string
   session: SessionPayload
   characterId: string
   turnTimer?: ReturnType<typeof setTimeout>
 }
+
+export interface SpectatorSessionData {
+  role: "spectator"
+  characterId: string
+}
+
+export type SocketSessionData = GameSessionData | SpectatorSessionData
 
 export type ExtractionOutcome = Extract<ServerMessage, { type: "extracted" }>["data"]
 
@@ -112,14 +134,9 @@ export function applyExtractionOutcome(state: GameState): ExtractionOutcome {
   }
 }
 
-// ── Active sessions ───────────────────────────────────────────────────────────
-
-/** Map of characterId → active GameSession */
-const activeSessions = new Map<string, GameSession>()
-
 // ── GameSession class ─────────────────────────────────────────────────────────
 
-class GameSession {
+export class GameSession {
   readonly realmId: string
   readonly characterId: string
 
@@ -131,6 +148,7 @@ class GameSession {
   private sessionStartedAt: Date
   private ws: ServerWebSocket<GameSessionData>
   private ended = false
+  private spectators = new Set<SpectatorSocketLike>()
 
   private constructor(
     ws: ServerWebSocket<GameSessionData>,
@@ -347,7 +365,7 @@ class GameSession {
 
   // ── Public API ────────────────────────────────────────────────────────────
 
-  getInitialObservation(): Observation {
+  private buildCurrentObservation(): Observation {
     const obs = buildObservationFromState(
       this.gameState,
       [],
@@ -355,6 +373,22 @@ class GameSession {
     )
     obs.turn = this.turn
     return obs
+  }
+
+  getInitialObservation(): Observation {
+    return this.buildCurrentObservation()
+  }
+
+  getSpectatorObservation(): SpectatorObservation {
+    return toSpectatorObservation(this.buildCurrentObservation())
+  }
+
+  addSpectator(ws: SpectatorSocketLike): void {
+    addSpectator(this.spectators, ws)
+  }
+
+  removeSpectator(ws: SpectatorSocketLike): void {
+    removeSpectator(this.spectators, ws)
   }
 
   async processTurn(action: Action): Promise<void> {
@@ -448,6 +482,7 @@ class GameSession {
     this.ws.send(
       JSON.stringify({ type: "observation", data: result.observation }),
     )
+    broadcastSpectatorObservation(this.spectators, result.observation)
   }
 
   async endSession(
@@ -526,7 +561,8 @@ class GameSession {
     }
 
     // Clean up
-    activeSessions.delete(this.characterId)
+    closeSpectators(this.spectators, reason)
+    unregisterActiveSession(this.characterId)
     clearTurnTimer(this.ws)
   }
 
@@ -702,7 +738,7 @@ export async function handleGameOpen(
     return
   }
 
-  activeSessions.set(ws.data.characterId, session)
+  registerActiveSession(ws.data.characterId, session)
   const obs = session.getInitialObservation()
   ws.send(JSON.stringify({ type: "observation", data: obs }))
   startTurnTimer(ws)
@@ -744,7 +780,7 @@ export async function handleGameMessage(
     return
   }
 
-  const session = activeSessions.get(ws.data.characterId)
+  const session = getActivePlayerSession(ws.data.characterId)
   if (!session) {
     ws.send(JSON.stringify({ type: "error", message: "No active session" }))
     return
@@ -753,7 +789,7 @@ export async function handleGameMessage(
   await session.processTurn(validation.action)
 
   // If session ended (death/extraction), don't restart the timer
-  if (!activeSessions.has(ws.data.characterId)) return
+  if (!getActivePlayerSession(ws.data.characterId)) return
   startTurnTimer(ws)
 }
 
@@ -761,10 +797,15 @@ export async function handleGameClose(
   ws: ServerWebSocket<GameSessionData>,
 ): Promise<void> {
   clearTurnTimer(ws)
-  const session = activeSessions.get(ws.data.characterId)
+  const session = getActivePlayerSession(ws.data.characterId)
   if (session) {
     await session.endSession("disconnect")
   }
+}
+
+function getActivePlayerSession(characterId: string): GameSession | undefined {
+  const session = getActiveSession(characterId)
+  return session instanceof GameSession ? session : undefined
 }
 
 // ── Turn timer ────────────────────────────────────────────────────────────────

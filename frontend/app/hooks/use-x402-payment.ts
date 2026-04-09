@@ -9,7 +9,7 @@ export function useX402Payment() {
   const { fetchWithPayment } = useX402()
 
   const paidFetch = useCallback(
-    async (input: string | URL | Request, init: RequestInit = {}) => {
+    async (input: RequestInfo | URL, init: RequestInit = {}) => {
       const headers = new Headers(init.headers)
       if (token && !headers.has("Authorization")) {
         headers.set("Authorization", `Bearer ${token}`)
@@ -18,7 +18,7 @@ export function useX402Payment() {
         headers.set("Content-Type", "application/json")
       }
 
-      return fetchWithPayment(input, {
+      return fetchWithPayment(input as RequestInfo, {
         ...init,
         headers,
       })

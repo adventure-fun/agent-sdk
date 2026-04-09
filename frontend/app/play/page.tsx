@@ -10,11 +10,13 @@ import { useContent } from "../hooks/use-content"
 import type { ClassTemplateSummary, RealmTemplateSummary } from "../hooks/use-content"
 import { useProgression } from "../hooks/use-progression"
 import type { ProgressionData } from "../hooks/use-progression"
+import { useShop } from "../hooks/use-shop"
+import { useInn } from "../hooks/use-inn"
 import { AsciiMap } from "../components/ascii-map"
 import { PaymentModal } from "../components/payment-modal"
 import { useUsdcBalance } from "../hooks/use-usdc-balance"
 import { useEffect, useState, useMemo } from "react"
-import type { CharacterClass, Action, Observation, ActiveEffect } from "@adventure-fun/schemas"
+import type { CharacterClass, Action, Observation, ActiveEffect, InventoryItem, ItemTemplate } from "@adventure-fun/schemas"
 
 const STAT_KEYS = ["hp", "attack", "defense", "accuracy", "evasion", "speed"] as const
 const STAT_LABELS: Record<string, string> = {
@@ -30,6 +32,7 @@ type PageStep = "loading" | "class-select" | "name-input" | "stat-reveal" | "hub
 type PendingPayment =
   | { kind: "reroll" }
   | { kind: "generate"; templateId: string; templateName: string }
+  | { kind: "inn-rest" }
   | null
 
 export default function PlayPage() {
@@ -70,6 +73,25 @@ export default function PlayPage() {
     unlockSkill,
     error: progressionError,
   } = useProgression()
+
+  const {
+    sections: shopSections,
+    featured: featuredShopItems,
+    inventory: shopInventory,
+    gold: shopGold,
+    isLoading: shopLoading,
+    error: shopError,
+    fetchShopCatalog,
+    fetchInventory,
+    buyItem,
+    sellItem,
+  } = useShop()
+
+  const {
+    isLoading: innLoading,
+    error: innError,
+    restAtInn,
+  } = useInn()
 
   const {
     realmTemplates,
@@ -114,14 +136,18 @@ export default function PlayPage() {
 
   // Skill tree panel state
   const [showSkillTree, setShowSkillTree] = useState(false)
+  const [hubTab, setHubTab] = useState<"realms" | "shop">("realms")
   const [pendingPayment, setPendingPayment] = useState<PendingPayment>(null)
   const [isProcessingPayment, setIsProcessingPayment] = useState(false)
   const [paymentError, setPaymentError] = useState<string | null>(null)
+  const [shopMessage, setShopMessage] = useState<string | null>(null)
+  const [innMessage, setInnMessage] = useState<string | null>(null)
 
   // Fetch content on mount (public, no auth needed)
   useEffect(() => {
     fetchClassTemplates()
     fetchRealmTemplates()
+    fetchShopCatalog()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Create EVM wallet if signed in but no wallet exists
@@ -145,6 +171,7 @@ export default function PlayPage() {
         if (c) {
           fetchRealms()
           fetchProgression()
+          fetchInventory()
           setStep("hub")
         } else {
           setStep("class-select")
@@ -160,6 +187,7 @@ export default function PlayPage() {
       if (c) {
         fetchRealms()
         fetchProgression()
+        fetchInventory()
         setStep("hub")
       } else {
         setStep("class-select")
@@ -196,17 +224,28 @@ export default function PlayPage() {
           setPaymentError(result.error)
           return
         }
+      } else if (pendingPayment.kind === "inn-rest") {
+        const result = await restAtInn()
+        if (!result.ok) {
+          setPaymentError(result.error)
+          return
+        }
+        setInnMessage(result.data.message)
+        await fetchCharacter()
       }
 
       await refetchUsdcBalance()
+      await fetchInventory()
       setPendingPayment(null)
     } catch (err) {
       const message = err instanceof Error ? err.message : "Payment failed"
       setPaymentError(message)
       if (pendingPayment.kind === "generate") {
         setRealmError(message)
-      } else {
+      } else if (pendingPayment.kind === "reroll") {
         setRerollMessage(message)
+      } else {
+        setInnMessage(message)
       }
     } finally {
       setGeneratingTemplate(null)
@@ -717,6 +756,9 @@ export default function PlayPage() {
     const hubHpPct = character.hp_max > 0 ? (character.hp_current / character.hp_max) * 100 : 0
     const hubHpColor = hubHpPct > 50 ? "bg-green-500" : hubHpPct > 25 ? "bg-yellow-500" : "bg-red-500"
     const resourceLabel = classMap[character.class]?.resource_type ?? "resource"
+    const canRestAtInn =
+      character.hp_current < character.hp_max || character.resource_current < character.resource_max
+    const displayedGold = shopGold ?? character.gold
 
     const handleGenerateRealm = async (templateId: string) => {
       setRealmError(null)
@@ -742,10 +784,30 @@ export default function PlayPage() {
       setStep("dungeon")
     }
 
+    const handleBuyItem = async (itemId: string, quantity: number) => {
+      const result = await buyItem(itemId, quantity)
+      if (result.ok) {
+        setShopMessage(result.message)
+        await fetchCharacter()
+      } else {
+        setShopMessage(result.error)
+      }
+    }
+
+    const handleSellItem = async (itemId: string, quantity: number) => {
+      const result = await sellItem(itemId, quantity)
+      if (result.ok) {
+        setShopMessage(result.message)
+        await fetchCharacter()
+      } else {
+        setShopMessage(result.error)
+      }
+    }
+
     return (
       <>
         <main className="min-h-screen flex flex-col items-center p-8">
-          <div className="max-w-2xl w-full space-y-6">
+          <div className="max-w-5xl w-full space-y-6">
             <AccountPanel
               walletAddress={evmAddress}
               handle={account?.handle}
@@ -755,62 +817,92 @@ export default function PlayPage() {
             />
           <h1 className="text-3xl font-bold text-amber-400 text-center">ADVENTURE.FUN</h1>
 
-          {/* Character summary */}
-          <div className="bg-gray-900 border border-gray-800 rounded p-4 text-sm space-y-3">
-            <div className="flex items-center justify-between">
-              <h2 className="text-amber-400 font-bold">{character.name}</h2>
-              <span className="text-gray-500 text-xs">
-                Level {character.level} {classMap[character.class]?.name ?? character.class}
-              </span>
-            </div>
-            <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs">
-              <p>
-                <span className="text-gray-500">Gold:</span>{" "}
-                <span className="text-gray-300">{character.gold}</span>
+          <div className="grid gap-6 xl:grid-cols-[1.9fr_1fr]">
+            <div className="bg-gray-900 border border-gray-800 rounded p-4 text-sm space-y-3">
+              <div className="flex items-center justify-between">
+                <h2 className="text-amber-400 font-bold">{character.name}</h2>
+                <span className="text-gray-500 text-xs">
+                  Level {character.level} {classMap[character.class]?.name ?? character.class}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs">
+                <p>
+                  <span className="text-gray-500">Gold:</span>{" "}
+                  <span className="text-amber-300 font-semibold transition-colors">{displayedGold}</span>
+                </p>
+                <p>
+                  <span className="text-gray-500">XP:</span>{" "}
+                  <span className="text-gray-300">{character.xp}</span>
+                </p>
+              </div>
+
+              {progression && (
+                <XpProgressBar
+                  xp={progression.xp}
+                  level={progression.level}
+                  xpToNext={progression.xp_to_next_level}
+                  xpForNext={progression.xp_for_next_level}
+                />
+              )}
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <StatusMeter
+                  label="HP"
+                  current={character.hp_current}
+                  max={character.hp_max}
+                  colorClass={hubHpColor}
+                />
+                <StatusMeter
+                  label={resourceLabel}
+                  current={character.resource_current}
+                  max={character.resource_max}
+                  colorClass="bg-blue-500"
+                />
+              </div>
+              <p className="text-xs text-gray-600">
+                ATK {character.stats.attack} | DEF {character.stats.defense} | ACC {character.stats.accuracy} | EVA {character.stats.evasion} | SPD {character.stats.speed}
               </p>
-              <p>
-                <span className="text-gray-500">XP:</span>{" "}
-                <span className="text-gray-300">{character.xp}</span>
+
+              {progression && progression.skill_points > 0 && (
+                <button
+                  onClick={() => setShowSkillTree(true)}
+                  className="w-full text-xs text-center py-1.5 rounded border border-amber-700/50 bg-amber-950/20 text-amber-300 hover:bg-amber-950/40 transition-colors"
+                >
+                  {progression.skill_points} skill point{progression.skill_points !== 1 ? "s" : ""} available — View Skill Tree
+                </button>
+              )}
+            </div>
+
+            <div className="rounded border border-amber-900/40 bg-gradient-to-br from-amber-950/30 via-gray-900 to-gray-950 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.2em] text-amber-300/60">Inn</p>
+                  <h3 className="text-lg font-bold text-amber-200">Hearth & Rest</h3>
+                </div>
+                <span className="rounded-full border border-amber-600/30 bg-amber-500/10 px-3 py-1 text-xs text-amber-200">
+                  $0.05
+                </span>
+              </div>
+              <p className="text-sm text-gray-400">
+                Recover fully before the next dive. The innkeeper patches wounds, restores {resourceLabel}, and sends you back out ready.
               </p>
-            </div>
-
-            {/* XP Progress Bar */}
-            {progression && (
-              <XpProgressBar
-                xp={progression.xp}
-                level={progression.level}
-                xpToNext={progression.xp_to_next_level}
-                xpForNext={progression.xp_for_next_level}
-              />
-            )}
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <StatusMeter
-                label="HP"
-                current={character.hp_current}
-                max={character.hp_max}
-                colorClass={hubHpColor}
-              />
-              <StatusMeter
-                label={resourceLabel}
-                current={character.resource_current}
-                max={character.resource_max}
-                colorClass="bg-blue-500"
-              />
-            </div>
-            <p className="text-xs text-gray-600">
-              ATK {character.stats.attack} | DEF {character.stats.defense} | ACC {character.stats.accuracy} | EVA {character.stats.evasion} | SPD {character.stats.speed}
-            </p>
-
-            {/* Skill Points Indicator */}
-            {progression && progression.skill_points > 0 && (
+              {innMessage ? (
+                <p className={`text-xs ${canRestAtInn ? "text-green-300" : "text-gray-500"}`}>{innMessage}</p>
+              ) : null}
+              {innError ? <p className="text-xs text-red-400">{innError}</p> : null}
               <button
-                onClick={() => setShowSkillTree(true)}
-                className="w-full text-xs text-center py-1.5 rounded border border-amber-700/50 bg-amber-950/20 text-amber-300 hover:bg-amber-950/40 transition-colors"
+                type="button"
+                disabled={!canRestAtInn || innLoading}
+                onClick={() => {
+                  setPaymentError(null)
+                  setInnMessage(null)
+                  setPendingPayment({ kind: "inn-rest" })
+                }}
+                className="w-full rounded bg-amber-500 px-4 py-2 text-sm font-bold text-black transition-colors hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-40"
               >
-                {progression.skill_points} skill point{progression.skill_points !== 1 ? "s" : ""} available — View Skill Tree
+                {canRestAtInn ? "Rest at the Inn" : "Already Fully Rested"}
               </button>
-            )}
+            </div>
           </div>
 
           {/* Skill Tree Panel */}
@@ -836,103 +928,138 @@ export default function PlayPage() {
             </button>
           )}
 
-          {/* Realm section */}
-          <div className="space-y-3">
-            <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider">Realms</h2>
-
-            {realmsLoading && <p className="text-gray-500 text-sm">Loading realms...</p>}
-            {realmsError && <p className="text-red-400 text-sm">{realmsError}</p>}
-            {realmError && <p className="text-red-400 text-sm">{realmError}</p>}
-
-            {/* Existing realms */}
-            {realms.map((realm) => {
-              const template = realmTemplateMap[realm.template_id]
-              const statusLabel = REALM_STATUS_LABELS[realm.status] ?? realm.status
-              const canEnter = realm.status === "generated" || realm.status === "paused" || realm.status === "active"
-              const isPaused = realm.status === "paused" || realm.status === "active"
-              const statusColor = realm.status === "completed"
-                ? "text-green-500"
-                : realm.status === "dead_end"
-                  ? "text-red-500"
-                  : isPaused
-                    ? "text-amber-400"
-                    : "text-gray-600"
-
-              return (
-                <div
-                  key={realm.id}
-                  className={`bg-gray-900 border rounded p-4 flex items-center justify-between ${
-                    isPaused ? "border-amber-900/40" : "border-gray-800"
-                  }`}
-                >
-                  <div>
-                    <p className="text-gray-300 text-sm font-bold">
-                      {template?.name ?? realm.template_id}
-                    </p>
-                    <p className={`text-xs ${statusColor}`}>
-                      {statusLabel} — Floor {realm.floor_reached}
-                    </p>
-                    {isPaused && (
-                      <p className="text-gray-600 text-xs mt-0.5">
-                        Session saved — pick up where you left off
-                      </p>
-                    )}
-                  </div>
-                  <div>
-                    {canEnter && (
-                      <button
-                        onClick={() => handleEnterRealm(realm.id)}
-                        className={`px-4 py-1 font-bold text-sm rounded transition-colors ${
-                          isPaused
-                            ? "bg-amber-500 hover:bg-amber-400 text-black"
-                            : "bg-green-600 hover:bg-green-500 text-white"
-                        }`}
-                      >
-                        {isPaused ? "Resume" : "Enter"}
-                      </button>
-                    )}
-                    {realm.status === "completed" && (
-                      <button
-                        disabled
-                        className="px-4 py-1 border border-gray-700 text-gray-500 text-sm rounded opacity-40 cursor-not-allowed"
-                      >
-                        Regenerate ($0.25)
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
-
-            {/* Generate new realm */}
-            {realmTemplates.filter((t) => !t.is_tutorial).map((template) => {
-              const existing = realms.find((r) => r.template_id === template.id)
-              if (existing && existing.status !== "completed" && existing.status !== "dead_end") return null
-
-              const isFree = !realms.some((r) => r.is_free)
-
-              return (
-                <div
-                  key={template.id}
-                  className="bg-gray-900/50 border border-dashed border-gray-700 rounded p-4"
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-gray-400 text-sm font-bold">{template.name}</p>
-                    <span className={`text-xs px-2 py-0.5 rounded ${isFree ? "bg-green-900/50 text-green-400" : "text-gray-500"}`}>
-                      {isFree ? "Free" : "$0.25"}
-                    </span>
-                  </div>
-                  <p className="text-gray-600 text-xs mb-3">{template.description}</p>
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex gap-2">
+                {[
+                  { id: "realms", label: "Realms" },
+                  { id: "shop", label: "Shop" },
+                ].map((tab) => (
                   <button
-                    onClick={() => handleGenerateRealm(template.id)}
-                    disabled={generatingTemplate !== null}
-                    className="px-4 py-1 bg-amber-500 hover:bg-amber-400 text-black font-bold text-sm rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setHubTab(tab.id as "realms" | "shop")}
+                    className={`rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
+                      hubTab === tab.id
+                        ? "border-amber-400/60 bg-amber-500/10 text-amber-200"
+                        : "border-gray-700 text-gray-400 hover:border-gray-500 hover:text-gray-200"
+                    }`}
                   >
-                    {generatingTemplate === template.id ? "Generating..." : "Generate Realm"}
+                    {tab.label}
                   </button>
-                </div>
-              )
-            })}
+                ))}
+              </div>
+              {shopMessage ? <p className="text-xs text-gray-400">{shopMessage}</p> : null}
+            </div>
+
+            {hubTab === "realms" ? (
+              <div className="space-y-3">
+                <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider">Realms</h2>
+
+                {realmsLoading && <p className="text-gray-500 text-sm">Loading realms...</p>}
+                {realmsError && <p className="text-red-400 text-sm">{realmsError}</p>}
+                {realmError && <p className="text-red-400 text-sm">{realmError}</p>}
+
+                {realms.map((realm) => {
+                  const template = realmTemplateMap[realm.template_id]
+                  const statusLabel = REALM_STATUS_LABELS[realm.status] ?? realm.status
+                  const canEnter = realm.status === "generated" || realm.status === "paused" || realm.status === "active"
+                  const isPaused = realm.status === "paused" || realm.status === "active"
+                  const statusColor = realm.status === "completed"
+                    ? "text-green-500"
+                    : realm.status === "dead_end"
+                      ? "text-red-500"
+                      : isPaused
+                        ? "text-amber-400"
+                        : "text-gray-600"
+
+                  return (
+                    <div
+                      key={realm.id}
+                      className={`bg-gray-900 border rounded p-4 flex items-center justify-between ${
+                        isPaused ? "border-amber-900/40" : "border-gray-800"
+                      }`}
+                    >
+                      <div>
+                        <p className="text-gray-300 text-sm font-bold">
+                          {template?.name ?? realm.template_id}
+                        </p>
+                        <p className={`text-xs ${statusColor}`}>
+                          {statusLabel} — Floor {realm.floor_reached}
+                        </p>
+                        {isPaused && (
+                          <p className="text-gray-600 text-xs mt-0.5">
+                            Session saved — pick up where you left off
+                          </p>
+                        )}
+                      </div>
+                      <div>
+                        {canEnter && (
+                          <button
+                            onClick={() => handleEnterRealm(realm.id)}
+                            className={`px-4 py-1 font-bold text-sm rounded transition-colors ${
+                              isPaused
+                                ? "bg-amber-500 hover:bg-amber-400 text-black"
+                                : "bg-green-600 hover:bg-green-500 text-white"
+                            }`}
+                          >
+                            {isPaused ? "Resume" : "Enter"}
+                          </button>
+                        )}
+                        {realm.status === "completed" && (
+                          <button
+                            disabled
+                            className="px-4 py-1 border border-gray-700 text-gray-500 text-sm rounded opacity-40 cursor-not-allowed"
+                          >
+                            Regenerate ($0.25)
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+
+                {realmTemplates.filter((t) => !t.is_tutorial).map((template) => {
+                  const existing = realms.find((r) => r.template_id === template.id)
+                  if (existing && existing.status !== "completed" && existing.status !== "dead_end") return null
+
+                  const isFree = !realms.some((r) => r.is_free)
+
+                  return (
+                    <div
+                      key={template.id}
+                      className="bg-gray-900/50 border border-dashed border-gray-700 rounded p-4"
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-gray-400 text-sm font-bold">{template.name}</p>
+                        <span className={`text-xs px-2 py-0.5 rounded ${isFree ? "bg-green-900/50 text-green-400" : "text-gray-500"}`}>
+                          {isFree ? "Free" : "$0.25"}
+                        </span>
+                      </div>
+                      <p className="text-gray-600 text-xs mb-3">{template.description}</p>
+                      <button
+                        onClick={() => handleGenerateRealm(template.id)}
+                        disabled={generatingTemplate !== null}
+                        className="px-4 py-1 bg-amber-500 hover:bg-amber-400 text-black font-bold text-sm rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        {generatingTemplate === template.id ? "Generating..." : "Generate Realm"}
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <ShopPanel
+                sections={shopSections}
+                featured={featuredShopItems}
+                inventory={shopInventory}
+                gold={displayedGold}
+                isLoading={shopLoading}
+                error={shopError}
+                onBuy={handleBuyItem}
+                onSell={handleSellItem}
+              />
+            )}
           </div>
 
           <button
@@ -944,12 +1071,16 @@ export default function PlayPage() {
           </div>
         </main>
         <PaymentModal
-          open={pendingPayment?.kind === "generate"}
-          title="Confirm Realm Purchase"
-          description={`Approve a 0.25 USDC x402 payment to generate ${pendingPayment?.kind === "generate" ? pendingPayment.templateName : "this realm"}. Your first realm stays free.`}
-          priceUsd="0.25"
+          open={pendingPayment?.kind === "generate" || pendingPayment?.kind === "inn-rest"}
+          title={pendingPayment?.kind === "inn-rest" ? "Confirm Inn Rest" : "Confirm Realm Purchase"}
+          description={
+            pendingPayment?.kind === "inn-rest"
+              ? `Approve a 0.05 USDC x402 payment to rest at the inn and restore your HP and ${resourceLabel} to full.`
+              : `Approve a 0.25 USDC x402 payment to generate ${pendingPayment?.kind === "generate" ? pendingPayment.templateName : "this realm"}. Your first realm stays free.`
+          }
+          priceUsd={pendingPayment?.kind === "inn-rest" ? "0.05" : "0.25"}
           balanceLabel={balanceLabel}
-          isProcessing={isProcessingPayment || !!generatingTemplate}
+          isProcessing={isProcessingPayment || !!generatingTemplate || innLoading}
           error={paymentError}
           onCancel={closePaymentModal}
           onConfirm={confirmPendingPayment}
@@ -1008,7 +1139,7 @@ function DungeonView({
   waitingForResponse: boolean
   actionError: string | null
   walletAddress: string | null | undefined
-  accountHandle?: string
+  accountHandle: string | undefined
   balanceLabel: string
   isTestnet: boolean
   onLogout: () => void
@@ -1034,8 +1165,8 @@ function DungeonView({
   const moveActions = legal_actions.filter((a): a is Action & { type: "move" } => a.type === "move")
   const attackActions = legal_actions.filter((a): a is Action & { type: "attack" } => a.type === "attack")
   const disarmTrapActions = legal_actions.filter(
-    (a): a is Action & { type: "disarm_trap" } => a.type === "disarm_trap",
-  )
+    (a) => (a as { type: string }).type === "disarm_trap",
+  ) as unknown as Array<{ type: "disarm_trap"; item_id: string }>
   const interactActions = legal_actions.filter((a): a is Action & { type: "interact" } => a.type === "interact")
   const useItemActions = legal_actions.filter((a): a is Action & { type: "use_item" } => a.type === "use_item")
   const canWait = legal_actions.some((a) => a.type === "wait")
@@ -1081,6 +1212,10 @@ function DungeonView({
     (entity): entity is Observation["visible_entities"][number] & { type: "trap_visible" } =>
       entity.type === "trap_visible",
   )
+  const dungeonXpToNext =
+    "xp_to_next_level" in character && typeof character.xp_to_next_level === "number"
+      ? character.xp_to_next_level
+      : 0
 
   const hpPct = character.hp.max > 0 ? (character.hp.current / character.hp.max) * 100 : 0
   const hpColor = hpPct > 50 ? "bg-green-500" : hpPct > 25 ? "bg-yellow-500" : "bg-red-500"
@@ -1166,8 +1301,8 @@ function DungeonView({
               <XpProgressBar
                 xp={character.xp}
                 level={character.level}
-                xpToNext={character.xp_to_next_level}
-                xpForNext={character.xp + character.xp_to_next_level}
+                xpToNext={dungeonXpToNext}
+                xpForNext={character.xp + dungeonXpToNext}
                 compact
               />
             </div>
@@ -1277,19 +1412,26 @@ function DungeonView({
                 <div className="space-y-2">
                   {nearbyItems.map((item) => (
                     <div key={item.id} className="rounded border border-gray-800 bg-gray-950 p-2 text-xs">
+                      {(() => {
+                        const isTrapped = (item as { trapped?: boolean }).trapped === true
+                        return (
+                          <>
                       <div className="flex items-center justify-between gap-3">
                         <span className="font-medium text-gray-200">{item.name}</span>
-                        {item.trapped && (
+                        {isTrapped && (
                           <span className="rounded border border-red-800/70 bg-red-950/30 px-2 py-1 text-[10px] uppercase tracking-wide text-red-200">
                             Trap detected
                           </span>
                         )}
                       </div>
                       <p className="mt-1 text-[11px] text-gray-500">
-                        {item.trapped
+                        {isTrapped
                           ? "A Rogue can disarm this before looting it."
                           : "Safe to pick up from an adjacent tile."}
                       </p>
+                          </>
+                        )
+                      })()}
                     </div>
                   ))}
                   {visibleTrapMarkers.map((trap) => (
@@ -1490,7 +1632,7 @@ function DungeonView({
                     <button
                       key={i}
                       disabled={waitingForResponse}
-                      onClick={() => onAction(action)}
+                      onClick={() => onAction(action as unknown as Action)}
                       className="px-3 py-2 text-left text-xs bg-teal-950/50 hover:bg-teal-900/60 text-teal-200 rounded border border-teal-800/60 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       <div className="font-medium">Disarm Trap: {entity?.name ?? action.item_id}</div>
@@ -1633,7 +1775,7 @@ function AccountPanel({
   onLogout,
 }: {
   walletAddress: string | null | undefined
-  handle?: string
+  handle: string | undefined
   balanceLabel: string
   isTestnet: boolean
   onLogout: () => void
@@ -1701,6 +1843,260 @@ function StatusMeter({
       </div>
       <div className="h-2 bg-gray-800 rounded overflow-hidden">
         <div className={`h-full rounded ${colorClass}`} style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  )
+}
+
+function ShopPanel({
+  sections,
+  featured,
+  inventory,
+  gold,
+  isLoading,
+  error,
+  onBuy,
+  onSell,
+}: {
+  sections: Array<{ id: "consumable" | "equipment"; label: string; items: ItemTemplate[] }>
+  featured: ItemTemplate[]
+  inventory: InventoryItem[]
+  gold: number
+  isLoading: boolean
+  error: string | null
+  onBuy: (itemId: string, quantity: number) => Promise<void>
+  onSell: (itemId: string, quantity: number) => Promise<void>
+}) {
+  const [category, setCategory] = useState<"all" | "consumable" | "equipment">("all")
+  const [buyQuantities, setBuyQuantities] = useState<Record<string, number>>({})
+  const [sellQuantities, setSellQuantities] = useState<Record<string, number>>({})
+
+  const visibleSections = category === "all"
+    ? sections
+    : sections.filter((section) => section.id === category)
+
+  const bagSlotsUsed = inventory.filter((item) => !item.slot).length
+
+  return (
+    <div className="grid gap-6 xl:grid-cols-[1.35fr_1fr]">
+      <div className="space-y-4">
+        <div className="rounded border border-gray-800 bg-gray-900 p-4 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-bold uppercase tracking-wider text-gray-500">Lobby Shop</h2>
+              <p className="text-xs text-gray-600">Buy supplies before the next descent.</p>
+            </div>
+            <div className="rounded-full border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-200">
+              Gold: {gold}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {[
+              { id: "all", label: "All" },
+              { id: "consumable", label: "Consumables" },
+              { id: "equipment", label: "Equipment" },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setCategory(tab.id as "all" | "consumable" | "equipment")}
+                className={`rounded-full border px-3 py-1.5 text-xs transition-colors ${
+                  category === tab.id
+                    ? "border-amber-400/60 bg-amber-500/10 text-amber-200"
+                    : "border-gray-700 text-gray-400 hover:border-gray-500 hover:text-gray-200"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {error ? <p className="text-sm text-red-400">{error}</p> : null}
+          {isLoading ? <p className="text-sm text-gray-500">Loading shop inventory...</p> : null}
+
+          {featured.length > 0 ? (
+            <div className="rounded border border-amber-900/30 bg-amber-950/10 p-3">
+              <p className="mb-2 text-xs font-bold uppercase tracking-wider text-amber-300/70">Featured Gear</p>
+              <div className="flex flex-wrap gap-2">
+                {featured.slice(0, 4).map((item) => (
+                  <span
+                    key={item.id}
+                    className="rounded-full border border-gray-700 bg-gray-950 px-3 py-1 text-xs text-gray-300"
+                  >
+                    {item.name} · {item.buy_price}g
+                  </span>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          <div className="space-y-4">
+            {visibleSections.map((section) => (
+              <div key={section.id} className="space-y-3">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">{section.label}</h3>
+                <div className="grid gap-3 md:grid-cols-2">
+                  {section.items.map((item) => {
+                    const quantity = buyQuantities[item.id] ?? 1
+                    const canStack = inventory.some(
+                      (inventoryItem) =>
+                        !inventoryItem.slot
+                        && inventoryItem.template_id === item.id
+                        && inventoryItem.quantity < item.stack_limit,
+                    )
+                    const inventoryFull = bagSlotsUsed >= 12 && !canStack
+                    const tooExpensive = gold < item.buy_price * quantity
+                    const disabled = tooExpensive || inventoryFull
+
+                    return (
+                      <div
+                        key={item.id}
+                        className="rounded border border-gray-800 bg-gray-950/60 p-3 text-xs space-y-3"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="font-bold text-gray-100">{item.name}</p>
+                            <p className="mt-1 text-gray-500">{item.description}</p>
+                          </div>
+                          <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[10px] text-amber-200">
+                            {item.buy_price}g
+                          </span>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2 text-[10px]">
+                          <span className="rounded-full border border-gray-700 px-2 py-1 text-gray-400">
+                            {item.rarity}
+                          </span>
+                          <span className="rounded-full border border-gray-700 px-2 py-1 text-gray-400">
+                            stack {item.stack_limit}
+                          </span>
+                          {item.class_restriction ? (
+                            <span className="rounded-full border border-purple-700/40 bg-purple-950/30 px-2 py-1 text-purple-300">
+                              {item.class_restriction} only
+                            </span>
+                          ) : null}
+                        </div>
+
+                        {item.stats && Object.keys(item.stats).length > 0 ? (
+                          <div className="text-[11px] text-gray-400">
+                            {Object.entries(item.stats)
+                              .map(([stat, value]) => `${stat.toUpperCase()} ${value}`)
+                              .join(" · ")}
+                          </div>
+                        ) : null}
+
+                        <div className="flex items-center justify-between gap-3">
+                          <select
+                            value={quantity}
+                            onChange={(event) =>
+                              setBuyQuantities((current) => ({
+                                ...current,
+                                [item.id]: Number(event.target.value),
+                              }))}
+                            className="rounded border border-gray-700 bg-gray-900 px-2 py-1 text-xs text-gray-200"
+                          >
+                            {Array.from({ length: Math.min(item.stack_limit, 5) }, (_, index) => index + 1).map((value) => (
+                              <option key={value} value={value}>
+                                Qty {value}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            disabled={disabled || isLoading}
+                            onClick={() => onBuy(item.id, quantity)}
+                            className="rounded bg-amber-500 px-3 py-1.5 text-xs font-bold text-black transition-colors hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-40"
+                            title={
+                              inventoryFull
+                                ? "Inventory full"
+                                : tooExpensive
+                                  ? "Not enough gold"
+                                  : undefined
+                            }
+                          >
+                            Buy
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        <div className="rounded border border-gray-800 bg-gray-900 p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-bold uppercase tracking-wider text-gray-500">Sell Inventory</h3>
+              <p className="text-xs text-gray-600">{bagSlotsUsed}/12 bag slots used</p>
+            </div>
+            <span className="text-xs text-gray-500">Equipped items stay protected</span>
+          </div>
+
+          <div className="space-y-3">
+            {inventory.length === 0 ? (
+              <div className="rounded border border-dashed border-gray-700 p-4 text-center text-sm text-gray-500">
+                Your pack is empty.
+              </div>
+            ) : (
+              inventory.map((item) => {
+                const quantity = Math.min(sellQuantities[item.id] ?? 1, item.quantity)
+                const isEquipped = Boolean(item.slot)
+
+                return (
+                  <div key={item.id} className="rounded border border-gray-800 bg-gray-950/70 p-3 text-xs space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="font-bold text-gray-100">{item.name}</p>
+                        <p className="text-gray-500">{item.quantity} in bag</p>
+                      </div>
+                      {isEquipped ? (
+                        <span className="rounded-full border border-blue-700/40 bg-blue-950/30 px-2 py-1 text-[10px] text-blue-200">
+                          Equipped
+                        </span>
+                      ) : null}
+                    </div>
+
+                    <div className="flex items-center justify-between gap-3">
+                      <select
+                        value={quantity}
+                        disabled={isEquipped}
+                        onChange={(event) =>
+                          setSellQuantities((current) => ({
+                            ...current,
+                            [item.id]: Number(event.target.value),
+                          }))}
+                        className="rounded border border-gray-700 bg-gray-900 px-2 py-1 text-xs text-gray-200 disabled:opacity-40"
+                      >
+                        {Array.from({ length: item.quantity }, (_, index) => index + 1).map((value) => (
+                          <option key={value} value={value}>
+                            Sell {value}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        disabled={isEquipped || isLoading}
+                        onClick={() => {
+                          if (window.confirm(`Sell ${quantity} ${item.name}${quantity === 1 ? "" : "s"}?`)) {
+                            void onSell(item.id, quantity)
+                          }
+                        }}
+                        className="rounded border border-gray-700 px-3 py-1.5 text-xs text-gray-200 transition-colors hover:border-gray-500 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        Sell
+                      </button>
+                    </div>
+                  </div>
+                )
+              })
+            )}
+          </div>
+        </div>
       </div>
     </div>
   )

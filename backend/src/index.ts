@@ -7,6 +7,7 @@ import { realmRoutes } from "./routes/realms.js"
 import { lobbyRoutes } from "./routes/lobby.js"
 import { marketplaceRoutes } from "./routes/marketplace.js"
 import { leaderboardRoutes } from "./routes/leaderboard.js"
+import { legendsRoutes } from "./routes/legends.js"
 import { contentRoutes } from "./routes/content.js"
 import { verifySession } from "./auth/jwt.js"
 import { db } from "./db/client.js"
@@ -23,8 +24,11 @@ import {
   handleGameMessage,
   handleGameClose,
   type GameSessionData,
+  type SpectatorSessionData,
+  type SocketSessionData,
 } from "./game/session.js"
 import type { ServerWebSocket } from "bun"
+import { getActiveSession } from "./game/active-sessions.js"
 
 getRedis()
 
@@ -76,6 +80,7 @@ app.route("/realms", realmRoutes)
 app.route("/lobby", lobbyRoutes)
 app.route("/marketplace", marketplaceRoutes)
 app.route("/leaderboard", leaderboardRoutes)
+app.route("/legends", legendsRoutes)
 app.route("/content", contentRoutes)
 
 const port = Number(process.env["PORT"] ?? 3001)
@@ -85,9 +90,10 @@ export default {
   port,
 
   // Bun passes (req, server) to fetch — intercept WS upgrades before Hono
-  async fetch(req: Request, server: Bun.Server<GameSessionData>) {
+  async fetch(req: Request, server: Bun.Server<SocketSessionData>) {
     const url = new URL(req.url)
     const match = url.pathname.match(/^\/realms\/([^/]+)\/enter$/)
+    const spectatorMatch = url.pathname.match(/^\/spectate\/([^/]+)$/)
 
     if (match?.[1] && req.headers.get("upgrade") === "websocket") {
       const realmId = match[1]
@@ -141,6 +147,7 @@ export default {
       registerWebSocketOpen(session.account_id)
       const upgraded = server.upgrade(req, {
         data: {
+          role: "player",
           realmId,
           session,
           characterId: character.id,
@@ -153,21 +160,57 @@ export default {
       return upgraded ? undefined as unknown as Response : new Response("WS upgrade failed", { status: 500 })
     }
 
+    if (spectatorMatch?.[1] && req.headers.get("upgrade") === "websocket") {
+      const characterId = spectatorMatch[1]
+      const session = getActiveSession(characterId)
+      if (!session) {
+        return new Response("Character is not currently in a live realm", { status: 404 })
+      }
+
+      const upgraded = server.upgrade(req, {
+        data: {
+          role: "spectator",
+          characterId,
+        } satisfies SpectatorSessionData,
+      })
+
+      return upgraded ? undefined as unknown as Response : new Response("WS upgrade failed", { status: 500 })
+    }
+
     // All other requests go through Hono
     return app.fetch(req)
   },
 
   // Bun native WebSocket handler — game sessions
   websocket: {
-    async open(ws: ServerWebSocket<GameSessionData>) {
-      await handleGameOpen(ws)
+    async open(ws: ServerWebSocket<SocketSessionData>) {
+      if (ws.data.role === "spectator") {
+        const session = getActiveSession(ws.data.characterId)
+        if (!session) {
+          ws.send(JSON.stringify({ type: "error", message: "Character is not currently in a live realm" }))
+          ws.close()
+          return
+        }
+        session.addSpectator(ws as unknown as ServerWebSocket<SpectatorSessionData>)
+        ws.send(JSON.stringify({ type: "observation", data: session.getSpectatorObservation() }))
+        return
+      }
+
+      await handleGameOpen(ws as ServerWebSocket<GameSessionData>)
     },
-    async message(ws: ServerWebSocket<GameSessionData>, message: string | Buffer) {
-      await handleGameMessage(ws, message)
+    async message(ws: ServerWebSocket<SocketSessionData>, message: string | Buffer) {
+      if (ws.data.role === "spectator") return
+      await handleGameMessage(ws as ServerWebSocket<GameSessionData>, message)
     },
-    async close(ws: ServerWebSocket<GameSessionData>) {
+    async close(ws: ServerWebSocket<SocketSessionData>) {
+      if (ws.data.role === "spectator") {
+        const session = getActiveSession(ws.data.characterId)
+        session?.removeSpectator(ws as unknown as ServerWebSocket<SpectatorSessionData>)
+        return
+      }
+
       registerWebSocketClose(ws.data.session.account_id)
-      await handleGameClose(ws)
+      await handleGameClose(ws as ServerWebSocket<GameSessionData>)
     },
   },
 }

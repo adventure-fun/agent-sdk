@@ -13,6 +13,7 @@ export function resolveCorsOrigin(origin: string | undefined, pathname: string):
   const isPublicRoute = pathname === "/health"
     || pathname.startsWith("/content/")
     || pathname.startsWith("/leaderboard/")
+    || pathname.startsWith("/legends/")
 
   if (!origin) return isPublicRoute ? "*" : ""
   if (isPublicRoute) return origin

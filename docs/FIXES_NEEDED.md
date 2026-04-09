@@ -358,44 +358,50 @@ Add notes under any item with `> NOTE: your note here` when needed.
 **Scope:** Backend route implementations
 **Depends on:** Group 1 (schema), Group 10 (auth/payments)
 
-- [ ] **11.1 — Leaderboard routes return 501**
+- [x] **11.1 — Leaderboard routes return 501**
   - `backend/src/routes/leaderboard.ts` — all endpoints return "Not implemented"
   - `leaderboard_entries` table exists and is populated by `endSession`
   - **Fix:** Implement `GET /leaderboard/xp`, `/level`, `/deepest-floor` with pagination, player_type filter (human/agent), and class filter
   - **Files:** `backend/src/routes/leaderboard.ts`
+  > NOTE: Implemented real leaderboard APIs in `backend/src/routes/leaderboard.ts` with validated `type`/filter query params, stable sorting, pagination metadata, and DB-row-to-`LeaderboardEntry` mapping. Also fixed route ordering so `/hall-of-fame` and `/leaderboard/legends/:characterId` no longer get swallowed by the dynamic `/:type` matcher. Frontend `frontend/app/leaderboard/page.tsx` now uses `frontend/app/hooks/use-leaderboard.ts` for live data, filter chips, class filtering, paging controls, legend links, and richer leaderboard presentation.
 
-- [ ] **11.2 — Lobby routes return 501**
+- [x] **11.2 — Lobby routes return 501**
   - `backend/src/routes/lobby.ts` — all endpoints return "Not implemented"
   - Includes shop (buy/sell), inn (rest/heal), chat
   - Shop and inn are core economy features
   - **Fix:** Implement shop endpoints (list items, buy with gold, sell for gold). Implement inn rest (x402 gated, restore HP/resource). Chat can be deferred until Redis is available
   - **Files:** `backend/src/routes/lobby.ts`
+  > NOTE: Implemented lobby shop APIs in `backend/src/routes/lobby.ts` plus validation helpers in `backend/src/routes/lobby-helpers.ts`. Added `GET /lobby/shops`, `GET /lobby/shop/inventory`, `POST /lobby/shop/buy`, and `POST /lobby/shop/sell` with gold checks, stack handling, class restrictions, inventory-capacity guardrails, and equipped-item protection. Hub UX in `frontend/app/play/page.tsx` now includes a full shop tab backed by `frontend/app/hooks/use-shop.ts`, with buy/sell panes, category filters, quantity selectors, featured gear, and gold-forward presentation.
 
-- [ ] **11.3 — Marketplace routes return 501**
+- [-] **11.3 — Marketplace routes return 501**
   - `backend/src/routes/marketplace.ts` — explicitly deferred to v1.5 per BUILD_PLAN.md
   - Schema and types exist, death trigger for orphaning listings is already in the database
   - **Fix:** Leave as 501 for v1. Consider removing the marketplace death trigger to avoid unnecessary overhead until marketplace is built
   - **Files:** `backend/src/routes/marketplace.ts`
+  > NOTE: Left marketplace deferred for v1.5, but updated all 501 responses in `backend/src/routes/marketplace.ts` to a clearer `"Marketplace coming in v1.5"` message so the API now communicates intent instead of a generic stub.
 
-- [ ] **11.4 — Inn rest endpoint missing entirely**
+- [x] **11.4 — Inn rest endpoint missing entirely**
   - Spec defines inn rest as an x402-gated heal-to-full feature
   - No route exists for it — not even a 501 stub
   - **Fix:** Add to lobby routes. When paid, restore character HP and resource to max. Log payment
   - **Files:** `backend/src/routes/lobby.ts`
+  > NOTE: Added `POST /lobby/inn/rest` to `backend/src/routes/lobby.ts` using the existing x402 flow (`verifyAndSettle`, `return402`, `logPayment`) with live-session checks and full HP/resource restoration. The hub now renders a dedicated inn card with rest-state messaging, disabled-full-health guardrails, and `PaymentModal` integration via `frontend/app/hooks/use-inn.ts`.
 
-- [ ] **11.5 — Spectator WebSocket endpoint not implemented**
+- [x] **11.5 — Spectator WebSocket endpoint not implemented**
   - Frontend has `/spectate/:characterId` page that connects to WS
   - Agent SDK spec describes spectator observations
   - Backend only handles `/realms/:id/enter` WebSocket, no spectator endpoint
   - `toSpectatorObservation` exists in the engine but is never called
   - **Fix:** Add `/spectate/:characterId` WebSocket endpoint that subscribes to game session observations (via in-memory pub or Redis pub/sub) and sends `SpectatorObservation` payloads
   - **Files:** `backend/src/index.ts`, `backend/src/game/session.ts`
+  > NOTE: Implemented `/spectate/:characterId` in `backend/src/index.ts` with role-aware Bun WS handling, live-session lookup via `backend/src/game/active-sessions.ts`, and spectator fan-out using `backend/src/game/spectators.ts`. `GameSession` now tracks spectators, broadcasts `toSpectatorObservation()` payloads after turn resolution, and closes spectator clients with a `session_ended` message on disconnect/death/extraction. `frontend/app/spectate/[characterId]/page.tsx` now handles structured messages safely, adds reconnect/error states, and upgrades the viewing UI with a larger map, entity sidebar, live indicators, and richer event rendering.
 
-- [ ] **11.6 — Legends API endpoint missing**
+- [x] **11.6 — Legends API endpoint missing**
   - Frontend legends page expects `GET /legends/:characterId`
   - No route exists
   - **Fix:** Add endpoint that queries dead character + account + run_logs + corpse data and returns `LegendPage` shape
   - **Files:** `backend/src/routes/` (new or add to characters)
+  > NOTE: Added `backend/src/routes/legends.ts`, registered it in `backend/src/index.ts`, and exposed it publicly via `backend/src/server/security-config.ts`. The route now composes dead-character profile data from `characters`, joined `accounts`, `corpse_containers`, corpse-owned `inventory_items`, `run_logs`, and `leaderboard_entries`, then returns the `LegendPage` shape. `frontend/app/legends/[characterId]/page.tsx` now renders `legend-page-client.tsx`, which provides a complete memorial view with stats, death gear, run history, owner details, skill-tree snapshot, and share-friendly UX.
 
 ---
 
@@ -631,5 +637,11 @@ _Record completed fixes here with date and commit hash._
 | 2026-04-09 | 10.5 | pending | Enforced per-account WebSocket connection caps with helper coverage |
 | 2026-04-09 | 10.6 | pending | `PATCH /auth/profile` now uses `requireAuth` middleware directly |
 | 2026-04-09 | 10.7 | pending | CORS now uses origin whitelist plus public-route exceptions |
+| 2026-04-09 | 11.1 | pending | Implemented live leaderboard routes + frontend leaderboard page with filters, pagination, and legend links |
+| 2026-04-09 | 11.2 | pending | Added lobby shop APIs, inventory endpoint, validation helpers, and polished hub buy/sell UI |
+| 2026-04-09 | 11.3 | pending | Kept marketplace deferred but replaced generic 501 responses with clear v1.5 messaging |
+| 2026-04-09 | 11.4 | pending | Added x402-gated inn rest endpoint and hub inn card restoring HP/resource to full |
+| 2026-04-09 | 11.5 | pending | Added spectator WebSocket path, session fan-out helpers, reconnect-safe spectate page, and spectator tests |
+| 2026-04-09 | 11.6 | pending | Added legends API plus full legend memorial page composed from corpse, run-log, and leaderboard data |
 | 2026-04-09 | 12.1 | pending | (Partial) Redis client module, `docker-compose.yml`, `scripts/dev.sh` auto-starts Redis with `bun run dev` |
 | 2026-04-09 | 14.7 | pending | Added `NEXT_PUBLIC_WS_URL` to `.env.example` |
