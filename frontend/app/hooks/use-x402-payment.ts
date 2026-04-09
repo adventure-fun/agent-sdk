@@ -6,7 +6,9 @@ import { useAdventureAuth } from "./use-adventure-auth"
 
 export function useX402Payment() {
   const { token } = useAdventureAuth()
-  const { fetchWithPayment } = useX402()
+  const { fetchWithPayment } = useX402({
+    maxValue: BigInt(Number.MAX_SAFE_INTEGER),
+  })
 
   const paidFetch = useCallback(
     async (input: RequestInfo | URL, init: RequestInit = {}) => {

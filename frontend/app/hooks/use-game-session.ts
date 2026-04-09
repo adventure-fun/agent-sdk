@@ -68,9 +68,9 @@ export function useGameSession() {
         try {
           msg = JSON.parse(event.data as string)
         } catch {
+          console.warn("[ws] Failed to parse message:", event.data)
           return
         }
-
         switch (msg.type) {
           case "observation":
             setObservation(msg.data as Observation)

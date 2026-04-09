@@ -71,7 +71,7 @@ export function useUsdcBalance() {
 
   return {
     rawBalance: balance,
-    balanceLabel: balance === null ? "--" : `${formatUnits(balance, 6)} USDC`,
+    balanceLabel: balance === null ? "--" : `${Number(formatUnits(balance, 6)).toFixed(2)} USDC`,
     isLoading,
     error,
     refetch: async () => {

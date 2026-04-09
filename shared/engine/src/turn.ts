@@ -48,7 +48,7 @@ import {
   mergeDiscoveredTiles,
   type Position,
 } from "./visibility.js"
-import { getAbility, getEnemy, getItem, CLASSES, ROOMS, REALMS } from "./content.js"
+import { getAbility, getEnemy, getEnemySafe, getItem, CLASSES, ROOMS, REALMS } from "./content.js"
 import { SeededRng, deriveSeed } from "./rng.js"
 import { checkLevelUp, xpToNextLevel } from "./leveling.js"
 
@@ -821,7 +821,12 @@ function resolvePlayerAttack(
   let anyHit = false
 
   for (const target of targets) {
-    const enemyTemplate = getEnemy(target.template_id)
+    const enemyTemplate = getEnemySafe(target.template_id)
+    if (!enemyTemplate) {
+      console.warn(`[resolveAbility] Skipping target with unknown template "${target.template_id}" (id=${target.id})`)
+      target.hp = 0
+      continue
+    }
     const defenderStats =
       ability.special === "piercing-shot"
         ? { ...enemyTemplate.stats, defense: 0 }
@@ -1078,7 +1083,12 @@ function resolveEnemyTurns(
   let killedBy: string | null = null
 
   for (const enemy of aliveEnemies) {
-    const template = getEnemy(enemy.template_id)
+    const template = getEnemySafe(enemy.template_id)
+    if (!template) {
+      console.warn(`[resolveEnemyTurns] Skipping enemy with unknown template "${enemy.template_id}" (id=${enemy.id})`)
+      enemy.hp = 0
+      continue
+    }
     const preTurnEffects = [...enemy.effects]
     const distanceToPlayer = getAbilityRangeDistance(enemy.position, s.position.tile)
     const { damage, updated_effects } = resolveStatusEffectTick({
@@ -1989,7 +1999,11 @@ function resolveInspect(
 ): string {
   const enemy = room.enemies.find((e) => e.id === action.target_id && e.hp > 0)
   if (enemy) {
-    const template = getEnemy(enemy.template_id)
+    const template = getEnemySafe(enemy.template_id)
+    if (!template) {
+      console.warn(`[inspect] Unknown enemy template "${enemy.template_id}" (id=${enemy.id})`)
+      return "Unknown creature"
+    }
     const summary = `${template.name} — HP: ${enemy.hp}/${enemy.hp_max}`
     events.push({ turn: 0, type: "inspect", detail: summary, data: { target: enemy.id } })
     return summary
@@ -2132,6 +2146,26 @@ export function buildRoomState(
         })
       }
     }
+  } else if (realmTemplateId && genRoom.enemy_ids.length > 0) {
+    // Procedural fallback: resolve enemy templates from the realm's enemy_roster
+    const realmTemplate = REALMS[realmTemplateId]
+    if (realmTemplate) {
+      const roster = realmTemplate.enemy_roster ?? []
+      const isBossRoom = genRoom.type === "boss"
+      for (let e = 0; e < genRoom.enemy_ids.length; e++) {
+        let templateId: string
+        if (isBossRoom && realmTemplate.boss_id) {
+          templateId = realmTemplate.boss_id
+        } else if (roster.length > 0) {
+          // Deterministic pick from roster using a seed derived from the enemy ID
+          const enemyRng = new SeededRng(deriveSeed(placementSeed, `${genRoom.id}:${genRoom.enemy_ids[e]!}:template`))
+          templateId = roster[enemyRng.nextInt(0, roster.length - 1)]!
+        } else {
+          continue
+        }
+        enemyTemplateMap.push({ templateId })
+      }
+    }
   }
 
   const enemyPositions = genRoom.enemy_ids.map((enemyId, index) => {
@@ -2150,12 +2184,17 @@ export function buildRoomState(
     if (mutatedEntities.includes(enemyId)) continue
 
     const mapped = enemyTemplateMap[i]
-    const templateId = mapped?.templateId ?? "unknown"
+    if (!mapped) {
+      console.warn(`[buildRoomState] No template mapping for enemy index ${i} (id=${enemyId}) in room ${genRoom.id}`)
+      continue
+    }
+    const templateId = mapped.templateId
     let hp = 20
     try {
       hp = getEnemy(templateId).stats.hp
     } catch {
-      // unknown template — use default HP
+      console.warn(`[buildRoomState] Unknown enemy template "${templateId}" for enemy ${enemyId} in room ${genRoom.id}`)
+      continue
     }
 
     enemies.push({
@@ -2842,11 +2881,9 @@ function result(
 }
 
 function tryGetEnemy(id: string) {
-  try {
-    return getEnemy(id)
-  } catch {
-    return null
-  }
+  const enemy = getEnemySafe(id)
+  if (!enemy) console.warn(`[tryGetEnemy] Unknown enemy template "${id}"`)
+  return enemy
 }
 
 function tryGetItem(id: string) {

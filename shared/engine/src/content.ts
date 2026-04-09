@@ -214,6 +214,10 @@ export function getEnemy(id: string): EnemyTemplate {
   return enemy
 }
 
+export function getEnemySafe(id: string): EnemyTemplate | null {
+  return ENEMIES[id] ?? null
+}
+
 export function getItem(id: string): ItemTemplate {
   const item = ITEMS[id]
   if (!item) throw new Error(`Unknown item: "${id}"`)
