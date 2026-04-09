@@ -50,6 +50,12 @@ import {
   registerActiveSession,
   unregisterActiveSession,
 } from "./active-sessions.js"
+import { getPubSub } from "../redis/pubsub.js"
+import {
+  publishSpectatorUpdate,
+  publishLobbyActivity,
+  publishLeaderboardDelta,
+} from "../redis/publishers.js"
 
 const TURN_TIMEOUT_MS =
   Number(process.env["TURN_TIMEOUT_SECONDS"] ?? 30) * 1000
@@ -445,6 +451,14 @@ export class GameSession {
       (action.type === "use_portal" || action.type === "retreat") &&
       result.observation.recent_events.some((event) => event.type === action.type)
 
+    // Publish notable events for death/extraction/boss kill to lobby feed
+    const pubsubEarly = getPubSub()
+    if (pubsubEarly && result.notableEvents.length > 0) {
+      for (const event of result.notableEvents) {
+        publishLobbyActivity(pubsubEarly, event)
+      }
+    }
+
     // Check death
     if (this.gameState.character.hp.current <= 0) {
       const cause =
@@ -483,6 +497,11 @@ export class GameSession {
       JSON.stringify({ type: "observation", data: result.observation }),
     )
     broadcastSpectatorObservation(this.spectators, result.observation)
+
+    // Cross-instance spectator broadcast via Redis pub/sub
+    if (pubsubEarly) {
+      publishSpectatorUpdate(pubsubEarly, this.characterId, result.observation)
+    }
   }
 
   async endSession(
@@ -632,6 +651,17 @@ export class GameSession {
       created_at: character.created_at,
       died_at: reason === "death" ? new Date().toISOString() : null,
     })
+
+    // Publish leaderboard delta via Redis for real-time lobby updates
+    const pubsub = getPubSub()
+    if (pubsub) {
+      publishLeaderboardDelta(pubsub, {
+        characterId: this.characterId,
+        xp: this.gameState.character.xp,
+        level: this.gameState.character.level,
+        deepestFloor: this.gameState.position.floor,
+      })
+    }
   }
 
   private async handleDeath(): Promise<void> {

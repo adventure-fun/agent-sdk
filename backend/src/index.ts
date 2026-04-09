@@ -12,6 +12,8 @@ import { contentRoutes } from "./routes/content.js"
 import { verifySession } from "./auth/jwt.js"
 import { db } from "./db/client.js"
 import { getRedis } from "./redis/client.js"
+import { getPubSub } from "./redis/pubsub.js"
+import { getLobbyManager, type LobbySocketLike } from "./game/lobby-live.js"
 import { createRateLimiter, getClientIp } from "./middleware/rate-limit.js"
 import {
   resolveCorsOrigin,
@@ -25,12 +27,25 @@ import {
   handleGameClose,
   type GameSessionData,
   type SpectatorSessionData,
-  type SocketSessionData,
 } from "./game/session.js"
+
+export interface LobbyLiveSessionData {
+  role: "lobby"
+}
+
+export type SocketSessionData = GameSessionData | SpectatorSessionData | LobbyLiveSessionData
 import type { ServerWebSocket } from "bun"
 import { getActiveSession } from "./game/active-sessions.js"
 
 getRedis()
+
+// Initialize Redis pub/sub and lobby live manager
+const pubsub = getPubSub()
+const lobbyManager = getLobbyManager()
+if (pubsub) {
+  lobbyManager.connectPubSub(pubsub)
+  console.log("[lobby] Lobby live manager connected to Redis pub/sub")
+}
 
 const app = new Hono()
 
@@ -160,6 +175,13 @@ export default {
       return upgraded ? undefined as unknown as Response : new Response("WS upgrade failed", { status: 500 })
     }
 
+    if (url.pathname === "/lobby/live" && req.headers.get("upgrade") === "websocket") {
+      const upgraded = server.upgrade(req, {
+        data: { role: "lobby" } satisfies LobbyLiveSessionData,
+      })
+      return upgraded ? undefined as unknown as Response : new Response("WS upgrade failed", { status: 500 })
+    }
+
     if (spectatorMatch?.[1] && req.headers.get("upgrade") === "websocket") {
       const characterId = spectatorMatch[1]
       const session = getActiveSession(characterId)
@@ -184,6 +206,12 @@ export default {
   // Bun native WebSocket handler — game sessions
   websocket: {
     async open(ws: ServerWebSocket<SocketSessionData>) {
+      if (ws.data.role === "lobby") {
+        getLobbyManager().addClient(ws as unknown as LobbySocketLike)
+        ws.send(JSON.stringify({ type: "connected", channel: "lobby" }))
+        return
+      }
+
       if (ws.data.role === "spectator") {
         const session = getActiveSession(ws.data.characterId)
         if (!session) {
@@ -199,10 +227,15 @@ export default {
       await handleGameOpen(ws as ServerWebSocket<GameSessionData>)
     },
     async message(ws: ServerWebSocket<SocketSessionData>, message: string | Buffer) {
-      if (ws.data.role === "spectator") return
+      if (ws.data.role === "lobby" || ws.data.role === "spectator") return
       await handleGameMessage(ws as ServerWebSocket<GameSessionData>, message)
     },
     async close(ws: ServerWebSocket<SocketSessionData>) {
+      if (ws.data.role === "lobby") {
+        getLobbyManager().removeClient(ws as unknown as LobbySocketLike)
+        return
+      }
+
       if (ws.data.role === "spectator") {
         const session = getActiveSession(ws.data.characterId)
         session?.removeSpectator(ws as unknown as ServerWebSocket<SpectatorSessionData>)

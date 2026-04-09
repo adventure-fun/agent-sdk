@@ -3,6 +3,10 @@ import { db } from "../db/client.js"
 import { requireAuth } from "../auth/middleware.js"
 import { hasActiveSession } from "../game/active-sessions.js"
 import { logPayment, return402, verifyAndSettle } from "../payments/x402.js"
+import { getPubSub } from "../redis/pubsub.js"
+import { publishChatMessage, validateChatMessage } from "../redis/publishers.js"
+import { getLobbyManager } from "../game/lobby-live.js"
+import type { SanitizedChatMessage } from "@adventure-fun/schemas"
 import {
   getShopCatalog,
   parseShopQuantity,
@@ -239,6 +243,57 @@ lobby.post("/inn/rest", requireAuth, async (c) => {
     ...updatedCharacter,
     message: "You rest at the inn and feel restored.",
   })
+})
+
+// POST /lobby/chat — send a chat message to the lobby
+const CHAT_RATE_LIMIT_MS =
+  Number(process.env["LOBBY_CHAT_RATE_LIMIT_SECONDS"] ?? 5) * 1000
+
+lobby.post("/chat", requireAuth, async (c) => {
+  const { account_id } = c.get("session")
+
+  const { data: character } = await db
+    .from("characters")
+    .select("id, name, class, accounts(player_type)")
+    .eq("account_id", account_id)
+    .eq("status", "alive")
+    .maybeSingle()
+
+  if (!character) return c.json({ error: "No living character" }, 404)
+
+  const body = await c.req.json<{ message?: unknown }>()
+  const validation = validateChatMessage(body.message)
+  if (!validation.valid) {
+    return c.json({ error: validation.error }, 400)
+  }
+
+  const manager = getLobbyManager()
+  if (!manager.checkChatRateLimit(character.id, CHAT_RATE_LIMIT_MS)) {
+    return c.json({ error: "Chat rate limited. Wait a few seconds." }, 429)
+  }
+
+  const account = (character as Record<string, unknown>).accounts as
+    | Record<string, unknown>
+    | null
+
+  const chatMsg: SanitizedChatMessage = {
+    character_name: character.name,
+    character_class: character.class,
+    player_type: (account?.player_type as string) ?? "human",
+    message: validation.sanitized,
+    timestamp: Date.now(),
+  }
+
+  // Broadcast locally
+  manager.broadcastChat(chatMsg)
+
+  // Publish to Redis for cross-instance delivery
+  const pubsub = getPubSub()
+  if (pubsub) {
+    await publishChatMessage(pubsub, chatMsg)
+  }
+
+  return c.json({ ok: true })
 })
 
 export { lobby as lobbyRoutes }

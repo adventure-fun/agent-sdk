@@ -410,14 +410,27 @@ Add notes under any item with `> NOTE: your note here` when needed.
 **Scope:** Backend Redis setup, pub/sub, session state
 **Why last:** Enables lobby chat, spectator broadcast, multi-instance support, but game works without it
 
-- [~] **12.1 — `ioredis` is a dependency but never imported**
+- [x] **12.1 — `ioredis` is a dependency but never imported**
   - `backend/package.json` lists `ioredis`
   - `.env.example` has `REDIS_URL`
   - Zero imports of ioredis in any backend source file
   - The spec calls for Redis pub/sub for: spectator channels, lobby activity, lobby chat, leaderboard updates
   - **Fix:** Create `backend/src/redis/client.ts` with connection setup. Wire into session for spectator broadcast, lobby for chat/activity, and leaderboard for real-time updates. Make Redis optional (graceful no-op if `REDIS_URL` is not set) so the game still works without it during development
   - **Files:** New `backend/src/redis/client.ts`, `backend/src/game/session.ts`, `backend/src/routes/lobby.ts`
-  > NOTE: (Partial — foundation laid as part of Group 8 work) Created `backend/src/redis/client.ts` with optional connection (`getRedis()`, `redisGet`, `redisSet`, `redisDel`, `redisPublish`, `isRedisAvailable()`). Client gracefully logs and falls back to no-op when `REDIS_URL` is not set. Wired into `backend/src/index.ts` to initialize on startup. Added `docker-compose.yml` at project root with a Redis 7 Alpine service (health checks, persistence, memory limit). Created `scripts/dev.sh` that automatically starts Redis via docker-compose before launching turbo dev — root `bun run dev` now uses this script. `bun run dev:no-redis` is available as fallback. Remaining: wire pub/sub into spectator broadcast, lobby chat, and leaderboard real-time updates (depends on Groups 10, 11).
+  > NOTE: **Complete.** Built in two phases:
+  >
+  > **Phase 1 (foundation, from Group 8 work):** Created `backend/src/redis/client.ts` with optional connection (`getRedis()`, `redisGet`, `redisSet`, `redisDel`, `redisPublish`, `isRedisAvailable()`). Client gracefully logs and falls back to no-op when `REDIS_URL` is not set. Wired into `backend/src/index.ts` to initialize on startup. Added `docker-compose.yml` at project root with a Redis 7 Alpine service (health checks, persistence, memory limit). Created `scripts/dev.sh` that automatically starts Redis via docker-compose before launching turbo dev — root `bun run dev` now uses this script. `bun run dev:no-redis` is available as fallback.
+  >
+  > **Phase 2 (pub/sub wiring):**
+  > - **Pub/sub infrastructure:** `backend/src/redis/pubsub.ts` — `RedisPubSub` class with dedicated subscriber connection (separate from publisher per ioredis requirements), channel handler routing, subscribe/unsubscribe lifecycle, and `CHANNELS` constants for `lobby:chat`, `lobby:activity`, `leaderboard:updates`, and `spectator:{characterId}`. Singleton `getPubSub()` for app-wide access. 10 TDD tests in `backend/__tests__/redis-pubsub.test.ts`.
+  > - **Publisher helpers:** `backend/src/redis/publishers.ts` — `publishSpectatorUpdate()`, `publishLobbyActivity()`, `publishLeaderboardDelta()`, `publishChatMessage()`, and `validateChatMessage()` with sanitization. 11 TDD tests in `backend/__tests__/redis-integration.test.ts`.
+  > - **Lobby live manager:** `backend/src/game/lobby-live.ts` — `LobbyLiveManager` class tracks lobby WebSocket clients, broadcasts activity/chat/leaderboard events locally, connects to Redis pub/sub for cross-instance relay, and handles per-character chat rate limiting. 7 TDD tests in `backend/__tests__/lobby-live.test.ts`.
+  > - **Spectator cross-instance broadcast:** `backend/src/game/session.ts` `processTurn()` now publishes spectator observations to `spectator:{characterId}` via Redis after local broadcast, enabling spectators on other server instances to receive live game updates.
+  > - **Lobby activity feed:** `processTurn()` publishes `notableEvents` (deaths, boss kills, extractions) to `lobby:activity` via Redis for the lobby live feed.
+  > - **Leaderboard real-time:** `updateLeaderboard()` publishes `LeaderboardDelta` to `leaderboard:updates` via Redis after every leaderboard upsert.
+  > - **Chat endpoint:** `POST /lobby/chat` in `backend/src/routes/lobby.ts` — validates message (non-empty, max 500 chars, trimmed), enforces per-character rate limit from `LOBBY_CHAT_RATE_LIMIT_SECONDS` env var, broadcasts locally and publishes to Redis.
+  > - **Lobby live WebSocket:** `ws://host/lobby/live` in `backend/src/index.ts` — unauthenticated WebSocket endpoint. On connect, the `LobbyLiveManager` subscribes the socket to receive chat, activity, and leaderboard delta broadcasts. On disconnect, the socket is removed. Lobby manager connects to Redis pub/sub on startup so messages from other server instances are relayed to local lobby clients.
+  > - **Total new tests:** 28 tests across 3 new test files, all green. Full backend suite: 157 tests, all passing.
 
 ---
 
@@ -643,5 +656,5 @@ _Record completed fixes here with date and commit hash._
 | 2026-04-09 | 11.4 | pending | Added x402-gated inn rest endpoint and hub inn card restoring HP/resource to full |
 | 2026-04-09 | 11.5 | pending | Added spectator WebSocket path, session fan-out helpers, reconnect-safe spectate page, and spectator tests |
 | 2026-04-09 | 11.6 | pending | Added legends API plus full legend memorial page composed from corpse, run-log, and leaderboard data |
-| 2026-04-09 | 12.1 | pending | (Partial) Redis client module, `docker-compose.yml`, `scripts/dev.sh` auto-starts Redis with `bun run dev` |
+| 2026-04-09 | 12.1 | pending | Complete: Redis pub/sub infrastructure, spectator cross-instance broadcast, lobby activity/chat/leaderboard via Redis, `/lobby/live` WS endpoint, `POST /lobby/chat`, 28 new TDD tests |
 | 2026-04-09 | 14.7 | pending | Added `NEXT_PUBLIC_WS_URL` to `.env.example` |
