@@ -20,6 +20,22 @@ function makeTiles(width: number, height: number): Tile[][] {
   )
 }
 
+function makeTilesWithTransitions(
+  width: number,
+  height: number,
+  transitions: Array<{ x: number; y: number; type: Tile["type"] }>,
+): Tile[][] {
+  const tiles = makeTiles(width, height)
+  for (const transition of transitions) {
+    const row = tiles[transition.y]
+    const tile = row?.[transition.x]
+    if (row && tile) {
+      row[transition.x] = { ...tile, type: transition.type }
+    }
+  }
+  return tiles
+}
+
 function makeRealm(roomId = "f1_r1_test-room"): GeneratedRealm {
   return {
     template_id: "tutorial-cellar",
@@ -77,6 +93,39 @@ function makeBosslessRealm(): GeneratedRealm {
         rooms: [
           makeGeneratedRoom("f2_r1_entry", 6, 4),
           makeGeneratedRoom("f2_r2_final", 6, 4),
+        ],
+      },
+    ],
+  }
+}
+
+function makeTraversalRealm(): GeneratedRealm {
+  return {
+    template_id: "tutorial-cellar",
+    template_version: 1,
+    seed: 7,
+    total_floors: 2,
+    floors: [
+      {
+        floor_number: 1,
+        entrance_room_id: "f1_r1_entry",
+        exit_room_id: "f1_r1_entry",
+        boss_room_id: null,
+        rooms: [
+          makeGeneratedRoom("f1_r1_entry", 6, 5, {
+            tiles: makeTilesWithTransitions(6, 5, [{ x: 5, y: 2, type: "stairs" }]),
+          }),
+        ],
+      },
+      {
+        floor_number: 2,
+        entrance_room_id: "f2_r1_entry",
+        exit_room_id: null,
+        boss_room_id: null,
+        rooms: [
+          makeGeneratedRoom("f2_r1_entry", 6, 5, {
+            tiles: makeTilesWithTransitions(6, 5, [{ x: 0, y: 2, type: "stairs_up" }]),
+          }),
         ],
       },
     ],
@@ -666,6 +715,186 @@ describe("bossless realm completion", () => {
         type: "boss_kill",
       }),
     )
+  })
+})
+
+describe("floor traversal", () => {
+  it("descends onto the next floor when stepping onto stairs", () => {
+    const realm = makeTraversalRealm()
+    const floorOneRoom = realm.floors[0]!.rooms[0]!
+    const state = makeState({
+      realm: {
+        ...makeState().realm,
+        total_floors: 2,
+      },
+      position: {
+        floor: 1,
+        room_id: floorOneRoom.id,
+        tile: { x: 4, y: 2 },
+      },
+      activeFloor: {
+        rooms: [
+          {
+            id: floorOneRoom.id,
+            tiles: floorOneRoom.tiles,
+            enemies: [],
+            items: [],
+          },
+        ],
+      },
+    })
+
+    const result = resolveTurn(
+      state,
+      { type: "move", direction: "right" },
+      realm,
+      new SeededRng(3),
+    )
+
+    expect(result.newState.position.floor).toBe(2)
+    expect(result.newState.position.room_id).toBe("f2_r1_entry")
+    expect(result.newState.position.tile).toEqual({ x: 1, y: 2 })
+    expect(result.summary).toContain("descend")
+    expect(result.observation.recent_events).toContainEqual(
+      expect.objectContaining({
+        type: "floor_change",
+        detail: "Descended to floor 2",
+      }),
+    )
+  })
+
+  it("ascends onto the previous floor when stepping onto stairs_up", () => {
+    const realm = makeTraversalRealm()
+    const floorTwoRoom = realm.floors[1]!.rooms[0]!
+    const state = makeState({
+      realm: {
+        ...makeState().realm,
+        total_floors: 2,
+      },
+      position: {
+        floor: 2,
+        room_id: floorTwoRoom.id,
+        tile: { x: 1, y: 2 },
+      },
+      activeFloor: {
+        rooms: [
+          {
+            id: floorTwoRoom.id,
+            tiles: floorTwoRoom.tiles,
+            enemies: [],
+            items: [],
+          },
+        ],
+      },
+    })
+
+    const result = resolveTurn(
+      state,
+      { type: "move", direction: "left" },
+      realm,
+      new SeededRng(4),
+    )
+
+    expect(result.newState.position.floor).toBe(1)
+    expect(result.newState.position.room_id).toBe("f1_r1_entry")
+    expect(result.newState.position.tile).toEqual({ x: 4, y: 2 })
+    expect(result.summary).toContain("ascend")
+    expect(result.observation.recent_events).toContainEqual(
+      expect.objectContaining({
+        type: "floor_change",
+        detail: "Ascended to floor 1",
+      }),
+    )
+  })
+
+  it("does not ascend above floor 1 even if a stairs_up tile is present", () => {
+    const roomId = "f1_r1_entry"
+    const roomTiles = makeTilesWithTransitions(6, 5, [{ x: 0, y: 2, type: "stairs_up" }])
+    const state = makeState({
+      position: {
+        floor: 1,
+        room_id: roomId,
+        tile: { x: 1, y: 2 },
+      },
+      activeFloor: {
+        rooms: [
+          {
+            id: roomId,
+            tiles: roomTiles,
+            enemies: [],
+            items: [],
+          },
+        ],
+      },
+    })
+    const realm = {
+      ...makeRealm(roomId),
+      floors: [
+        {
+          ...makeRealm(roomId).floors[0]!,
+          rooms: [
+            makeGeneratedRoom(roomId, 6, 5, {
+              tiles: roomTiles,
+            }),
+          ],
+        },
+      ],
+    }
+
+    const result = resolveTurn(
+      state,
+      { type: "move", direction: "left" },
+      realm,
+      new SeededRng(5),
+    )
+
+    expect(result.newState.position.floor).toBe(1)
+    expect(result.summary).toBe("You move left.")
+  })
+
+  it("does not descend past the final floor when no deeper floor exists", () => {
+    const roomId = "f1_r1_entry"
+    const roomTiles = makeTilesWithTransitions(6, 5, [{ x: 5, y: 2, type: "stairs" }])
+    const state = makeState({
+      position: {
+        floor: 1,
+        room_id: roomId,
+        tile: { x: 4, y: 2 },
+      },
+      activeFloor: {
+        rooms: [
+          {
+            id: roomId,
+            tiles: roomTiles,
+            enemies: [],
+            items: [],
+          },
+        ],
+      },
+    })
+    const realm = {
+      ...makeRealm(roomId),
+      floors: [
+        {
+          ...makeRealm(roomId).floors[0]!,
+          rooms: [
+            makeGeneratedRoom(roomId, 6, 5, {
+              tiles: roomTiles,
+            }),
+          ],
+        },
+      ],
+    }
+
+    const result = resolveTurn(
+      state,
+      { type: "move", direction: "right" },
+      realm,
+      new SeededRng(6),
+    )
+
+    expect(result.newState.position.floor).toBe(1)
+    expect(result.summary).toBe("You move right.")
   })
 })
 

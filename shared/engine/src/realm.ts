@@ -365,6 +365,7 @@ function pickRoomType(template: RealmTemplate, rng: SeededRng, isFinalFloor: boo
  * so the player can see and walk through exits.
  * Linear chain: previous room ← left wall door | right wall door → next room.
  * Exit rooms (non-final floor) get a stairs tile instead of a right door.
+ * Floors above 1 also get a stairs_up tile at the entrance room.
  */
 function placeDoors(floor: GeneratedFloor): void {
   const rooms = floor.rooms
@@ -376,9 +377,15 @@ function placeDoors(floor: GeneratedFloor): void {
 
     const midY = Math.floor(h / 2)
 
+    // Floors above 1 get an up-stair at the entrance room's left wall.
+    if (floor.floor_number > 1 && room.id === floor.entrance_room_id) {
+      const row = room.tiles[midY]
+      if (row) row[0] = { x: 0, y: midY, type: "stairs_up", entities: [] }
+    }
+
     // Door to previous room → left wall center
     const prev = rooms[i - 1]
-    if (prev && room.connections.includes(prev.id)) {
+    if (prev && room.connections.includes(prev.id) && room.id !== floor.entrance_room_id) {
       const row = room.tiles[midY]
       if (row) row[0] = { x: 0, y: midY, type: "door", entities: [] }
     }

@@ -46,6 +46,7 @@ const REALM_STATUS_LABELS: Record<string, string> = {
 }
 const REALM_REGEN_GOLD_COST = 100
 const REALM_REGEN_USDC_PRICE = "0.25"
+const TUTORIAL_TEMPLATE_ID = "tutorial-cellar"
 const EQUIP_SLOT_ORDER: EquipSlot[] = ["weapon", "armor", "accessory", "class-specific"]
 const EQUIP_SLOT_LABELS: Record<EquipSlot, string> = {
   weapon: "Weapon",
@@ -244,6 +245,7 @@ export default function PlayPage() {
       Object.fromEntries(itemTemplates.map((item) => [item.id, item])) as Record<string, ItemTemplate>,
     [itemTemplates],
   )
+  const tutorialTemplate = realmTemplateMap[TUTORIAL_TEMPLATE_ID]
 
   // Create EVM wallet if signed in but no wallet exists
   useEffect(() => {
@@ -294,6 +296,30 @@ export default function PlayPage() {
         setStep("class-select")
       }
     })
+  }
+
+  const enterHubAfterCreation = async () => {
+    setCreateError(null)
+    setRealmError(null)
+
+    const [loadedRealms] = await Promise.all([
+      fetchRealms(),
+      fetchProgression(),
+      fetchInventory(),
+    ])
+
+    const hasTutorialRealm = loadedRealms.some((realm) => realm.template_id === TUTORIAL_TEMPLATE_ID)
+    if (!hasTutorialRealm) {
+      setGeneratingTemplate(TUTORIAL_TEMPLATE_ID)
+      const result = await generateRealm(TUTORIAL_TEMPLATE_ID)
+      setGeneratingTemplate(null)
+      if (result.error) {
+        setCreateError(result.error)
+        return
+      }
+    }
+
+    setStep("hub")
   }
 
   const closePaymentModal = () => {
@@ -356,6 +382,9 @@ export default function PlayPage() {
         successMessage = "Payment settled. The inn restores you to fighting form."
       }
 
+      if (pendingPayment.kind === "generate") {
+        await fetchRealms()
+      }
       setPaymentSuccess(successMessage)
       await refetchUsdcBalance()
       await fetchInventory()
@@ -703,13 +732,14 @@ export default function PlayPage() {
 
           <button
             onClick={() => {
-              fetchRealms()
-              fetchProgression()
-              setStep("hub")
+              enterHubAfterCreation().catch((err) => {
+                setCreateError(err instanceof Error ? err.message : "Failed to prepare the tutorial realm")
+              })
             }}
+            disabled={charLoading || generatingTemplate === TUTORIAL_TEMPLATE_ID}
             className="px-8 py-2 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded transition-colors"
           >
-            Enter the Dungeon
+            {generatingTemplate === TUTORIAL_TEMPLATE_ID ? "Preparing Tutorial..." : "Enter the Dungeon"}
           </button>
         </Shell>
         <PaymentModal
@@ -909,11 +939,25 @@ export default function PlayPage() {
     const canRestAtInn =
       character.hp_current < character.hp_max || character.resource_current < character.resource_max
     const displayedGold = shopGold ?? character.gold
+    const tutorialCompleted = realms.some(
+      (realm) => realm.template_id === TUTORIAL_TEMPLATE_ID && realm.status === "completed",
+    )
+    const tutorialRealm = realms.find((realm) => realm.template_id === TUTORIAL_TEMPLATE_ID) ?? null
+    const visibleRealmEntries = tutorialCompleted
+      ? realms
+      : realms.filter((realm) => realm.template_id === TUTORIAL_TEMPLATE_ID)
+    const realmGenerationTemplates = tutorialCompleted
+      ? realmTemplates.filter((template) => !template.is_tutorial)
+      : realmTemplates.filter((template) => template.is_tutorial)
+    const lockedRealmTemplates = tutorialCompleted
+      ? []
+      : realmTemplates.filter((template) => !template.is_tutorial)
 
     const handleGenerateRealm = async (templateId: string) => {
       setRealmError(null)
       const templateName = realmTemplateMap[templateId]?.name ?? "Realm"
-      const shouldCharge = realms.length > 0 || account?.free_realm_used
+      const isTutorialTemplate = realmTemplateMap[templateId]?.is_tutorial === true
+      const shouldCharge = !isTutorialTemplate && (realms.length > 0 || account?.free_realm_used)
 
       if (shouldCharge) {
         setPaymentError(null)
@@ -1178,8 +1222,29 @@ export default function PlayPage() {
                 {realmsLoading && <p className="text-gray-500 text-sm">Loading realms...</p>}
                 {realmsError && <p className="text-red-400 text-sm">{realmsError}</p>}
                 {realmError && <p className="text-red-400 text-sm">{realmError}</p>}
+                {!tutorialCompleted && (
+                  <div className="rounded border border-amber-900/40 bg-amber-950/10 p-4 text-sm">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="font-semibold text-amber-200">Tutorial First</p>
+                        <p className="mt-1 text-gray-400">
+                          New adventurers begin in {tutorialTemplate?.name ?? "the tutorial realm"}.
+                          Finish it to unlock the full realm roster.
+                        </p>
+                      </div>
+                      <span className="rounded-full border border-emerald-700/50 bg-emerald-950/20 px-3 py-1 text-xs font-semibold text-emerald-200">
+                        Always Free
+                      </span>
+                    </div>
+                  </div>
+                )}
+                {tutorialCompleted && tutorialRealm && (
+                  <div className="rounded border border-emerald-900/40 bg-emerald-950/10 p-4 text-sm text-emerald-200">
+                    Tutorial complete. New realms are now open, and {tutorialTemplate?.name ?? "The Cellar"} can be replayed from its completed card whenever you want a refresher run.
+                  </div>
+                )}
 
-                {realms.map((realm) => {
+                {visibleRealmEntries.map((realm) => {
                   const template = realmTemplateMap[realm.template_id]
                   const realmName = template?.name ?? realm.template_id
                   const statusLabel = REALM_STATUS_LABELS[realm.status] ?? realm.status
@@ -1204,12 +1269,22 @@ export default function PlayPage() {
                       }`}
                     >
                       <div>
-                        <p className="text-gray-300 text-sm font-bold">
-                          {realmName}
-                        </p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-gray-300 text-sm font-bold">{realmName}</p>
+                          {template?.is_tutorial && (
+                            <span className="rounded-full border border-amber-700/50 bg-amber-950/30 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-200">
+                              Tutorial
+                            </span>
+                          )}
+                        </div>
                         <p className={`text-xs ${statusColor}`}>
                           {statusLabel} — Floor {realm.floor_reached}
                         </p>
+                        {template?.is_tutorial && !tutorialCompleted && (
+                          <p className="mt-0.5 text-xs text-gray-500">
+                            Clear this introductory run to unlock deeper realms and paid expeditions.
+                          </p>
+                        )}
                         {isPaused && (
                           <p className="text-gray-600 text-xs mt-0.5">
                             Session saved — pick up where you left off
@@ -1266,11 +1341,11 @@ export default function PlayPage() {
                   )
                 })}
 
-                {realmTemplates.filter((t) => !t.is_tutorial).map((template) => {
+                {realmGenerationTemplates.map((template) => {
                   const existing = realms.find((r) => r.template_id === template.id)
                   if (existing && existing.status !== "completed" && existing.status !== "dead_end") return null
 
-                  const isFree = !realms.some((r) => r.is_free)
+                  const isFree = template.is_tutorial || !realms.some((r) => r.is_free)
 
                   return (
                     <div
@@ -1278,12 +1353,24 @@ export default function PlayPage() {
                       className="bg-gray-900/50 border border-dashed border-gray-700 rounded p-4"
                     >
                       <div className="flex items-center justify-between mb-2">
-                        <p className="text-gray-400 text-sm font-bold">{template.name}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-gray-400 text-sm font-bold">{template.name}</p>
+                          {template.is_tutorial && (
+                            <span className="rounded-full border border-amber-700/50 bg-amber-950/30 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-200">
+                              Tutorial
+                            </span>
+                          )}
+                        </div>
                         <span className={`text-xs px-2 py-0.5 rounded ${isFree ? "bg-green-900/50 text-green-400" : "text-gray-500"}`}>
-                          {isFree ? "Free" : "$0.25"}
+                          {template.is_tutorial ? "Always Free" : isFree ? "Free" : "$0.25"}
                         </span>
                       </div>
                       <p className="text-gray-600 text-xs mb-3">{template.description}</p>
+                      {!tutorialCompleted && template.is_tutorial && (
+                        <p className="mb-3 text-xs text-amber-200/80">
+                          Start here to learn movement, extraction, and your first gear pickup.
+                        </p>
+                      )}
                       <button
                         onClick={() => handleGenerateRealm(template.id)}
                         disabled={generatingTemplate !== null}
@@ -1294,6 +1381,24 @@ export default function PlayPage() {
                     </div>
                   )
                 })}
+
+                {!tutorialCompleted && lockedRealmTemplates.map((template) => (
+                  <div
+                    key={template.id}
+                    className="bg-gray-900/30 border border-dashed border-gray-800 rounded p-4 opacity-80"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-gray-500 text-sm font-bold">{template.name}</p>
+                      <span className="text-xs px-2 py-0.5 rounded border border-gray-700 text-gray-500">
+                        Locked
+                      </span>
+                    </div>
+                    <p className="text-gray-600 text-xs mb-3">{template.description}</p>
+                    <p className="text-xs text-gray-500">
+                      Complete {tutorialTemplate?.name ?? "the tutorial"} to unlock this realm.
+                    </p>
+                  </div>
+                ))}
               </div>
             ) : (
               <ShopPanel
@@ -1335,7 +1440,7 @@ export default function PlayPage() {
               ? `Approve a 0.05 USDC x402 payment to rest at the inn and restore your HP and ${resourceLabel} to full.`
               : pendingPayment?.kind === "regenerate"
                 ? `Approve a ${REALM_REGEN_USDC_PRICE} USDC x402 payment and spend ${REALM_REGEN_GOLD_COST} gold to fully reset ${pendingPayment.realmName}. This creates a fresh layout with new enemies and loot for a new run.`
-                : `Approve a 0.25 USDC x402 payment to generate ${pendingPayment?.kind === "generate" ? pendingPayment.templateName : "this realm"}. Your first realm stays free.`
+                : `Approve a 0.25 USDC x402 payment to generate ${pendingPayment?.kind === "generate" ? pendingPayment.templateName : "this realm"}. The tutorial remains free, while advanced realms use your normal realm payment flow.`
           }
           priceUsd={
             pendingPayment?.kind === "inn-rest"
@@ -1489,6 +1594,27 @@ function DungeonView({
   const hpColor = hpPct > 50 ? "bg-green-500" : hpPct > 25 ? "bg-yellow-500" : "bg-red-500"
   const resourceColor = getResourceBarColor(character.resource.type)
   const inventoryNearlyFull = inventory_slots_used >= Math.max(1, inventory_capacity - 2)
+  const floorCanAscend = realm_info.current_floor > 1
+  const floorCanDescend = realm_info.current_floor < realm_info.floor_count
+  const adjacentStairHint = useMemo(() => {
+    const adjacentStair = visible_tiles.find((tile) => {
+      const distance = Math.abs(tile.x - position.tile.x) + Math.abs(tile.y - position.tile.y)
+      return distance === 1 && (tile.type === "stairs" || tile.type === "stairs_up")
+    })
+    if (!adjacentStair) return null
+
+    if (adjacentStair.type === "stairs_up") {
+      return {
+        label: `Stairs up lead back to floor ${Math.max(1, realm_info.current_floor - 1)}.`,
+        tone: "border-sky-800/70 bg-sky-950/20 text-sky-200",
+      }
+    }
+
+    return {
+      label: `Stairs down lead to floor ${Math.min(realm_info.floor_count, realm_info.current_floor + 1)}.`,
+      tone: "border-cyan-800/70 bg-cyan-950/20 text-cyan-200",
+    }
+  }, [position.tile, realm_info.current_floor, realm_info.floor_count, visible_tiles])
   const newItemIds = useMemo(
     () => new Set(observationWithNewItems.new_item_ids ?? []),
     [observationWithNewItems.new_item_ids],
@@ -1568,7 +1694,16 @@ function DungeonView({
         {/* Header */}
         <div className="flex items-center justify-between text-xs text-gray-500">
           <span className="text-amber-400 font-bold">{realm_info.template_name}</span>
-          <span>Floor {realm_info.current_floor} — Turn {observation.turn}</span>
+          <span className="flex items-center gap-2">
+            <span>
+              Floor {realm_info.current_floor} / {realm_info.floor_count}
+            </span>
+            <span className="text-gray-600">
+              {floorCanAscend ? "↑" : "·"}
+              {floorCanDescend ? "↓" : "·"}
+            </span>
+            <span>Turn {observation.turn}</span>
+          </span>
         </div>
         {extractionHint && (
           <div className="rounded border border-amber-800/70 bg-amber-950/20 px-4 py-3 text-sm text-amber-200">
@@ -1576,6 +1711,12 @@ function DungeonView({
               Extraction Ready
             </div>
             <p className="mt-1">{extractionHint}</p>
+          </div>
+        )}
+        {adjacentStairHint && (
+          <div className={`rounded border px-4 py-3 text-sm ${adjacentStairHint.tone}`}>
+            <div className="font-semibold uppercase tracking-wide text-[11px]">Stairway Nearby</div>
+            <p className="mt-1">{adjacentStairHint.label}</p>
           </div>
         )}
 
@@ -1839,7 +1980,7 @@ function DungeonView({
                   getRecentEventPalette(e, i >= recent_events.length - 2)
                 }`}
               >
-                &gt; {e.detail}
+                {getRecentEventLead(e)} {e.detail}
               </div>
             ))}
           </div>
@@ -2825,6 +2966,11 @@ function getRecentEventPalette(
   event: Observation["recent_events"][number],
   isRecent: boolean,
 ) {
+  if (event.type === "floor_change") {
+    return event.detail.startsWith("Ascended")
+      ? "border-sky-800/70 bg-sky-950/20 text-sky-200"
+      : "border-cyan-800/70 bg-cyan-950/20 text-cyan-200"
+  }
   if (event.type === "boss_phase") {
     return "border-amber-800/70 bg-amber-950/20 text-amber-200"
   }
@@ -2855,6 +3001,13 @@ function getRecentEventPalette(
   return isRecent
     ? "border-gray-800 bg-gray-950 text-gray-300"
     : "border-gray-900 bg-black/20 text-gray-500"
+}
+
+function getRecentEventLead(event: Observation["recent_events"][number]) {
+  if (event.type === "floor_change") {
+    return event.detail.startsWith("Ascended") ? "↑" : "↓"
+  }
+  return ">"
 }
 
 function formatAbilityRange(range: number | "melee") {

@@ -6,7 +6,7 @@ async function importFreshRealmRoutes(
   mockDb: ReturnType<typeof createMockDb>,
   options?: {
     settledPayment?: {
-      action: "realm_regen"
+      action: "realm_regen" | "realm_generate"
       txHash: string
       network: string
       amountUsd: string
@@ -28,9 +28,10 @@ async function importFreshRealmRoutes(
       await next()
     },
   }))
+  const verifyAndSettle = mock(async () => options?.settledPayment ?? null)
   mock.module("../src/payments/x402.js", () => ({
     getRequestedNetworks: () => ["base"],
-    verifyAndSettle: async () => options?.settledPayment ?? null,
+    verifyAndSettle,
     return402: () =>
       new Response(JSON.stringify({ error: "Payment required" }), {
         status: 402,
@@ -39,7 +40,8 @@ async function importFreshRealmRoutes(
     logPayment: async () => {},
   }))
 
-  return import(`../src/routes/realms.js?cacheBust=${Date.now()}-${Math.random()}`)
+  const mod = await import(`../src/routes/realms.js?cacheBust=${Date.now()}-${Math.random()}`)
+  return { ...mod, verifyAndSettle }
 }
 
 describe("Group 3 — realm regeneration route", () => {
@@ -171,5 +173,198 @@ describe("Group 3 — realm regeneration route", () => {
 
     const characterUpdate = mockDb.getCalls("characters", "update")[0]
     expect(characterUpdate?.payload).toEqual({ gold: 75 })
+  })
+})
+
+describe("Group 6 — tutorial realm gating", () => {
+  let mockDb: ReturnType<typeof createMockDb>
+
+  beforeEach(() => {
+    mockDb = createMockDb()
+  })
+
+  it("rejects non-tutorial realm generation before the tutorial is completed", async () => {
+    mockDb.setResponse("characters", "select", {
+      data: { id: "char-1" },
+      error: null,
+    })
+    mockDb.setResponse("realm_instances", "select", {
+      data: null,
+      error: null,
+    })
+
+    const { realmRoutes } = await importFreshRealmRoutes(mockDb)
+    const app = new Hono()
+    app.route("/realms", realmRoutes)
+
+    const response = await app.request("http://example.test/realms/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ template_id: "sunken-crypt" }),
+    })
+
+    expect(response.status).toBe(403)
+    expect(await response.json()).toEqual({
+      error: "Complete the tutorial first",
+    })
+  })
+
+  it("allows tutorial generation for a new character and consumes the free slot", async () => {
+    mockDb.setResponse("characters", "select", {
+      data: { id: "char-1" },
+      error: null,
+    })
+    mockDb.setResponse("realm_instances", "select", {
+      data: null,
+      error: null,
+    })
+    mockDb.setResponse("accounts", "select", {
+      data: { free_realm_used: false },
+      error: null,
+    })
+    mockDb.setResponse("realm_instances", "insert", {
+      data: {
+        id: "realm-tutorial",
+        character_id: "char-1",
+        template_id: "tutorial-cellar",
+        status: "generated",
+        floor_reached: 1,
+        is_free: true,
+      },
+      error: null,
+    })
+    mockDb.setResponse("accounts", "update", { data: null, error: null })
+    mockDb.setResponse("realm_discovered_map", "insert", { data: null, error: null })
+
+    const { realmRoutes } = await importFreshRealmRoutes(mockDb)
+    const app = new Hono()
+    app.route("/realms", realmRoutes)
+
+    const response = await app.request("http://example.test/realms/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ template_id: "tutorial-cellar" }),
+    })
+
+    expect(response.status).toBe(201)
+    expect(await response.json()).toMatchObject({
+      id: "realm-tutorial",
+      template_id: "tutorial-cellar",
+      status: "generated",
+      is_free: true,
+    })
+    expect(mockDb.getCalls("accounts", "update")[0]?.payload).toEqual({ free_realm_used: true })
+  })
+
+  it("allows non-tutorial generation after tutorial completion is recorded", async () => {
+    mockDb.setResponse("characters", "select", {
+      data: { id: "char-1" },
+      error: null,
+    })
+    mockDb.setResponse("realm_instances", "select", {
+      data: { id: "realm-tutorial-complete" },
+      error: null,
+    })
+    mockDb.setResponse("realm_instances", "select", {
+      data: null,
+      error: null,
+    })
+    mockDb.setResponse("accounts", "select", {
+      data: { free_realm_used: true },
+      error: null,
+    })
+    mockDb.setResponse("realm_instances", "insert", {
+      data: {
+        id: "realm-crypt",
+        character_id: "char-1",
+        template_id: "sunken-crypt",
+        status: "generated",
+        floor_reached: 1,
+        is_free: false,
+      },
+      error: null,
+    })
+    mockDb.setResponse("realm_discovered_map", "insert", { data: null, error: null })
+
+    const { realmRoutes, verifyAndSettle } = await importFreshRealmRoutes(mockDb, {
+      settledPayment: {
+        action: "realm_generate",
+        txHash: "0xrealm",
+        network: "eip155:84532",
+        amountUsd: "0.25",
+        headers: { "PAYMENT-RESPONSE": "ok" },
+      },
+    })
+    const app = new Hono()
+    app.route("/realms", realmRoutes)
+
+    const response = await app.request("http://example.test/realms/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ template_id: "sunken-crypt" }),
+    })
+
+    expect(response.status).toBe(201)
+    expect(response.headers.get("PAYMENT-RESPONSE")).toBe("ok")
+    expect(await response.json()).toMatchObject({
+      id: "realm-crypt",
+      template_id: "sunken-crypt",
+      is_free: false,
+    })
+    expect(verifyAndSettle).toHaveBeenCalledTimes(1)
+  })
+
+  it("keeps the tutorial free even after the account free realm has been spent", async () => {
+    mockDb.setResponse("characters", "select", {
+      data: { id: "char-1" },
+      error: null,
+    })
+    mockDb.setResponse("realm_instances", "select", {
+      data: null,
+      error: null,
+    })
+    mockDb.setResponse("accounts", "select", {
+      data: { free_realm_used: true },
+      error: null,
+    })
+    mockDb.setResponse("realm_instances", "insert", {
+      data: {
+        id: "realm-tutorial-repeat",
+        character_id: "char-1",
+        template_id: "tutorial-cellar",
+        status: "generated",
+        floor_reached: 1,
+        is_free: true,
+      },
+      error: null,
+    })
+    mockDb.setResponse("realm_discovered_map", "insert", { data: null, error: null })
+
+    const { realmRoutes, verifyAndSettle } = await importFreshRealmRoutes(mockDb, {
+      settledPayment: {
+        action: "realm_generate",
+        txHash: "0xshould-not-run",
+        network: "eip155:84532",
+        amountUsd: "0.25",
+        headers: { "PAYMENT-RESPONSE": "unexpected" },
+      },
+    })
+    const app = new Hono()
+    app.route("/realms", realmRoutes)
+
+    const response = await app.request("http://example.test/realms/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ template_id: "tutorial-cellar" }),
+    })
+
+    expect(response.status).toBe(201)
+    expect(await response.json()).toMatchObject({
+      id: "realm-tutorial-repeat",
+      template_id: "tutorial-cellar",
+      is_free: true,
+    })
+    expect(verifyAndSettle).not.toHaveBeenCalled()
+    expect(mockDb.getCalls("accounts", "update")).toHaveLength(0)
   })
 })

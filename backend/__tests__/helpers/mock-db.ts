@@ -18,14 +18,21 @@ export interface MockDbResult {
 
 export function createMockDb() {
   const calls: DbCall[] = []
-  const responseMap = new Map<string, MockDbResult>()
+  const responseMap = new Map<string, MockDbResult[]>()
 
   function setResponse(table: string, op: string, result: MockDbResult) {
-    responseMap.set(`${table}:${op}`, result)
+    const key = `${table}:${op}`
+    const existing = responseMap.get(key) ?? []
+    existing.push(result)
+    responseMap.set(key, existing)
   }
 
   function getResponse(table: string, op: string): MockDbResult {
-    return responseMap.get(`${table}:${op}`) ?? { data: null, error: null }
+    const key = `${table}:${op}`
+    const queue = responseMap.get(key)
+    if (!queue || queue.length === 0) return { data: null, error: null }
+    if (queue.length === 1) return queue[0]!
+    return queue.shift()!
   }
 
   function makeChain(call: DbCall) {
@@ -55,11 +62,10 @@ export function createMockDb() {
     }
 
     // Allow awaiting the chain directly (e.g. `await db.from("x").delete().eq(...)`)
-    const resultPromise = Promise.resolve(
-      getResponse(call.table, call.operation),
-    )
-    chain.then = resultPromise.then.bind(resultPromise)
-    chain.catch = resultPromise.catch.bind(resultPromise)
+    chain.then = (onFulfilled?: (value: MockDbResult) => unknown, onRejected?: (reason: unknown) => unknown) =>
+      Promise.resolve(getResponse(call.table, call.operation)).then(onFulfilled, onRejected)
+    chain.catch = (onRejected?: (reason: unknown) => unknown) =>
+      Promise.resolve(getResponse(call.table, call.operation)).catch(onRejected)
 
     return chain
   }

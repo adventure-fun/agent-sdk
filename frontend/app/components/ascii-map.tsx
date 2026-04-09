@@ -104,6 +104,8 @@ function tileToCell(tile: Tile, dimmed: boolean): Cell {
       return { char: "D", className: `map-door${suffix}` }
     case "stairs":
       return { char: ">", className: `map-stairs${suffix}` }
+    case "stairs_up":
+      return { char: "<", className: `map-stairs${suffix}` }
     case "entrance":
       return { char: "<", className: `map-stairs${suffix}` }
     default:

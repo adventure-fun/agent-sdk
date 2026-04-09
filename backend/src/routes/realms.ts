@@ -6,6 +6,7 @@ import { cleanupRealmForRegeneration } from "./realm-helpers.js"
 import { getRequestedNetworks, logPayment, return402, verifyAndSettle } from "../payments/x402.js"
 
 const realms = new Hono()
+const TUTORIAL_TEMPLATE_ID = "tutorial-cellar"
 
 // Derive valid templates from engine content
 const VALID_TEMPLATES = Object.keys(REALMS)
@@ -55,6 +56,22 @@ realms.post("/generate", requireAuth, async (c) => {
 
   if (!character) return c.json({ error: "No living character" }, 404)
 
+  const isTutorialTemplate = body.template_id === TUTORIAL_TEMPLATE_ID
+
+  if (!isTutorialTemplate) {
+    const { data: tutorialCompletion } = await db
+      .from("realm_instances")
+      .select("id")
+      .eq("character_id", character.id)
+      .eq("template_id", TUTORIAL_TEMPLATE_ID)
+      .eq("status", "completed")
+      .maybeSingle()
+
+    if (!tutorialCompletion) {
+      return c.json({ error: "Complete the tutorial first" }, 403)
+    }
+  }
+
   // Check if already has this realm
   const { data: existingRealm } = await db
     .from("realm_instances")
@@ -74,7 +91,7 @@ realms.post("/generate", requireAuth, async (c) => {
     .eq("id", account_id)
     .single()
 
-  const isFree = !account?.free_realm_used
+  const isFree = isTutorialTemplate || !account?.free_realm_used
 
   const networks = getRequestedNetworks(c)
   let settledPayment = null as Awaited<ReturnType<typeof verifyAndSettle>>
@@ -106,7 +123,7 @@ realms.post("/generate", requireAuth, async (c) => {
   if (error) return c.json({ error: error.message }, 500)
 
   // Mark free realm as used
-  if (isFree) {
+  if (isFree && !account?.free_realm_used) {
     await db.from("accounts").update({ free_realm_used: true }).eq("id", account_id)
   } else if (settledPayment) {
     Object.entries(settledPayment.headers).forEach(([key, value]) => c.header(key, value))

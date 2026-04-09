@@ -113,4 +113,38 @@ describe("generateRealm", () => {
       }
     }
   })
+
+  it("places descent stairs on non-final floor exit rooms", () => {
+    const realm = generateRealm(mockTemplate, 42)
+
+    for (const floor of realm.floors.slice(0, -1)) {
+      const exitRoom = floor.rooms.find((room) => room.id === floor.exit_room_id)
+      expect(exitRoom).toBeDefined()
+      const midY = Math.floor((exitRoom?.tiles.length ?? 0) / 2)
+      const rightWall = exitRoom?.tiles[midY]?.[exitRoom.width - 1]
+      expect(rightWall?.type).toBe("stairs")
+    }
+  })
+
+  it("places ascent stairs on entrance rooms for floors above 1", () => {
+    const realm = generateRealm(mockTemplate, 42)
+
+    for (const floor of realm.floors.slice(1)) {
+      const entranceRoom = floor.rooms.find((room) => room.id === floor.entrance_room_id)
+      expect(entranceRoom).toBeDefined()
+      const midY = Math.floor((entranceRoom?.tiles.length ?? 0) / 2)
+      const leftWall = entranceRoom?.tiles[midY]?.[0]
+      expect(leftWall?.type).toBe("stairs_up")
+    }
+  })
+
+  it("does not place ascent stairs on the first floor entrance room", () => {
+    const realm = generateRealm(mockTemplate, 42)
+    const firstFloor = realm.floors[0]!
+    const entranceRoom = firstFloor.rooms.find((room) => room.id === firstFloor.entrance_room_id)
+    const midY = Math.floor((entranceRoom?.tiles.length ?? 0) / 2)
+    const leftWall = entranceRoom?.tiles[midY]?.[0]
+
+    expect(leftWall?.type).not.toBe("stairs_up")
+  })
 })

@@ -227,7 +227,7 @@ Add notes under any item with `> NOTE: your note here` when needed.
 **Scope:** Multi-floor traversal, tutorial-first progression
 **Depends on:** Group 1
 
-- [ ] **6.1 -- Multi-floor realms only support descending, not ascending**
+- [x] **6.1 -- Multi-floor realms only support descending, not ascending**
   - `tryFloorTransition()` only handles moving to `floor + 1`
   - `placeDoors()` only places descent stairs
   - This traps players on lower floors in realms like:
@@ -236,35 +236,40 @@ Add notes under any item with `> NOTE: your note here` when needed.
   - **Design decision:** Ascending should be allowed freely. It is a staircase.
   - **Fix:** Add a distinct tile such as `"stairs_up"` and support transitions to `floor - 1`
   - **Files:** `shared/engine/src/realm.ts`, `shared/engine/src/turn.ts`, `shared/schemas/src/index.ts`, `frontend/app/components/ascii-map.tsx`
+  > NOTE: Added first-class `stairs_up` tiles to the shared schema, generated them on every non-first-floor entrance room, and taught turn resolution to ascend back to the previous floor while placing the player beside the corresponding staircase instead of at a generic fallback tile.
 
-- [ ] **6.2 -- Generate upward stairs on non-first floors**
+- [x] **6.2 -- Generate upward stairs on non-first floors**
   - Each non-first floor should provide a visible return path to the previous floor
   - **Fix:** Place `stairs_up` at the entrance side of each floor above floor 1 and update map rendering so players can distinguish up vs down stairs clearly
   - **Files:** `shared/engine/src/realm.ts`, `frontend/app/components/ascii-map.tsx`
+  > NOTE: Multi-floor generation now places `stairs` on non-final exit rooms and `stairs_up` on floors 2+, while the dungeon UI differentiates them with `>` / `<`, a floor progress indicator, adjacent-stair guidance, and ascent/descent event highlighting in the recent-events feed.
 
-- [ ] **6.3 -- Tutorial realm exists in content but is hidden from new players**
+- [x] **6.3 -- Tutorial realm exists in content but is hidden from new players**
   - `tutorial-cellar` exists and is marked `is_tutorial: true`
   - The realm picker explicitly filters tutorial realms out of the UI
   - Character creation does not automatically route players into the tutorial flow
   - New characters can currently spend their one free realm on a more advanced realm
   - **Design decision:** New characters should only see the tutorial realm until it is completed. The tutorial is where they get their first equipment, and it should be the only free realm.
   - **Files:** `shared/engine/content/realms/tutorial-cellar.json`, `frontend/app/play/page.tsx`, `backend/src/routes/realms.ts`
+  > NOTE: The stat-reveal flow now auto-creates the tutorial realm before sending a fresh character to the hub, and the hub surfaces the tutorial with dedicated onboarding copy plus a `Tutorial` badge instead of hiding it from first-time players.
 
-- [ ] **6.4 -- Enforce tutorial-first progression in both UI and backend**
+- [x] **6.4 -- Enforce tutorial-first progression in both UI and backend**
   - **Fix:** Implement the following together:
     - show only the tutorial realm for characters who have not completed it
     - keep the tutorial free regardless of account state
     - prevent non-tutorial realm generation until tutorial completion is recorded
     - only expose the normal realm list after the tutorial is completed
   - **Files:** `frontend/app/play/page.tsx`, `backend/src/routes/realms.ts`
+  > NOTE: `POST /realms/generate` now rejects non-tutorial generation until a completed `tutorial-cellar` instance exists, the tutorial remains free even after the normal free-realm slot is spent, and the hub hides non-tutorial realm actions behind locked preview cards until the tutorial is completed.
 
-- [ ] **6.5 -- Add tests for ascent and tutorial gating**
+- [x] **6.5 -- Add tests for ascent and tutorial gating**
   - Add coverage for:
     - up-stair generation and traversal
     - floor return positioning
     - tutorial-only access before completion
     - non-tutorial generation rejection before tutorial completion
   - **Files:** engine traversal tests, backend route tests
+  > NOTE: Added focused engine coverage for stairs-up placement, ascent/descent traversal, and return positioning, plus backend route coverage for tutorial-first generation rejection, post-tutorial unlocks, and tutorial-always-free behavior. Also added a migration to align the `realm_instances.status` database constraint with the existing `realm_cleared` runtime status.
 
 ---
 
@@ -325,3 +330,4 @@ _Record completed fixes here with date and commit hash._
 | 2026-04-09 | 3.1-3.3 | uncommitted | Wired completed-realm regeneration into the play UI and payment modal with better replay messaging, filtered extraction loot to exclude items brought into the run, and added focused backend tests for regeneration plus loot-summary accuracy. |
 | 2026-04-09 | 4.1-4.3 | uncommitted | Fixed floor-loot persistence by assigning UUID inventory IDs while preserving deterministic world mutation IDs, added syncInventory UUID/error observability plus focused regression tests, and polished the pickup UI with rarity badges, `NEW` inventory markers, and stronger pickup event feedback. |
 | 2026-04-09 | 5.1-5.4 | uncommitted | Added dungeon and hub equip/unequip controls with slot/stat messaging, introduced lobby equip/unequip endpoints plus tests, enforced one-choice-per-tier skill validation, clarified banked skill-point UI, and exposed shared item metadata through `/content/items` so the frontend can render gear details without duplicating item definitions. |
+| 2026-04-09 | 6.1-6.5 | uncommitted | Added bi-directional floor traversal with generated `stairs_up` tiles, surfaced stair direction/floor guidance in the dungeon UI, enforced tutorial-first realm generation in both backend and hub UX, auto-created the tutorial for fresh characters, added focused engine/backend regression tests, and aligned the DB realm-status constraint with `realm_cleared`. |

@@ -277,7 +277,7 @@ export interface RealmInstance {
 
 // ---- Tiles & Map --------------------------------------------
 
-export type TileType = "floor" | "wall" | "door" | "stairs" | "entrance"
+export type TileType = "floor" | "wall" | "door" | "stairs" | "stairs_up" | "entrance"
 
 export interface Tile {
   x: number

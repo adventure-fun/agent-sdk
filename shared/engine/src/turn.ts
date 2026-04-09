@@ -672,6 +672,12 @@ function resolveMove(
     if (ft) return { summary: ft.summary, roomChanged: true }
   }
 
+  // Up-stairs tile → floor ascent
+  if (targetTile.type === "stairs_up") {
+    const ft = tryFloorAscent(s, realm, events)
+    if (ft) return { summary: ft.summary, roomChanged: true }
+  }
+
   return { summary: `You move ${direction}.`, roomChanged: false }
 }
 
@@ -729,22 +735,87 @@ function tryFloorTransition(
   const nextGenFloor = realm.floors.find((f) => f.floor_number === nextFloorNum)
   if (!nextGenFloor) return null
 
-  // Build the new floor's rooms
-  s.activeFloor.rooms = nextGenFloor.rooms.map((gr) =>
+  const nextRooms = nextGenFloor.rooms.map((gr) =>
     buildRoomState(gr, s.mutatedEntities, s.realm.template_id, s.realm.seed),
   )
+  const entranceRoom =
+    nextRooms.find((room) => room.id === nextGenFloor.entrance_room_id) ?? nextRooms[0]
+  if (!entranceRoom) return null
+
+  s.activeFloor.rooms = nextRooms
   s.position.floor = nextFloorNum
   s.position.room_id = nextGenFloor.entrance_room_id
-  s.position.tile = { x: 1, y: 1 }
+  s.position.tile = getFloorTransitionEntryTile(entranceRoom, "stairs_up")
 
   events.push({
     turn: 0,
     type: "floor_change",
     detail: `Descended to floor ${nextFloorNum}`,
-    data: { floor: nextFloorNum },
+    data: { floor: nextFloorNum, direction: "down" },
   })
 
   return { summary: `You descend to floor ${nextFloorNum}.` }
+}
+
+function tryFloorAscent(
+  s: GameState,
+  realm: GeneratedRealm,
+  events: GameEvent[],
+): { summary: string } | null {
+  const prevFloorNum = s.position.floor - 1
+  if (prevFloorNum < 1) return null
+
+  const prevGenFloor = realm.floors.find((f) => f.floor_number === prevFloorNum)
+  if (!prevGenFloor) return null
+
+  const targetRoomId = prevGenFloor.exit_room_id ?? prevGenFloor.rooms.at(-1)?.id
+  if (!targetRoomId) return null
+
+  const prevRooms = prevGenFloor.rooms.map((gr) =>
+    buildRoomState(gr, s.mutatedEntities, s.realm.template_id, s.realm.seed),
+  )
+  const targetRoom = prevRooms.find((room) => room.id === targetRoomId)
+  if (!targetRoom) return null
+
+  s.activeFloor.rooms = prevRooms
+  s.position.floor = prevFloorNum
+  s.position.room_id = targetRoomId
+  s.position.tile = getFloorTransitionEntryTile(targetRoom, "stairs")
+
+  events.push({
+    turn: 0,
+    type: "floor_change",
+    detail: `Ascended to floor ${prevFloorNum}`,
+    data: { floor: prevFloorNum, direction: "up" },
+  })
+
+  return { summary: `You ascend to floor ${prevFloorNum}.` }
+}
+
+function getFloorTransitionEntryTile(
+  room: RoomState,
+  stairType: "stairs" | "stairs_up",
+): { x: number; y: number } {
+  for (const row of room.tiles) {
+    for (const tile of row) {
+      if (tile.type !== stairType) continue
+      if (stairType === "stairs_up") {
+        return {
+          x: Math.min(tile.x + 1, Math.max(1, row.length - 2)),
+          y: tile.y,
+        }
+      }
+      return {
+        x: Math.max(1, tile.x - 1),
+        y: tile.y,
+      }
+    }
+  }
+
+  const height = room.tiles.length
+  const width = room.tiles[0]?.length ?? 0
+  const fallbackX = stairType === "stairs_up" ? 1 : Math.max(1, width - 2)
+  return { x: fallbackX, y: Math.max(1, Math.floor(height / 2)) }
 }
 
 function resolvePlayerAttack(
