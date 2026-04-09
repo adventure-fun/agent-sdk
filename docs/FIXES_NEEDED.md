@@ -301,48 +301,55 @@ Add notes under any item with `> NOTE: your note here` when needed.
 
 **Scope:** Backend auth routes, JWT, rate limiting
 
-- [ ] **10.1 — x402 payment verification is completely stubbed**
+- [x] **10.1 — x402 payment verification is completely stubbed**
   - All x402 endpoints (`reroll-stats`, `generate`, `regenerate`) just check for `X-Payment-Proof` header existence
   - Any non-empty header value bypasses payment — no verification of actual payment
   - No `payment_log` entries are created
   - **Fix:** Implement actual x402 payment verification (validate transaction hash, amount, recipient). Log to `payment_log` table on success. This is a multi-step feature that depends on the x402/CDP integration being finalized
   - **Files:** `backend/src/routes/characters.ts`, `backend/src/routes/realms.ts`, new file for x402 verification utility
+  > NOTE: Added `backend/src/payments/x402.ts` with real x402 v2 requirement building, verification, settlement, and `payment_log` persistence. `reroll-stats`, `generate`, and `regenerate` now return `PAYMENT-REQUIRED`, validate `PAYMENT-SIGNATURE`, emit `PAYMENT-RESPONSE`, and log successful payments. Network defaults now switch between Base Sepolia / Solana Devnet and Base / Solana Mainnet based on `X402_TESTNET`. Frontend now uses Coinbase Embedded Wallet `useX402()` plus `x402-fetch` per the current Coinbase docs, with a confirmation modal and visible wallet / USDC status in the play UI.
 
-- [ ] **10.2 — `SESSION_SECRET` has weak dev fallback**
+- [x] **10.2 — `SESSION_SECRET` has weak dev fallback**
   - `jwt.ts` line 3: defaults to `"dev-secret-change-in-production-min-32-chars"` if env var is missing
   - In production this would silently use a publicly known secret
   - **Fix:** Throw an error if `SESSION_SECRET` is not set and `NODE_ENV !== 'development'`
   - **Files:** `backend/src/auth/jwt.ts`
+  > NOTE: `backend/src/auth/jwt.ts` now permits the fallback only in development. Any non-development environment without an explicit `SESSION_SECRET` now fails fast during startup.
 
-- [ ] **10.3 — Auth nonces stored in-memory Map (breaks multi-instance)**
+- [x] **10.3 — Auth nonces stored in-memory Map (breaks multi-instance)**
   - `pendingNonces` in `auth.ts` is a local `Map<string, ...>`
   - If backend runs on multiple instances (e.g. Railway horizontal scaling), nonces created on one instance won't be found on another
   - **Fix:** Move to Redis or a short-lived DB table. This is blocked until Redis is integrated (see Group 12)
   - **Files:** `backend/src/routes/auth.ts`
+  > NOTE: Auth nonces now prefer Redis (`nonce:{uuid}` with TTL) and gracefully fall back to the in-memory map when Redis is unavailable in development. Added route coverage proving the fallback nonce flow still works and that `/auth/profile` now relies on middleware-provided session state.
 
-- [ ] **10.4 — No rate limiting on any endpoint**
+- [x] **10.4 — No rate limiting on any endpoint**
   - Spec mentions rate limits for chat, auth, general API
   - `.env.example` defines `LOBBY_CHAT_RATE_LIMIT_SECONDS` but it's never read
   - No rate limiting middleware exists
   - **Fix:** Add rate limiting middleware (per-IP or per-account) for auth challenge, character creation, realm generation. Use `hono` middleware or a simple in-memory counter (Redis-backed for multi-instance)
   - **Files:** `backend/src/index.ts`, new middleware file
+  > NOTE: Added `backend/src/middleware/rate-limit.ts` with Redis-backed counters when Redis is ready and in-memory TTL counters otherwise. The backend now enforces global request throttling plus focused limits on auth challenge, character roll, and realm generation endpoints.
 
-- [ ] **10.5 — No WebSocket max connections enforcement**
+- [x] **10.5 — No WebSocket max connections enforcement**
   - `.env.example` defines `MAX_WS_CONNECTIONS_PER_ACCOUNT=5` but it's never read
   - A single account could open unlimited WebSocket connections
   - **Fix:** Track active WS connections per account in the `activeSessions` map and reject new connections that exceed the limit
   - **Files:** `backend/src/index.ts`, `backend/src/game/session.ts`
+  > NOTE: Added per-account WebSocket connection tracking in `backend/src/server/security-config.ts` and `backend/src/index.ts`. New upgrades are rejected with HTTP 429 once the configured account limit is reached, and counts are decremented on close.
 
-- [ ] **10.6 — Auth profile PATCH has redundant inline auth**
+- [x] **10.6 — Auth profile PATCH has redundant inline auth**
   - `auth.ts` line 80-93: imports `requireAuth` dynamically but doesn't use it as middleware; instead has inline auth logic duplicating the same pattern
   - **Fix:** Use `requireAuth` middleware like other protected routes
   - **Files:** `backend/src/routes/auth.ts`
+  > NOTE: `PATCH /auth/profile` now uses `requireAuth` directly and reads `session.account_id` from middleware-populated context instead of re-parsing the bearer token inline.
 
-- [ ] **10.7 — CORS only allows a single origin**
+- [x] **10.7 — CORS only allows a single origin**
   - `cors({ origin: process.env.FRONTEND_URL ?? "http://localhost:3000" })`
   - Agent SDK users hitting the API from other origins will be blocked
   - **Fix:** Use an array of allowed origins or a function that validates against a whitelist. Consider allowing all origins for public API endpoints (leaderboard, content) while restricting auth/game endpoints
   - **Files:** `backend/src/index.ts`
+  > NOTE: CORS is now driven by `CORS_ALLOWED_ORIGINS`, with public read-only endpoints (`/health`, `/content/*`, `/leaderboard/*`) open to any origin and protected auth/game routes restricted to the configured whitelist.
 
 ---
 
@@ -617,5 +624,12 @@ _Record completed fixes here with date and commit hash._
 | 2026-04-09 | 8.5 | pending | RNG state persistence — `getState()`/`setState()` on `SeededRng`, persisted on disconnect, restored on reconnect for exact replay fidelity; 3 tests |
 | 2026-04-09 | 9.1 | pending | Server-side `isActionLegal()` check in `processTurn()` against `computeLegalActions()`, 20 TDD tests, frontend transient error toast |
 | 2026-04-09 | 9.2 | pending | `parseAction()` input sanitization for all 13 action types, strips extra fields, 27 TDD tests, integrated into `handleGameMessage()` |
+| 2026-04-09 | 10.1 | pending | Real x402 v2 verification/settlement, `payment_log` writes, Coinbase `useX402()` frontend integration, payment modal UX, wallet/USDC account header, and network-aware env defaults |
+| 2026-04-09 | 10.2 | pending | Production-only `SESSION_SECRET` startup guard |
+| 2026-04-09 | 10.3 | pending | Auth nonces moved to Redis with in-memory fallback and route coverage |
+| 2026-04-09 | 10.4 | pending | Added Redis/in-memory rate limiting middleware and applied auth/roll/generate throttles |
+| 2026-04-09 | 10.5 | pending | Enforced per-account WebSocket connection caps with helper coverage |
+| 2026-04-09 | 10.6 | pending | `PATCH /auth/profile` now uses `requireAuth` middleware directly |
+| 2026-04-09 | 10.7 | pending | CORS now uses origin whitelist plus public-route exceptions |
 | 2026-04-09 | 12.1 | pending | (Partial) Redis client module, `docker-compose.yml`, `scripts/dev.sh` auto-starts Redis with `bun run dev` |
 | 2026-04-09 | 14.7 | pending | Added `NEXT_PUBLIC_WS_URL` to `.env.example` |

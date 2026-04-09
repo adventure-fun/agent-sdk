@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from "react"
 import { useAdventureAuth } from "./use-adventure-auth"
+import { useX402Payment } from "./use-x402-payment"
 import type { Character, CharacterClass } from "@adventure-fun/schemas"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001"
@@ -14,6 +15,7 @@ interface RerollError {
 
 export function useCharacter() {
   const { token } = useAdventureAuth()
+  const { fetchWithPayment } = useX402Payment()
   const [character, setCharacter] = useState<Character | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -85,7 +87,7 @@ export function useCharacter() {
     setIsLoading(true)
     setError(null)
     try {
-      const res = await fetch(`${API_URL}/characters/reroll-stats`, {
+      const res = await fetchWithPayment(`${API_URL}/characters/reroll-stats`, {
         method: "POST",
         headers: headers(),
       })

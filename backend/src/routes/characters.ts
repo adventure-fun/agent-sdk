@@ -6,6 +6,7 @@ import { validateSkillAllocation } from "../game/skill-tree.js"
 import { CLASSES, SKILL_TREES } from "@adventure-fun/engine"
 import { xpForLevel, xpToNextLevel } from "@adventure-fun/engine"
 import type { CharacterClass } from "@adventure-fun/schemas"
+import { logPayment, return402, verifyAndSettle } from "../payments/x402.js"
 
 const characters = new Hono()
 
@@ -98,14 +99,9 @@ characters.post("/reroll-stats", requireAuth, async (c) => {
     return c.json({ error: "Stats already rerolled. Once per character." }, 409)
   }
 
-  // TODO: x402 payment gate
-  // For now: check X-Payment-Proof header (stub)
-  const proof = c.req.header("X-Payment-Proof")
-  if (!proof) {
-    return c.json(
-      { error: "Payment required", action: "stat_reroll", price_usd: "0.10" },
-      402,
-    )
+  const settledPayment = await verifyAndSettle(c, "stat_reroll")
+  if (!settledPayment) {
+    return return402(c, "stat_reroll")
   }
 
   const newStats = rerollStats(character.class as CharacterClass)
@@ -123,6 +119,8 @@ characters.post("/reroll-stats", requireAuth, async (c) => {
     .single()
 
   if (error) return c.json({ error: error.message }, 500)
+  Object.entries(settledPayment.headers).forEach(([key, value]) => c.header(key, value))
+  await logPayment(account_id, settledPayment)
   return c.json(data)
 })
 

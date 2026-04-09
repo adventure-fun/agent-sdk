@@ -2,12 +2,14 @@
 
 import { useState, useCallback } from "react"
 import { useAdventureAuth } from "./use-adventure-auth"
+import { useX402Payment } from "./use-x402-payment"
 import type { RealmInstance } from "@adventure-fun/schemas"
 
 const API_URL = process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:3001"
 
 export function useRealm() {
   const { token } = useAdventureAuth()
+  const { fetchWithPayment } = useX402Payment()
   const [realms, setRealms] = useState<RealmInstance[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -42,7 +44,7 @@ export function useRealm() {
       setIsLoading(true)
       setError(null)
       try {
-        const res = await fetch(`${API_URL}/realms/generate`, {
+        const res = await fetchWithPayment(`${API_URL}/realms/generate`, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,

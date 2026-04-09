@@ -746,12 +746,19 @@ export interface LeaderboardDelta {
 
 // ---- x402 Payment -------------------------------------------
 
+export interface PaymentAcceptOption402 {
+  scheme: "exact"
+  network: string
+  amount: string
+  asset: string
+  payTo: string
+  maxTimeoutSeconds?: number
+  extra?: Record<string, unknown>
+}
+
 export interface PaymentRequired402 {
-  accepts: Array<{
-    scheme: "exact"
-    network: string
-    price: string
-    payTo: string
-    asset: string
-  }>
+  x402Version: 2
+  accepts: PaymentAcceptOption402[]
+  description?: string
+  mimeType?: string
 }

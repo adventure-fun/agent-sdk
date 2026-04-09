@@ -1,8 +1,16 @@
 import { SignJWT, jwtVerify } from "jose"
 
-const secret = new TextEncoder().encode(
-  process.env["SESSION_SECRET"] ?? "dev-secret-change-in-production-min-32-chars"
-)
+const DEFAULT_SECRET = "dev-secret-change-in-production-min-32-chars"
+const sessionSecret = process.env["SESSION_SECRET"] ?? DEFAULT_SECRET
+
+if (
+  process.env["NODE_ENV"] !== "development"
+  && (!process.env["SESSION_SECRET"] || sessionSecret === DEFAULT_SECRET)
+) {
+  throw new Error("SESSION_SECRET must be set to a strong value outside development")
+}
+
+const secret = new TextEncoder().encode(sessionSecret)
 
 export interface SessionPayload {
   account_id: string

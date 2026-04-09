@@ -11,6 +11,8 @@ import type { ClassTemplateSummary, RealmTemplateSummary } from "../hooks/use-co
 import { useProgression } from "../hooks/use-progression"
 import type { ProgressionData } from "../hooks/use-progression"
 import { AsciiMap } from "../components/ascii-map"
+import { PaymentModal } from "../components/payment-modal"
+import { useUsdcBalance } from "../hooks/use-usdc-balance"
 import { useEffect, useState, useMemo } from "react"
 import type { CharacterClass, Action, Observation, ActiveEffect } from "@adventure-fun/schemas"
 
@@ -25,11 +27,16 @@ const REALM_STATUS_LABELS: Record<string, string> = {
 }
 
 type PageStep = "loading" | "class-select" | "name-input" | "stat-reveal" | "hub" | "dungeon"
+type PendingPayment =
+  | { kind: "reroll" }
+  | { kind: "generate"; templateId: string; templateName: string }
+  | null
 
 export default function PlayPage() {
   const { isInitialized } = useIsInitialized()
   const { isSignedIn } = useIsSignedIn()
   const {
+    account,
     evmAddress,
     isAuthenticated,
     isConnecting,
@@ -72,6 +79,11 @@ export default function PlayPage() {
   } = useContent()
 
   const { createEvmEoaAccount } = useCreateEvmEoaAccount()
+  const {
+    balanceLabel,
+    refetch: refetchUsdcBalance,
+    isTestnet: isX402Testnet,
+  } = useUsdcBalance()
 
   // Build lookup maps from fetched content
   const classMap = useMemo(() => {
@@ -102,6 +114,9 @@ export default function PlayPage() {
 
   // Skill tree panel state
   const [showSkillTree, setShowSkillTree] = useState(false)
+  const [pendingPayment, setPendingPayment] = useState<PendingPayment>(null)
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false)
+  const [paymentError, setPaymentError] = useState<string | null>(null)
 
   // Fetch content on mount (public, no auth needed)
   useEffect(() => {
@@ -150,6 +165,53 @@ export default function PlayPage() {
         setStep("class-select")
       }
     })
+  }
+
+  const closePaymentModal = () => {
+    if (isProcessingPayment) return
+    setPendingPayment(null)
+    setPaymentError(null)
+  }
+
+  const confirmPendingPayment = async () => {
+    if (!pendingPayment) return
+    setIsProcessingPayment(true)
+    setPaymentError(null)
+
+    try {
+      if (pendingPayment.kind === "reroll") {
+        const result = await rerollStats()
+        if (result.message) {
+          setRerollMessage(result.message)
+          setRerollDisabled(true)
+        } else {
+          setRerollMessage("Payment settled and stats re-rolled.")
+          setRerollDisabled(true)
+        }
+      } else if (pendingPayment.kind === "generate") {
+        setGeneratingTemplate(pendingPayment.templateId)
+        const result = await generateRealm(pendingPayment.templateId)
+        if (result.error) {
+          setRealmError(result.error)
+          setPaymentError(result.error)
+          return
+        }
+      }
+
+      await refetchUsdcBalance()
+      setPendingPayment(null)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Payment failed"
+      setPaymentError(message)
+      if (pendingPayment.kind === "generate") {
+        setRealmError(message)
+      } else {
+        setRerollMessage(message)
+      }
+    } finally {
+      setGeneratingTemplate(null)
+      setIsProcessingPayment(false)
+    }
   }
 
   // SDK still loading
@@ -397,65 +459,85 @@ export default function PlayPage() {
     const stats = character.stats
 
     const handleReroll = async () => {
-      const result = await rerollStats()
-      if (result.paymentRequired) {
-        setRerollMessage("Payment integration coming soon")
+      if (rerollDisabled) return
+      if (character.stat_rerolled) {
+        setRerollMessage("Stats already rerolled. Once per character.")
         setRerollDisabled(true)
-      } else if (result.message) {
-        setRerollMessage(result.message)
-        setRerollDisabled(true)
+        return
       }
+      setPaymentError(null)
+      setPendingPayment({ kind: "reroll" })
     }
 
     return (
-      <Shell wide>
-        <h1 className="text-3xl font-bold text-amber-400">{character.name}</h1>
-        <p className="text-gray-400 text-sm">
-          Level {character.level} {classMap[cls]?.name ?? cls} — {character.gold} gold
-        </p>
+      <>
+        <Shell wide>
+          <AccountPanel
+            walletAddress={evmAddress}
+            handle={account?.handle}
+            balanceLabel={balanceLabel}
+            isTestnet={isX402Testnet}
+            onLogout={logout}
+          />
+          <h1 className="text-3xl font-bold text-amber-400">{character.name}</h1>
+          <p className="text-gray-400 text-sm">
+            Level {character.level} {classMap[cls]?.name ?? cls} — {character.gold} gold
+          </p>
 
-        <div className="bg-gray-900 border border-gray-800 rounded p-4 w-full space-y-2">
-          <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">Rolled Stats</h2>
-          {STAT_KEYS.map((stat) => {
-            const range = classMap[cls]?.stat_roll_ranges[stat]
-            const value = stats[stat]
-            if (!range) return null
-            return (
-              <StatValueBar
-                key={stat}
-                label={STAT_LABELS[stat]!}
-                value={value}
-                min={range[0]}
-                max={range[1]}
-              />
-            )
-          })}
-        </div>
+          <div className="bg-gray-900 border border-gray-800 rounded p-4 w-full space-y-2">
+            <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">Rolled Stats</h2>
+            {STAT_KEYS.map((stat) => {
+              const range = classMap[cls]?.stat_roll_ranges[stat]
+              const value = stats[stat]
+              if (!range) return null
+              return (
+                <StatValueBar
+                  key={stat}
+                  label={STAT_LABELS[stat]!}
+                  value={value}
+                  min={range[0]}
+                  max={range[1]}
+                />
+              )
+            })}
+          </div>
 
-        <div className="space-y-2 text-center">
+          <div className="space-y-2 text-center">
+            <button
+              onClick={handleReroll}
+              disabled={charLoading || rerollDisabled}
+              className="px-4 py-1 border border-gray-700 text-gray-400 text-sm rounded hover:border-gray-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {charLoading ? "Re-rolling..." : "Re-roll Stats ($0.10)"}
+            </button>
+            {rerollMessage && (
+              <p className="text-gray-500 text-xs">{rerollMessage}</p>
+            )}
+          </div>
+
           <button
-            onClick={handleReroll}
-            disabled={charLoading || rerollDisabled}
-            className="px-4 py-1 border border-gray-700 text-gray-400 text-sm rounded hover:border-gray-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            onClick={() => {
+              fetchRealms()
+              fetchProgression()
+              setStep("hub")
+            }}
+            className="px-8 py-2 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded transition-colors"
           >
-            {charLoading ? "Re-rolling..." : "Re-roll Stats ($0.10)"}
+            Enter the Dungeon
           </button>
-          {rerollMessage && (
-            <p className="text-gray-500 text-xs">{rerollMessage}</p>
-          )}
-        </div>
-
-        <button
-          onClick={() => {
-            fetchRealms()
-            fetchProgression()
-            setStep("hub")
-          }}
-          className="px-8 py-2 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded transition-colors"
-        >
-          Enter the Dungeon
-        </button>
-      </Shell>
+        </Shell>
+        <PaymentModal
+          open={pendingPayment?.kind === "reroll"}
+          title="Confirm Stat Re-roll"
+          description="Approve a 0.10 USDC x402 payment to re-roll this character's starting stats."
+          priceUsd="0.10"
+          balanceLabel={balanceLabel}
+          isProcessing={isProcessingPayment}
+          error={paymentError}
+          onCancel={closePaymentModal}
+          onConfirm={confirmPendingPayment}
+        />
+      </>
     )
   }
 
@@ -616,6 +698,11 @@ export default function PlayPage() {
         observation={gameSession.observation}
         waitingForResponse={gameSession.waitingForResponse}
         actionError={gameSession.actionError}
+        walletAddress={evmAddress}
+        accountHandle={account?.handle}
+        balanceLabel={balanceLabel}
+        isTestnet={isX402Testnet}
+        onLogout={logout}
         onAction={gameSession.sendAction}
         onRetreat={() => {
           gameSession.sendAction({ type: "retreat" })
@@ -633,12 +720,19 @@ export default function PlayPage() {
 
     const handleGenerateRealm = async (templateId: string) => {
       setRealmError(null)
+      const templateName = realmTemplateMap[templateId]?.name ?? "Realm"
+      const shouldCharge = realms.length > 0 || account?.free_realm_used
+
+      if (shouldCharge) {
+        setPaymentError(null)
+        setPendingPayment({ kind: "generate", templateId, templateName })
+        return
+      }
+
       setGeneratingTemplate(templateId)
       const result = await generateRealm(templateId)
       setGeneratingTemplate(null)
-      if (result.paymentRequired) {
-        setRealmError("Payment integration coming soon")
-      } else if (result.error) {
+      if (result.error) {
         setRealmError(result.error)
       }
     }
@@ -649,8 +743,16 @@ export default function PlayPage() {
     }
 
     return (
-      <main className="min-h-screen flex flex-col items-center p-8">
-        <div className="max-w-2xl w-full space-y-6">
+      <>
+        <main className="min-h-screen flex flex-col items-center p-8">
+          <div className="max-w-2xl w-full space-y-6">
+            <AccountPanel
+              walletAddress={evmAddress}
+              handle={account?.handle}
+              balanceLabel={balanceLabel}
+              isTestnet={isX402Testnet}
+              onLogout={logout}
+            />
           <h1 className="text-3xl font-bold text-amber-400 text-center">ADVENTURE.FUN</h1>
 
           {/* Character summary */}
@@ -839,8 +941,20 @@ export default function PlayPage() {
           >
             Disconnect
           </button>
-        </div>
-      </main>
+          </div>
+        </main>
+        <PaymentModal
+          open={pendingPayment?.kind === "generate"}
+          title="Confirm Realm Purchase"
+          description={`Approve a 0.25 USDC x402 payment to generate ${pendingPayment?.kind === "generate" ? pendingPayment.templateName : "this realm"}. Your first realm stays free.`}
+          priceUsd="0.25"
+          balanceLabel={balanceLabel}
+          isProcessing={isProcessingPayment || !!generatingTemplate}
+          error={paymentError}
+          onCancel={closePaymentModal}
+          onConfirm={confirmPendingPayment}
+        />
+      </>
     )
   }
 
@@ -881,6 +995,11 @@ function DungeonView({
   observation,
   waitingForResponse,
   actionError,
+  walletAddress,
+  accountHandle,
+  balanceLabel,
+  isTestnet,
+  onLogout,
   onAction,
   onRetreat,
   onDismissError,
@@ -888,6 +1007,11 @@ function DungeonView({
   observation: Observation
   waitingForResponse: boolean
   actionError: string | null
+  walletAddress: string | null | undefined
+  accountHandle?: string
+  balanceLabel: string
+  isTestnet: boolean
+  onLogout: () => void
   onAction: (action: Action) => void
   onRetreat: () => void
   onDismissError: () => void
@@ -994,6 +1118,13 @@ function DungeonView({
   return (
     <main className="min-h-screen flex flex-col p-4">
       <div className="max-w-5xl w-full mx-auto flex-1 flex flex-col gap-4">
+        <AccountPanel
+          walletAddress={walletAddress}
+          handle={accountHandle}
+          balanceLabel={balanceLabel}
+          isTestnet={isTestnet}
+          onLogout={onLogout}
+        />
         {/* Header */}
         <div className="flex items-center justify-between text-xs text-gray-500">
           <span className="text-amber-400 font-bold">{realm_info.template_name}</span>
@@ -1491,6 +1622,61 @@ function Shell({ children, wide }: { children: React.ReactNode; wide?: boolean }
         {children}
       </div>
     </main>
+  )
+}
+
+function AccountPanel({
+  walletAddress,
+  handle,
+  balanceLabel,
+  isTestnet,
+  onLogout,
+}: {
+  walletAddress: string | null | undefined
+  handle?: string
+  balanceLabel: string
+  isTestnet: boolean
+  onLogout: () => void
+}) {
+  const shortWallet = walletAddress
+    ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`
+    : "Wallet unavailable"
+
+  return (
+    <div className="rounded border border-gray-800 bg-gray-900/80 p-3 text-left text-xs">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="space-y-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-semibold text-amber-400">{handle || "Adventurer"}</span>
+            {isTestnet ? (
+              <span className="rounded border border-amber-700/60 bg-amber-950/30 px-2 py-1 text-[10px] uppercase tracking-wide text-amber-300">
+                Testnet
+              </span>
+            ) : null}
+          </div>
+          <div className="text-gray-400">Wallet: {shortWallet}</div>
+          <div className="text-gray-400">USDC: {balanceLabel}</div>
+        </div>
+        <div className="flex items-center gap-2">
+          {walletAddress ? (
+            <button
+              type="button"
+              onClick={() => navigator.clipboard.writeText(walletAddress).catch(() => {})}
+              className="rounded border border-gray-700 px-2 py-1 text-gray-300 transition-colors hover:border-gray-500"
+            >
+              Copy Address
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={onLogout}
+            className="rounded border border-gray-700 px-2 py-1 text-gray-300 transition-colors hover:border-gray-500"
+          >
+            Logout
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
 

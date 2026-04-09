@@ -11,6 +11,13 @@ import { contentRoutes } from "./routes/content.js"
 import { verifySession } from "./auth/jwt.js"
 import { db } from "./db/client.js"
 import { getRedis } from "./redis/client.js"
+import { createRateLimiter, getClientIp } from "./middleware/rate-limit.js"
+import {
+  resolveCorsOrigin,
+  canOpenWebSocket,
+  registerWebSocketOpen,
+  registerWebSocketClose,
+} from "./server/security-config.js"
 import {
   handleGameOpen,
   handleGameMessage,
@@ -25,8 +32,40 @@ const app = new Hono()
 
 app.use("*", logger())
 app.use("*", cors({
-  origin: process.env["FRONTEND_URL"] ?? "http://localhost:3000",
+  origin: (origin, c) => {
+    return resolveCorsOrigin(origin, new URL(c.req.url).pathname)
+  },
   credentials: true,
+}))
+app.use("*", createRateLimiter({
+  label: "global",
+  windowMs: 60_000,
+  maxRequests: 100,
+  keyFn: getClientIp,
+}))
+app.use("/auth/challenge", createRateLimiter({
+  label: "auth-challenge",
+  windowMs: 60_000,
+  maxRequests: 10,
+  keyFn: getClientIp,
+}))
+app.use("/characters/roll", createRateLimiter({
+  label: "character-roll",
+  windowMs: 60_000,
+  maxRequests: 5,
+  keyFn: (c) => {
+    const session = c.get("session")
+    return session?.account_id ?? getClientIp(c)
+  },
+}))
+app.use("/realms/generate", createRateLimiter({
+  label: "realm-generate",
+  windowMs: 60_000,
+  maxRequests: 10,
+  keyFn: (c) => {
+    const session = c.get("session")
+    return session?.account_id ?? getClientIp(c)
+  },
 }))
 
 app.get("/health", (c) => c.json({ status: "ok", ts: new Date().toISOString() }))
@@ -65,6 +104,10 @@ export default {
         return new Response("Unauthorized", { status: 401 })
       }
 
+      if (!canOpenWebSocket(session.account_id)) {
+        return new Response("Too many open game connections", { status: 429 })
+      }
+
       // Get character
       const { data: character } = await db
         .from("characters")
@@ -95,6 +138,7 @@ export default {
         .update({ status: "active" })
         .eq("id", realmId)
 
+      registerWebSocketOpen(session.account_id)
       const upgraded = server.upgrade(req, {
         data: {
           realmId,
@@ -103,6 +147,9 @@ export default {
         } satisfies Omit<GameSessionData, "turnTimer">,
       })
 
+      if (!upgraded) {
+        registerWebSocketClose(session.account_id)
+      }
       return upgraded ? undefined as unknown as Response : new Response("WS upgrade failed", { status: 500 })
     }
 
@@ -119,6 +166,7 @@ export default {
       await handleGameMessage(ws, message)
     },
     async close(ws: ServerWebSocket<GameSessionData>) {
+      registerWebSocketClose(ws.data.session.account_id)
       await handleGameClose(ws)
     },
   },

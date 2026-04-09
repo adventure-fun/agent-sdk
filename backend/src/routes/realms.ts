@@ -3,6 +3,7 @@ import { db } from "../db/client.js"
 import { requireAuth } from "../auth/middleware.js"
 import { REALMS } from "@adventure-fun/engine"
 import { cleanupRealmForRegeneration } from "./realm-helpers.js"
+import { logPayment, return402, verifyAndSettle } from "../payments/x402.js"
 
 const realms = new Hono()
 
@@ -75,15 +76,12 @@ realms.post("/generate", requireAuth, async (c) => {
 
   const isFree = !account?.free_realm_used
 
+  let settledPayment = null as Awaited<ReturnType<typeof verifyAndSettle>>
   if (!isFree) {
-    const proof = c.req.header("X-Payment-Proof")
-    if (!proof) {
-      return c.json(
-        { error: "Payment required", action: "realm_generate", price_usd: "0.25" },
-        402,
-      )
+    settledPayment = await verifyAndSettle(c, "realm_generate")
+    if (!settledPayment) {
+      return return402(c, "realm_generate")
     }
-    // TODO: verify x402 payment proof
   }
 
   // Generate realm with random seed
@@ -109,6 +107,9 @@ realms.post("/generate", requireAuth, async (c) => {
   // Mark free realm as used
   if (isFree) {
     await db.from("accounts").update({ free_realm_used: true }).eq("id", account_id)
+  } else if (settledPayment) {
+    Object.entries(settledPayment.headers).forEach(([key, value]) => c.header(key, value))
+    await logPayment(account_id, settledPayment)
   }
 
   // Initialize discovered map for floor 1
@@ -152,12 +153,9 @@ realms.post("/:id/regenerate", requireAuth, async (c) => {
     return c.json({ error: `Requires ${REGEN_GOLD_COST} gold`, gold: character.gold }, 400)
   }
 
-  const proof = c.req.header("X-Payment-Proof")
-  if (!proof) {
-    return c.json(
-      { error: "Payment required", action: "realm_regen", price_usd: "0.25", gold_cost: REGEN_GOLD_COST },
-      402,
-    )
+  const settledPayment = await verifyAndSettle(c, "realm_regen")
+  if (!settledPayment) {
+    return return402(c, "realm_regen")
   }
 
   const newSeed = Math.floor(Math.random() * 2 ** 32)
@@ -175,6 +173,8 @@ realms.post("/:id/regenerate", requireAuth, async (c) => {
 
   await cleanupRealmForRegeneration(db, realmId)
 
+  Object.entries(settledPayment.headers).forEach(([key, value]) => c.header(key, value))
+  await logPayment(account_id, settledPayment)
   return c.json(updated)
 })
 
