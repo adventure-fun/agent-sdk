@@ -63,7 +63,7 @@ Add notes under any item with `> NOTE: your note here` when needed.
     - extracting after that awards the template's `completion_rewards`
     - the persisted `realm_instances.status` becomes `completed`
   - **Files:** `shared/engine/__tests__/turn.test.ts`, `backend/__tests__/session-extraction.test.ts`
-  > NOTE: Added engine coverage for final-room bossless clears and non-final-room/non-final-floor regressions, plus backend coverage for `realm_cleared` extraction rewards. Focused tests pass. Repo-wide `bun run test` is still blocked by an unrelated existing workspace issue: `@adventure-fun/agent-sdk` has a `test` script but no test files.
+  > NOTE: Added engine coverage for final-room bossless clears and non-final-room/non-final-floor regressions, plus backend coverage for `realm_cleared` extraction rewards. Focused tests pass, and the workspace `bun run test` suite now passes after cleaning up unrelated package test/build blockers.
 
 ---
 
