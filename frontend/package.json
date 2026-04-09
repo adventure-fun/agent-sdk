@@ -21,7 +21,8 @@
     "next": "^16.2.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "tailwindcss": "^4.2.2"
+    "tailwindcss": "^4.2.2",
+    "viem": "^2.47.11"
   },
   "devDependencies": {
     "@types/node": "*",

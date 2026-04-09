@@ -23,6 +23,8 @@ export type PaymentAction =
   | "realm_regen"
   | "inn_rest"
 
+export type PaymentNetwork = "base" | "solana"
+
 interface PaymentActionConfig {
   action: PaymentAction
   priceUsd: string
@@ -144,11 +146,11 @@ async function createCoinbaseAuthHeaders(
   const host = url.host
   const basePath = url.pathname.replace(/\/+$/, "")
 
-  const createHeader = async (requestPath: string) => {
+  const createHeader = async (requestPath: string, method: string = "POST") => {
     const jwt = await generateJwt({
       apiKeyId,
       apiKeySecret,
-      requestMethod: "POST",
+      requestMethod: method,
       requestHost: host,
       requestPath,
       expiresIn: 120,
@@ -159,7 +161,7 @@ async function createCoinbaseAuthHeaders(
   return {
     verify: await createHeader(`${basePath}/verify`),
     settle: await createHeader(`${basePath}/settle`),
-    supported: {},
+    supported: await createHeader(`${basePath}/supported`, "GET"),
   }
 }
 
@@ -219,21 +221,30 @@ async function buildRequirement(
 
 export async function buildPaymentRequirements(
   action: PaymentAction,
+  networks: PaymentNetwork[] = ["base"],
 ): Promise<PaymentRequired402> {
   await ensureInitialized()
 
-  const evmPayTo = process.env["PLATFORM_WALLET_ADDRESS"]
-  if (!evmPayTo) {
-    throw new Error("PLATFORM_WALLET_ADDRESS must be set for x402 payments")
+  const accepts: PaymentAcceptOption402[] = []
+
+  if (networks.includes("base")) {
+    const evmPayTo = process.env["PLATFORM_WALLET_ADDRESS"]
+    if (!evmPayTo) {
+      throw new Error("PLATFORM_WALLET_ADDRESS must be set for Base payments")
+    }
+    accepts.push(await buildRequirement(action, getBaseNetwork(), evmPayTo))
   }
 
-  const accepts: PaymentAcceptOption402[] = [
-    await buildRequirement(action, getBaseNetwork(), evmPayTo),
-  ]
-
-  const solanaPayTo = process.env["PLATFORM_WALLET_ADDRESS_SOLANA"]
-  if (solanaPayTo) {
+  if (networks.includes("solana")) {
+    const solanaPayTo = process.env["PLATFORM_WALLET_ADDRESS_SOLANA"]
+    if (!solanaPayTo) {
+      throw new Error("PLATFORM_WALLET_ADDRESS_SOLANA must be set for Solana payments")
+    }
     accepts.push(await buildRequirement(action, getSolanaNetwork(), solanaPayTo))
+  }
+
+  if (accepts.length === 0) {
+    throw new Error("At least one payment network must be specified")
   }
 
   const config = getActionConfig(action)
@@ -245,6 +256,16 @@ export async function buildPaymentRequirements(
   }
 }
 
+const VALID_NETWORKS: PaymentNetwork[] = ["base", "solana"]
+
+export function getRequestedNetworks(c: Context): PaymentNetwork[] {
+  const header = c.req.header("X-Payment-Network")
+  if (!header) return ["base"]
+  const requested = header.split(",").map((s) => s.trim().toLowerCase()) as PaymentNetwork[]
+  const valid = requested.filter((n) => VALID_NETWORKS.includes(n))
+  return valid.length > 0 ? valid : ["base"]
+}
+
 function getAdapter(c: Context) {
   return {
     getHeader(name: string): string | undefined {
@@ -253,44 +274,100 @@ function getAdapter(c: Context) {
   }
 }
 
-export async function return402(c: Context, action: PaymentAction): Promise<Response> {
-  const paymentRequired = await buildPaymentRequirements(action)
+// Map CAIP-2 network IDs to friendly names expected by x402-fetch client
+const CAIP2_TO_FRIENDLY: Record<string, string> = {
+  "eip155:8453": "base",
+  "eip155:84532": "base-sepolia",
+  "solana:mainnet": "solana",
+  "solana:devnet": "solana-devnet",
+  "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp": "solana-devnet",
+}
+
+// Reverse map: friendly names back to CAIP-2
+const FRIENDLY_TO_CAIP2: Record<string, string> = Object.fromEntries(
+  Object.entries(CAIP2_TO_FRIENDLY).map(([k, v]) => [v, k]),
+)
+
+export async function return402(c: Context, action: PaymentAction, networks?: PaymentNetwork[]): Promise<Response> {
+  const paymentRequired = await buildPaymentRequirements(action, networks)
   const headers = ((httpResourceServer as unknown as {
     createHTTPPaymentRequiredResponse: (paymentRequired: PaymentRequired402) => { headers: Record<string, string> }
   }).createHTTPPaymentRequiredResponse(paymentRequired).headers)
   Object.entries(headers).forEach(([key, value]) => c.header(key as string, value))
 
+  const resource = c.req.url
+
+  // Transform accepts to the format expected by x402-fetch (v1 schema)
+  const accepts = paymentRequired.accepts.map((opt) => ({
+    ...opt,
+    network: CAIP2_TO_FRIENDLY[opt.network] ?? opt.network,
+    maxAmountRequired: (opt as Record<string, unknown>).amount as string,
+    resource,
+    description: paymentRequired.description,
+    mimeType: paymentRequired.mimeType,
+  }))
+
   return c.json(
     {
+      x402Version: paymentRequired.x402Version,
+      accepts,
       error: "Payment required",
       action,
       price_usd: getActionConfig(action).priceUsd,
-      payment_required: paymentRequired,
     },
     402,
   )
 }
 
+function extractPaymentPayload(c: Context): PaymentPayloadLike | null {
+  // x402-fetch v1 sends "X-PAYMENT", @x402/core v2 expects "PAYMENT-SIGNATURE"
+  const header = c.req.header("x-payment") ?? c.req.header("payment-signature")
+  if (!header) return null
+  try {
+    const decoded = JSON.parse(Buffer.from(header, "base64").toString("utf-8"))
+
+    // Convert friendly network names back to CAIP-2
+    if (decoded.network && FRIENDLY_TO_CAIP2[decoded.network]) {
+      decoded.network = FRIENDLY_TO_CAIP2[decoded.network]
+    }
+    if (decoded.accepted?.network && FRIENDLY_TO_CAIP2[decoded.accepted.network]) {
+      decoded.accepted.network = FRIENDLY_TO_CAIP2[decoded.accepted.network]
+    }
+
+    return decoded as PaymentPayloadLike
+  } catch {
+    return null
+  }
+}
+
 export async function verifyAndSettle(
   c: Context,
   action: PaymentAction,
+  networks?: PaymentNetwork[],
 ): Promise<SettledPayment | null> {
   await ensureInitialized()
 
-  const paymentPayload = ((httpResourceServer as unknown as {
-    extractPayment: (adapter: ReturnType<typeof getAdapter>) => PaymentPayloadLike | null
-  }).extractPayment(getAdapter(c))) as PaymentPayloadLike | null
+  const paymentPayload = extractPaymentPayload(c)
   if (!paymentPayload) return null
 
-  const paymentRequired = await buildPaymentRequirements(action)
-  const requirements = resourceServer.findMatchingRequirements(
-    paymentRequired.accepts as never,
-    paymentPayload as never,
-  ) as PaymentAcceptOption402 | undefined
+  const paymentRequired = await buildPaymentRequirements(action, networks)
+
+  // x402-fetch v1 sends {scheme, network} at root level, not in an "accepted" field.
+  // @x402/core v2 findMatchingRequirements expects deepEqual on the full accepted option,
+  // which won't work. Match on scheme + network ourselves.
+  const payloadScheme = paymentPayload.accepted?.scheme ?? (paymentPayload as Record<string, unknown>).scheme as string
+  const payloadNetwork = paymentPayload.accepted?.network ?? (paymentPayload as Record<string, unknown>).network as string
+  const requirements = paymentRequired.accepts.find(
+    (opt) => opt.scheme === payloadScheme && opt.network === payloadNetwork,
+  )
 
   if (!requirements) {
     throw new Error("Payment requirements did not match the submitted payment signature")
   }
+
+  // Reconstruct v2-compatible payload with the full accepted option for verify/settle
+  paymentPayload.x402Version = 2
+  paymentPayload.accepted = requirements
 
   const verifyResult = await resourceServer.verifyPayment(paymentPayload as never, requirements as never)
   if (!verifyResult.isValid) {

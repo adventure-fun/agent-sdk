@@ -3,7 +3,7 @@ import { db } from "../db/client.js"
 import { requireAuth } from "../auth/middleware.js"
 import { REALMS } from "@adventure-fun/engine"
 import { cleanupRealmForRegeneration } from "./realm-helpers.js"
-import { logPayment, return402, verifyAndSettle } from "../payments/x402.js"
+import { getRequestedNetworks, logPayment, return402, verifyAndSettle } from "../payments/x402.js"
 
 const realms = new Hono()
 
@@ -76,11 +76,12 @@ realms.post("/generate", requireAuth, async (c) => {
 
   const isFree = !account?.free_realm_used
 
+  const networks = getRequestedNetworks(c)
   let settledPayment = null as Awaited<ReturnType<typeof verifyAndSettle>>
   if (!isFree) {
-    settledPayment = await verifyAndSettle(c, "realm_generate")
+    settledPayment = await verifyAndSettle(c, "realm_generate", networks)
     if (!settledPayment) {
-      return return402(c, "realm_generate")
+      return return402(c, "realm_generate", networks)
     }
   }
 
@@ -153,9 +154,10 @@ realms.post("/:id/regenerate", requireAuth, async (c) => {
     return c.json({ error: `Requires ${REGEN_GOLD_COST} gold`, gold: character.gold }, 400)
   }
 
-  const settledPayment = await verifyAndSettle(c, "realm_regen")
+  const regenNetworks = getRequestedNetworks(c)
+  const settledPayment = await verifyAndSettle(c, "realm_regen", regenNetworks)
   if (!settledPayment) {
-    return return402(c, "realm_regen")
+    return return402(c, "realm_regen", regenNetworks)
   }
 
   const newSeed = Math.floor(Math.random() * 2 ** 32)

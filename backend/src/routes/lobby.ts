@@ -2,7 +2,7 @@ import { Hono } from "hono"
 import { db } from "../db/client.js"
 import { requireAuth } from "../auth/middleware.js"
 import { hasActiveSession } from "../game/active-sessions.js"
-import { logPayment, return402, verifyAndSettle } from "../payments/x402.js"
+import { getRequestedNetworks, logPayment, return402, verifyAndSettle } from "../payments/x402.js"
 import { getPubSub } from "../redis/pubsub.js"
 import { publishChatMessage, validateChatMessage } from "../redis/publishers.js"
 import { getLobbyManager } from "../game/lobby-live.js"
@@ -219,9 +219,10 @@ lobby.post("/inn/rest", requireAuth, async (c) => {
     return c.json({ error: "You are already fully rested." }, 409)
   }
 
-  const settledPayment = await verifyAndSettle(c, "inn_rest")
+  const networks = getRequestedNetworks(c)
+  const settledPayment = await verifyAndSettle(c, "inn_rest", networks)
   if (!settledPayment) {
-    return return402(c, "inn_rest")
+    return return402(c, "inn_rest", networks)
   }
 
   const { data: updatedCharacter, error } = await db

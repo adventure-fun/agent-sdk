@@ -10,12 +10,17 @@ export function useX402Payment() {
 
   const paidFetch = useCallback(
     async (input: RequestInfo | URL, init: RequestInit = {}) => {
-      const headers = new Headers(init.headers)
-      if (token && !headers.has("Authorization")) {
-        headers.set("Authorization", `Bearer ${token}`)
+      // Use a plain object — x402-fetch spreads headers with {...init.headers}
+      // which doesn't work with Headers instances
+      const headers: Record<string, string> = {}
+      if (init.headers) {
+        new Headers(init.headers).forEach((v, k) => { headers[k] = v })
       }
-      if (init.body && !headers.has("Content-Type")) {
-        headers.set("Content-Type", "application/json")
+      if (token && !headers["authorization"]) {
+        headers["Authorization"] = `Bearer ${token}`
+      }
+      if (init.body && !headers["content-type"]) {
+        headers["Content-Type"] = "application/json"
       }
 
       return fetchWithPayment(input as RequestInfo, {

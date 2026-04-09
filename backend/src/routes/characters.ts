@@ -6,7 +6,7 @@ import { validateSkillAllocation } from "../game/skill-tree.js"
 import { CLASSES, SKILL_TREES } from "@adventure-fun/engine"
 import { xpForLevel, xpToNextLevel } from "@adventure-fun/engine"
 import type { CharacterClass } from "@adventure-fun/schemas"
-import { logPayment, return402, verifyAndSettle } from "../payments/x402.js"
+import { getRequestedNetworks, logPayment, return402, verifyAndSettle } from "../payments/x402.js"
 
 const characters = new Hono()
 
@@ -112,9 +112,10 @@ characters.post("/reroll-stats", requireAuth, async (c) => {
     return c.json({ error: "Stats already rerolled. Once per character." }, 409)
   }
 
-  const settledPayment = await verifyAndSettle(c, "stat_reroll")
+  const networks = getRequestedNetworks(c)
+  const settledPayment = await verifyAndSettle(c, "stat_reroll", networks)
   if (!settledPayment) {
-    return return402(c, "stat_reroll")
+    return return402(c, "stat_reroll", networks)
   }
 
   const newStats = rerollStats(character.class as CharacterClass)

@@ -1901,6 +1901,7 @@ function AccountPanel({
   const shortWallet = walletAddress
     ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`
     : "Wallet unavailable"
+  const [copied, setCopied] = useState(false)
 
   return (
     <div className="rounded border border-gray-800 bg-gray-900/80 p-3 text-left text-xs">
@@ -1914,7 +1915,26 @@ function AccountPanel({
               </span>
             ) : null}
           </div>
-          <div className="text-gray-400">Wallet: {shortWallet}</div>
+          <div className="text-gray-400">
+            Wallet:{" "}
+            {walletAddress ? (
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(walletAddress).then(() => {
+                    setCopied(true)
+                    setTimeout(() => setCopied(false), 1500)
+                  }).catch(() => {})
+                }}
+                className="cursor-pointer text-gray-400 underline decoration-dotted underline-offset-2 hover:text-amber-300"
+                title="Click to copy full address"
+              >
+                {copied ? "Copied!" : shortWallet}
+              </button>
+            ) : (
+              shortWallet
+            )}
+          </div>
           <div className="text-gray-400">USDC: {balanceLabel}</div>
         </div>
         <div className="flex items-center gap-2">
