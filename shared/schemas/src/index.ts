@@ -214,7 +214,16 @@ export interface GameState {
         cooldowns: Record<string, number>
         boss_phase_index?: number
       }>
-      items: Array<{ id: string; template_id: string; quantity?: number; position: { x: number; y: number } }>
+      items: Array<{
+        id: string
+        template_id: string
+        quantity?: number
+        position: { x: number; y: number }
+        trapped?: boolean
+        trap_damage?: number
+        trap_effect?: StatusEffect | null
+        trap_disarmed?: boolean
+      }>
     }>
   }
   /** Tiles the player has seen — persisted to realm_discovered_map */
@@ -283,6 +292,7 @@ export interface Entity {
   effects?: ActiveEffect[]
   behavior?: EnemyBehavior
   is_boss?: boolean
+  trapped?: boolean
 }
 
 export interface SpectatorEntity {
@@ -380,6 +390,7 @@ export interface SpectatorObservation {
 export type Action =
   | { type: "move"; direction: "up" | "down" | "left" | "right" }
   | { type: "attack"; target_id: string; ability_id?: string }
+  | { type: "disarm_trap"; item_id: string }
   | { type: "use_item"; item_id: string; target_id?: string }
   | { type: "equip"; item_id: string }
   | { type: "unequip"; slot: EquipSlot }

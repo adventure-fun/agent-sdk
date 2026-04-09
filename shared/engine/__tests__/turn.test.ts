@@ -141,6 +141,18 @@ function makeEnemy(
   }
 }
 
+function makeFloorItem(
+  overrides?: Partial<GameState["activeFloor"]["rooms"][number]["items"][number]>,
+): GameState["activeFloor"]["rooms"][number]["items"][number] {
+  return {
+    id: "f1_r1_bh-corrupted-heart_loot_00",
+    template_id: "health-potion",
+    quantity: 1,
+    position: { x: 2, y: 1 },
+    ...overrides,
+  }
+}
+
 describe("resolveTurn ability system", () => {
   it("uses player abilities with resource costs and cooldowns", () => {
     const state = makeState()
@@ -1133,5 +1145,276 @@ describe("level-up on enemy defeat", () => {
     )
     expect(obs.character.skill_points).toBe(2) // level 3 → 2 points, 0 spent
     expect(obs.character.skill_tree).toEqual({})
+  })
+})
+
+describe("trap system", () => {
+  const trapRoomId = "f1_r1_bh-corrupted-heart"
+
+  function makeTrapRealm() {
+    return makeRealm(trapRoomId)
+  }
+
+  function makeTrapState(
+    overrides?: Partial<GameState>,
+    itemOverrides?: Partial<GameState["activeFloor"]["rooms"][number]["items"][number]>,
+  ) {
+    return makeState({
+      position: {
+        floor: 1,
+        room_id: trapRoomId,
+        tile: { x: 2, y: 1 },
+      },
+      activeFloor: {
+        rooms: [
+          {
+            id: trapRoomId,
+            tiles: makeTiles(7, 7),
+            enemies: [],
+            items: [
+              makeFloorItem({
+                trapped: true,
+                trap_damage: 12,
+                trap_effect: {
+                  type: "poison",
+                  duration_turns: 3,
+                  magnitude: 3,
+                  apply_chance: 1,
+                },
+                ...itemOverrides,
+              }),
+            ],
+          },
+        ],
+      },
+      ...overrides,
+    })
+  }
+
+  it("trapped chest triggers damage on pickup", () => {
+    const state = makeTrapState()
+
+    const result = resolveTurn(
+      state,
+      { type: "pickup", item_id: "f1_r1_bh-corrupted-heart_loot_00" },
+      makeTrapRealm(),
+      new SeededRng(7),
+    )
+
+    expect(result.newState.character.hp.current).toBe(28)
+  })
+
+  it("trapped chest applies status effect", () => {
+    const state = makeTrapState()
+
+    const result = resolveTurn(
+      state,
+      { type: "pickup", item_id: "f1_r1_bh-corrupted-heart_loot_00" },
+      makeTrapRealm(),
+      new SeededRng(7),
+    )
+
+    expect(result.newState.character.debuffs).toContainEqual({
+      type: "poison",
+      turns_remaining: 3,
+      magnitude: 3,
+    })
+  })
+
+  it("non-trapped item does not trigger trap", () => {
+    const state = makeTrapState({}, { trapped: false, trap_effect: null })
+
+    const result = resolveTurn(
+      state,
+      { type: "pickup", item_id: "f1_r1_bh-corrupted-heart_loot_00" },
+      makeTrapRealm(),
+      new SeededRng(7),
+    )
+
+    expect(result.newState.character.hp.current).toBe(40)
+    expect(result.newState.character.debuffs).toEqual([])
+  })
+
+  it("rogue disarm neutralizes trap", () => {
+    const state = makeTrapState({
+      character: {
+        ...makeState().character,
+        class: "rogue",
+        resource: { type: "energy", current: 5, max: 5 },
+        abilities: ["rogue-backstab", "rogue-disarm-trap"],
+      },
+    })
+
+    const disarm = resolveTurn(
+      state,
+      { type: "disarm_trap", item_id: "f1_r1_bh-corrupted-heart_loot_00" },
+      makeTrapRealm(),
+      new SeededRng(7),
+    )
+    const pickup = resolveTurn(
+      disarm.newState,
+      { type: "pickup", item_id: "f1_r1_bh-corrupted-heart_loot_00" },
+      makeTrapRealm(),
+      new SeededRng(8),
+    )
+
+    expect(pickup.newState.character.hp.current).toBe(40)
+    expect(pickup.newState.character.debuffs).toEqual([])
+  })
+
+  it("disarm costs resource", () => {
+    const state = makeTrapState({
+      character: {
+        ...makeState().character,
+        class: "rogue",
+        resource: { type: "energy", current: 5, max: 5 },
+        abilities: ["rogue-backstab", "rogue-disarm-trap"],
+      },
+    })
+
+    const result = resolveTurn(
+      state,
+      { type: "disarm_trap", item_id: "f1_r1_bh-corrupted-heart_loot_00" },
+      makeTrapRealm(),
+      new SeededRng(7),
+    )
+
+    expect(result.newState.character.resource.current).toBe(4)
+  })
+
+  it("disarm rejects non-adjacent item", () => {
+    const state = makeTrapState({
+      position: {
+        floor: 1,
+        room_id: trapRoomId,
+        tile: { x: 6, y: 6 },
+      },
+      character: {
+        ...makeState().character,
+        class: "rogue",
+        resource: { type: "energy", current: 5, max: 5 },
+        abilities: ["rogue-backstab", "rogue-disarm-trap"],
+      },
+    })
+
+    const result = resolveTurn(
+      state,
+      { type: "disarm_trap", item_id: "f1_r1_bh-corrupted-heart_loot_00" },
+      makeTrapRealm(),
+      new SeededRng(7),
+    )
+
+    expect(result.summary).toContain("Too far away")
+  })
+
+  it("disarm rejects if ability not known", () => {
+    const state = makeTrapState()
+
+    const result = resolveTurn(
+      state,
+      { type: "disarm_trap", item_id: "f1_r1_bh-corrupted-heart_loot_00" },
+      makeTrapRealm(),
+      new SeededRng(7),
+    )
+
+    expect(result.summary).toContain("cannot disarm")
+  })
+
+  it("emits a trap_triggered mutation on pickup", () => {
+    const state = makeTrapState()
+
+    const result = resolveTurn(
+      state,
+      { type: "pickup", item_id: "f1_r1_bh-corrupted-heart_loot_00" },
+      makeTrapRealm(),
+      new SeededRng(7),
+    )
+
+    expect(
+      result.worldMutations.some(
+        (mutation) =>
+          mutation.entity_id === "f1_r1_bh-corrupted-heart_loot_00_trap" &&
+          mutation.mutation === "trap_triggered",
+      ),
+    ).toBe(true)
+  })
+
+  it("emits a trap_disarmed event on disarm", () => {
+    const state = makeTrapState({
+      character: {
+        ...makeState().character,
+        class: "rogue",
+        resource: { type: "energy", current: 5, max: 5 },
+        abilities: ["rogue-backstab", "rogue-disarm-trap"],
+      },
+    })
+
+    const result = resolveTurn(
+      state,
+      { type: "disarm_trap", item_id: "f1_r1_bh-corrupted-heart_loot_00" },
+      makeTrapRealm(),
+      new SeededRng(7),
+    )
+
+    expect(result.observation.recent_events.some((event) => event.type === "trap_disarmed")).toBe(true)
+  })
+
+  it("computeLegalActions includes disarm_trap for Rogues near trapped chests", () => {
+    const state = makeTrapState({
+      character: {
+        ...makeState().character,
+        class: "rogue",
+        resource: { type: "energy", current: 5, max: 5 },
+        abilities: ["rogue-backstab", "rogue-disarm-trap"],
+      },
+    })
+
+    const actions = computeLegalActions(state, state.activeFloor.rooms[0], makeTrapRealm())
+
+    expect(
+      actions.some(
+        (action) => action.type === "disarm_trap" && action.item_id === "f1_r1_bh-corrupted-heart_loot_00",
+      ),
+    ).toBe(true)
+  })
+
+  it("computeLegalActions omits disarm_trap for non-Rogues", () => {
+    const state = makeTrapState()
+
+    const actions = computeLegalActions(state, state.activeFloor.rooms[0], makeTrapRealm())
+
+    expect(actions.some((action) => action.type === "disarm_trap")).toBe(false)
+  })
+
+  it("player can die from trap damage", () => {
+    const state = makeTrapState({
+      character: {
+        ...makeState().character,
+        hp: { current: 12, max: 40 },
+      },
+    })
+
+    const result = resolveTurn(
+      state,
+      { type: "pickup", item_id: "f1_r1_bh-corrupted-heart_loot_00" },
+      makeTrapRealm(),
+      new SeededRng(7),
+    )
+
+    expect(result.newState.character.hp.current).toBe(0)
+  })
+
+  it("trap with null effect only deals damage", () => {
+    const state = makeTrapState({}, { trap_effect: null })
+
+    const result = resolveTurn(
+      state,
+      { type: "pickup", item_id: "f1_r1_bh-corrupted-heart_loot_00" },
+      makeTrapRealm(),
+      new SeededRng(7),
+    )
+
+    expect(result.newState.character.hp.current).toBe(28)
+    expect(result.newState.character.debuffs).toEqual([])
   })
 })

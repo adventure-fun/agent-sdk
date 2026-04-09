@@ -221,7 +221,7 @@ Add notes under any item with `> NOTE: your note here` when needed.
 **Scope:** Engine trap handling, room template integration
 **Depends on:** Group 3 (trap effects use status effect system)
 
-- [ ] **7.1 — Trap system not implemented despite content definitions**
+- [x] **7.1 — Trap system not implemented despite content definitions**
   - Room templates have `LootSlot.trapped`, `trap_damage`, `trap_effect`
   - Realm templates have `trap_types: TrapTemplate[]`
   - `trap_ids` are generated in `realm.ts`
@@ -229,6 +229,7 @@ Add notes under any item with `> NOTE: your note here` when needed.
   - But `resolveTurn` has zero trap handling
   - **Fix:** When player opens a trapped chest (interact with trapped loot slot), check for trap. Apply `trap_damage` and `trap_effect`. Rogue class should have a `disarm-trap` ability check (if ability is known and class matches). After triggering, mark trap as `trap_triggered` mutation. Optionally make traps visible entities that can be inspected
   - **Files:** `shared/engine/src/turn.ts`, `shared/engine/src/realm.ts` (trap entity spawning)
+  > NOTE: Implemented end-to-end trap gameplay in `shared/engine/src/turn.ts` and `shared/schemas/src/index.ts`. Room loot now carries trap metadata/positions, trapped pickups apply deterministic damage and status effects, Rogues with `rogue-disarm-trap` gain a dedicated `disarm_trap` legal action that spends resource and safely marks the trap as cleared, and triggered/disarmed traps emit `trap_triggered` mutations plus visible `trap_visible` map markers. Added 13 TDD cases to `shared/engine/__tests__/turn.test.ts`. Frontend dungeon UX in `frontend/app/play/page.tsx` now highlights nearby trapped loot, surfaces dedicated disarm buttons, styles trap events distinctly, and warns before trapped pickups.
 
 ---
 
@@ -599,3 +600,4 @@ _Record completed fixes here with date and commit hash._
 | 2026-04-09 | 5.2 | pending | Skill tree validation (`backend/src/game/skill-tree.ts`), `POST /characters/skill` + `GET /characters/progression` endpoints, session skill-tree merge + passive-stat bonuses, skill tree UI panel in hub, 13 new tests |
 | 2026-04-09 | 6.1 | pending | Portal use now requires `portalActive` or a `portal-scroll`, retreat is limited to the floor 1 entrance, and direct `use_portal` auto-consumes a scroll with engine coverage |
 | 2026-04-09 | 6.2 | pending | Added extraction reward helper in `session.ts`, completion bonus XP/gold + level-up handling, richer extracted payload, and improved extraction UX with backend/frontend coverage |
+| 2026-04-09 | 7.1 | pending | Implemented trapped loot resolution, Rogue `disarm_trap` action, trap visibility markers, 13 engine TDD cases, and dungeon UI trap warnings/disarm affordances |

@@ -875,6 +875,9 @@ function DungeonView({
   // Group legal actions by type
   const moveActions = legal_actions.filter((a): a is Action & { type: "move" } => a.type === "move")
   const attackActions = legal_actions.filter((a): a is Action & { type: "attack" } => a.type === "attack")
+  const disarmTrapActions = legal_actions.filter(
+    (a): a is Action & { type: "disarm_trap" } => a.type === "disarm_trap",
+  )
   const interactActions = legal_actions.filter((a): a is Action & { type: "interact" } => a.type === "interact")
   const useItemActions = legal_actions.filter((a): a is Action & { type: "use_item" } => a.type === "use_item")
   const canWait = legal_actions.some((a) => a.type === "wait")
@@ -897,6 +900,8 @@ function DungeonView({
     : null
   const usableAbilityIds = new Set(attackActions.map((action) => action.ability_id ?? "basic-attack"))
   const abilityMap = new Map(character.abilities.map((ability) => [ability.id, ability]))
+  const disarmAbility = abilityMap.get("rogue-disarm-trap")
+  const disarmableItemIds = new Set(disarmTrapActions.map((action) => action.item_id))
   const visibleEnemies = visible_entities
     .filter(
       (entity): entity is Observation["visible_entities"][number] & { type: "enemy" } =>
@@ -910,6 +915,14 @@ function DungeonView({
       const rightRatio = right.hp_max ? (right.hp_current ?? right.hp_max) / right.hp_max : 1
       return leftRatio - rightRatio
     })
+  const nearbyItems = visible_entities.filter(
+    (entity): entity is Observation["visible_entities"][number] & { type: "item" } =>
+      entity.type === "item",
+  )
+  const visibleTrapMarkers = visible_entities.filter(
+    (entity): entity is Observation["visible_entities"][number] & { type: "trap_visible" } =>
+      entity.type === "trap_visible",
+  )
 
   const hpPct = character.hp.max > 0 ? (character.hp.current / character.hp.max) * 100 : 0
   const hpColor = hpPct > 50 ? "bg-green-500" : hpPct > 25 ? "bg-yellow-500" : "bg-red-500"
@@ -1093,6 +1106,42 @@ function DungeonView({
               </div>
             )}
 
+            {(nearbyItems.length > 0 || visibleTrapMarkers.length > 0) && (
+              <div>
+                <div className="text-xs text-gray-500 uppercase mb-2">Nearby Objects</div>
+                <div className="space-y-2">
+                  {nearbyItems.map((item) => (
+                    <div key={item.id} className="rounded border border-gray-800 bg-gray-950 p-2 text-xs">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="font-medium text-gray-200">{item.name}</span>
+                        {item.trapped && (
+                          <span className="rounded border border-red-800/70 bg-red-950/30 px-2 py-1 text-[10px] uppercase tracking-wide text-red-200">
+                            Trap detected
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-1 text-[11px] text-gray-500">
+                        {item.trapped
+                          ? "A Rogue can disarm this before looting it."
+                          : "Safe to pick up from an adjacent tile."}
+                      </p>
+                    </div>
+                  ))}
+                  {visibleTrapMarkers.map((trap) => (
+                    <div
+                      key={trap.id}
+                      className="rounded border border-red-900/70 bg-red-950/20 p-2 text-xs text-red-200"
+                    >
+                      <div className="font-medium">{trap.name}</div>
+                      <p className="mt-1 text-[11px] text-red-300/80">
+                        The trap’s location is now marked on the floor.
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div>
               <div className="text-xs text-gray-500 uppercase mb-1">Abilities</div>
               <div className="space-y-2">
@@ -1250,6 +1299,33 @@ function DungeonView({
             </div>
           )}
 
+          {/* Trap utility */}
+          {disarmTrapActions.length > 0 && (
+            <div className="space-y-2">
+              <div className="text-center text-[11px] uppercase tracking-wide text-teal-400">
+                Trap Utility
+              </div>
+              <div className="flex flex-wrap gap-2 justify-center">
+                {disarmTrapActions.map((action, i) => {
+                  const entity = visible_entities.find((e) => e.id === action.item_id)
+                  return (
+                    <button
+                      key={i}
+                      disabled={waitingForResponse}
+                      onClick={() => onAction(action)}
+                      className="px-3 py-2 text-left text-xs bg-teal-950/50 hover:bg-teal-900/60 text-teal-200 rounded border border-teal-800/60 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <div className="font-medium">Disarm Trap: {entity?.name ?? action.item_id}</div>
+                      <div className="text-[11px] opacity-80">
+                        Costs {disarmAbility?.resource_cost ?? 1} {character.resource.type}
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Interact */}
           {interactActions.length > 0 && (
             <div className="flex flex-wrap gap-2 justify-center">
@@ -1281,7 +1357,14 @@ function DungeonView({
                     onClick={() => onAction(action)}
                     className="px-3 py-1 text-xs bg-amber-900/50 hover:bg-amber-900 text-amber-300 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   >
-                    Pick up {entity?.name ?? action.item_id}
+                    <div className="flex items-center gap-2">
+                      <span>Pick up {entity?.name ?? action.item_id}</span>
+                      {disarmableItemIds.has(action.item_id) && (
+                        <span className="rounded border border-red-800/70 bg-red-950/30 px-2 py-0.5 text-[10px] uppercase tracking-wide text-red-200">
+                          Trapped
+                        </span>
+                      )}
+                    </div>
                   </button>
                 )
               })}
@@ -1508,6 +1591,12 @@ function getRecentEventPalette(eventType: string, isRecent: boolean) {
   }
   if (eventType === "level_up") {
     return "border-yellow-700/70 bg-yellow-950/20 text-yellow-200"
+  }
+  if (eventType === "trap_triggered") {
+    return "border-red-800/70 bg-red-950/20 text-red-200"
+  }
+  if (eventType === "trap_disarmed") {
+    return "border-teal-800/70 bg-teal-950/20 text-teal-200"
   }
   return isRecent
     ? "border-gray-800 bg-gray-950 text-gray-300"

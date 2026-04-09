@@ -74,6 +74,7 @@ const RESOURCE_COLOR_HINTS: Record<GameState["character"]["resource"]["type"], s
 const PATROL_DETECTION_RANGE = 4
 const AMBUSH_TRIGGER_RANGE = 2
 const DEFENSIVE_RETREAT_HP_THRESHOLD = 0.4
+const ROGUE_DISARM_TRAP_ABILITY_ID = "rogue-disarm-trap"
 
 function hasEffect(
   effects: ActiveEffect[],
@@ -173,6 +174,17 @@ function canUseAbility(
     (state.character.cooldowns[ability.id] ?? 0) <= 0 &&
     state.character.resource.current >= ability.resource_cost
   )
+}
+
+function hasTrapDisarmAbility(state: GameState): boolean {
+  return (
+    state.character.class === "rogue" &&
+    state.character.abilities.includes(ROGUE_DISARM_TRAP_ABILITY_ID)
+  )
+}
+
+function getTrapMarkerId(itemId: string): string {
+  return `${itemId}_trap`
 }
 
 function roomHasLiveEnemies(room: RoomState): boolean {
@@ -306,7 +318,11 @@ export function resolveTurn(
         break
       }
       case "pickup": {
-        summary = resolvePickup(s, room, action, events, mutations)
+        summary = resolvePickup(s, room, action, rng, events, mutations)
+        break
+      }
+      case "disarm_trap": {
+        summary = resolveDisarmTrap(s, room, action, events, mutations)
         break
       }
       case "interact": {
@@ -370,6 +386,12 @@ export function resolveTurn(
   }
 
   const currentRoom = getCurrentRoom(s) ?? room
+
+  if (s.character.hp.current <= 0) {
+    notableEvents.push(deathEvent(s, events.at(-1)?.detail ?? "You were slain."))
+    updateVisibility(s, currentRoom, realm)
+    return result(s, mutations, events, summary.trim(), roomChanged, notableEvents, realm)
+  }
 
   // 3. Enemy turns (skip if extracting)
   if (!didExtract) {
@@ -1329,6 +1351,7 @@ function resolvePickup(
   s: GameState,
   room: RoomState,
   action: { type: "pickup"; item_id: string },
+  rng: SeededRng,
   events: GameEvent[],
   mutations: WorldMutation[],
 ): string {
@@ -1349,6 +1372,61 @@ function resolvePickup(
   }
 
   const qty = floorItem.quantity ?? 1
+  const summaryParts: string[] = []
+
+  if (floorItem.trapped && !floorItem.trap_disarmed) {
+    const trapDamage = Math.max(0, floorItem.trap_damage ?? 0)
+    if (trapDamage > 0) {
+      s.character.hp.current = Math.max(0, s.character.hp.current - trapDamage)
+    }
+
+    const effect = floorItem.trap_effect
+    const effectApplied = effect != null && rng.next() <= effect.apply_chance
+    if (effect && effectApplied) {
+      s.character.debuffs.push({
+        type: effect.type,
+        turns_remaining: effect.duration_turns,
+        magnitude: effect.magnitude,
+      })
+    }
+
+    const trapMarkerId = getTrapMarkerId(floorItem.id)
+    mutations.push({
+      entity_id: trapMarkerId,
+      mutation: "trap_triggered",
+      floor: s.position.floor,
+      metadata: {
+        item_id: floorItem.id,
+        disarmed: false,
+        position: floorItem.position,
+        trap_damage: trapDamage,
+        trap_effect: effect?.type ?? null,
+      },
+    })
+    if (!s.mutatedEntities.includes(trapMarkerId)) {
+      s.mutatedEntities.push(trapMarkerId)
+    }
+
+    const trapDetailParts = [`A hidden trap springs for ${trapDamage} damage.`]
+    if (effect && effectApplied) {
+      trapDetailParts.push(`You suffer ${effect.type}.`)
+    } else if (effect) {
+      trapDetailParts.push(`You resist ${effect.type}.`)
+    }
+    const trapSummary = trapDetailParts.join(" ")
+    summaryParts.push(trapSummary)
+    events.push({
+      turn: 0,
+      type: "trap_triggered",
+      detail: trapSummary,
+      data: {
+        item_id: floorItem.id,
+        damage: trapDamage,
+        effect: effect?.type ?? null,
+        applied: effectApplied,
+      },
+    })
+  }
 
   // Gold coins go straight to gold total, not inventory
   if (floorItem.template_id === "gold-coins") {
@@ -1363,9 +1441,10 @@ function resolvePickup(
     })
     s.mutatedEntities.push(floorItem.id)
 
-    const summary = `Found ${qty} gold.`
-    events.push({ turn: 0, type: "pickup", detail: summary, data: { item_id: floorItem.id, gold: qty } })
-    return summary
+    const pickupSummary = `Found ${qty} gold.`
+    summaryParts.push(pickupSummary)
+    events.push({ turn: 0, type: "pickup", detail: pickupSummary, data: { item_id: floorItem.id, gold: qty } })
+    return summaryParts.join(" ")
   }
 
   // Add to inventory
@@ -1398,8 +1477,85 @@ function resolvePickup(
   })
   s.mutatedEntities.push(floorItem.id)
 
-  const summary = qty > 1 ? `Picked up ${template.name} x${qty}.` : `Picked up ${template.name}.`
-  events.push({ turn: 0, type: "pickup", detail: summary, data: { item_id: floorItem.id } })
+  const pickupSummary = qty > 1 ? `Picked up ${template.name} x${qty}.` : `Picked up ${template.name}.`
+  summaryParts.push(pickupSummary)
+  events.push({ turn: 0, type: "pickup", detail: pickupSummary, data: { item_id: floorItem.id } })
+  return summaryParts.join(" ")
+}
+
+function resolveDisarmTrap(
+  s: GameState,
+  room: RoomState,
+  action: { type: "disarm_trap"; item_id: string },
+  events: GameEvent[],
+  mutations: WorldMutation[],
+): string {
+  if (!hasTrapDisarmAbility(s)) {
+    return "You cannot disarm traps."
+  }
+
+  const itemIdx = room.items.findIndex((item) => item.id === action.item_id)
+  if (itemIdx < 0) return "Nothing to disarm."
+
+  const floorItem = room.items[itemIdx]
+  if (!floorItem) return "Nothing to disarm."
+
+  const dist =
+    Math.abs(s.position.tile.x - floorItem.position.x) +
+    Math.abs(s.position.tile.y - floorItem.position.y)
+  if (dist > 1) return "Too far away."
+
+  if (!floorItem.trapped || floorItem.trap_disarmed) {
+    return "No active trap to disarm."
+  }
+
+  let ability: AbilityTemplate
+  try {
+    ability = getAbility(ROGUE_DISARM_TRAP_ABILITY_ID)
+  } catch {
+    return "You cannot disarm traps."
+  }
+
+  if (!canUseAbility(s, ability)) {
+    return `You need ${ability.resource_cost} ${s.character.resource.type} to disarm this trap.`
+  }
+
+  s.character.resource.current -= ability.resource_cost
+  floorItem.trap_disarmed = true
+
+  if (ability.cooldown_turns > 0) {
+    s.character.cooldowns[ability.id] = ability.cooldown_turns
+  }
+
+  const trapMarkerId = getTrapMarkerId(floorItem.id)
+  mutations.push({
+    entity_id: trapMarkerId,
+    mutation: "trap_triggered",
+    floor: s.position.floor,
+    metadata: {
+      item_id: floorItem.id,
+      disarmed: true,
+      position: floorItem.position,
+    },
+  })
+  if (!s.mutatedEntities.includes(trapMarkerId)) {
+    s.mutatedEntities.push(trapMarkerId)
+  }
+
+  let itemName = floorItem.template_id
+  try {
+    itemName = getItem(floorItem.template_id).name
+  } catch {
+    // keep template_id fallback
+  }
+
+  const summary = `You carefully disarm the trap guarding ${itemName}.`
+  events.push({
+    turn: 0,
+    type: "trap_disarmed",
+    detail: summary,
+    data: { item_id: floorItem.id },
+  })
   return summary
 }
 
@@ -1771,6 +1927,7 @@ export function buildRoomState(
     let templateId = "health-potion" // fallback
     let quantity = 1
     const lootSlot = roomTemplate?.loot_slots[i]
+    const trapDisarmed = mutatedEntities.includes(getTrapMarkerId(itemId))
     if (lootSlot && lootTables && seed != null) {
       const table = lootTables.find((t) => t.id === lootSlot.loot_table_id)
       if (table && table.entries.length > 0) {
@@ -1795,7 +1952,14 @@ export function buildRoomState(
       id: itemId,
       template_id: templateId,
       quantity,
-      position: { x: 2, y: 2 },
+      position:
+        lootSlot?.position && typeof lootSlot.position === "object"
+          ? { x: lootSlot.position.x, y: lootSlot.position.y }
+          : { x: 2, y: 2 },
+      ...(lootSlot?.trapped !== undefined ? { trapped: lootSlot.trapped } : {}),
+      ...(lootSlot?.trap_damage !== undefined ? { trap_damage: lootSlot.trap_damage } : {}),
+      ...(lootSlot ? { trap_effect: lootSlot.trap_effect ?? null } : {}),
+      ...(trapDisarmed ? { trap_disarmed: true } : {}),
     })
   }
 
@@ -1983,6 +2147,7 @@ export function buildObservationFromState(
   const room = getCurrentRoom(state)
   const genFloor = realm.floors.find((f) => f.floor_number === state.position.floor)
   const genRoom = genFloor?.rooms.find((r) => r.id === state.position.room_id)
+  const canSenseTraps = hasTrapDisarmAbility(state)
 
   // Visible tiles
   const cls = CLASSES[state.character.class]
@@ -2036,12 +2201,41 @@ export function buildObservationFromState(
         type: "item",
         name: template?.name ?? item.template_id,
         position: item.position,
+        trapped: canSenseTraps && item.trapped === true && item.trap_disarmed !== true,
       })
+
+      if (canSenseTraps && item.trapped && !item.trap_disarmed) {
+        visibleEntities.push({
+          id: getTrapMarkerId(item.id),
+          type: "trap_visible",
+          name: "Hidden Trap",
+          position: item.position,
+        })
+      }
     }
 
     // Interactables from room template
     const obsRoomTemplate = findRoomTemplate(room.id)
     if (obsRoomTemplate) {
+      for (let i = 0; i < obsRoomTemplate.loot_slots.length; i++) {
+        const lootSlot = obsRoomTemplate.loot_slots[i]
+        if (!lootSlot?.trapped) continue
+
+        const itemId = `${room.id}_loot_${String(i).padStart(2, "0")}`
+        const trapMarkerId = getTrapMarkerId(itemId)
+        if (!state.mutatedEntities.includes(trapMarkerId)) continue
+        if (!lootSlot.position || typeof lootSlot.position !== "object") continue
+        if (!visibleSet.has(tileKey(lootSlot.position))) continue
+        if (visibleEntities.some((entity) => entity.id === trapMarkerId)) continue
+
+        visibleEntities.push({
+          id: trapMarkerId,
+          type: "trap_visible",
+          name: "Triggered Trap",
+          position: { x: lootSlot.position.x, y: lootSlot.position.y },
+        })
+      }
+
       for (const inter of obsRoomTemplate.interactables) {
         if (state.mutatedEntities.includes(inter.id)) continue
         visibleEntities.push({
@@ -2250,6 +2444,26 @@ export function computeLegalActions(
       Math.abs(state.position.tile.y - item.position.y)
     if (dist <= 1) {
       actions.push({ type: "pickup", item_id: item.id })
+    }
+  }
+
+  if (hasTrapDisarmAbility(state)) {
+    let ability: AbilityTemplate | null = null
+    try {
+      ability = getAbility(ROGUE_DISARM_TRAP_ABILITY_ID)
+    } catch {
+      ability = null
+    }
+
+    if (ability && canUseAbility(state, ability)) {
+      for (const item of room.items) {
+        const dist =
+          Math.abs(state.position.tile.x - item.position.x) +
+          Math.abs(state.position.tile.y - item.position.y)
+        if (dist > 1) continue
+        if (!item.trapped || item.trap_disarmed) continue
+        actions.push({ type: "disarm_trap", item_id: item.id })
+      }
     }
   }
 
