@@ -30,6 +30,7 @@ body {
 .map-wall   { color: #6b7280; }
 .map-player { color: #f59e0b; font-weight: bold; }
 .map-enemy  { color: #ef4444; font-weight: bold; }
+.map-boss   { color: #fbbf24; font-weight: bold; }
 .map-door   { color: #92400e; }
 .map-chest  { color: #d97706; }
 .map-stairs { color: #6366f1; }

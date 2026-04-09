@@ -211,6 +211,7 @@ export interface GameState {
         position: { x: number; y: number }
         effects: ActiveEffect[]
         cooldowns: Record<string, number>
+        boss_phase_index?: number
       }>
       items: Array<{ id: string; template_id: string; quantity?: number; position: { x: number; y: number } }>
     }>
@@ -276,6 +277,9 @@ export interface Entity {
   position: { x: number; y: number }
   hp_current?: number
   hp_max?: number
+  effects?: ActiveEffect[]
+  behavior?: EnemyBehavior
+  is_boss?: boolean
 }
 
 export interface SpectatorEntity {
@@ -284,6 +288,8 @@ export interface SpectatorEntity {
   name: string
   position: { x: number; y: number }
   health_indicator?: "full" | "high" | "medium" | "low" | "critical"
+  behavior?: EnemyBehavior
+  is_boss?: boolean
 }
 
 // ---- Game Events --------------------------------------------

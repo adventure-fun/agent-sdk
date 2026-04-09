@@ -141,7 +141,7 @@ Add notes under any item with `> NOTE: your note here` when needed.
 **Scope:** Engine enemy turn resolution
 **Depends on:** Group 3 (enemies need abilities to express behaviors)
 
-- [ ] **4.1 — All enemies use identical behavior: adjacent=attack, else=move-toward**
+- [x] **4.1 — All enemies use identical behavior: adjacent=attack, else=move-toward**
   - `EnemyTemplate.behavior` field is loaded but only `"boss"` is ever checked (for the boss-kill event flag)
   - Spec defines: aggressive, defensive, patrol, ambush, boss
   - **Fix:** Implement behavior-specific AI in `resolveEnemyTurns`:
@@ -151,12 +151,14 @@ Add notes under any item with `> NOTE: your note here` when needed.
     - `ambush`: don't move until player is adjacent or within a trigger range
     - `boss`: implement phase transitions based on `boss_phases` HP thresholds, switching abilities
   - **Files:** `shared/engine/src/turn.ts`
+  > NOTE: Implemented behavior-aware enemy turns in `shared/engine/src/turn.ts`. `aggressive` enemies keep the existing push-forward logic, `defensive` enemies now retreat and favor self-buffs when weakened, `patrol` enemies stay idle until the player enters detection range, and `ambush` enemies hold position until trigger range is met. Added focused TDD coverage in `shared/engine/__tests__/turn.test.ts`. Player-facing UI was also upgraded in `frontend/app/play/page.tsx` and `frontend/app/components/ascii-map.tsx` to show visible enemy HP, status effects, behavior badges, and boss markers so these AI differences are legible in combat.
 
-- [ ] **4.2 — Boss phase transitions not implemented**
+- [x] **4.2 — Boss phase transitions not implemented**
   - `EnemyTemplate.boss_phases` defines HP thresholds that add/remove abilities
   - Currently ignored — bosses fight identically at all HP levels
   - **Fix:** Track boss phase state; when HP crosses a threshold, apply `behavior_change`, `abilities_added`, `abilities_removed`. Emit a game event for phase transitions
   - **Files:** `shared/engine/src/turn.ts`
+  > NOTE: Bosses now persist phase progress with `boss_phase_index`, emit `boss_phase` events when thresholds are crossed, and recalculate their available ability set cumulatively from `boss_phases`. Observations now expose boss metadata/effects to the frontend, and the dungeon UI highlights boss phase announcements in the recent-events panel while keeping boss HP clearly visible.
 
 ---
 
@@ -582,3 +584,5 @@ _Record completed fixes here with date and commit hash._
 | 2026-04-09 | 3.3 | pending | Stun/slow/blind now have gameplay impact in turn resolution and combat hit calculation; added focused engine coverage |
 | 2026-04-09 | 3.4 | pending | Added enemy ability registry and upgraded enemy turns to choose ranged/self/offensive abilities with cooldown handling |
 | 2026-04-09 | 3.5 | pending | Implemented ranged LOS-aware legal actions and player targeting; upgraded dungeon UI with cooldowns, effect badges, and effective stat display |
+| 2026-04-09 | 4.1 | pending | Added behavior-aware enemy AI (defensive retreat, patrol detection, ambush trigger, aggressive fallback) with engine tests and player-visible enemy HUD improvements |
+| 2026-04-09 | 4.2 | pending | Implemented persistent boss phases with threshold events, cumulative ability swaps, boss markers, and highlighted phase announcements in the play UI |

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test"
 import type { Action, GameState, Tile } from "@adventure-fun/schemas"
-import { computeLegalActions, resolveTurn } from "../src/turn.js"
+import { buildObservationFromState, computeLegalActions, resolveTurn } from "../src/turn.js"
 import { SeededRng } from "../src/rng.js"
 import type { GeneratedRealm } from "../src/realm.js"
 
@@ -120,6 +120,21 @@ function makeState(overrides?: Partial<GameState>): GameState {
     discoveredTiles: { 1: [{ x: 1, y: 1 }] },
     mutatedEntities: [],
     realmStatus: "active",
+    ...overrides,
+  }
+}
+
+function makeEnemy(
+  overrides?: Partial<GameState["activeFloor"]["rooms"][number]["enemies"][number]>,
+): GameState["activeFloor"]["rooms"][number]["enemies"][number] {
+  return {
+    id: "enemy-1",
+    template_id: "hollow-rat",
+    hp: 15,
+    hp_max: 15,
+    position: { x: 2, y: 1 },
+    effects: [],
+    cooldowns: {},
     ...overrides,
   }
 }
@@ -336,5 +351,513 @@ describe("enemy ability turns", () => {
           event.data["ability_id"] === "death-bolt",
       ),
     ).toBe(true)
+  })
+})
+
+describe("enemy behaviors", () => {
+  it("keeps aggressive enemies moving toward the player", () => {
+    const state = makeState({
+      activeFloor: {
+        rooms: [
+          {
+            id: "f1_r1_test-room",
+            tiles: makeTiles(8, 4),
+            enemies: [
+              makeEnemy({
+                template_id: "skeleton-warrior",
+                hp: 35,
+                hp_max: 35,
+                position: { x: 5, y: 1 },
+              }),
+            ],
+            items: [],
+          },
+        ],
+      },
+    })
+
+    const result = resolveTurn(
+      state,
+      { type: "wait" },
+      makeRealm(),
+      new SeededRng(11),
+    )
+
+    expect(result.newState.activeFloor.rooms[0]?.enemies[0]?.position).toEqual({ x: 4, y: 1 })
+  })
+
+  it("makes low-health defensive enemies retreat instead of attacking", () => {
+    const state = makeState({
+      character: {
+        ...makeState().character,
+        hp: { current: 80, max: 80 },
+        stats: {
+          hp: 80,
+          attack: 20,
+          defense: 8,
+          accuracy: 999,
+          evasion: 10,
+          speed: 10,
+        },
+        effective_stats: {
+          hp: 80,
+          attack: 20,
+          defense: 8,
+          accuracy: 999,
+          evasion: 10,
+          speed: 10,
+        },
+      },
+      activeFloor: {
+        rooms: [
+          {
+            id: "f1_r1_test-room",
+            tiles: makeTiles(8, 4),
+            enemies: [
+              makeEnemy({
+                template_id: "necromancer",
+                hp: 20,
+                hp_max: 65,
+                position: { x: 2, y: 1 },
+              }),
+            ],
+            items: [],
+          },
+        ],
+      },
+    })
+
+    const result = resolveTurn(
+      state,
+      { type: "wait" },
+      makeRealm(),
+      new SeededRng(12),
+    )
+
+    expect(result.newState.activeFloor.rooms[0]?.enemies[0]?.position).toEqual({ x: 3, y: 1 })
+    expect(result.newState.character.hp.current).toBe(80)
+  })
+
+  it("makes defensive enemies favor self-buffs when they are weakened", () => {
+    const state = makeState({
+      activeFloor: {
+        rooms: [
+          {
+            id: "f1_r1_test-room",
+            tiles: makeTiles(8, 4),
+            enemies: [
+              makeEnemy({
+                template_id: "necromancer",
+                hp: 20,
+                hp_max: 65,
+                position: { x: 4, y: 1 },
+              }),
+            ],
+            items: [],
+          },
+        ],
+      },
+    })
+
+    const result = resolveTurn(
+      state,
+      { type: "wait" },
+      makeRealm(),
+      new SeededRng(13),
+    )
+
+    expect(result.observation.recent_events.some((event) => event.type === "enemy_attack" && (
+      event.data["ability_id"] === "raise-dead" || event.data["ability_id"] === "bone-shield"
+    ))).toBe(true)
+    expect(
+      result.newState.activeFloor.rooms[0]?.enemies[0]?.effects.some(
+        (effect) => effect.type === "buff-attack" || effect.type === "buff-defense",
+      ),
+    ).toBe(true)
+  })
+
+  it("keeps patrol enemies idle until the player enters their detection range", () => {
+    const state = makeState({
+      activeFloor: {
+        rooms: [
+          {
+            id: "f1_r1_test-room",
+            tiles: makeTiles(9, 4),
+            enemies: [
+              makeEnemy({
+                template_id: "stone-golem",
+                hp: 80,
+                hp_max: 80,
+                position: { x: 7, y: 1 },
+                cooldowns: { "stone-skin": 2 },
+              }),
+            ],
+            items: [],
+          },
+        ],
+      },
+    })
+
+    const result = resolveTurn(
+      state,
+      { type: "wait" },
+      makeRealm(),
+      new SeededRng(14),
+    )
+
+    expect(result.newState.activeFloor.rooms[0]?.enemies[0]?.position).toEqual({ x: 7, y: 1 })
+    expect(
+      result.observation.recent_events.some((event) => event.data["enemy_id"] === "enemy-1"),
+    ).toBe(false)
+  })
+
+  it("lets patrol enemies engage once the player is close enough", () => {
+    const state = makeState({
+      activeFloor: {
+        rooms: [
+          {
+            id: "f1_r1_test-room",
+            tiles: makeTiles(9, 4),
+            enemies: [
+              makeEnemy({
+                template_id: "stone-golem",
+                hp: 80,
+                hp_max: 80,
+                position: { x: 5, y: 1 },
+                cooldowns: { "stone-skin": 2 },
+              }),
+            ],
+            items: [],
+          },
+        ],
+      },
+    })
+
+    const result = resolveTurn(
+      state,
+      { type: "wait" },
+      makeRealm(),
+      new SeededRng(15),
+    )
+
+    expect(result.newState.activeFloor.rooms[0]?.enemies[0]?.position).toEqual({ x: 4, y: 1 })
+  })
+
+  it("keeps ambush enemies still until the player enters their trigger range", () => {
+    const state = makeState({
+      activeFloor: {
+        rooms: [
+          {
+            id: "f1_r1_test-room",
+            tiles: makeTiles(8, 4),
+            enemies: [
+              makeEnemy({
+                template_id: "ghost",
+                hp: 28,
+                hp_max: 28,
+                position: { x: 6, y: 1 },
+                cooldowns: { "phase-shift": 2 },
+              }),
+            ],
+            items: [],
+          },
+        ],
+      },
+    })
+
+    const result = resolveTurn(
+      state,
+      { type: "wait" },
+      makeRealm(),
+      new SeededRng(16),
+    )
+
+    expect(result.newState.activeFloor.rooms[0]?.enemies[0]?.position).toEqual({ x: 6, y: 1 })
+    expect(
+      result.observation.recent_events.some((event) => event.data["enemy_id"] === "enemy-1"),
+    ).toBe(false)
+  })
+
+  it("lets ambush enemies act once the player is within trigger range", () => {
+    const state = makeState({
+      activeFloor: {
+        rooms: [
+          {
+            id: "f1_r1_test-room",
+            tiles: makeTiles(8, 4),
+            enemies: [
+              makeEnemy({
+                template_id: "ghost",
+                hp: 28,
+                hp_max: 28,
+                position: { x: 3, y: 1 },
+                cooldowns: { "phase-shift": 2 },
+              }),
+            ],
+            items: [],
+          },
+        ],
+      },
+    })
+
+    const result = resolveTurn(
+      state,
+      { type: "wait" },
+      makeRealm(),
+      new SeededRng(17),
+    )
+
+    expect(result.observation.recent_events.some((event) => event.type === "enemy_attack")).toBe(true)
+  })
+})
+
+describe("boss phase transitions", () => {
+  it("activates boss phases once HP crosses a threshold", () => {
+    const state = makeState({
+      character: {
+        ...makeState().character,
+        hp: { current: 90, max: 90 },
+        stats: {
+          hp: 90,
+          attack: 20,
+          defense: 8,
+          accuracy: 999,
+          evasion: 10,
+          speed: 10,
+        },
+        effective_stats: {
+          hp: 90,
+          attack: 20,
+          defense: 8,
+          accuracy: 999,
+          evasion: 10,
+          speed: 10,
+        },
+      },
+      activeFloor: {
+        rooms: [
+          {
+            id: "f1_r1_test-room",
+            tiles: makeTiles(8, 4),
+            enemies: [
+              makeEnemy({
+                template_id: "hollow-warden",
+                hp: 70,
+                hp_max: 150,
+                position: { x: 4, y: 1 },
+              }),
+            ],
+            items: [],
+          },
+        ],
+      },
+    })
+
+    const result = resolveTurn(
+      state,
+      { type: "wait" },
+      makeRealm(),
+      new SeededRng(18),
+    )
+
+    expect(result.observation.recent_events.some((event) => event.type === "boss_phase")).toBe(true)
+    expect(result.newState.activeFloor.rooms[0]?.enemies[0]?.boss_phase_index).toBe(0)
+    expect(
+      result.newState.activeFloor.rooms[0]?.enemies[0]?.effects.some(
+        (effect) => effect.type === "buff-attack",
+      ),
+    ).toBe(true)
+  })
+
+  it("removes abilities excluded by later boss phases", () => {
+    const state = makeState({
+      character: {
+        ...makeState().character,
+        hp: { current: 100, max: 100 },
+        stats: {
+          hp: 100,
+          attack: 20,
+          defense: 8,
+          accuracy: 999,
+          evasion: 10,
+          speed: 10,
+        },
+        effective_stats: {
+          hp: 100,
+          attack: 20,
+          defense: 8,
+          accuracy: 999,
+          evasion: 10,
+          speed: 10,
+        },
+      },
+      activeFloor: {
+        rooms: [
+          {
+            id: "f1_r1_test-room",
+            tiles: makeTiles(9, 4),
+            enemies: [
+              makeEnemy({
+                template_id: "iron-sentinel",
+                hp: 100,
+                hp_max: 320,
+                position: { x: 5, y: 1 },
+                cooldowns: {
+                  "emergency-repair": 2,
+                  "lockdown-protocol": 2,
+                },
+              }),
+            ],
+            items: [],
+          },
+        ],
+      },
+    })
+
+    const result = resolveTurn(
+      state,
+      { type: "wait" },
+      makeRealm(),
+      new SeededRng(19),
+    )
+
+    expect(
+      result.observation.recent_events.some(
+        (event) => event.type === "enemy_attack" && event.data["ability_id"] === "cannon-blast",
+      ),
+    ).toBe(false)
+    expect(result.newState.activeFloor.rooms[0]?.enemies[0]?.position).toEqual({ x: 4, y: 1 })
+    expect(result.newState.activeFloor.rooms[0]?.enemies[0]?.boss_phase_index).toBe(1)
+  })
+
+  it("tracks the deepest active phase for multi-phase bosses", () => {
+    const state = makeState({
+      activeFloor: {
+        rooms: [
+          {
+            id: "f1_r1_test-room",
+            tiles: makeTiles(8, 4),
+            enemies: [
+              makeEnemy({
+                template_id: "lich-king",
+                hp: 30,
+                hp_max: 280,
+                position: { x: 4, y: 1 },
+              }),
+            ],
+            items: [],
+          },
+        ],
+      },
+    })
+
+    const result = resolveTurn(
+      state,
+      { type: "wait" },
+      makeRealm(),
+      new SeededRng(20),
+    )
+
+    expect(result.newState.activeFloor.rooms[0]?.enemies[0]?.boss_phase_index).toBe(2)
+    expect(result.observation.recent_events.some((event) => event.type === "boss_phase")).toBe(true)
+  })
+
+  it("does not re-emit the same boss phase after it has already been triggered", () => {
+    const state = makeState({
+      activeFloor: {
+        rooms: [
+          {
+            id: "f1_r1_test-room",
+            tiles: makeTiles(8, 4),
+            enemies: [
+              makeEnemy({
+                template_id: "hollow-warden",
+                hp: 70,
+                hp_max: 150,
+                position: { x: 4, y: 1 },
+                boss_phase_index: 0,
+              }),
+            ],
+            items: [],
+          },
+        ],
+      },
+    })
+
+    const result = resolveTurn(
+      state,
+      { type: "wait" },
+      makeRealm(),
+      new SeededRng(21),
+    )
+
+    expect(result.observation.recent_events.some((event) => event.type === "boss_phase")).toBe(false)
+  })
+})
+
+describe("enemy observations", () => {
+  it("includes enemy behavior, boss state, and effects for visible enemies", () => {
+    const state = makeState({
+      activeFloor: {
+        rooms: [
+          {
+            id: "f1_r1_test-room",
+            tiles: makeTiles(8, 4),
+            enemies: [
+              makeEnemy({
+                template_id: "hollow-warden",
+                hp: 90,
+                hp_max: 150,
+                position: { x: 4, y: 1 },
+                boss_phase_index: 0,
+                effects: [{ type: "buff-defense", turns_remaining: 2, magnitude: 6 }],
+              }),
+            ],
+            items: [],
+          },
+        ],
+      },
+    })
+
+    const observation = buildObservationFromState(state, [], makeRealm())
+    const entity = observation.visible_entities.find(
+      (visibleEntity) => visibleEntity.type === "enemy" && visibleEntity.id === "enemy-1",
+    )
+
+    expect(entity).toMatchObject({
+      behavior: "boss",
+      is_boss: true,
+      hp_current: 90,
+      hp_max: 150,
+    })
+    expect(entity?.effects).toEqual([
+      { type: "buff-defense", turns_remaining: 2, magnitude: 6 },
+    ])
+  })
+
+  it("adds room-text hints for distant ambush enemies", () => {
+    const state = makeState({
+      activeFloor: {
+        rooms: [
+          {
+            id: "f1_r1_test-room",
+            tiles: makeTiles(8, 4),
+            enemies: [
+              makeEnemy({
+                template_id: "ghost",
+                hp: 28,
+                hp_max: 28,
+                position: { x: 4, y: 1 },
+              }),
+            ],
+            items: [],
+          },
+        ],
+      },
+    })
+
+    const observation = buildObservationFromState(state, [], makeRealm())
+
+    expect(observation.room_text).toContain("lurks motionless")
   })
 })

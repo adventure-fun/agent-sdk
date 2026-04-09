@@ -10,7 +10,7 @@ import { useContent } from "../hooks/use-content"
 import type { ClassTemplateSummary, RealmTemplateSummary } from "../hooks/use-content"
 import { AsciiMap } from "../components/ascii-map"
 import { useEffect, useState, useMemo } from "react"
-import type { CharacterClass, Action, Observation } from "@adventure-fun/schemas"
+import type { CharacterClass, Action, Observation, ActiveEffect } from "@adventure-fun/schemas"
 
 const STAT_KEYS = ["hp", "attack", "defense", "accuracy", "evasion", "speed"] as const
 const STAT_LABELS: Record<string, string> = {
@@ -784,6 +784,19 @@ function DungeonView({
   const canPickup = legal_actions.filter((a): a is Action & { type: "pickup" } => a.type === "pickup")
   const usableAbilityIds = new Set(attackActions.map((action) => action.ability_id ?? "basic-attack"))
   const abilityMap = new Map(character.abilities.map((ability) => [ability.id, ability]))
+  const visibleEnemies = visible_entities
+    .filter(
+      (entity): entity is Observation["visible_entities"][number] & { type: "enemy" } =>
+        entity.type === "enemy",
+    )
+    .sort((left, right) => {
+      if ((left.is_boss ? 1 : 0) !== (right.is_boss ? 1 : 0)) {
+        return (right.is_boss ? 1 : 0) - (left.is_boss ? 1 : 0)
+      }
+      const leftRatio = left.hp_max ? (left.hp_current ?? left.hp_max) / left.hp_max : 1
+      const rightRatio = right.hp_max ? (right.hp_current ?? right.hp_max) / right.hp_max : 1
+      return leftRatio - rightRatio
+    })
 
   const hpPct = character.hp.max > 0 ? (character.hp.current / character.hp.max) * 100 : 0
   const hpColor = hpPct > 50 ? "bg-green-500" : hpPct > 25 ? "bg-yellow-500" : "bg-red-500"
@@ -901,6 +914,57 @@ function DungeonView({
               </div>
             )}
 
+            {visibleEnemies.length > 0 && (
+              <div>
+                <div className="text-xs text-gray-500 uppercase mb-2">Enemies</div>
+                <div className="space-y-3">
+                  {visibleEnemies.map((enemy) => {
+                    const enemyHpPct = enemy.hp_max ? ((enemy.hp_current ?? enemy.hp_max) / enemy.hp_max) * 100 : 0
+                    const enemyEffects = enemy.effects ?? []
+                    return (
+                      <div
+                        key={enemy.id}
+                        className={`rounded border p-3 ${
+                          enemy.is_boss
+                            ? "border-amber-800/70 bg-amber-950/15"
+                            : "border-gray-800 bg-gray-950"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="text-sm font-medium text-gray-200">{enemy.name}</div>
+                          <EnemyBehaviorBadge behavior={enemy.behavior} isBoss={enemy.is_boss} />
+                        </div>
+                        <div className="mt-2">
+                          <StatusMeter
+                            label={enemy.is_boss ? "Boss HP" : "HP"}
+                            current={enemy.hp_current ?? enemy.hp_max ?? 0}
+                            max={enemy.hp_max ?? enemy.hp_current ?? 0}
+                            colorClass={getHealthBarColor(enemyHpPct)}
+                          />
+                        </div>
+                        {enemyEffects.length > 0 && (
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {enemyEffects.map((effect, index) => (
+                              <StatusEffectBadge
+                                key={`${enemy.id}-effect-${index}`}
+                                effect={effect}
+                                tone={effect.type.startsWith("buff-") ? "buff" : "debuff"}
+                              />
+                            ))}
+                          </div>
+                        )}
+                        {!enemy.is_boss && enemy.behavior && (
+                          <p className="mt-2 text-[11px] text-gray-500">
+                            {getEnemyBehaviorHint(enemy.behavior)}
+                          </p>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
             <div>
               <div className="text-xs text-gray-500 uppercase mb-1">Abilities</div>
               <div className="space-y-2">
@@ -982,7 +1046,9 @@ function DungeonView({
             {recent_events.slice(-8).map((e, i) => (
               <div
                 key={i}
-                className={`text-xs ${i >= recent_events.length - 2 ? "text-gray-300" : "text-gray-500"}`}
+                className={`text-xs rounded border px-2 py-1 ${
+                  getRecentEventPalette(e.type, i >= recent_events.length - 2)
+                }`}
               >
                 &gt; {e.detail}
               </div>
@@ -1023,7 +1089,11 @@ function DungeonView({
               {attackActions.map((action, i) => {
                 const entity = visible_entities.find((e) => e.id === action.target_id)
                 const ability = abilityMap.get(action.ability_id ?? "basic-attack")
-                const targetLabel = action.target_id === "self" ? "Self" : (entity?.name ?? action.target_id)
+                const targetLabel = action.target_id === "self"
+                  ? "Self"
+                  : entity?.hp_current != null && entity.hp_max != null
+                    ? `${entity.name} (${entity.hp_current}/${entity.hp_max} HP)`
+                    : (entity?.name ?? action.target_id)
                 return (
                   <button
                     key={i}
@@ -1041,6 +1111,11 @@ function DungeonView({
                         ? `${ability.resource_cost} ${character.resource.type} • ${formatAbilityRange(ability.range)}`
                         : "Basic attack"}
                     </div>
+                    {entity?.behavior && (
+                      <div className="mt-1 text-[11px] opacity-70">
+                        {entity.is_boss ? "Boss target" : `${entity.behavior} target`}
+                      </div>
+                    )}
                   </button>
                 )
               })}
@@ -1184,7 +1259,7 @@ function StatusEffectBadge({
   effect,
   tone,
 }: {
-  effect: Observation["character"]["buffs"][number]
+  effect: ActiveEffect
   tone: "buff" | "debuff"
 }) {
   const palette =
@@ -1212,7 +1287,7 @@ function getResourceBarColor(resourceType: Observation["character"]["resource"][
   }
 }
 
-function getDebuffPalette(effectType: Observation["character"]["debuffs"][number]["type"]) {
+function getDebuffPalette(effectType: ActiveEffect["type"]) {
   switch (effectType) {
     case "poison":
       return "bg-green-950/40 border-green-900/60 text-green-300"
@@ -1228,12 +1303,77 @@ function getDebuffPalette(effectType: Observation["character"]["debuffs"][number
   }
 }
 
-function formatEffectLabel(effect: Observation["character"]["buffs"][number]) {
+function formatEffectLabel(effect: ActiveEffect) {
   const base = `${effect.type} ${effect.turns_remaining}t`
   if (effect.type === "poison") {
     return `${base} • ${effect.magnitude} dmg`
   }
   return `${base} • ${effect.magnitude}`
+}
+
+function getHealthBarColor(pct: number) {
+  if (pct > 50) return "bg-green-500"
+  if (pct > 25) return "bg-yellow-500"
+  return "bg-red-500"
+}
+
+function getEnemyBehaviorHint(behavior: NonNullable<Observation["visible_entities"][number]["behavior"]>) {
+  switch (behavior) {
+    case "defensive":
+      return "Defensive foes fall back and lean on self-buffs when weakened."
+    case "patrol":
+      return "Patrol foes stay on route until you enter their awareness range."
+    case "ambush":
+      return "Ambush foes hold position until you step into their kill zone."
+    case "boss":
+      return "Bosses change tactics as their health drops."
+    case "aggressive":
+      return "Aggressive foes push forward whenever they can."
+  }
+}
+
+function EnemyBehaviorBadge({
+  behavior,
+  isBoss,
+}: {
+  behavior: Observation["visible_entities"][number]["behavior"] | undefined
+  isBoss: boolean | undefined
+}) {
+  if (!behavior && !isBoss) return null
+
+  const label = isBoss
+    ? "Boss"
+    : behavior === "defensive"
+      ? "Defensive"
+      : behavior === "patrol"
+        ? "Patrol"
+        : behavior === "ambush"
+          ? "Ambush"
+          : "Aggressive"
+  const palette = isBoss
+    ? "border-amber-700/70 bg-amber-950/30 text-amber-300"
+    : behavior === "defensive"
+      ? "border-blue-900/60 bg-blue-950/30 text-blue-300"
+      : behavior === "patrol"
+        ? "border-slate-800 bg-slate-950/40 text-slate-300"
+        : behavior === "ambush"
+          ? "border-violet-900/60 bg-violet-950/30 text-violet-300"
+          : "border-red-900/60 bg-red-950/30 text-red-300"
+
+  return (
+    <span className={`rounded border px-2 py-1 text-[10px] uppercase tracking-wide ${palette}`}>
+      {label}
+    </span>
+  )
+}
+
+function getRecentEventPalette(eventType: string, isRecent: boolean) {
+  if (eventType === "boss_phase") {
+    return "border-amber-800/70 bg-amber-950/20 text-amber-200"
+  }
+  return isRecent
+    ? "border-gray-800 bg-gray-950 text-gray-300"
+    : "border-gray-900 bg-black/20 text-gray-500"
 }
 
 function formatAbilityRange(range: number | "melee") {

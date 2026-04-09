@@ -70,6 +70,10 @@ const RESOURCE_COLOR_HINTS: Record<GameState["character"]["resource"]["type"], s
   focus: "violet",
 }
 
+const PATROL_DETECTION_RANGE = 4
+const AMBUSH_TRIGGER_RANGE = 2
+const DEFENSIVE_RETREAT_HP_THRESHOLD = 0.4
+
 function hasEffect(
   effects: ActiveEffect[],
   type: ActiveEffect["type"],
@@ -778,6 +782,7 @@ function resolveEnemyTurns(
   for (const enemy of aliveEnemies) {
     const template = getEnemy(enemy.template_id)
     const preTurnEffects = [...enemy.effects]
+    const distanceToPlayer = getAbilityRangeDistance(enemy.position, s.position.tile)
     const { damage, updated_effects } = resolveStatusEffectTick({
       id: enemy.id,
       stats: template.stats,
@@ -814,7 +819,50 @@ function resolveEnemyTurns(
       continue
     }
 
-    const ability = chooseEnemyAbility(enemy, template, room, s.position.tile)
+    let effectiveAbilityIds = template.abilities
+    let preferSelf = enemy.hp <= enemy.hp_max / 2
+
+    switch (template.behavior) {
+      case "defensive": {
+        const shouldRetreat = enemy.hp_max > 0 && enemy.hp / enemy.hp_max <= DEFENSIVE_RETREAT_HP_THRESHOLD
+        preferSelf = shouldRetreat
+
+        if (shouldRetreat && distanceToPlayer <= 1) {
+          if (hasEffect(preTurnEffects, "slow")) {
+            parts.push(`${template.name} tries to retreat but is slowed.`)
+            continue
+          }
+
+          if (moveEnemyAway(enemy, s.position.tile, room)) {
+            parts.push(`${template.name} retreats to regain control of the fight.`)
+            continue
+          }
+        }
+        break
+      }
+      case "patrol":
+        if (distanceToPlayer > PATROL_DETECTION_RANGE) {
+          continue
+        }
+        break
+      case "ambush":
+        if (distanceToPlayer > AMBUSH_TRIGGER_RANGE) {
+          continue
+        }
+        break
+      case "boss":
+        effectiveAbilityIds = resolveBossPhase(enemy, template, events)
+        break
+    }
+
+    const ability = chooseEnemyAbility(
+      enemy,
+      template,
+      room,
+      s.position.tile,
+      effectiveAbilityIds,
+      preferSelf,
+    )
     const inRange = ability
       ? normalizeAbilityTarget(ability.target) === "self" ||
         isAbilityTargetInRange(room, enemy.position, s.position.tile, ability)
@@ -916,8 +964,10 @@ function chooseEnemyAbility(
   template: ReturnType<typeof getEnemy>,
   room: RoomState,
   playerPosition: Position,
+  abilityIds = template.abilities,
+  preferSelf = enemy.hp <= enemy.hp_max / 2,
 ): AbilityTemplate | null {
-  const abilities = template.abilities.flatMap((abilityId) => {
+  const abilities = abilityIds.flatMap((abilityId) => {
     try {
       return [getAbility(abilityId)]
     } catch {
@@ -939,8 +989,11 @@ function chooseEnemyAbility(
   usable.sort((left, right) => {
     const leftSelf = normalizeAbilityTarget(left.target) === "self" ? 1 : 0
     const rightSelf = normalizeAbilityTarget(right.target) === "self" ? 1 : 0
-    if (enemy.hp <= enemy.hp_max / 2 && leftSelf !== rightSelf) {
+    if (preferSelf && leftSelf !== rightSelf) {
       return rightSelf - leftSelf
+    }
+    if (!preferSelf && leftSelf !== rightSelf) {
+      return leftSelf - rightSelf
     }
     return right.resource_cost - left.resource_cost
   })
@@ -974,15 +1027,53 @@ function moveEnemyToward(
   target: { x: number; y: number },
   room: RoomState,
 ) {
-  const dx = Math.sign(target.x - enemy.position.x)
-  const dy = Math.sign(target.y - enemy.position.y)
+  const currentDistance = getAbilityRangeDistance(enemy.position, target)
+  const candidates = getEnemyMoveCandidates(enemy, room).sort(
+    (left, right) =>
+      getAbilityRangeDistance(left, target) - getAbilityRangeDistance(right, target),
+  )
+
+  const next = candidates[0]
+  if (!next || getAbilityRangeDistance(next, target) >= currentDistance) {
+    return false
+  }
+
+  enemy.position = next
+  return true
+}
+
+function moveEnemyAway(
+  enemy: RoomState["enemies"][number],
+  target: { x: number; y: number },
+  room: RoomState,
+) {
+  const currentDistance = getAbilityRangeDistance(enemy.position, target)
+  const candidates = getEnemyMoveCandidates(enemy, room).sort(
+    (left, right) =>
+      getAbilityRangeDistance(right, target) - getAbilityRangeDistance(left, target),
+  )
+
+  const next = candidates[0]
+  if (!next || getAbilityRangeDistance(next, target) <= currentDistance) {
+    return false
+  }
+
+  enemy.position = next
+  return true
+}
+
+function getEnemyMoveCandidates(
+  enemy: RoomState["enemies"][number],
+  room: RoomState,
+) {
   const height = room.tiles.length
   const width = room.tiles[0]?.length ?? 0
 
-  // Try horizontal first, then vertical
   const candidates = [
-    { x: enemy.position.x + dx, y: enemy.position.y },
-    { x: enemy.position.x, y: enemy.position.y + dy },
+    { x: enemy.position.x + 1, y: enemy.position.y },
+    { x: enemy.position.x - 1, y: enemy.position.y },
+    { x: enemy.position.x, y: enemy.position.y + 1 },
+    { x: enemy.position.x, y: enemy.position.y - 1 },
   ].filter(({ x, y }) => {
     if (x < 0 || y < 0 || x >= width || y >= height) return false
     const tile = room.tiles[y]?.[x]
@@ -993,9 +1084,70 @@ function moveEnemyToward(
     return true
   })
 
-  if (candidates[0]) {
-    enemy.position = { x: candidates[0].x, y: candidates[0].y }
+  return candidates
+}
+
+function buildEffectiveBossAbilityIds(
+  template: ReturnType<typeof getEnemy>,
+  phaseIndex: number,
+) {
+  const phases = template.boss_phases ?? []
+  const abilityIds = new Set(template.abilities)
+
+  for (let i = 0; i <= phaseIndex; i += 1) {
+    const phase = phases[i]
+    if (!phase) continue
+
+    for (const abilityId of phase.abilities_added) {
+      abilityIds.add(abilityId)
+    }
+    for (const abilityId of phase.abilities_removed) {
+      abilityIds.delete(abilityId)
+    }
   }
+
+  return [...abilityIds]
+}
+
+function resolveBossPhase(
+  enemy: RoomState["enemies"][number],
+  template: ReturnType<typeof getEnemy>,
+  events: GameEvent[],
+) {
+  const phases = template.boss_phases ?? []
+  const previousPhaseIndex = enemy.boss_phase_index ?? -1
+  let deepestReachedPhase = previousPhaseIndex
+
+  if (enemy.hp_max > 0) {
+    const hpRatio = enemy.hp / enemy.hp_max
+    for (let i = 0; i < phases.length; i += 1) {
+      const phase = phases[i]
+      if (phase && hpRatio <= phase.hp_threshold) {
+        deepestReachedPhase = Math.max(deepestReachedPhase, i)
+      }
+    }
+  }
+
+  if (deepestReachedPhase > previousPhaseIndex) {
+    const phase = phases[deepestReachedPhase]
+    enemy.boss_phase_index = deepestReachedPhase
+    if (phase) {
+      events.push({
+        turn: 0,
+        type: "boss_phase",
+        detail: phase.behavior_change,
+        data: {
+          enemy_id: enemy.id,
+          enemy_name: template.name,
+          phase_index: deepestReachedPhase,
+        },
+      })
+    }
+  } else if (previousPhaseIndex >= 0) {
+    enemy.boss_phase_index = previousPhaseIndex
+  }
+
+  return buildEffectiveBossAbilityIds(template, deepestReachedPhase)
 }
 
 function resolveUseItem(
@@ -1771,6 +1923,9 @@ export function buildObservationFromState(
         position: enemy.position,
         hp_current: enemy.hp,
         hp_max: enemy.hp_max,
+        effects: [...enemy.effects],
+        behavior: template?.behavior,
+        is_boss: template?.behavior === "boss",
       })
     }
     for (const item of room.items) {
@@ -1820,8 +1975,22 @@ export function buildObservationFromState(
         (t) => t.x === state.position.tile.x && t.y === state.position.tile.y,
       )
     : true
-  const roomText =
+  const baseRoomText =
     roomTemplate?.text_first_visit ?? genRoom?.description_first_visit ?? null
+  const behaviorHints = visibleEntities.flatMap((entity) => {
+    if (entity.type !== "enemy" || !entity.behavior) return []
+    const distance = getAbilityRangeDistance(entity.position, state.position.tile)
+
+    if (entity.behavior === "ambush" && distance > AMBUSH_TRIGGER_RANGE) {
+      return [`${entity.name} lurks motionless in the shadows.`]
+    }
+    if (entity.behavior === "patrol" && distance > PATROL_DETECTION_RANGE) {
+      return [`${entity.name} patrols the room without noticing you.`]
+    }
+
+    return []
+  })
+  const roomText = [baseRoomText, ...behaviorHints].filter(Boolean).join(" ").trim() || null
 
   // Inventory slots
   const inventorySlots: InventorySlot[] = state.inventory.map((item) => ({
@@ -1912,6 +2081,8 @@ function entityToSpectator(entity: Entity): SpectatorEntity {
     name: entity.name,
     position: entity.position,
     health_indicator,
+    behavior: entity.behavior,
+    is_boss: entity.is_boss,
   }
 }
 

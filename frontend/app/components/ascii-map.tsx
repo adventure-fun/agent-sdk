@@ -59,7 +59,10 @@ function renderMap(
       } else if (entityMap.has(key)) {
         const entity = entityMap.get(key)!
         if (entity.type === "enemy") {
-          row.push({ char: "E", className: "map-enemy" })
+          row.push({
+            char: entity.is_boss ? "B" : "E",
+            className: entity.is_boss ? "map-boss" : "map-enemy",
+          })
         } else if (entity.type === "item") {
           row.push({ char: "?", className: "map-chest" })
         } else if (entity.type === "interactable") {
