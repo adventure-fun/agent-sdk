@@ -8,6 +8,8 @@ import { useRealm } from "../hooks/use-realm"
 import { useGameSession } from "../hooks/use-game-session"
 import { useContent } from "../hooks/use-content"
 import type { ClassTemplateSummary, RealmTemplateSummary } from "../hooks/use-content"
+import { useProgression } from "../hooks/use-progression"
+import type { ProgressionData } from "../hooks/use-progression"
 import { AsciiMap } from "../components/ascii-map"
 import { useEffect, useState, useMemo } from "react"
 import type { CharacterClass, Action, Observation, ActiveEffect } from "@adventure-fun/schemas"
@@ -56,6 +58,13 @@ export default function PlayPage() {
   const gameSession = useGameSession()
 
   const {
+    progression,
+    fetchProgression,
+    unlockSkill,
+    error: progressionError,
+  } = useProgression()
+
+  const {
     realmTemplates,
     classTemplates,
     fetchRealmTemplates,
@@ -91,6 +100,9 @@ export default function PlayPage() {
   const [generatingTemplate, setGeneratingTemplate] = useState<string | null>(null)
   const [realmError, setRealmError] = useState<string | null>(null)
 
+  // Skill tree panel state
+  const [showSkillTree, setShowSkillTree] = useState(false)
+
   // Fetch content on mount (public, no auth needed)
   useEffect(() => {
     fetchClassTemplates()
@@ -117,6 +129,7 @@ export default function PlayPage() {
       fetchCharacter().then((c) => {
         if (c) {
           fetchRealms()
+          fetchProgression()
           setStep("hub")
         } else {
           setStep("class-select")
@@ -131,6 +144,7 @@ export default function PlayPage() {
     fetchCharacter().then((c) => {
       if (c) {
         fetchRealms()
+        fetchProgression()
         setStep("hub")
       } else {
         setStep("class-select")
@@ -434,6 +448,7 @@ export default function PlayPage() {
         <button
           onClick={() => {
             fetchRealms()
+            fetchProgression()
             setStep("hub")
           }}
           className="px-8 py-2 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded transition-colors"
@@ -605,6 +620,17 @@ export default function PlayPage() {
                 <span className="text-gray-300">{character.xp}</span>
               </p>
             </div>
+
+            {/* XP Progress Bar */}
+            {progression && (
+              <XpProgressBar
+                xp={progression.xp}
+                level={progression.level}
+                xpToNext={progression.xp_to_next_level}
+                xpForNext={progression.xp_for_next_level}
+              />
+            )}
+
             <div className="grid gap-3 sm:grid-cols-2">
               <StatusMeter
                 label="HP"
@@ -622,7 +648,40 @@ export default function PlayPage() {
             <p className="text-xs text-gray-600">
               ATK {character.stats.attack} | DEF {character.stats.defense} | ACC {character.stats.accuracy} | EVA {character.stats.evasion} | SPD {character.stats.speed}
             </p>
+
+            {/* Skill Points Indicator */}
+            {progression && progression.skill_points > 0 && (
+              <button
+                onClick={() => setShowSkillTree(true)}
+                className="w-full text-xs text-center py-1.5 rounded border border-amber-700/50 bg-amber-950/20 text-amber-300 hover:bg-amber-950/40 transition-colors"
+              >
+                {progression.skill_points} skill point{progression.skill_points !== 1 ? "s" : ""} available — View Skill Tree
+              </button>
+            )}
           </div>
+
+          {/* Skill Tree Panel */}
+          {showSkillTree && progression?.skill_tree_template && (
+            <SkillTreePanel
+              progression={progression}
+              onUnlock={async (nodeId) => {
+                await unlockSkill(nodeId)
+                await fetchCharacter()
+              }}
+              onClose={() => setShowSkillTree(false)}
+              error={progressionError}
+            />
+          )}
+
+          {/* View Skill Tree (when no points available) */}
+          {!showSkillTree && progression?.skill_tree_template && (
+            <button
+              onClick={() => setShowSkillTree(true)}
+              className="text-xs text-gray-600 hover:text-gray-400 transition-colors"
+            >
+              View Skill Tree
+            </button>
+          )}
 
           {/* Realm section */}
           <div className="space-y-3">
@@ -863,7 +922,14 @@ function DungeonView({
               <div className="text-xs text-gray-500 uppercase mb-1">
                 Level {character.level} {character.class}
               </div>
-              <div className="text-xs text-gray-500">XP: {character.xp} — Gold: {gold}</div>
+              <div className="text-xs text-gray-500 mb-2">Gold: {gold}</div>
+              <XpProgressBar
+                xp={character.xp}
+                level={character.level}
+                xpToNext={character.xp_to_next_level}
+                xpForNext={character.xp + character.xp_to_next_level}
+                compact
+              />
             </div>
 
             <StatusMeter
@@ -1371,6 +1437,9 @@ function getRecentEventPalette(eventType: string, isRecent: boolean) {
   if (eventType === "boss_phase") {
     return "border-amber-800/70 bg-amber-950/20 text-amber-200"
   }
+  if (eventType === "level_up") {
+    return "border-yellow-700/70 bg-yellow-950/20 text-yellow-200"
+  }
   return isRecent
     ? "border-gray-800 bg-gray-950 text-gray-300"
     : "border-gray-900 bg-black/20 text-gray-500"
@@ -1424,6 +1493,180 @@ function StatValueBar({ label, value, min, max }: { label: string; value: number
         {value}{" "}
         <span className="text-gray-600">({min}-{max})</span>
       </span>
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// XP Progress Bar
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function xpThresholdForLevel(level: number): number {
+  if (level <= 1) return 0
+  const n = level - 1
+  return 50 * n * n + 50 * n
+}
+
+function XpProgressBar({
+  xp,
+  level,
+  xpToNext,
+  compact,
+}: {
+  xp: number
+  level: number
+  xpToNext: number
+  xpForNext?: number
+  compact?: boolean
+}) {
+  const prevThreshold = xpThresholdForLevel(level)
+  const nextThreshold = xpThresholdForLevel(level + 1)
+  const gap = nextThreshold - prevThreshold
+  const earned = xp - prevThreshold
+  const pct = xpToNext === 0 ? 100 : gap > 0 ? Math.min((earned / gap) * 100, 100) : 0
+
+  if (compact) {
+    return (
+      <div>
+        <div className="flex justify-between text-[10px] mb-0.5">
+          <span className="text-purple-400">LVL {level}</span>
+          <span className="text-gray-500">{xpToNext > 0 ? `${xpToNext} XP to lvl ${level + 1}` : "MAX"}</span>
+        </div>
+        <div className="h-1.5 bg-gray-800 rounded overflow-hidden">
+          <div className="h-full rounded bg-purple-500" style={{ width: `${pct}%` }} />
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      <div className="flex justify-between text-xs mb-1">
+        <span className="text-purple-400">Level {level}</span>
+        <span className="text-gray-400">
+          {xpToNext > 0 ? `${xp} / ${nextThreshold} XP` : `${xp} XP — MAX LEVEL`}
+        </span>
+      </div>
+      <div className="h-2.5 bg-gray-800 rounded overflow-hidden">
+        <div className="h-full rounded bg-purple-500 transition-all duration-500" style={{ width: `${pct}%` }} />
+      </div>
+      {xpToNext > 0 && (
+        <p className="text-[10px] text-gray-600 mt-0.5">
+          {xpToNext} XP until level {level + 1}
+        </p>
+      )}
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Skill Tree Panel
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function SkillTreePanel({
+  progression,
+  onUnlock,
+  onClose,
+  error,
+}: {
+  progression: ProgressionData
+  onUnlock: (nodeId: string) => Promise<void>
+  onClose: () => void
+  error: string | null
+}) {
+  const tree = progression.skill_tree_template
+  if (!tree) return null
+
+  return (
+    <div className="bg-gray-900 border border-gray-800 rounded p-4 space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-bold text-amber-400 uppercase tracking-wider">Skill Tree</h3>
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-purple-400">
+            {progression.skill_points} point{progression.skill_points !== 1 ? "s" : ""} available
+          </span>
+          <button onClick={onClose} className="text-gray-600 hover:text-gray-400 text-xs">
+            Close
+          </button>
+        </div>
+      </div>
+
+      {error && <p className="text-red-400 text-xs">{error}</p>}
+
+      <div className="space-y-4">
+        {tree.tiers.map((tier) => {
+          const isLocked = progression.level < tier.unlock_level
+          return (
+            <div key={tier.tier} className="space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-gray-500">Tier {tier.tier}</span>
+                {isLocked ? (
+                  <span className="text-[10px] text-red-400/70">Unlocks at level {tier.unlock_level}</span>
+                ) : (
+                  <span className="text-[10px] text-green-400/70">Unlocked</span>
+                )}
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {tier.choices.map((node) => {
+                  const isUnlocked = progression.skill_tree_unlocked[node.id] === true
+                  const canAfford = progression.skill_points >= node.cost
+                  const prereqsMet = node.prerequisites.every(
+                    (p) => progression.skill_tree_unlocked[p] === true,
+                  )
+                  const canUnlock = !isUnlocked && !isLocked && canAfford && prereqsMet
+
+                  return (
+                    <div
+                      key={node.id}
+                      className={`rounded border p-3 text-xs ${
+                        isUnlocked
+                          ? "border-green-800/60 bg-green-950/20"
+                          : canUnlock
+                            ? "border-amber-800/50 bg-amber-950/10"
+                            : "border-gray-800 bg-gray-950/50 opacity-60"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2 mb-1">
+                        <span className={`font-bold ${isUnlocked ? "text-green-300" : "text-gray-300"}`}>
+                          {node.name}
+                        </span>
+                        {isUnlocked && (
+                          <span className="text-[10px] bg-green-900/40 text-green-400 px-1.5 py-0.5 rounded">
+                            Learned
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-gray-500 mb-2">{node.description}</p>
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-600">
+                          {node.effect.type === "grant-ability"
+                            ? `Grants: ${node.effect.ability_id}`
+                            : node.effect.type === "passive-stat"
+                              ? `+${node.effect.value} ${node.effect.stat}`
+                              : node.effect.type}
+                        </span>
+                        {canUnlock && (
+                          <button
+                            onClick={() => onUnlock(node.id)}
+                            className="px-2 py-0.5 bg-amber-500 hover:bg-amber-400 text-black font-bold text-[10px] rounded transition-colors"
+                          >
+                            Learn ({node.cost} pt)
+                          </button>
+                        )}
+                        {!isUnlocked && !canUnlock && !isLocked && !prereqsMet && (
+                          <span className="text-[10px] text-red-400/60">
+                            Requires: {node.prerequisites.join(", ")}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }

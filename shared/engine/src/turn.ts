@@ -49,6 +49,7 @@ import {
 } from "./visibility.js"
 import { getAbility, getEnemy, getItem, CLASSES, ROOMS, REALMS } from "./content.js"
 import { SeededRng, deriveSeed } from "./rng.js"
+import { checkLevelUp, xpToNextLevel } from "./leveling.js"
 
 // ── Internal types ────────────────────────────────────────────────────────────
 
@@ -749,6 +750,41 @@ function handleEnemyDefeat(
     },
   })
   s.mutatedEntities.push(enemy.id)
+
+  // Level-up check after XP award
+  const { newLevel, levelsGained } = checkLevelUp(s.character.level, s.character.xp)
+  if (levelsGained > 0) {
+    const classTemplate = CLASSES[s.character.class]
+    const growth = classTemplate?.stat_growth
+    if (growth) {
+      for (let i = 0; i < levelsGained; i++) {
+        s.character.stats.hp += growth.hp
+        s.character.stats.attack += growth.attack
+        s.character.stats.defense += growth.defense
+        s.character.stats.accuracy += growth.accuracy
+        s.character.stats.evasion += growth.evasion
+        s.character.stats.speed += growth.speed
+      }
+      s.character.hp.max += growth.hp * levelsGained
+      s.character.hp.current = Math.min(
+        s.character.hp.current + growth.hp * levelsGained,
+        s.character.hp.max,
+      )
+      s.character.effective_stats = { ...s.character.stats }
+    }
+    s.character.level = newLevel
+    events.push({
+      turn: 0,
+      type: "level_up",
+      detail: `Level up! You are now level ${newLevel}.`,
+      data: {
+        old_level: newLevel - levelsGained,
+        new_level: newLevel,
+        stat_growth: growth ?? null,
+        levels_gained: levelsGained,
+      },
+    })
+  }
 
   if (enemyTemplate.behavior !== "boss") {
     return { notableEvent: null }
@@ -2012,6 +2048,8 @@ export function buildObservationFromState(
       class: state.character.class,
       level: state.character.level,
       xp: state.character.xp,
+      xp_to_next_level: xpToNextLevel(state.character.xp, state.character.level),
+      skill_points: Math.max(0, (state.character.level - 1) - Object.keys(state.character.skill_tree ?? {}).length),
       hp: { ...state.character.hp },
       resource: { ...state.character.resource },
       buffs: [...state.character.buffs],
@@ -2020,6 +2058,7 @@ export function buildObservationFromState(
       abilities,
       base_stats: state.character.stats,
       effective_stats: state.character.effective_stats,
+      skill_tree: { ...(state.character.skill_tree ?? {}) },
     },
     inventory: inventorySlots,
     equipment: { ...state.equipment },

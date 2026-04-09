@@ -190,6 +190,7 @@ export interface GameState {
     debuffs: ActiveEffect[]
     abilities: string[]
     cooldowns: Record<string, number>
+    skill_tree: Record<string, boolean>
   }
   position: {
     floor: number
@@ -310,6 +311,8 @@ export interface Observation {
     class: CharacterClass
     level: number
     xp: number
+    xp_to_next_level: number
+    skill_points: number
     hp: { current: number; max: number }
     resource: { type: ResourceType; current: number; max: number }
     buffs: ActiveEffect[]
@@ -318,6 +321,7 @@ export interface Observation {
     abilities: AbilitySummary[]
     base_stats: CharacterStats
     effective_stats: CharacterStats
+    skill_tree: Record<string, boolean>
   }
   inventory: InventorySlot[]
   equipment: Record<EquipSlot, InventoryItem | null>

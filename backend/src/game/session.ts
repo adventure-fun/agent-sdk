@@ -14,6 +14,7 @@ import {
   generateRealm,
   REALMS,
   CLASSES,
+  SKILL_TREES,
   SeededRng,
   resolveTurn,
   buildObservationFromState,
@@ -174,7 +175,33 @@ class GameSession {
 
     const stats = character.stats as CharacterStats
     const classTemplate = CLASSES[character.class]
+    const dbSkillTree = (character.skill_tree ?? {}) as Record<string, boolean>
+
     const abilities = [...new Set(classTemplate?.starting_abilities ?? [])]
+    const effectiveStats = { ...stats }
+
+    // Merge skill-tree unlocks into abilities and effective stats
+    if (classTemplate) {
+      const treeId = (classTemplate as Record<string, unknown>).skill_tree_id as string | undefined
+      const tree = treeId ? SKILL_TREES[treeId] : classTemplate.skill_tree
+      if (tree) {
+        for (const tier of tree.tiers) {
+          for (const choice of tier.choices) {
+            if (!dbSkillTree[choice.id]) continue
+            if (choice.effect.type === "grant-ability" && choice.effect.ability_id) {
+              if (!abilities.includes(choice.effect.ability_id)) {
+                abilities.push(choice.effect.ability_id)
+              }
+            } else if (choice.effect.type === "passive-stat" && choice.effect.stat && choice.effect.value) {
+              const stat = choice.effect.stat as keyof CharacterStats
+              if (stat in effectiveStats) {
+                effectiveStats[stat] += choice.effect.value
+              }
+            }
+          }
+        }
+      }
+    }
 
     const gameState: GameState = {
       turn: (realm.last_turn as number) ?? 0,
@@ -197,11 +224,12 @@ class GameSession {
           max: character.resource_max,
         },
         stats,
-        effective_stats: { ...stats },
+        effective_stats: effectiveStats,
         buffs: [],
         debuffs: [],
         abilities,
         cooldowns: {},
+        skill_tree: dbSkillTree,
       },
       position: {
         floor,
@@ -417,6 +445,8 @@ class GameSession {
       level: char.level,
       resource_current: char.resource.current,
       resource_max: char.resource.max,
+      stats: char.stats,
+      skill_tree: char.skill_tree ?? {},
     }
 
     if (reason === "death") {

@@ -167,14 +167,15 @@ Add notes under any item with `> NOTE: your note here` when needed.
 **Scope:** Engine + backend character progression
 **Depends on:** Group 3 (abilities granted by skill tree need ability system working)
 
-- [ ] **5.1 — Level-up never occurs despite XP being awarded**
+- [x] **5.1 — Level-up never occurs despite XP being awarded**
   - XP is added on enemy kills in `resolveTurn` and saved to DB in `endSession`
   - But there's no XP threshold table, no level-up check, no stat growth applied
   - Class templates define `stat_growth` per level but it's never used
   - **Fix:** Define XP thresholds (e.g. in a shared constant or content file). After awarding XP, check if level threshold is met. On level-up: increment level, apply `stat_growth` from class template to base stats, update HP max, grant skill point(s), emit level-up event
   - **Files:** `shared/engine/src/turn.ts`, possibly new file for XP curve constants
+  > NOTE: Implemented quadratic XP curve in `shared/engine/src/leveling.ts` (formula: `50*(L-1)^2 + 50*(L-1)`, MAX_LEVEL=20). Level-up check runs in `handleEnemyDefeat` after XP award — applies `stat_growth` from class template per level gained, increases HP max (and heals by growth amount), emits `level_up` event with stat growth details. 18 dedicated TDD tests in `shared/engine/__tests__/leveling.test.ts` + 4 integration tests in `turn.test.ts`. Backend `saveCharacterState` now persists `stats` so level-up stat growth survives sessions. Observation now includes `xp_to_next_level` and `skill_points`. Frontend shows a purple XP progress bar in both hub (full, with next-level threshold) and dungeon (compact) views, with level-up events highlighted in yellow in the event log.
 
-- [ ] **5.2 — Skill tree system has no implementation**
+- [x] **5.2 — Skill tree system has no implementation**
   - Skill trees fully defined in class JSON and `skill-trees/*.json`
   - `skill_tree` JSONB column exists in DB
   - But there's no:
@@ -184,6 +185,12 @@ Add notes under any item with `> NOTE: your note here` when needed.
     - Code to apply `passive-stat` bonuses to effective stats
   - **Fix:** Add `POST /characters/skill` endpoint. Validate prerequisites, tier unlock level, available skill points. Write chosen skill to `skill_tree` JSONB. In `GameSession.create`, apply passive bonuses to effective stats. Track unlocked abilities from skill tree alongside `starting_abilities`
   - **Files:** `backend/src/routes/characters.ts`, `backend/src/game/session.ts`, `shared/engine/src/turn.ts`
+  > NOTE: Full implementation across four layers:
+  > - **Validation:** `backend/src/game/skill-tree.ts` provides `validateSkillAllocation()` (checks level gate, prerequisites, available points, duplicates) and `applySkillTreePassives()` (applies passive-stat bonuses). 13 TDD tests in `backend/__tests__/skill-tree.test.ts`, all green.
+  > - **API:** `POST /characters/skill` endpoint validates and persists skill unlocks to the `skill_tree` JSONB column. `GET /characters/progression` returns the full skill tree template, unlocked nodes, available skill points, and XP curve data for the frontend.
+  > - **Session:** `GameSession.create` now loads `skill_tree` from DB, merges `grant-ability` skill effects into the character's abilities list, and applies `passive-stat` bonuses to effective stats. `saveCharacterState` persists both `stats` and `skill_tree` to DB.
+  > - **Schemas:** `GameState.character.skill_tree` and `Observation.character.skill_tree` + `skill_points` added so the engine and frontend have full visibility.
+  > - **UI:** Hub shows a skill tree panel with per-tier layout, unlock/lock state, prerequisite checks, and a "Learn" button for affordable nodes. Skill point availability is surfaced as a prominent call-to-action. `useProgression` hook handles REST calls for progression data and skill spending.
 
 ---
 
@@ -586,3 +593,5 @@ _Record completed fixes here with date and commit hash._
 | 2026-04-09 | 3.5 | pending | Implemented ranged LOS-aware legal actions and player targeting; upgraded dungeon UI with cooldowns, effect badges, and effective stat display |
 | 2026-04-09 | 4.1 | pending | Added behavior-aware enemy AI (defensive retreat, patrol detection, ambush trigger, aggressive fallback) with engine tests and player-visible enemy HUD improvements |
 | 2026-04-09 | 4.2 | pending | Implemented persistent boss phases with threshold events, cumulative ability swaps, boss markers, and highlighted phase announcements in the play UI |
+| 2026-04-09 | 5.1 | pending | Quadratic XP curve (`shared/engine/src/leveling.ts`), level-up in `handleEnemyDefeat` with stat_growth, 22 new tests, XP progress bar in hub + dungeon |
+| 2026-04-09 | 5.2 | pending | Skill tree validation (`backend/src/game/skill-tree.ts`), `POST /characters/skill` + `GET /characters/progression` endpoints, session skill-tree merge + passive-stat bonuses, skill tree UI panel in hub, 13 new tests |

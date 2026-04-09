@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test"
 import type { Action, GameState, Tile } from "@adventure-fun/schemas"
 import { buildObservationFromState, computeLegalActions, resolveTurn } from "../src/turn.js"
 import { SeededRng } from "../src/rng.js"
+import { xpForLevel } from "../src/leveling.js"
 import type { GeneratedRealm } from "../src/realm.js"
 
 function makeTiles(width: number, height: number): Tile[][] {
@@ -84,6 +85,7 @@ function makeState(overrides?: Partial<GameState>): GameState {
       debuffs: [],
       abilities: ["knight-slash", "knight-shield-block"],
       cooldowns: {},
+      skill_tree: {},
     },
     position: {
       floor: 1,
@@ -859,5 +861,128 @@ describe("enemy observations", () => {
     const observation = buildObservationFromState(state, [], makeRealm())
 
     expect(observation.room_text).toContain("lurks motionless")
+  })
+})
+
+describe("level-up on enemy defeat", () => {
+  it("triggers level-up when XP crosses the level 2 threshold", () => {
+    const xpNeeded = xpForLevel(2) // 100
+    const state = makeState({
+      character: {
+        ...makeState().character,
+        xp: xpNeeded - 10, // 10 XP from hollow-rat will push over
+      },
+      activeFloor: {
+        rooms: [
+          {
+            id: "f1_r1_test-room",
+            tiles: makeTiles(6, 4),
+            enemies: [makeEnemy({ hp: 1, hp_max: 15 })],
+            items: [],
+          },
+        ],
+      },
+    })
+
+    const result = resolveTurn(
+      state,
+      { type: "attack", target_id: "enemy-1", ability_id: "knight-slash" },
+      makeRealm(),
+      new SeededRng(1),
+    )
+
+    expect(result.newState.character.level).toBe(2)
+    expect(result.newState.character.xp).toBeGreaterThanOrEqual(xpNeeded)
+
+    const levelUpEvent = result.observation.recent_events.find(
+      (e) => e.type === "level_up",
+    )
+    expect(levelUpEvent).toBeDefined()
+    expect(levelUpEvent!.data.new_level).toBe(2)
+  })
+
+  it("applies stat_growth from class template on level-up", () => {
+    const state = makeState({
+      character: {
+        ...makeState().character,
+        xp: xpForLevel(2) - 10,
+      },
+      activeFloor: {
+        rooms: [
+          {
+            id: "f1_r1_test-room",
+            tiles: makeTiles(6, 4),
+            enemies: [makeEnemy({ hp: 1, hp_max: 15 })],
+            items: [],
+          },
+        ],
+      },
+    })
+
+    const beforeHpMax = state.character.hp.max
+    const beforeAttack = state.character.stats.attack
+    const beforeDefense = state.character.stats.defense
+
+    const result = resolveTurn(
+      state,
+      { type: "attack", target_id: "enemy-1", ability_id: "knight-slash" },
+      makeRealm(),
+      new SeededRng(1),
+    )
+
+    // Knight stat_growth: hp: 12, attack: 2, defense: 2
+    expect(result.newState.character.hp.max).toBe(beforeHpMax + 12)
+    expect(result.newState.character.stats.attack).toBe(beforeAttack + 2)
+    expect(result.newState.character.stats.defense).toBe(beforeDefense + 2)
+  })
+
+  it("does not level up when XP is insufficient", () => {
+    const state = makeState({
+      character: {
+        ...makeState().character,
+        xp: 0,
+      },
+      activeFloor: {
+        rooms: [
+          {
+            id: "f1_r1_test-room",
+            tiles: makeTiles(6, 4),
+            enemies: [makeEnemy({ hp: 1, hp_max: 15 })],
+            items: [],
+          },
+        ],
+      },
+    })
+
+    const result = resolveTurn(
+      state,
+      { type: "attack", target_id: "enemy-1", ability_id: "knight-slash" },
+      makeRealm(),
+      new SeededRng(1),
+    )
+
+    expect(result.newState.character.level).toBe(1)
+    const levelUpEvent = result.observation.recent_events.find(
+      (e) => e.type === "level_up",
+    )
+    expect(levelUpEvent).toBeUndefined()
+  })
+
+  it("observation includes xp_to_next_level and skill_points", () => {
+    const state = makeState({
+      character: {
+        ...makeState().character,
+        level: 3,
+        xp: xpForLevel(3) + 50,
+      },
+    })
+
+    const obs = buildObservationFromState(state, [], makeRealm())
+
+    expect(obs.character.xp_to_next_level).toBe(
+      xpForLevel(4) - state.character.xp,
+    )
+    expect(obs.character.skill_points).toBe(2) // level 3 → 2 points, 0 spent
+    expect(obs.character.skill_tree).toEqual({})
   })
 })
