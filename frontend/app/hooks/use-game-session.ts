@@ -5,6 +5,7 @@ import { useAdventureAuth } from "./use-adventure-auth"
 import type { Observation, Action, InventorySlot } from "@adventure-fun/schemas"
 
 const WS_URL = process.env["NEXT_PUBLIC_WS_URL"] ?? "ws://localhost:3001"
+const ACTION_ERROR_DISPLAY_MS = 3500
 
 interface DeathData {
   cause: string
@@ -24,6 +25,7 @@ interface ExtractData {
 export function useGameSession() {
   const { token } = useAdventureAuth()
   const wsRef = useRef<WebSocket | null>(null)
+  const actionErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [observation, setObservation] = useState<Observation | null>(null)
   const [isConnected, setIsConnected] = useState(false)
   const [isConnecting, setIsConnecting] = useState(false)
@@ -32,6 +34,7 @@ export function useGameSession() {
   const [deathData, setDeathData] = useState<DeathData | null>(null)
   const [extractData, setExtractData] = useState<ExtractData | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
   const [waitingForResponse, setWaitingForResponse] = useState(false)
 
   const connect = useCallback(
@@ -61,7 +64,7 @@ export function useGameSession() {
       }
 
       ws.onmessage = (event) => {
-        let msg: { type: string; data?: unknown; message?: string }
+        let msg: { type: string; data?: unknown; message?: string; code?: string }
         try {
           msg = JSON.parse(event.data as string)
         } catch {
@@ -71,6 +74,7 @@ export function useGameSession() {
         switch (msg.type) {
           case "observation":
             setObservation(msg.data as Observation)
+            setActionError(null)
             setWaitingForResponse(false)
             break
           case "death":
@@ -83,10 +87,26 @@ export function useGameSession() {
             setExtractData(msg.data as ExtractData)
             setIsConnected(false)
             break
-          case "error":
-            setError(msg.message ?? "Game error")
+          case "error": {
+            const message = msg.message ?? "Game error"
+            const isActionError =
+              msg.code === "ILLEGAL_ACTION" ||
+              message.startsWith("Invalid action") ||
+              message.startsWith("Illegal action")
+
+            if (isActionError) {
+              if (actionErrorTimerRef.current) clearTimeout(actionErrorTimerRef.current)
+              setActionError(message)
+              actionErrorTimerRef.current = setTimeout(
+                () => setActionError(null),
+                ACTION_ERROR_DISPLAY_MS,
+              )
+            } else {
+              setError(message)
+            }
             setWaitingForResponse(false)
             break
+          }
         }
       }
 
@@ -124,6 +144,14 @@ export function useGameSession() {
     wsRef.current.send(JSON.stringify({ type: "action", data: action }))
   }, [])
 
+  const clearActionError = useCallback(() => {
+    setActionError(null)
+    if (actionErrorTimerRef.current) {
+      clearTimeout(actionErrorTimerRef.current)
+      actionErrorTimerRef.current = null
+    }
+  }, [])
+
   return {
     observation,
     isConnected,
@@ -133,9 +161,11 @@ export function useGameSession() {
     deathData,
     extractData,
     error,
+    actionError,
     waitingForResponse,
     connect,
     disconnect,
     sendAction,
+    clearActionError,
   }
 }

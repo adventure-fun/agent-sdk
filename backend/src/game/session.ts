@@ -21,6 +21,7 @@ import {
   resolveTurn,
   buildObservationFromState,
   buildRoomState,
+  computeLegalActions,
   checkLevelUp,
 } from "@adventure-fun/engine"
 import type { GeneratedRealm } from "@adventure-fun/engine"
@@ -34,6 +35,7 @@ import {
   buildRunSummaryFromEvents,
   type SessionState,
 } from "./session-persistence.js"
+import { parseAction, isActionLegal } from "./action-validator.js"
 
 const TURN_TIMEOUT_MS =
   Number(process.env["TURN_TIMEOUT_SECONDS"] ?? 30) * 1000
@@ -357,6 +359,27 @@ class GameSession {
 
   async processTurn(action: Action): Promise<void> {
     if (this.ended) return
+
+    // 9.1: Validate action against computed legal actions before processing
+    const currentRoom = this.gameState.activeFloor.rooms.find(
+      (r) => r.id === this.gameState.position.room_id,
+    )
+    const legalActions = computeLegalActions(
+      this.gameState,
+      currentRoom,
+      this.generatedRealm,
+    )
+
+    if (!isActionLegal(action, legalActions)) {
+      this.ws.send(
+        JSON.stringify({
+          type: "error",
+          message: `Illegal action: ${action.type} is not allowed right now`,
+          code: "ILLEGAL_ACTION",
+        }),
+      )
+      return
+    }
 
     this.turn++
 
@@ -691,7 +714,7 @@ export async function handleGameMessage(
 ): Promise<void> {
   clearTurnTimer(ws)
 
-  let parsed: { type: string; data: Action }
+  let parsed: { type: string; data: unknown }
   try {
     parsed = JSON.parse(message.toString())
   } catch {
@@ -708,13 +731,26 @@ export async function handleGameMessage(
     return
   }
 
+  // 9.2: Validate and sanitize the action payload before processing
+  const validation = parseAction(parsed.data)
+  if (!validation.valid) {
+    ws.send(
+      JSON.stringify({
+        type: "error",
+        message: `Invalid action: ${validation.error}`,
+      }),
+    )
+    startTurnTimer(ws)
+    return
+  }
+
   const session = activeSessions.get(ws.data.characterId)
   if (!session) {
     ws.send(JSON.stringify({ type: "error", message: "No active session" }))
     return
   }
 
-  await session.processTurn(parsed.data)
+  await session.processTurn(validation.action)
 
   // If session ended (death/extraction), don't restart the timer
   if (!activeSessions.has(ws.data.characterId)) return

@@ -280,18 +280,20 @@ Add notes under any item with `> NOTE: your note here` when needed.
 
 **Scope:** Backend WebSocket message handling, engine validation
 
-- [ ] **9.1 — No server-side validation of actions against `legal_actions`**
+- [x] **9.1 — No server-side validation of actions against `legal_actions`**
   - `handleGameMessage` passes the client's action directly to `processTurn` without checking if it's in the set of legal actions
   - A malicious client could send `attack` on a target across the room, or `use_portal` while enemies are alive
   - Individual action resolvers have some checks (range, target exists) but they're inconsistent
   - **Fix:** Before calling `processTurn`, compute `legal_actions` for current state and validate the incoming action is among them. Reject with error if not
   - **Files:** `backend/src/game/session.ts`, `shared/engine/src/turn.ts`
+  > NOTE: Added `isActionLegal()` in `backend/src/game/action-validator.ts` that structurally matches an incoming action against the engine's `computeLegalActions()` output. The check runs inside `GameSession.processTurn()` before `resolveTurn()` is called — illegal actions are rejected with `{ type: "error", code: "ILLEGAL_ACTION" }` and the turn counter is not incremented. Matching covers all 13 action types including attack ability_id specificity (defaults to `basic-attack` when absent). TDD: 20 tests in `backend/__tests__/action-validator.test.ts`. Frontend `useGameSession` now distinguishes action errors (transient auto-dismissing toast) from connection errors, and the `DungeonView` renders a dismissable error banner above the action panel.
 
-- [ ] **9.2 — No input sanitization on action payloads**
+- [x] **9.2 — No input sanitization on action payloads**
   - The parsed JSON action is passed directly to the engine
   - No validation that `direction` is one of the 4 valid values, `target_id` is a string, etc.
   - **Fix:** Add a validation layer (Zod or manual checks) for the `Action` discriminated union before processing
   - **Files:** `backend/src/game/session.ts`
+  > NOTE: Added `parseAction()` in `backend/src/game/action-validator.ts` that validates and sanitizes raw client payloads before they reach the engine. Validates action type against a known set, checks required fields per action type (`direction` ∈ {up,down,left,right}, `target_id`/`item_id` are non-empty strings ≤ 200 chars, `slot` ∈ valid equip slots), and strips unknown extra fields to prevent prototype pollution or extraneous data. Returns a clean `Action` object on success or a descriptive error string on failure. Integrated into `handleGameMessage()` — malformed payloads receive `{ type: "error", message: "Invalid action: ..." }` and the turn is not processed. TDD: 27 tests covering all action types, edge cases (null, non-object, missing fields, bad types, overlong strings, extra fields).
 
 ---
 
@@ -576,7 +578,7 @@ Add notes under any item with `> NOTE: your note here` when needed.
 |----------|--------|-------------|
 | **P0 — Blocks basic gameplay** | 1, 2, 3 | Schema bugs, stat mismatches, non-functional combat |
 | **P1 — Core loop incomplete** | 4, 5, 6, 7 | Enemy AI, leveling, extraction, traps |
-| **P2 — Persistence and correctness** | 8, 9 | Session bugs, server authority |
+| **P2 — Persistence and correctness** | 8, ~~9~~ | Session bugs, server authority (Group 9 complete) |
 | **P3 — Security and infrastructure** | 10, 12 | Auth hardening, Redis, rate limits |
 | **P4 — Feature completeness** | 11, 13, 15 | Stub routes, edge cases, SDK |
 | **P5 — Frontend and deployment** | 14, 16 | UI integration, CI, deploy config, monorepo typecheck/tooling |
@@ -613,5 +615,7 @@ _Record completed fixes here with date and commit hash._
 | 2026-04-09 | 8.3 | pending | `updateLeaderboard` now queries actual `realms_completed` count from DB instead of hardcoded 0; 3 tests |
 | 2026-04-09 | 8.4 | pending | Interact events now tagged with `category` (chest/lore/mechanism/other); `buildRunSummary` only counts chest category; added `traps_disarmed` tracking; 5 tests |
 | 2026-04-09 | 8.5 | pending | RNG state persistence — `getState()`/`setState()` on `SeededRng`, persisted on disconnect, restored on reconnect for exact replay fidelity; 3 tests |
+| 2026-04-09 | 9.1 | pending | Server-side `isActionLegal()` check in `processTurn()` against `computeLegalActions()`, 20 TDD tests, frontend transient error toast |
+| 2026-04-09 | 9.2 | pending | `parseAction()` input sanitization for all 13 action types, strips extra fields, 27 TDD tests, integrated into `handleGameMessage()` |
 | 2026-04-09 | 12.1 | pending | (Partial) Redis client module, `docker-compose.yml`, `scripts/dev.sh` auto-starts Redis with `bun run dev` |
 | 2026-04-09 | 14.7 | pending | Added `NEXT_PUBLIC_WS_URL` to `.env.example` |
