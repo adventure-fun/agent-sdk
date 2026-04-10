@@ -14,7 +14,7 @@ interface RerollError {
 }
 
 export function useCharacter() {
-  const { token } = useAdventureAuth()
+  const { token, logout } = useAdventureAuth()
   const { fetchWithPayment } = useX402Payment()
   const [character, setCharacter] = useState<Character | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -32,6 +32,10 @@ export function useCharacter() {
     setError(null)
     try {
       const res = await fetch(`${API_URL}/characters/me`, { headers: headers() })
+      if (res.status === 401) {
+        logout()
+        return null
+      }
       if (res.status === 404) {
         setCharacter(null)
         return null
@@ -62,6 +66,10 @@ export function useCharacter() {
         headers: headers(),
         body: JSON.stringify({ name, class: cls }),
       })
+      if (res.status === 401) {
+        logout()
+        throw new Error("Session expired — please sign in again")
+      }
       if (res.status === 409) {
         const body = await res.json()
         throw new Error(body.error ?? "Character already exists")
