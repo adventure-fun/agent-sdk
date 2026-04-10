@@ -1,5 +1,6 @@
 {
   "id": "blighted-hollow",
+  "orderIndex": 2,
   "name": "The Blighted Hollow",
   "description": "A forest cave system corrupted by the Hollow. The trees above are dying; the roots below glow violet. Something sealed here is breaking free.",
   "theme": "blight",

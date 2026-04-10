@@ -642,6 +642,7 @@ export interface RoomTemplate {
 
 export interface RealmTemplate {
   id: string
+  orderIndex: number
   name: string
   description: string
   theme: string

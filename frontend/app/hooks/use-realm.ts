@@ -55,7 +55,7 @@ export function useRealm() {
 
         if (res.status === 201) {
           const realm = (await res.json()) as RealmInstance
-          setRealms((prev) => [realm, ...prev])
+          await fetchRealms()
           return { realm }
         }
 
@@ -80,7 +80,7 @@ export function useRealm() {
         setIsLoading(false)
       }
     },
-    [token],
+    [token, fetchRealms],
   )
 
   const regenerateRealm = useCallback(

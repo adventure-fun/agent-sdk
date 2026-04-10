@@ -5,15 +5,18 @@ const content = new Hono()
 
 // GET /content/realms — realm template metadata (no auth required)
 content.get("/realms", (c) => {
-  const templates = Object.values(REALMS).map((r) => ({
-    id: r.id,
-    name: r.name,
-    description: r.description,
-    theme: r.theme,
-    difficulty_tier: r.difficulty_tier,
-    floor_count: r.floor_count,
-    is_tutorial: r.is_tutorial ?? false,
-  }))
+  const templates = Object.values(REALMS)
+    .map((r) => ({
+      id: r.id,
+      orderIndex: r.orderIndex ?? 99,
+      name: r.name,
+      description: r.description,
+      theme: r.theme,
+      difficulty_tier: r.difficulty_tier,
+      floor_count: r.floor_count,
+      is_tutorial: r.is_tutorial ?? false,
+    }))
+    .sort((a, b) => a.orderIndex - b.orderIndex)
   return c.json({ templates })
 })
 

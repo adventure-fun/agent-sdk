@@ -1,5 +1,6 @@
 {
   "id": "tutorial-cellar",
+  "orderIndex": 0,
   "name": "The Cellar",
   "description": "Something stirs beneath the old inn. The innkeeper asks you to investigate.",
   "theme": "cellar",

@@ -1,5 +1,6 @@
 {
   "id": "collapsed-mines",
+  "orderIndex": 4,
   "name": "The Collapsed Mines",
   "description": "The DeepVein Mining Company drove too deep and unearthed something they shouldn't have. Now their excavation is a sealed tomb of automated sentinels and animated rock constructs, guarding secrets that were meant to stay buried. The Iron Sentinel stands watch at the deepest shaft.",
   "theme": "construct",

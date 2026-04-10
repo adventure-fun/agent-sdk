@@ -1,5 +1,6 @@
 {
   "id": "sunken-crypt",
+  "orderIndex": 3,
   "name": "The Sunken Crypt",
   "description": "Ancient burial site of the first Guardian. Undead enemies haunt its flooded halls, and a corrupted Guardian \u2014 the Hollow Warden \u2014 stands watch in the deepest chamber.",
   "theme": "undead-crypt",

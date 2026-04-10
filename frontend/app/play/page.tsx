@@ -958,19 +958,13 @@ export default function PlayPage() {
       (realm) => realm.template_id === TUTORIAL_TEMPLATE_ID && realm.status === "completed",
     )
     const tutorialRealm = realms.find((realm) => realm.template_id === TUTORIAL_TEMPLATE_ID) ?? null
-    const realmStatusOrder: Record<string, number> = {
-      active: 0, paused: 0, generated: 1, completed: 2, dead_end: 3,
-    }
     const visibleRealmEntries = (tutorialCompleted
       ? realms
       : realms.filter((realm) => realm.template_id === TUTORIAL_TEMPLATE_ID)
     ).slice().sort((a, b) => {
-      // Tutorial realms always last
-      const aTut = a.template_id === TUTORIAL_TEMPLATE_ID ? 1 : 0
-      const bTut = b.template_id === TUTORIAL_TEMPLATE_ID ? 1 : 0
-      if (aTut !== bTut) return aTut - bTut
-      // Then by status: active/paused first, then ready, then completed/dead
-      return (realmStatusOrder[a.status] ?? 9) - (realmStatusOrder[b.status] ?? 9)
+      const aOrder = realmTemplateMap[a.template_id]?.orderIndex ?? 99
+      const bOrder = realmTemplateMap[b.template_id]?.orderIndex ?? 99
+      return aOrder - bOrder
     })
     const realmGenerationTemplates = tutorialCompleted
       ? realmTemplates.filter((template) => !template.is_tutorial)
