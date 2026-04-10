@@ -23,7 +23,7 @@
           "item_template_id": "health-potion",
           "quantity": 2
         },
-        {
+{
           "type": "grant-gold",
           "amount": 15
         }

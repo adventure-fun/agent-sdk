@@ -165,6 +165,9 @@ realms.post("/:id/regenerate", requireAuth, async (c) => {
   if (realm.status !== "completed") {
     return c.json({ error: "Only completed realms can be regenerated" }, 409)
   }
+  if (REALMS[realm.template_id]?.is_tutorial) {
+    return c.json({ error: "Tutorial realms cannot be replayed" }, 403)
+  }
 
   const REGEN_GOLD_COST = 100
   if (character.gold < REGEN_GOLD_COST) {

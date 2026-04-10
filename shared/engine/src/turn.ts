@@ -210,6 +210,31 @@ function hasPortalScroll(state: GameState): boolean {
   return state.inventory.some((item) => item.template_id === "portal-scroll")
 }
 
+const ARCHER_AMMO_TEMPLATE_ID = "ammo-arrows-10"
+
+function getArrowCount(state: GameState): number {
+  return state.inventory
+    .filter((item) => item.template_id === ARCHER_AMMO_TEMPLATE_ID)
+    .reduce((sum, item) => sum + item.quantity, 0)
+}
+
+function consumeArrow(state: GameState): boolean {
+  const arrowItem = state.inventory.find(
+    (item) => item.template_id === ARCHER_AMMO_TEMPLATE_ID && item.quantity > 0,
+  )
+  if (!arrowItem) return false
+  if (arrowItem.quantity > 1) {
+    arrowItem.quantity -= 1
+  } else {
+    state.inventory.splice(state.inventory.indexOf(arrowItem), 1)
+  }
+  return true
+}
+
+function abilityRequiresAmmo(state: GameState, ability: AbilityTemplate): boolean {
+  return state.character.class === "archer" && ability.range !== "melee"
+}
+
 function getEffectiveInventoryCapacity(_state: GameState): number {
   return getInventoryCapacity()
 }
@@ -868,6 +893,14 @@ function resolvePlayerAttack(
     }
   }
 
+  if (abilityRequiresAmmo(s, ability) && getArrowCount(s) <= 0) {
+    return {
+      summary: `No arrows remaining for ${ability.name}.`,
+      notableEvent: null,
+      regenBonusEligible: false,
+    }
+  }
+
   const normalizedTarget = normalizeAbilityTarget(ability.target)
   const isSelfTarget = action.target_id === "self" || normalizedTarget === "self"
   const regenBonusEligible =
@@ -876,6 +909,7 @@ function resolvePlayerAttack(
 
   if (isSelfTarget) {
     s.character.resource.current -= ability.resource_cost
+    if (abilityRequiresAmmo(s, ability)) consumeArrow(s)
     if (ability.cooldown_turns > 0) {
       s.character.cooldowns[ability.id] = ability.cooldown_turns
     }
@@ -900,6 +934,7 @@ function resolvePlayerAttack(
   }
 
   s.character.resource.current -= ability.resource_cost
+  if (abilityRequiresAmmo(s, ability)) consumeArrow(s)
   if (ability.cooldown_turns > 0) {
     s.character.cooldowns[ability.id] = ability.cooldown_turns
   }
@@ -2919,6 +2954,10 @@ export function computeLegalActions(
       continue
     }
 
+    if (abilityRequiresAmmo(state, ability) && getArrowCount(state) <= 0) {
+      continue
+    }
+
     const targetType = normalizeAbilityTarget(ability.target)
     if (targetType === "self" || targetType === "single-or-self") {
       actions.push({
@@ -2997,11 +3036,11 @@ export function computeLegalActions(
     }
   }
 
-  // Use items from inventory
+  // Use items from inventory (skip ammo — consumed automatically by abilities)
   for (const item of state.inventory) {
     try {
       const template = getItem(item.template_id)
-      if (template.type === "consumable") {
+      if (template.type === "consumable" && template.effects && template.effects.length > 0) {
         actions.push({ type: "use_item", item_id: item.id })
       }
     } catch {

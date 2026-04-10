@@ -45,6 +45,10 @@ const REALM_STATUS_LABELS: Record<string, string> = {
   generated: "Ready", active: "In Progress", paused: "Paused",
   boss_cleared: "Boss Cleared", realm_cleared: "Cleared", completed: "Completed", dead_end: "Lost",
 }
+function formatItemQuantity(name: string, quantity: number, templateId?: string): string {
+  if (templateId?.startsWith("ammo-")) return `${name} (${quantity})`
+  return `${name} x${quantity}`
+}
 const REALM_REGEN_GOLD_COST = 100
 const REALM_REGEN_USDC_PRICE = "0.25"
 const TUTORIAL_TEMPLATE_ID = "tutorial-cellar"
@@ -101,7 +105,7 @@ function getExtractionHint(
   const completionLead = status === "realm_cleared" ? "Realm cleared." : "Boss defeated."
   if (canPortal) {
     return hasPortalScroll
-      ? `${completionLead} Escape now with your portal scroll or keep delving for more loot.`
+      ? `${completionLead} Use your portal scroll to escape, return to the first room to exit back to town, or keep delving for more loot.`
       : `${completionLead} Your portal is ready.`
   }
 
@@ -854,7 +858,7 @@ export default function PlayPage() {
                       className="flex items-center justify-between gap-3 rounded border border-gray-800 bg-black/20 px-3 py-2"
                     >
                       <span className="text-gray-200">{item.name}</span>
-                      <span className="text-xs text-gray-500">x{item.quantity}</span>
+                      <span className="text-xs text-gray-500">{item.template_id?.startsWith("ammo-") ? `(${item.quantity})` : `x${item.quantity}`}</span>
                     </div>
                   ))}
                 </div>
@@ -954,9 +958,20 @@ export default function PlayPage() {
       (realm) => realm.template_id === TUTORIAL_TEMPLATE_ID && realm.status === "completed",
     )
     const tutorialRealm = realms.find((realm) => realm.template_id === TUTORIAL_TEMPLATE_ID) ?? null
-    const visibleRealmEntries = tutorialCompleted
+    const realmStatusOrder: Record<string, number> = {
+      active: 0, paused: 0, generated: 1, completed: 2, dead_end: 3,
+    }
+    const visibleRealmEntries = (tutorialCompleted
       ? realms
       : realms.filter((realm) => realm.template_id === TUTORIAL_TEMPLATE_ID)
+    ).slice().sort((a, b) => {
+      // Tutorial realms always last
+      const aTut = a.template_id === TUTORIAL_TEMPLATE_ID ? 1 : 0
+      const bTut = b.template_id === TUTORIAL_TEMPLATE_ID ? 1 : 0
+      if (aTut !== bTut) return aTut - bTut
+      // Then by status: active/paused first, then ready, then completed/dead
+      return (realmStatusOrder[a.status] ?? 9) - (realmStatusOrder[b.status] ?? 9)
+    })
     const realmGenerationTemplates = tutorialCompleted
       ? realmTemplates.filter((template) => !template.is_tutorial)
       : realmTemplates.filter((template) => template.is_tutorial)
@@ -1261,7 +1276,7 @@ export default function PlayPage() {
                   const statusLabel = REALM_STATUS_LABELS[realm.status] ?? realm.status
                   const canEnter = realm.status === "generated" || realm.status === "paused" || realm.status === "active"
                   const isPaused = realm.status === "paused" || realm.status === "active"
-                  const canRegenerate = realm.status === "completed"
+                  const canRegenerate = realm.status === "completed" && !template?.is_tutorial
                   const canAffordRegeneration = displayedGold >= REALM_REGEN_GOLD_COST
                   const isRegenerating = generatingTemplate === realm.id
                   const statusColor = realm.status === "completed"
@@ -2434,7 +2449,7 @@ export function DungeonEquipmentPanel({
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="truncate">
-                        {item.name} x{item.quantity}
+                        {formatItemQuantity(item.name, item.quantity, item.template_id)}
                       </p>
                       {template?.type === "equipment" && template.equip_slot ? (
                         <span className="rounded border border-blue-800/60 bg-blue-950/20 px-2 py-0.5 text-[10px] uppercase tracking-wide text-blue-200">
@@ -2580,7 +2595,7 @@ export function GearManagementPanel({
                         </span>
                       ) : null}
                     </div>
-                    <p className="text-gray-500">x{item.quantity}</p>
+                    <p className="text-gray-500">{item.template_id?.startsWith("ammo-") ? `(${item.quantity})` : `x${item.quantity}`}</p>
                     {template?.stats ? (
                       <p className="text-[11px] text-gray-500">{formatItemStats(template.stats)}</p>
                     ) : null}

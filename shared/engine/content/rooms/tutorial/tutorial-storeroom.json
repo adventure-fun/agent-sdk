@@ -85,7 +85,8 @@
         },
         {
           "type": "grant-item",
-          "item_template_id": "ammo-arrows-10"
+          "item_template_id": "ammo-arrows-10",
+          "quantity": 10
         }
       ],
       "fire_once": true,
