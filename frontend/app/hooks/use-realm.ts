@@ -80,7 +80,7 @@ export function useRealm() {
         setIsLoading(false)
       }
     },
-    [token, fetchRealms],
+    [token, fetchRealms, fetchWithPayment],
   )
 
   const regenerateRealm = useCallback(

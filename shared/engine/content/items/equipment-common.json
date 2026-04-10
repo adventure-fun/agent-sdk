@@ -109,7 +109,7 @@
     "effects": [],
     "stack_limit": 1,
     "sell_price": 8,
-    "buy_price": 20,
+    "buy_price": 0,
     "class_restriction": "knight"
   },
   {
@@ -126,7 +126,7 @@
     "effects": [],
     "stack_limit": 1,
     "sell_price": 6,
-    "buy_price": 15,
+    "buy_price": 0,
     "class_restriction": "rogue"
   },
   {
@@ -142,7 +142,7 @@
     "effects": [],
     "stack_limit": 1,
     "sell_price": 7,
-    "buy_price": 18,
+    "buy_price": 0,
     "class_restriction": "mage"
   },
   {
@@ -159,7 +159,7 @@
     "range": 3,
     "stack_limit": 1,
     "sell_price": 7,
-    "buy_price": 18,
+    "buy_price": 0,
     "class_restriction": "archer"
   },
   {
@@ -179,8 +179,8 @@
     "class_restriction": null
   },
   {
-    "id": "gear-iron-ring",
-    "name": "Iron Ring",
+    "id": "gear-iron-band",
+    "name": "Iron Band",
     "description": "A plain iron band. Lighter than it looks. Somehow makes you feel quicker on your feet.",
     "type": "equipment",
     "rarity": "common",
@@ -191,7 +191,7 @@
     "effects": [],
     "stack_limit": 1,
     "sell_price": 5,
-    "buy_price": 12,
+    "buy_price": 0,
     "class_restriction": null
   },
   {

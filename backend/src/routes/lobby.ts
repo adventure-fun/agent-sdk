@@ -6,7 +6,8 @@ import { getRequestedNetworks, logPayment, return402, verifyAndSettle } from "..
 import { getPubSub } from "../redis/pubsub.js"
 import { publishChatMessage, validateChatMessage } from "../redis/publishers.js"
 import { getLobbyManager } from "../game/lobby-live.js"
-import type { EquipSlot, SanitizedChatMessage } from "@adventure-fun/schemas"
+import type { EquipSlot, ItemTemplate, SanitizedChatMessage } from "@adventure-fun/schemas"
+import { getItem } from "@adventure-fun/engine"
 import {
   getShopCatalog,
   parseShopQuantity,
@@ -41,8 +42,13 @@ async function loadInventory(characterId: string) {
 
 function serializeInventory(rows: LobbyInventoryRecord[]) {
   return rows.map((row) => {
-    const validation = validateSellItem([row], row.id, 1)
-    if (validation.ok) return toInventoryResponse(row, validation.template)
+    let template: ItemTemplate | undefined
+    try {
+      template = getItem(row.template_id)
+    } catch {
+      // unknown template — fall through
+    }
+    if (template) return toInventoryResponse(row, template)
 
     return {
       id: row.id,

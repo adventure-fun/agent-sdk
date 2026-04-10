@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { createContext, useContext, useState, useCallback } from "react"
 import { useEvmAddress, useSignEvmMessage } from "@coinbase/cdp-hooks"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001"
@@ -18,7 +18,20 @@ interface AuthState {
   account: Account | null
 }
 
-export function useAdventureAuth() {
+interface AdventureAuthContextValue {
+  evmAddress: `0x${string}` | string | null | undefined
+  token: string | null
+  account: Account | null
+  isAuthenticated: boolean
+  isConnecting: boolean
+  error: string | null
+  connect: () => Promise<void>
+  logout: () => void
+}
+
+export const AdventureAuthContext = createContext<AdventureAuthContextValue | null>(null)
+
+export function useAdventureAuthProvider() {
   const { evmAddress } = useEvmAddress()
   const { signEvmMessage } = useSignEvmMessage()
   const [auth, setAuth] = useState<AuthState>(() => {
@@ -95,4 +108,12 @@ export function useAdventureAuth() {
     connect,
     logout,
   }
+}
+
+export function useAdventureAuth(): AdventureAuthContextValue {
+  const ctx = useContext(AdventureAuthContext)
+  if (!ctx) {
+    throw new Error("useAdventureAuth must be used within an AdventureAuthProvider")
+  }
+  return ctx
 }

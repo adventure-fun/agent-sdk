@@ -172,7 +172,7 @@
           }
         },
         {
-          "item_template_id": "gear-iron-ring",
+          "item_template_id": "gear-iron-band",
           "weight": 10,
           "quantity": {
             "min": 1,
@@ -201,7 +201,7 @@
           }
         },
         {
-          "item_template_id": "gear-iron-ring",
+          "item_template_id": "gear-iron-band",
           "weight": 25,
           "quantity": {
             "min": 1,
