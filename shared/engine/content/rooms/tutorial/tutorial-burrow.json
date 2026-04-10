@@ -12,12 +12,7 @@
       "id": "tutorial-chest-supplies",
       "name": "Battered Chest",
       "text_on_interact": "The chest is dented but intact. Inside: two glass vials of red liquid and a small pouch of coins.",
-      "conditions": [
-        {
-          "type": "enemy-defeated",
-          "entity_id": "f1-r2-enemy-01"
-        }
-      ],
+      "conditions": [],
       "effects": [
         {
           "type": "grant-item",
