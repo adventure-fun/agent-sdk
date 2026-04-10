@@ -41,7 +41,7 @@ async function loadInventory(characterId: string) {
 }
 
 function serializeInventory(rows: LobbyInventoryRecord[]) {
-  return rows.map((row) => {
+  const items = rows.map((row) => {
     let template: ItemTemplate | undefined
     try {
       template = getItem(row.template_id)
@@ -61,6 +61,24 @@ function serializeInventory(rows: LobbyInventoryRecord[]) {
       slot: (row.slot as null | "weapon" | "armor" | "helm" | "hands" | "accessory") ?? null,
     }
   })
+
+  // Merge unequipped items with the same template_id into single stacks
+  const merged: typeof items = []
+  const seen = new Map<string, (typeof items)[number]>()
+  for (const item of items) {
+    if (item.slot) {
+      merged.push(item)
+      continue
+    }
+    const existing = seen.get(item.template_id)
+    if (existing) {
+      existing.quantity += item.quantity
+    } else {
+      seen.set(item.template_id, item)
+      merged.push(item)
+    }
+  }
+  return merged
 }
 
 // GET /lobby/shops
@@ -303,6 +321,38 @@ lobby.post("/unequip", requireAuth, async (c) => {
   return c.json({
     inventory: serializeInventory(updatedInventory),
     message: `Unequipped ${validation.template.name}.`,
+  })
+})
+
+// POST /lobby/discard — drop an item from inventory
+lobby.post("/discard", requireAuth, async (c) => {
+  const { account_id } = c.get("session")
+  const body = await c.req.json<{ item_id?: string }>()
+  const itemId = body.item_id?.trim()
+  if (!itemId) return c.json({ error: "item_id is required" }, 400)
+
+  const { data: character, error: characterError } = await loadActiveCharacter(account_id)
+  if (characterError) return c.json({ error: characterError.message }, 500)
+  if (!character) return c.json({ error: "No living character" }, 404)
+  if (hasActiveSession(character.id)) {
+    return c.json({ error: "Leave the dungeon before discarding items." }, 409)
+  }
+
+  const { data: inventoryRows, error: inventoryError } = await loadInventory(character.id)
+  if (inventoryError) return c.json({ error: inventoryError.message }, 500)
+
+  const row = (inventoryRows ?? []).find((item) => item.id === itemId)
+  if (!row) return c.json({ error: "Item not found in your inventory." }, 400)
+  if (row.slot) return c.json({ error: "Unequip this item before discarding it." }, 400)
+
+  const { error: deleteError } = await db.from("inventory_items").delete().eq("id", row.id)
+  if (deleteError) return c.json({ error: deleteError.message }, 500)
+
+  let itemName = row.template_id
+  try { itemName = getItem(row.template_id).name } catch { /* keep template_id */ }
+
+  return c.json({
+    message: `Discarded ${itemName}.`,
   })
 })
 

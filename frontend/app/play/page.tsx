@@ -176,6 +176,7 @@ export default function PlayPage() {
     sellItem,
     equipItem,
     unequipItem,
+    discardItem,
   } = useShop()
 
   const {
@@ -1030,6 +1031,16 @@ export default function PlayPage() {
       }
     }
 
+    const handleDiscardItem = async (itemId: string) => {
+      const result = await discardItem(itemId)
+      if (result.ok) {
+        setShopMessage(result.message)
+        await fetchCharacter()
+      } else {
+        setShopMessage(result.error)
+      }
+    }
+
     const handleEquipLobbyItem = async (itemId: string) => {
       const result = await equipItem(itemId)
       if (result.ok) {
@@ -1112,9 +1123,43 @@ export default function PlayPage() {
                   colorClass="bg-blue-500"
                 />
               </div>
-              <p className="text-xs text-gray-600">
-                ATK {character.stats.attack} | DEF {character.stats.defense} | ACC {character.stats.accuracy} | EVA {character.stats.evasion} | SPD {character.stats.speed}
-              </p>
+              {(() => {
+                const base = character.stats
+                const bonus = { attack: 0, defense: 0, accuracy: 0, evasion: 0, speed: 0, hp: 0 }
+                for (const item of shopInventory) {
+                  if (!item.slot) continue
+                  const tmpl = itemTemplateMap[item.template_id]
+                  if (!tmpl?.stats) continue
+                  for (const [stat, val] of Object.entries(tmpl.stats)) {
+                    if (stat in bonus && typeof val === "number") {
+                      bonus[stat as keyof typeof bonus] += val
+                    }
+                  }
+                }
+                const statRows = [
+                  { label: "ATK", base: base.attack, effective: base.attack + bonus.attack },
+                  { label: "DEF", base: base.defense, effective: base.defense + bonus.defense },
+                  { label: "ACC", base: base.accuracy, effective: base.accuracy + bonus.accuracy },
+                  { label: "EVA", base: base.evasion, effective: base.evasion + bonus.evasion },
+                  { label: "SPD", base: base.speed, effective: base.speed + bonus.speed },
+                ]
+                return (
+                  <p className="text-xs text-gray-600">
+                    {statRows.map((stat, i) => (
+                      <span key={stat.label}>
+                        {i > 0 ? " | " : ""}
+                        {stat.label}{" "}
+                        <span className="text-gray-300">{stat.effective}</span>
+                        {stat.effective !== stat.base && (
+                          <span className={stat.effective > stat.base ? "text-green-400" : "text-red-400"}>
+                            ({stat.effective > stat.base ? "+" : ""}{stat.effective - stat.base})
+                          </span>
+                        )}
+                      </span>
+                    ))}
+                  </p>
+                )
+              })()}
 
               <GearManagementPanel
                 inventory={shopInventory}
@@ -1431,6 +1476,7 @@ export default function PlayPage() {
                 error={shopError}
                 onBuy={handleBuyItem}
                 onSell={handleSellItem}
+                onDiscard={handleDiscardItem}
               />
             )}
           </div>
@@ -2620,6 +2666,7 @@ function ShopPanel({
   error,
   onBuy,
   onSell,
+  onDiscard,
 }: {
   sections: Array<{ id: "consumable" | "equipment"; label: string; items: ItemTemplate[] }>
   featured: ItemTemplate[]
@@ -2629,10 +2676,18 @@ function ShopPanel({
   error: string | null
   onBuy: (itemId: string, quantity: number) => Promise<void>
   onSell: (itemId: string, quantity: number) => Promise<void>
+  onDiscard: (itemId: string) => Promise<void>
 }) {
   const [category, setCategory] = useState<string>("all")
   const [buyQuantities, setBuyQuantities] = useState<Record<string, number>>({})
   const [sellQuantities, setSellQuantities] = useState<Record<string, number>>({})
+  const [confirmActionId, setConfirmActionId] = useState<string | null>(null)
+
+  const templateMap = useMemo(() => {
+    const map: Record<string, ItemTemplate> = {}
+    for (const s of sections) for (const item of s.items) map[item.id] = item
+    return map
+  }, [sections])
 
   const allItems = sections.flatMap((s) => s.items)
   const filteredItems = category === "all"
@@ -2820,13 +2875,24 @@ function ShopPanel({
               inventory.map((item) => {
                 const quantity = Math.min(sellQuantities[item.id] ?? 1, item.quantity)
                 const isEquipped = Boolean(item.slot)
+                const template = templateMap[item.template_id]
+                const sellPrice = template?.sell_price ?? 0
+                const canSell = sellPrice > 0
+                const isConfirming = confirmActionId === item.id
 
                 return (
                   <div key={item.id} className="rounded border border-gray-800 bg-gray-950/70 p-3 text-xs space-y-2">
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <p className="font-bold text-gray-100">{item.name}</p>
-                        <p className="text-gray-500">{item.quantity} in bag</p>
+                        <p className="text-gray-500">
+                          {item.quantity} in bag
+                          {canSell ? (
+                            <span className="ml-2 text-amber-400">
+                              {sellPrice}g each
+                            </span>
+                          ) : null}
+                        </p>
                       </div>
                       {isEquipped ? (
                         <span className="rounded-full border border-blue-700/40 bg-blue-950/30 px-2 py-1 text-[10px] text-blue-200">
@@ -2835,36 +2901,69 @@ function ShopPanel({
                       ) : null}
                     </div>
 
-                    <div className="flex items-center justify-between gap-3">
-                      <select
-                        value={quantity}
-                        disabled={isEquipped}
-                        onChange={(event) =>
-                          setSellQuantities((current) => ({
-                            ...current,
-                            [item.id]: Number(event.target.value),
-                          }))}
-                        className="rounded border border-gray-700 bg-gray-900 px-2 py-1 text-xs text-gray-200 disabled:opacity-40"
-                      >
-                        {Array.from({ length: item.quantity }, (_, index) => index + 1).map((value) => (
-                          <option key={value} value={value}>
-                            Sell {value}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        type="button"
-                        disabled={isEquipped || isLoading}
-                        onClick={() => {
-                          if (window.confirm(`Sell ${quantity} ${item.name}${quantity === 1 ? "" : "s"}?`)) {
-                            void onSell(item.id, quantity)
-                          }
-                        }}
-                        className="rounded border border-gray-700 px-3 py-1.5 text-xs text-gray-200 transition-colors hover:border-gray-500 disabled:cursor-not-allowed disabled:opacity-40"
-                      >
-                        Sell
-                      </button>
-                    </div>
+                    {isEquipped ? null : isConfirming ? (
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-gray-400">
+                          {canSell
+                            ? `Sell ${quantity} for ${sellPrice * quantity}g?`
+                            : `Discard ${item.name}?`}
+                        </p>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            disabled={isLoading}
+                            onClick={() => {
+                              setConfirmActionId(null)
+                              if (canSell) {
+                                void onSell(item.id, quantity)
+                              } else {
+                                void onDiscard(item.id)
+                              }
+                            }}
+                            className="rounded bg-amber-500 px-3 py-1.5 text-xs font-bold text-black transition-colors hover:bg-amber-400 disabled:opacity-40"
+                          >
+                            Confirm
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmActionId(null)}
+                            className="rounded border border-gray-700 px-3 py-1.5 text-xs text-gray-400 transition-colors hover:border-gray-500"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between gap-3">
+                        {canSell ? (
+                          <select
+                            value={quantity}
+                            onChange={(event) =>
+                              setSellQuantities((current) => ({
+                                ...current,
+                                [item.id]: Number(event.target.value),
+                              }))}
+                            className="rounded border border-gray-700 bg-gray-900 px-2 py-1 text-xs text-gray-200"
+                          >
+                            {Array.from({ length: item.quantity }, (_, index) => index + 1).map((value) => (
+                              <option key={value} value={value}>
+                                Sell {value} ({sellPrice * value}g)
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span className="text-gray-500">Cannot sell</span>
+                        )}
+                        <button
+                          type="button"
+                          disabled={isLoading}
+                          onClick={() => setConfirmActionId(item.id)}
+                          className="rounded border border-gray-700 px-3 py-1.5 text-xs text-gray-200 transition-colors hover:border-gray-500 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          {canSell ? "Sell" : "Discard"}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )
               })

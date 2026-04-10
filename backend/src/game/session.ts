@@ -26,6 +26,7 @@ import {
   applyStatGrowth,
   checkLevelUp,
   toSpectatorObservation,
+  getItem,
 } from "@adventure-fun/engine"
 import type { GeneratedRealm } from "@adventure-fun/engine"
 import { db } from "../db/client.js"
@@ -271,10 +272,12 @@ export class GameSession {
       accessory: null,
     }
     for (const item of invRes.data ?? []) {
+      let resolvedName = item.template_id
+      try { resolvedName = getItem(item.template_id).name } catch { /* keep template_id fallback */ }
       const inv: InventoryItem = {
         id: item.id,
         template_id: item.template_id,
-        name: item.template_id,
+        name: resolvedName,
         quantity: item.quantity ?? 1,
         modifiers: (item.modifiers as Record<string, number>) ?? {},
         owner_type: item.owner_type,
@@ -284,7 +287,13 @@ export class GameSession {
       if (item.slot && item.slot in equipment) {
         equipment[item.slot as EquipSlot] = inv
       } else {
-        inventory.push(inv)
+        // Merge with existing stack of same template
+        const existing = inventory.find((i) => i.template_id === item.template_id)
+        if (existing) {
+          existing.quantity += inv.quantity
+        } else {
+          inventory.push(inv)
+        }
       }
     }
     const startingItemIds = new Set([
