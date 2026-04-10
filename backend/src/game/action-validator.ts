@@ -10,7 +10,7 @@ import type { Action, EquipSlot } from "@adventure-fun/schemas"
 
 const MAX_STRING_LENGTH = 200
 const VALID_DIRECTIONS = new Set(["up", "down", "left", "right"])
-const VALID_EQUIP_SLOTS: Set<string> = new Set(["weapon", "armor", "accessory", "class-specific"])
+const VALID_EQUIP_SLOTS: Set<string> = new Set(["weapon", "armor", "helm", "hands", "accessory"])
 const VALID_ACTION_TYPES = new Set([
   "move",
   "attack",

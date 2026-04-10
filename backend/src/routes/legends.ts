@@ -8,8 +8,9 @@ const legends = new Hono()
 const EMPTY_EQUIPMENT: Record<EquipSlot, InventoryItem | null> = {
   weapon: null,
   armor: null,
+  helm: null,
+  hands: null,
   accessory: null,
-  "class-specific": null,
 }
 
 function mapCorpseItem(row: Record<string, unknown>): InventoryItem {

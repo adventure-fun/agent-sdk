@@ -69,8 +69,9 @@ function usedInventorySlots(items: LobbyInventoryRecord[]): number {
 export const VALID_EQUIP_SLOTS: ReadonlySet<EquipSlot> = new Set([
   "weapon",
   "armor",
+  "helm",
+  "hands",
   "accessory",
-  "class-specific",
 ])
 
 function findStackTarget(

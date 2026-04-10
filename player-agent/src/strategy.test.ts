@@ -42,8 +42,9 @@ function makeObservation(overrides?: Partial<Observation>): Observation {
     equipment: {
       weapon: null,
       armor: null,
+      helm: null,
+      hands: null,
       accessory: null,
-      "class-specific": null,
     },
     gold: 0,
     position: {

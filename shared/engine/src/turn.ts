@@ -210,23 +210,36 @@ function hasPortalScroll(state: GameState): boolean {
   return state.inventory.some((item) => item.template_id === "portal-scroll")
 }
 
-const ARCHER_AMMO_TEMPLATE_ID = "ammo-arrows-10"
+const DEFAULT_ARCHER_AMMO = "ammo-arrows-10"
 
-function getArrowCount(state: GameState): number {
+function getRequiredAmmoType(state: GameState): string {
+  const weapon = state.equipment.weapon
+  if (!weapon) return DEFAULT_ARCHER_AMMO
+  try {
+    const template = getItem(weapon.template_id)
+    return template.ammo_type ?? DEFAULT_ARCHER_AMMO
+  } catch {
+    return DEFAULT_ARCHER_AMMO
+  }
+}
+
+function getAmmoCount(state: GameState): number {
+  const ammoType = getRequiredAmmoType(state)
   return state.inventory
-    .filter((item) => item.template_id === ARCHER_AMMO_TEMPLATE_ID)
+    .filter((item) => item.template_id === ammoType)
     .reduce((sum, item) => sum + item.quantity, 0)
 }
 
-function consumeArrow(state: GameState): boolean {
-  const arrowItem = state.inventory.find(
-    (item) => item.template_id === ARCHER_AMMO_TEMPLATE_ID && item.quantity > 0,
+function consumeAmmo(state: GameState): boolean {
+  const ammoType = getRequiredAmmoType(state)
+  const ammoItem = state.inventory.find(
+    (item) => item.template_id === ammoType && item.quantity > 0,
   )
-  if (!arrowItem) return false
-  if (arrowItem.quantity > 1) {
-    arrowItem.quantity -= 1
+  if (!ammoItem) return false
+  if (ammoItem.quantity > 1) {
+    ammoItem.quantity -= 1
   } else {
-    state.inventory.splice(state.inventory.indexOf(arrowItem), 1)
+    state.inventory.splice(state.inventory.indexOf(ammoItem), 1)
   }
   return true
 }
@@ -893,9 +906,9 @@ function resolvePlayerAttack(
     }
   }
 
-  if (abilityRequiresAmmo(s, ability) && getArrowCount(s) <= 0) {
+  if (abilityRequiresAmmo(s, ability) && getAmmoCount(s) <= 0) {
     return {
-      summary: `No arrows remaining for ${ability.name}.`,
+      summary: `No ammo remaining for ${ability.name}.`,
       notableEvent: null,
       regenBonusEligible: false,
     }
@@ -909,7 +922,7 @@ function resolvePlayerAttack(
 
   if (isSelfTarget) {
     s.character.resource.current -= ability.resource_cost
-    if (abilityRequiresAmmo(s, ability)) consumeArrow(s)
+    if (abilityRequiresAmmo(s, ability)) consumeAmmo(s)
     if (ability.cooldown_turns > 0) {
       s.character.cooldowns[ability.id] = ability.cooldown_turns
     }
@@ -934,7 +947,7 @@ function resolvePlayerAttack(
   }
 
   s.character.resource.current -= ability.resource_cost
-  if (abilityRequiresAmmo(s, ability)) consumeArrow(s)
+  if (abilityRequiresAmmo(s, ability)) consumeAmmo(s)
   if (ability.cooldown_turns > 0) {
     s.character.cooldowns[ability.id] = ability.cooldown_turns
   }
@@ -2954,7 +2967,7 @@ export function computeLegalActions(
       continue
     }
 
-    if (abilityRequiresAmmo(state, ability) && getArrowCount(state) <= 0) {
+    if (abilityRequiresAmmo(state, ability) && getAmmoCount(state) <= 0) {
       continue
     }
 
@@ -3063,7 +3076,7 @@ export function computeLegalActions(
       // skip
     }
   }
-  for (const slot of ["weapon", "armor", "accessory", "class-specific"] as const) {
+  for (const slot of ["weapon", "armor", "helm", "hands", "accessory"] as const) {
     if (state.equipment[slot]) {
       actions.push({ type: "unequip", slot })
     }

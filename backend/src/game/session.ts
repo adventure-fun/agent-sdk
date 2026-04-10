@@ -266,8 +266,9 @@ export class GameSession {
     const equipment: Record<EquipSlot, InventoryItem | null> = {
       weapon: null,
       armor: null,
+      helm: null,
+      hands: null,
       accessory: null,
-      "class-specific": null,
     }
     for (const item of invRes.data ?? []) {
       const inv: InventoryItem = {

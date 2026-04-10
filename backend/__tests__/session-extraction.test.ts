@@ -73,8 +73,9 @@ function makeState(overrides?: Partial<GameState>): GameState {
     equipment: {
       weapon: null,
       armor: null,
+      helm: null,
+      hands: null,
       accessory: null,
-      "class-specific": null,
     },
     activeFloor: {
       rooms: [

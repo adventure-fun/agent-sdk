@@ -65,8 +65,9 @@ function makeState(overrides?: Partial<GameState>): GameState {
     equipment: {
       weapon: null,
       armor: null,
+      helm: null,
+      hands: null,
       accessory: null,
-      "class-specific": null,
     },
     activeFloor: {
       rooms: [
@@ -167,8 +168,9 @@ describe("syncInventory", () => {
             slot: "weapon",
           },
           armor: null,
+          helm: null,
+          hands: null,
           accessory: null,
-          "class-specific": null,
         },
       }),
     )

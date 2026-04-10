@@ -1,6 +1,6 @@
 export type Direction = "up" | "down" | "left" | "right"
 
-export type EquipSlot = "weapon" | "armor" | "accessory" | "class-specific"
+export type EquipSlot = "weapon" | "armor" | "helm" | "hands" | "accessory"
 
 export type Action =
   | { type: "move"; direction: Direction }

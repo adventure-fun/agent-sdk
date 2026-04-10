@@ -55,7 +55,7 @@ export interface AbilitySummary {
 
 export type ItemType = "consumable" | "equipment" | "loot" | "key-item"
 export type ItemRarity = "common" | "uncommon" | "rare" | "epic"
-export type EquipSlot = "weapon" | "armor" | "accessory" | "class-specific"
+export type EquipSlot = "weapon" | "armor" | "helm" | "hands" | "accessory"
 export type OwnerType = "character" | "escrow" | "corpse"
 
 export const BASE_INVENTORY_SLOTS = 12
@@ -83,6 +83,8 @@ export interface ItemTemplate {
   buy_price: number
   class_restriction?: string
   description: string
+  dungeon_tier?: number
+  ammo_type?: string
 }
 
 export interface InventoryItem {

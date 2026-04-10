@@ -58,7 +58,7 @@ function serializeInventory(rows: LobbyInventoryRecord[]) {
       modifiers: row.modifiers ?? {},
       owner_type: row.owner_type as "character",
       owner_id: row.owner_id,
-      slot: (row.slot as null | "weapon" | "armor" | "accessory" | "class-specific") ?? null,
+      slot: (row.slot as null | "weapon" | "armor" | "helm" | "hands" | "accessory") ?? null,
     }
   })
 }

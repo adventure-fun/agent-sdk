@@ -72,7 +72,7 @@ function createMinimalObservation(): Observation {
       skill_tree: {},
     },
     inventory: [],
-    equipment: { weapon: null, armor: null, accessory: null, "class-specific": null },
+    equipment: { weapon: null, armor: null, helm: null, hands: null, accessory: null },
     gold: 50,
     position: { floor: 1, room_id: "room-1", tile: { x: 2, y: 3 } },
     visible_tiles: [],

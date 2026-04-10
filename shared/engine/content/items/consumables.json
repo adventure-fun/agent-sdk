@@ -6,32 +6,24 @@
     "type": "consumable",
     "rarity": "common",
     "stats": {},
-    "effects": [
-      {
-        "type": "heal-hp",
-        "magnitude": 25
-      }
-    ],
+    "effects": [{ "type": "heal-hp", "magnitude": 25 }],
     "stack_limit": 5,
     "sell_price": 5,
     "buy_price": 12,
-    "class_restriction": null
+    "class_restriction": null,
+    "dungeon_tier": 1
   },
   {
     "id": "greater-health-potion",
     "name": "Greater Health Potion",
     "type": "consumable",
     "rarity": "uncommon",
-    "effects": [
-      {
-        "type": "heal-hp",
-        "magnitude": 70
-      }
-    ],
+    "effects": [{ "type": "heal-hp", "magnitude": 50 }],
     "stack_limit": 3,
-    "sell_price": 20,
+    "sell_price": 12,
     "buy_price": 50,
-    "description": "A larger, more potent healing draught. Restores 70 HP when consumed. A prized commodity deep in any dungeon."
+    "description": "A larger, more potent healing draught. Restores 50 HP when consumed. A prized commodity deep in any dungeon.",
+    "dungeon_tier": 2
   },
   {
     "id": "mana-potion",
@@ -40,16 +32,12 @@
     "type": "consumable",
     "rarity": "common",
     "stats": {},
-    "effects": [
-      {
-        "type": "restore-resource",
-        "magnitude": 15
-      }
-    ],
+    "effects": [{ "type": "restore-resource", "magnitude": 15 }],
     "stack_limit": 5,
     "sell_price": 6,
     "buy_price": 15,
-    "class_restriction": null
+    "class_restriction": null,
+    "dungeon_tier": 1
   },
   {
     "id": "antidote",
@@ -58,15 +46,12 @@
     "type": "consumable",
     "rarity": "common",
     "stats": {},
-    "effects": [
-      {
-        "type": "cure-debuffs"
-      }
-    ],
+    "effects": [{ "type": "cure-debuffs" }],
     "stack_limit": 5,
     "sell_price": 4,
     "buy_price": 10,
-    "class_restriction": null
+    "class_restriction": null,
+    "dungeon_tier": 1
   },
   {
     "id": "portal-scroll",
@@ -75,32 +60,24 @@
     "type": "consumable",
     "rarity": "uncommon",
     "stats": {},
-    "effects": [
-      {
-        "type": "portal-escape"
-      }
-    ],
+    "effects": [{ "type": "portal-escape" }],
     "stack_limit": 1,
     "sell_price": 25,
     "buy_price": 75,
-    "class_restriction": null
+    "class_restriction": null,
+    "dungeon_tier": 1
   },
   {
     "id": "buff-potion",
-    "name": "Buff Potion",
+    "name": "Ironhide Tonic",
     "type": "consumable",
     "rarity": "uncommon",
-    "effects": [
-      {
-        "type": "buff",
-        "magnitude": 5,
-        "duration": 5
-      }
-    ],
+    "effects": [{ "type": "buff", "magnitude": 5, "duration": 5 }],
     "stack_limit": 3,
-    "sell_price": 12,
+    "sell_price": 10,
     "buy_price": 30,
-    "description": "A frothing amber brew that temporarily sharpens reflexes and strengthens muscles. Grants +5 attack for 5 turns."
+    "description": "A thick, metallic-tasting brew. Temporarily hardens your skin to an iron-like sheen. Grants +5 defense for 5 turns.",
+    "dungeon_tier": 2
   },
   {
     "id": "ammo-arrows-10",
@@ -113,7 +90,92 @@
     "stack_limit": 20,
     "sell_price": 2,
     "buy_price": 5,
-    "class_restriction": "archer"
+    "class_restriction": "archer",
+    "dungeon_tier": 1
+  },
+  {
+    "id": "ammo-bolts-10",
+    "name": "Steam Bolt",
+    "description": "A heavy iron bolt tipped with a pressure-forged head. Designed for pneumatic crossbows — incompatible with standard bows.",
+    "type": "consumable",
+    "rarity": "common",
+    "stats": {},
+    "effects": [],
+    "stack_limit": 20,
+    "sell_price": 4,
+    "buy_price": 10,
+    "class_restriction": "archer",
+    "dungeon_tier": 3
+  },
+  {
+    "id": "elixir-of-focus",
+    "name": "Elixir of Focus",
+    "description": "A clear, sharp-smelling draught that sharpens the senses. Everything slows down — just for a moment.",
+    "type": "consumable",
+    "rarity": "uncommon",
+    "stats": {},
+    "effects": [{ "type": "buff", "magnitude": 5, "duration": 5 }],
+    "stack_limit": 3,
+    "sell_price": 14,
+    "buy_price": 35,
+    "class_restriction": null,
+    "dungeon_tier": 2
+  },
+  {
+    "id": "smelling-salts",
+    "name": "Smelling Salts",
+    "description": "A pungent mixture that jolts the senses back to clarity. Clears stun and slow effects immediately.",
+    "type": "consumable",
+    "rarity": "uncommon",
+    "stats": {},
+    "effects": [{ "type": "cure-debuffs" }],
+    "stack_limit": 3,
+    "sell_price": 10,
+    "buy_price": 25,
+    "class_restriction": null,
+    "dungeon_tier": 2
+  },
+  {
+    "id": "greater-mana-potion",
+    "name": "Greater Mana Potion",
+    "description": "A deep indigo liquid that swirls with inner light. Restores a significant amount of resource energy.",
+    "type": "consumable",
+    "rarity": "uncommon",
+    "stats": {},
+    "effects": [{ "type": "restore-resource", "magnitude": 30 }],
+    "stack_limit": 3,
+    "sell_price": 18,
+    "buy_price": 45,
+    "class_restriction": null,
+    "dungeon_tier": 3
+  },
+  {
+    "id": "berserker-draught",
+    "name": "Berserker Draught",
+    "description": "A crimson brew that burns going down. Massively increases attack power but leaves you vulnerable.",
+    "type": "consumable",
+    "rarity": "rare",
+    "stats": {},
+    "effects": [{ "type": "buff", "magnitude": 8, "duration": 4 }],
+    "stack_limit": 2,
+    "sell_price": 28,
+    "buy_price": 70,
+    "class_restriction": null,
+    "dungeon_tier": 3
+  },
+  {
+    "id": "ironflask",
+    "name": "Ironflask",
+    "description": "A heavy flask of concentrated restorative brew. The metallic taste is overwhelming, but the healing is undeniable.",
+    "type": "consumable",
+    "rarity": "rare",
+    "stats": {},
+    "effects": [{ "type": "heal-hp", "magnitude": 80 }],
+    "stack_limit": 2,
+    "sell_price": 34,
+    "buy_price": 85,
+    "class_restriction": null,
+    "dungeon_tier": 3
   },
   {
     "id": "gold-coins",
@@ -126,7 +188,8 @@
     "stack_limit": 99,
     "sell_price": 1,
     "buy_price": 0,
-    "class_restriction": null
+    "class_restriction": null,
+    "dungeon_tier": 0
   },
   {
     "id": "mine-key",
@@ -140,7 +203,8 @@
     "sell_price": 0,
     "buy_price": 0,
     "class_restriction": null,
-    "unlocks": "cp-iron-gate"
+    "unlocks": "cp-iron-gate",
+    "dungeon_tier": 1
   },
   {
     "id": "crypt-key",
@@ -154,6 +218,7 @@
     "sell_price": 0,
     "buy_price": 0,
     "class_restriction": null,
-    "unlocks": "sc-locked-door-f2"
+    "unlocks": "sc-locked-door-f2",
+    "dungeon_tier": 2
   }
 ]

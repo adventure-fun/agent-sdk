@@ -38,7 +38,7 @@ const itemTemplateMap: Record<string, ItemTemplate> = {
     description: "Knight-only shield.",
     type: "equipment",
     rarity: "common",
-    equip_slot: "class-specific",
+    equip_slot: "armor",
     stats: { defense: 6, evasion: -2 },
     effects: [],
     stack_limit: 1,
@@ -145,8 +145,9 @@ describe("Group 5 equipment UI", () => {
         slot: "weapon",
       },
       armor: null,
+      helm: null,
+      hands: null,
       accessory: null,
-      "class-specific": null,
     }
 
     const equipAction = { type: "equip", item_id: "bag-sword" } as Extract<Action, { type: "equip" }>

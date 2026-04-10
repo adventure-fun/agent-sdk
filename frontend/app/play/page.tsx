@@ -52,12 +52,13 @@ function formatItemQuantity(name: string, quantity: number, templateId?: string)
 const REALM_REGEN_GOLD_COST = 100
 const REALM_REGEN_USDC_PRICE = "0.25"
 const TUTORIAL_TEMPLATE_ID = "tutorial-cellar"
-const EQUIP_SLOT_ORDER: EquipSlot[] = ["weapon", "armor", "accessory", "class-specific"]
+const EQUIP_SLOT_ORDER: EquipSlot[] = ["weapon", "armor", "helm", "hands", "accessory"]
 const EQUIP_SLOT_LABELS: Record<EquipSlot, string> = {
   weapon: "Weapon",
   armor: "Armor",
+  helm: "Helm",
+  hands: "Hands",
   accessory: "Accessory",
-  "class-specific": "Class Slot",
 }
 
 type PageStep = "loading" | "class-select" | "name-input" | "stat-reveal" | "hub" | "dungeon"
@@ -2629,13 +2630,16 @@ function ShopPanel({
   onBuy: (itemId: string, quantity: number) => Promise<void>
   onSell: (itemId: string, quantity: number) => Promise<void>
 }) {
-  const [category, setCategory] = useState<"all" | "consumable" | "equipment">("all")
+  const [category, setCategory] = useState<string>("all")
   const [buyQuantities, setBuyQuantities] = useState<Record<string, number>>({})
   const [sellQuantities, setSellQuantities] = useState<Record<string, number>>({})
 
-  const visibleSections = category === "all"
-    ? sections
-    : sections.filter((section) => section.id === category)
+  const allItems = sections.flatMap((s) => s.items)
+  const filteredItems = category === "all"
+    ? allItems
+    : category === "consumable"
+      ? allItems.filter((i) => i.type === "consumable")
+      : allItems.filter((i) => i.equip_slot === category)
 
   const bagSlotsUsed = inventory.filter((item) => !item.slot).length
   const bagCapacity = getInventoryCapacity()
@@ -2658,12 +2662,16 @@ function ShopPanel({
             {[
               { id: "all", label: "All" },
               { id: "consumable", label: "Consumables" },
-              { id: "equipment", label: "Equipment" },
+              { id: "weapon", label: "Weapons" },
+              { id: "armor", label: "Armor" },
+              { id: "helm", label: "Helms" },
+              { id: "hands", label: "Hands" },
+              { id: "accessory", label: "Accessories" },
             ].map((tab) => (
               <button
                 key={tab.id}
                 type="button"
-                onClick={() => setCategory(tab.id as "all" | "consumable" | "equipment")}
+                onClick={() => setCategory(tab.id)}
                 className={`rounded-full border px-3 py-1.5 text-xs transition-colors ${
                   category === tab.id
                     ? "border-amber-400/60 bg-amber-500/10 text-amber-200"
@@ -2694,98 +2702,101 @@ function ShopPanel({
             </div>
           ) : null}
 
-          <div className="space-y-4">
-            {visibleSections.map((section) => (
-              <div key={section.id} className="space-y-3">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">{section.label}</h3>
-                <div className="grid gap-3 md:grid-cols-2">
-                  {section.items.map((item) => {
-                    const quantity = buyQuantities[item.id] ?? 1
-                    const canStack = inventory.some(
-                      (inventoryItem) =>
-                        !inventoryItem.slot
-                        && inventoryItem.template_id === item.id
-                        && inventoryItem.quantity < item.stack_limit,
-                    )
-                    const inventoryFull = bagSlotsUsed >= bagCapacity && !canStack
-                    const tooExpensive = gold < item.buy_price * quantity
-                    const disabled = tooExpensive || inventoryFull
+          <div className="space-y-3">
+            <div className="grid gap-3 md:grid-cols-2">
+              {filteredItems.map((item) => {
+                const quantity = buyQuantities[item.id] ?? 1
+                const canStack = inventory.some(
+                  (inventoryItem) =>
+                    !inventoryItem.slot
+                    && inventoryItem.template_id === item.id
+                    && inventoryItem.quantity < item.stack_limit,
+                )
+                const inventoryFull = bagSlotsUsed >= bagCapacity && !canStack
+                const tooExpensive = gold < item.buy_price * quantity
+                const disabled = tooExpensive || inventoryFull
 
-                    return (
-                      <div
-                        key={item.id}
-                        className="rounded border border-gray-800 bg-gray-950/60 p-3 text-xs space-y-3"
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="font-bold text-gray-100">{item.name}</p>
-                            <p className="mt-1 text-gray-500">{item.description}</p>
-                          </div>
-                          <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[10px] text-amber-200">
-                            {item.buy_price}g
+                return (
+                  <div
+                    key={item.id}
+                    className="rounded border border-gray-800 bg-gray-950/60 p-3 text-xs space-y-3"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        {item.equip_slot ? (
+                          <span className="mb-1 inline-block rounded border border-cyan-700/40 bg-cyan-950/30 px-2 py-0.5 text-[10px] font-bold uppercase text-cyan-300">
+                            {item.equip_slot}
                           </span>
-                        </div>
-
-                        <div className="flex flex-wrap gap-2 text-[10px]">
-                          <span className="rounded-full border border-gray-700 px-2 py-1 text-gray-400">
-                            {item.rarity}
-                          </span>
-                          <span className="rounded-full border border-gray-700 px-2 py-1 text-gray-400">
-                            stack {item.stack_limit}
-                          </span>
-                          {item.class_restriction ? (
-                            <span className="rounded-full border border-purple-700/40 bg-purple-950/30 px-2 py-1 text-purple-300">
-                              {item.class_restriction} only
-                            </span>
-                          ) : null}
-                        </div>
-
-                        {item.stats && Object.keys(item.stats).length > 0 ? (
-                          <div className="text-[11px] text-gray-400">
-                            {Object.entries(item.stats)
-                              .map(([stat, value]) => `${stat.toUpperCase()} ${value}`)
-                              .join(" · ")}
-                          </div>
                         ) : null}
-
-                        <div className="flex items-center justify-between gap-3">
-                          <select
-                            value={quantity}
-                            onChange={(event) =>
-                              setBuyQuantities((current) => ({
-                                ...current,
-                                [item.id]: Number(event.target.value),
-                              }))}
-                            className="rounded border border-gray-700 bg-gray-900 px-2 py-1 text-xs text-gray-200"
-                          >
-                            {Array.from({ length: Math.min(item.stack_limit, 5) }, (_, index) => index + 1).map((value) => (
-                              <option key={value} value={value}>
-                                Qty {value}
-                              </option>
-                            ))}
-                          </select>
-                          <button
-                            type="button"
-                            disabled={disabled || isLoading}
-                            onClick={() => onBuy(item.id, quantity)}
-                            className="rounded bg-amber-500 px-3 py-1.5 text-xs font-bold text-black transition-colors hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-40"
-                            title={
-                              inventoryFull
-                                ? "Inventory full"
-                                : tooExpensive
-                                  ? "Not enough gold"
-                                  : undefined
-                            }
-                          >
-                            Buy
-                          </button>
-                        </div>
+                        <p className="font-bold text-gray-100">{item.name}</p>
+                        <p className="mt-1 text-gray-500">{item.description}</p>
                       </div>
-                    )
-                  })}
-                </div>
-              </div>
-            ))}
+                      <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[10px] text-amber-200">
+                        {item.buy_price}g
+                      </span>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 text-[10px]">
+                      <span className="rounded-full border border-gray-700 px-2 py-1 text-gray-400">
+                        {item.rarity}
+                      </span>
+                      {item.stack_limit > 1 ? (
+                        <span className="rounded-full border border-gray-700 px-2 py-1 text-gray-400">
+                          stack {item.stack_limit}
+                        </span>
+                      ) : null}
+                      {item.class_restriction ? (
+                        <span className="rounded-full border border-purple-700/40 bg-purple-950/30 px-2 py-1 text-purple-300">
+                          {item.class_restriction} only
+                        </span>
+                      ) : null}
+                    </div>
+
+                    {item.stats && Object.keys(item.stats).length > 0 ? (
+                      <div className="text-[11px] text-gray-400">
+                        {Object.entries(item.stats)
+                          .filter(([, value]) => value !== 0)
+                          .map(([stat, value]) => `${stat.toUpperCase()} ${Number(value) > 0 ? "+" : ""}${value}`)
+                          .join(" · ")}
+                      </div>
+                    ) : null}
+
+                    <div className="flex items-center justify-between gap-3">
+                      <select
+                        value={quantity}
+                        onChange={(event) =>
+                          setBuyQuantities((current) => ({
+                            ...current,
+                            [item.id]: Number(event.target.value),
+                          }))}
+                        className="rounded border border-gray-700 bg-gray-900 px-2 py-1 text-xs text-gray-200"
+                      >
+                        {Array.from({ length: Math.min(item.stack_limit, 5) }, (_, index) => index + 1).map((value) => (
+                          <option key={value} value={value}>
+                            Qty {value}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        disabled={disabled || isLoading}
+                        onClick={() => onBuy(item.id, quantity)}
+                        className="rounded bg-amber-500 px-3 py-1.5 text-xs font-bold text-black transition-colors hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-40"
+                        title={
+                          inventoryFull
+                            ? "Inventory full"
+                            : tooExpensive
+                              ? "Not enough gold"
+                              : undefined
+                        }
+                      >
+                        Buy
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           </div>
         </div>
       </div>

@@ -30,43 +30,38 @@
       "entries": [
         {
           "item_template_id": "health-potion",
-          "weight": 40,
-          "quantity": {
-            "min": 1,
-            "max": 2
-          }
+          "weight": 30,
+          "quantity": { "min": 1, "max": 2 }
         },
         {
           "item_template_id": "antidote",
-          "weight": 20,
-          "quantity": {
-            "min": 1,
-            "max": 1
-          }
+          "weight": 18,
+          "quantity": { "min": 1, "max": 1 }
         },
         {
           "item_template_id": "iron-ring",
-          "weight": 15,
-          "quantity": {
-            "min": 1,
-            "max": 1
-          }
+          "weight": 12,
+          "quantity": { "min": 1, "max": 1 }
         },
         {
           "item_template_id": "buff-potion",
-          "weight": 15,
-          "quantity": {
-            "min": 1,
-            "max": 1
-          }
+          "weight": 12,
+          "quantity": { "min": 1, "max": 1 }
         },
         {
           "item_template_id": "portal-scroll",
+          "weight": 8,
+          "quantity": { "min": 1, "max": 1 }
+        },
+        {
+          "item_template_id": "loot-crude-gem",
           "weight": 10,
-          "quantity": {
-            "min": 1,
-            "max": 1
-          }
+          "quantity": { "min": 1, "max": 1 }
+        },
+        {
+          "item_template_id": "loot-old-coin",
+          "weight": 10,
+          "quantity": { "min": 1, "max": 2 }
         }
       ]
     },

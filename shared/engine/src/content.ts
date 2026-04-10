@@ -35,9 +35,11 @@ import archerTreeJson from "../content/skill-trees/archer-tree.json" with { type
 import undeadJson from "../content/enemies/undead.json" with { type: "json" }
 import hollowJson from "../content/enemies/hollow.json" with { type: "json" }
 import bossesJson from "../content/enemies/bosses.json" with { type: "json" }
+import constructsJson from "../content/enemies/constructs.json" with { type: "json" }
 
 import consumablesJson from "../content/items/consumables.json" with { type: "json" }
 import equipmentCommonJson from "../content/items/equipment-common.json" with { type: "json" }
+import collapsedMinesItemsJson from "../content/items/collapsed-mines-items.json" with { type: "json" }
 
 // ---- Room template JSON imports -----------------------------
 
@@ -114,6 +116,7 @@ const allEnemies: EnemyTemplate[] = [
   ...(undeadJson as unknown as EnemyTemplate[]),
   ...(hollowJson as unknown as EnemyTemplate[]),
   ...(bossesJson as unknown as EnemyTemplate[]),
+  ...(constructsJson as unknown as EnemyTemplate[]),
 ]
 
 export const ENEMIES: Record<string, EnemyTemplate> = Object.fromEntries(
@@ -125,6 +128,7 @@ export const ENEMIES: Record<string, EnemyTemplate> = Object.fromEntries(
 const allItems: ItemTemplate[] = [
   ...(consumablesJson as unknown as ItemTemplate[]),
   ...(equipmentCommonJson as unknown as ItemTemplate[]),
+  ...(collapsedMinesItemsJson as unknown as ItemTemplate[]),
 ]
 
 export const ITEMS: Record<string, ItemTemplate> = Object.fromEntries(

@@ -202,8 +202,9 @@ function makeState(overrides?: Partial<GameState>): GameState {
     equipment: {
       weapon: null,
       armor: null,
+      helm: null,
+      hands: null,
       accessory: null,
-      "class-specific": null,
     },
     activeFloor: {
       rooms: [
@@ -399,8 +400,9 @@ describe("equipment legal actions", () => {
           slot: "weapon",
         },
         armor: null,
+        helm: null,
+        hands: null,
         accessory: null,
-        "class-specific": null,
       },
     })
 
@@ -440,7 +442,7 @@ describe("equipment legal actions", () => {
       new SeededRng(34),
     )
     expect(result.summary).toContain("cannot equip")
-    expect(result.newState.equipment["class-specific"]).toBeNull()
+    expect(result.newState.equipment.armor).toBeNull()
   })
 })
 

@@ -28,7 +28,7 @@ function createObservation(): Observation {
       skill_tree: {},
     },
     inventory: [],
-    equipment: { weapon: null, armor: null, accessory: null, "class-specific": null },
+    equipment: { weapon: null, armor: null, helm: null, hands: null, accessory: null },
     gold: 40,
     position: { floor: 2, room_id: "room-2", tile: { x: 3, y: 4 } },
     visible_tiles: [],

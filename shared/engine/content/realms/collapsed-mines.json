@@ -28,64 +28,73 @@
     {
       "id": "cm-common-loot",
       "entries": [
-        { "item_template_id": "gold_coins", "weight": 40, "quantity": { "min": 8, "max": 20 } },
-        { "item_template_id": "health_potion", "weight": 30, "quantity": { "min": 1, "max": 2 } },
-        { "item_template_id": "buff_potion", "weight": 15, "quantity": { "min": 1, "max": 1 } },
+        { "item_template_id": "gold-coins", "weight": 40, "quantity": { "min": 8, "max": 20 } },
+        { "item_template_id": "health-potion", "weight": 30, "quantity": { "min": 1, "max": 2 } },
+        { "item_template_id": "buff-potion", "weight": 15, "quantity": { "min": 1, "max": 1 } },
         { "item_template_id": "antidote", "weight": 15, "quantity": { "min": 1, "max": 1 } }
       ]
     },
     {
       "id": "cm-equipment-loot",
       "entries": [
-        { "item_template_id": "gold_coins", "weight": 25, "quantity": { "min": 15, "max": 35 } },
-        { "item_template_id": "gear_iron_ring", "weight": 15, "quantity": { "min": 1, "max": 1 } },
-        { "item_template_id": "gear_chain_gloves", "weight": 15, "quantity": { "min": 1, "max": 1 } },
-        { "item_template_id": "gear_miners_helm", "weight": 15, "quantity": { "min": 1, "max": 1 } },
-        { "item_template_id": "greater_health_potion", "weight": 10, "quantity": { "min": 1, "max": 2 } },
-        { "item_template_id": "portal_scroll", "weight": 10, "quantity": { "min": 1, "max": 1 } },
-        { "item_template_id": "gear_steamforged_blade", "weight": 10, "quantity": { "min": 1, "max": 1 } }
+        { "item_template_id": "gold-coins", "weight": 20, "quantity": { "min": 15, "max": 35 } },
+        { "item_template_id": "gear-miners-helm", "weight": 12, "quantity": { "min": 1, "max": 1 } },
+        { "item_template_id": "gear-steamforged-blade", "weight": 10, "quantity": { "min": 1, "max": 1 } },
+        { "item_template_id": "gear-steamplate", "weight": 8, "quantity": { "min": 1, "max": 1 } },
+        { "item_template_id": "gear-core-fragment-ring", "weight": 8, "quantity": { "min": 1, "max": 1 } },
+        { "item_template_id": "loot-ancient-gear", "weight": 12, "quantity": { "min": 1, "max": 2 } },
+        { "item_template_id": "loot-steam-crystal", "weight": 8, "quantity": { "min": 1, "max": 1 } },
+        { "item_template_id": "greater-health-potion", "weight": 12, "quantity": { "min": 1, "max": 2 } },
+        { "item_template_id": "portal-scroll", "weight": 10, "quantity": { "min": 1, "max": 1 } }
       ]
     },
     {
       "id": "cm-rare-loot",
       "entries": [
-        { "item_template_id": "gold_coins", "weight": 20, "quantity": { "min": 30, "max": 60 } },
-        { "item_template_id": "gear_steamforged_blade", "weight": 20, "quantity": { "min": 1, "max": 1 } },
-        { "item_template_id": "gear_construct_core", "weight": 15, "quantity": { "min": 1, "max": 1 } },
-        { "item_template_id": "gear_pressure_gauntlets", "weight": 15, "quantity": { "min": 1, "max": 1 } },
-        { "item_template_id": "greater_health_potion", "weight": 15, "quantity": { "min": 2, "max": 3 } },
-        { "item_template_id": "portal_scroll", "weight": 15, "quantity": { "min": 1, "max": 1 } }
+        { "item_template_id": "gold-coins", "weight": 15, "quantity": { "min": 30, "max": 60 } },
+        { "item_template_id": "gear-steamforged-blade", "weight": 12, "quantity": { "min": 1, "max": 1 } },
+        { "item_template_id": "gear-pneumatic-crossbow", "weight": 10, "quantity": { "min": 1, "max": 1 } },
+        { "item_template_id": "gear-voltaic-staff", "weight": 10, "quantity": { "min": 1, "max": 1 } },
+        { "item_template_id": "gear-piston-daggers", "weight": 10, "quantity": { "min": 1, "max": 1 } },
+        { "item_template_id": "gear-construct-core", "weight": 10, "quantity": { "min": 1, "max": 1 } },
+        { "item_template_id": "gear-pressure-gauntlets", "weight": 10, "quantity": { "min": 1, "max": 1 } },
+        { "item_template_id": "gear-forged-visor", "weight": 8, "quantity": { "min": 1, "max": 1 } },
+        { "item_template_id": "greater-health-potion", "weight": 10, "quantity": { "min": 2, "max": 3 } },
+        { "item_template_id": "portal-scroll", "weight": 5, "quantity": { "min": 1, "max": 1 } }
       ]
     },
     {
       "id": "cm-boss-loot",
       "entries": [
-        { "item_template_id": "gear_sentinels_hammer", "weight": 20, "quantity": { "min": 1, "max": 1 } },
-        { "item_template_id": "gear_sentinels_chassis", "weight": 20, "quantity": { "min": 1, "max": 1 } },
-        { "item_template_id": "gear_builders_signet", "weight": 20, "quantity": { "min": 1, "max": 1 } },
-        { "item_template_id": "gold_coins", "weight": 25, "quantity": { "min": 50, "max": 100 } },
-        { "item_template_id": "portal_scroll", "weight": 15, "quantity": { "min": 1, "max": 2 } }
+        { "item_template_id": "gear-sentinels-hammer", "weight": 15, "quantity": { "min": 1, "max": 1 } },
+        { "item_template_id": "gear-sentinels-chassis", "weight": 15, "quantity": { "min": 1, "max": 1 } },
+        { "item_template_id": "gear-sentinels-crest", "weight": 12, "quantity": { "min": 1, "max": 1 } },
+        { "item_template_id": "gear-sentinels-grips", "weight": 12, "quantity": { "min": 1, "max": 1 } },
+        { "item_template_id": "gear-builders-signet", "weight": 12, "quantity": { "min": 1, "max": 1 } },
+        { "item_template_id": "loot-sentinel-fragment", "weight": 10, "quantity": { "min": 1, "max": 1 } },
+        { "item_template_id": "gold-coins", "weight": 14, "quantity": { "min": 50, "max": 100 } },
+        { "item_template_id": "portal-scroll", "weight": 10, "quantity": { "min": 1, "max": 2 } }
       ]
     },
     {
       "id": "cm-consumable-loot",
       "entries": [
-        { "item_template_id": "health_potion", "weight": 30, "quantity": { "min": 2, "max": 3 } },
-        { "item_template_id": "greater_health_potion", "weight": 25, "quantity": { "min": 1, "max": 2 } },
-        { "item_template_id": "mana_potion", "weight": 20, "quantity": { "min": 1, "max": 2 } },
-        { "item_template_id": "buff_potion", "weight": 15, "quantity": { "min": 1, "max": 2 } },
-        { "item_template_id": "portal_scroll", "weight": 10, "quantity": { "min": 1, "max": 1 } }
+        { "item_template_id": "health-potion", "weight": 30, "quantity": { "min": 2, "max": 3 } },
+        { "item_template_id": "greater-health-potion", "weight": 25, "quantity": { "min": 1, "max": 2 } },
+        { "item_template_id": "mana-potion", "weight": 20, "quantity": { "min": 1, "max": 2 } },
+        { "item_template_id": "buff-potion", "weight": 15, "quantity": { "min": 1, "max": 2 } },
+        { "item_template_id": "portal-scroll", "weight": 10, "quantity": { "min": 1, "max": 1 } }
       ]
     },
     {
       "id": "cm-vault-loot",
       "entries": [
-        { "item_template_id": "gold_coins", "weight": 25, "quantity": { "min": 60, "max": 120 } },
-        { "item_template_id": "gear_construct_core", "weight": 20, "quantity": { "min": 2, "max": 4 } },
-        { "item_template_id": "greater_health_potion", "weight": 20, "quantity": { "min": 3, "max": 5 } },
-        { "item_template_id": "gear_pressure_gauntlets", "weight": 15, "quantity": { "min": 1, "max": 1 } },
-        { "item_template_id": "gear_steamforged_blade", "weight": 10, "quantity": { "min": 1, "max": 1 } },
-        { "item_template_id": "portal_scroll", "weight": 10, "quantity": { "min": 1, "max": 2 } }
+        { "item_template_id": "gold-coins", "weight": 25, "quantity": { "min": 60, "max": 120 } },
+        { "item_template_id": "gear-construct-core", "weight": 20, "quantity": { "min": 2, "max": 4 } },
+        { "item_template_id": "greater-health-potion", "weight": 20, "quantity": { "min": 3, "max": 5 } },
+        { "item_template_id": "gear-pressure-gauntlets", "weight": 15, "quantity": { "min": 1, "max": 1 } },
+        { "item_template_id": "gear-steamforged-blade", "weight": 10, "quantity": { "min": 1, "max": 1 } },
+        { "item_template_id": "portal-scroll", "weight": 10, "quantity": { "min": 1, "max": 2 } }
       ]
     }
   ],

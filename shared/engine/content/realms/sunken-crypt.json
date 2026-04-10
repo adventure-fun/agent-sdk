@@ -73,44 +73,34 @@
       "id": "crypt-uncommon",
       "entries": [
         {
+          "item_template_id": "gear-crypt-blade",
+          "weight": 20,
+          "quantity": { "min": 1, "max": 1 }
+        },
+        {
+          "item_template_id": "gear-chainmail",
+          "weight": 18,
+          "quantity": { "min": 1, "max": 1 }
+        },
+        {
+          "item_template_id": "gear-iron-helm",
+          "weight": 18,
+          "quantity": { "min": 1, "max": 1 }
+        },
+        {
+          "item_template_id": "gear-plated-gloves",
+          "weight": 15,
+          "quantity": { "min": 1, "max": 1 }
+        },
+        {
           "item_template_id": "greater-health-potion",
-          "weight": 30,
-          "quantity": {
-            "min": 1,
-            "max": 1
-          }
-        },
-        {
-          "item_template_id": "leather-armor",
-          "weight": 20,
-          "quantity": {
-            "min": 1,
-            "max": 1
-          }
-        },
-        {
-          "item_template_id": "iron-sword",
-          "weight": 20,
-          "quantity": {
-            "min": 1,
-            "max": 1
-          }
+          "weight": 15,
+          "quantity": { "min": 1, "max": 1 }
         },
         {
           "item_template_id": "portal-scroll",
-          "weight": 15,
-          "quantity": {
-            "min": 1,
-            "max": 1
-          }
-        },
-        {
-          "item_template_id": "buff-potion",
-          "weight": 15,
-          "quantity": {
-            "min": 1,
-            "max": 2
-          }
+          "weight": 14,
+          "quantity": { "min": 1, "max": 1 }
         }
       ]
     },
@@ -118,52 +108,34 @@
       "id": "warden-boss",
       "entries": [
         {
+          "item_template_id": "gear-crypt-crown",
+          "weight": 20,
+          "quantity": { "min": 1, "max": 1 }
+        },
+        {
+          "item_template_id": "gear-guardian-amulet",
+          "weight": 20,
+          "quantity": { "min": 1, "max": 1 }
+        },
+        {
+          "item_template_id": "loot-guardian-sigil",
+          "weight": 20,
+          "quantity": { "min": 1, "max": 1 }
+        },
+        {
           "item_template_id": "greater-health-potion",
-          "weight": 25,
-          "quantity": {
-            "min": 2,
-            "max": 3
-          }
+          "weight": 15,
+          "quantity": { "min": 2, "max": 3 }
+        },
+        {
+          "item_template_id": "gold-coins",
+          "weight": 15,
+          "quantity": { "min": 30, "max": 60 }
         },
         {
           "item_template_id": "portal-scroll",
-          "weight": 20,
-          "quantity": {
-            "min": 1,
-            "max": 2
-          }
-        },
-        {
-          "item_template_id": "iron-sword",
-          "weight": 20,
-          "quantity": {
-            "min": 1,
-            "max": 1
-          }
-        },
-        {
-          "item_template_id": "leather-armor",
-          "weight": 15,
-          "quantity": {
-            "min": 1,
-            "max": 1
-          }
-        },
-        {
-          "item_template_id": "buff-potion",
           "weight": 10,
-          "quantity": {
-            "min": 2,
-            "max": 3
-          }
-        },
-        {
-          "item_template_id": "iron-ring",
-          "weight": 10,
-          "quantity": {
-            "min": 1,
-            "max": 1
-          }
+          "quantity": { "min": 1, "max": 2 }
         }
       ]
     },
@@ -172,27 +144,28 @@
       "entries": [
         {
           "item_template_id": "gold-coins",
-          "weight": 45,
-          "quantity": {
-            "min": 5,
-            "max": 12
-          }
+          "weight": 35,
+          "quantity": { "min": 5, "max": 12 }
         },
         {
           "item_template_id": "health-potion",
-          "weight": 30,
-          "quantity": {
-            "min": 1,
-            "max": 1
-          }
+          "weight": 25,
+          "quantity": { "min": 1, "max": 1 }
         },
         {
           "item_template_id": "gear-bone-fragment",
-          "weight": 25,
-          "quantity": {
-            "min": 1,
-            "max": 1
-          }
+          "weight": 20,
+          "quantity": { "min": 1, "max": 1 }
+        },
+        {
+          "item_template_id": "loot-crypt-relic",
+          "weight": 12,
+          "quantity": { "min": 1, "max": 1 }
+        },
+        {
+          "item_template_id": "loot-violet-crystal",
+          "weight": 8,
+          "quantity": { "min": 1, "max": 1 }
         }
       ]
     },
