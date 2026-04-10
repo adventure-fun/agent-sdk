@@ -574,6 +574,7 @@ export type Condition =
   | { type: "has-item"; item_id: string }
   | { type: "class-is"; class: string }
   | { type: "enemy-defeated"; entity_id: string }
+  | { type: "room-cleared" }
   | { type: "room-visited"; room_id: string }
   | { type: "floor-depth-gte"; depth: number }
   | { type: "hp-below"; percent: number }

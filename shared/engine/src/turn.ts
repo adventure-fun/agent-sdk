@@ -1925,6 +1925,14 @@ function resolveInteract(
           return "Something must be dealt with first."
         }
         break
+      case "room-cleared": {
+        // Passes if all enemies in the current room are dead
+        const livingEnemies = room.enemies.filter(e => e.hp > 0)
+        if (livingEnemies.length > 0) {
+          return "You must deal with the enemies first."
+        }
+        break
+      }
       case "has-item":
         if (!s.inventory.some((i) => i.template_id === cond.item_id)) {
           return "You're missing something."
