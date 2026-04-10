@@ -56,6 +56,7 @@ interface SerializedEnemy {
   effects: ActiveEffect[]
   cooldowns: Record<string, number>
   boss_phase_index?: number
+  defense_modifier?: number
 }
 
 interface SerializedRoomState {
@@ -66,6 +67,7 @@ interface SerializedRoomState {
 export interface SessionState {
   rooms: SerializedRoomState[]
   roomsVisited?: Record<number, string[]>
+  questFlags?: string[]
 }
 
 export function serializeSessionState(state: GameState): SessionState {
@@ -80,12 +82,12 @@ export function serializeSessionState(state: GameState): SessionState {
           position: { ...e.position },
           effects: e.effects.map((eff) => ({ ...eff })),
           cooldowns: { ...e.cooldowns },
-          ...(e.boss_phase_index !== undefined
-            ? { boss_phase_index: e.boss_phase_index }
-            : {}),
+          ...(e.boss_phase_index !== undefined ? { boss_phase_index: e.boss_phase_index } : {}),
+          ...(e.defense_modifier !== undefined ? { defense_modifier: e.defense_modifier } : {}),
         })),
     })),
     roomsVisited: state.roomsVisited ? { ...state.roomsVisited } : undefined,
+    questFlags: state.questFlags ? [...state.questFlags] : undefined,
   }
 }
 
@@ -117,7 +119,14 @@ export function applySessionState(
       if (savedEnemy.boss_phase_index !== undefined) {
         enemy.boss_phase_index = savedEnemy.boss_phase_index
       }
+      if (savedEnemy.defense_modifier !== undefined) {
+        enemy.defense_modifier = savedEnemy.defense_modifier
+      }
     }
+  }
+
+  if (sessionState.questFlags) {
+    state.questFlags = [...sessionState.questFlags]
   }
 }
 

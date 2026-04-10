@@ -225,6 +225,8 @@ export interface GameState {
         effects: ActiveEffect[]
         cooldowns: Record<string, number>
         boss_phase_index?: number
+        /** Multiplicative stat modifiers applied at runtime (e.g. brazier weakening) */
+        defense_modifier?: number
       }>
       items: Array<{
         id: string
@@ -246,6 +248,8 @@ export interface GameState {
   loreDiscovered?: LoreDiscovery[]
   /** IDs of entities that have been mutated (killed, opened, looted, used, etc.) */
   mutatedEntities: string[]
+  /** Quest flags set by grant-quest-flag effects (e.g. brazier-north-lit) */
+  questFlags?: string[]
   /** Realm completion state */
   realmStatus: "active" | "boss_floor" | "boss_cleared" | "realm_cleared"
   /** Portal escape is armed for extraction */

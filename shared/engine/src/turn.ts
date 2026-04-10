@@ -932,10 +932,14 @@ function resolvePlayerAttack(
       target.hp = 0
       continue
     }
-    const defenderStats =
+    const baseDefense = enemyTemplate.stats.defense
+    const effectiveDefense =
       ability.special === "piercing-shot"
-        ? { ...enemyTemplate.stats, defense: 0 }
-        : enemyTemplate.stats
+        ? 0
+        : target.defense_modifier !== undefined
+          ? Math.max(0, Math.floor(baseDefense * (1 + target.defense_modifier)))
+          : baseDefense
+    const defenderStats = { ...enemyTemplate.stats, defense: effectiveDefense }
     const combatResult = resolveAttack(
       {
         id: s.character.id,
@@ -1926,13 +1930,17 @@ function resolveInteract(
         }
         break
       case "room-cleared": {
-        // Passes if all enemies in the current room are dead
         const livingEnemies = room.enemies.filter(e => e.hp > 0)
         if (livingEnemies.length > 0) {
           return "You must deal with the enemies first."
         }
         break
       }
+      case "has-flag":
+        if (!s.questFlags?.includes(cond.flag)) {
+          return "The conditions aren't right yet."
+        }
+        break
       case "has-item":
         if (!s.inventory.some((i) => i.template_id === cond.item_id)) {
           return "You're missing something."
@@ -1964,6 +1972,14 @@ function resolveInteract(
         break
       }
       if (cond.type === "enemy-defeated" && !s.mutatedEntities.includes(cond.entity_id)) {
+        conditionsMet = false
+        break
+      }
+      if (cond.type === "has-flag" && !s.questFlags?.includes(cond.flag)) {
+        conditionsMet = false
+        break
+      }
+      if (cond.type === "room-cleared" && room.enemies.some(e => e.hp > 0)) {
         conditionsMet = false
         break
       }
@@ -2097,6 +2113,40 @@ function applyEffect(
     case "cure-debuffs": {
       s.character.debuffs = []
       parts.push("Debuffs cleared.")
+      break
+    }
+    case "grant-quest-flag": {
+      const flag = effect.flag as string
+      if (!flag) break
+      if (!s.questFlags) s.questFlags = []
+      if (!s.questFlags.includes(flag)) {
+        s.questFlags.push(flag)
+        parts.push(`${flag} — noted.`)
+      }
+      break
+    }
+    case "modify-enemy-stat": {
+      if (!room) break
+      const entityId = effect.entity_id as string
+      const stat = effect.stat as string
+      const modifier = effect.modifier as number
+      if (typeof modifier !== "number" || !stat) break
+
+      // Try to find by exact entity_id first; fall back to all living enemies
+      // (entity_id in content may use a legacy format that doesn't match generated IDs)
+      const targets = room.enemies.filter(
+        (e) => e.hp > 0 && (e.id === entityId || !entityId),
+      )
+      const actualTargets = targets.length > 0 ? targets : room.enemies.filter((e) => e.hp > 0)
+
+      for (const enemy of actualTargets) {
+        if (stat === "defense") {
+          enemy.defense_modifier = (enemy.defense_modifier ?? 0) + modifier
+        }
+      }
+      if (actualTargets.length > 0) {
+        parts.push("The enemy is weakened.")
+      }
       break
     }
     case "unlock-door": {
