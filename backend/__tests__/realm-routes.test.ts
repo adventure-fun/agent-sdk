@@ -90,7 +90,7 @@ describe("Group 3 — realm regeneration route", () => {
       data: {
         id: "realm-1",
         character_id: "char-1",
-        template_id: "tutorial-cellar",
+        template_id: "collapsed-passage",
         status: "completed",
       },
       error: null,
@@ -121,7 +121,7 @@ describe("Group 3 — realm regeneration route", () => {
       data: {
         id: "realm-1",
         character_id: "char-1",
-        template_id: "tutorial-cellar",
+        template_id: "collapsed-passage",
         status: "completed",
         floor_reached: 3,
       },
@@ -131,7 +131,7 @@ describe("Group 3 — realm regeneration route", () => {
       data: {
         id: "realm-1",
         character_id: "char-1",
-        template_id: "tutorial-cellar",
+        template_id: "collapsed-passage",
         status: "generated",
         floor_reached: 1,
         seed: 123456,

@@ -326,6 +326,18 @@ describe("computeLegalActions ranged abilities", () => {
           speed: 12,
         },
       },
+      inventory: [
+        {
+          id: "arrows-1",
+          template_id: "ammo-arrows-10",
+          name: "Normal Arrow",
+          quantity: 10,
+          modifiers: {},
+          owner_type: "character",
+          owner_id: "player-1",
+          slot: null,
+        },
+      ],
       activeFloor: {
         rooms: [
           {
