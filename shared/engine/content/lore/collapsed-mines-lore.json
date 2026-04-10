@@ -1,0 +1,72 @@
+[
+  {
+    "id": "cm-company-memo",
+    "title": "DeepVein Memorandum",
+    "text": "Excavation of Shaft 7 suspended pending investigation of worker disappearances. All employees are reminded that unauthorized exploration of sub-level 4 is a terminable offense.",
+    "category": "history",
+    "strategic_hint": false
+  },
+  {
+    "id": "cm-miners-journal",
+    "title": "Foreman's Last Entry",
+    "text": "Day 89 — They found the door. Corporate overruled me. By sunset, four men were dead. The things behind the door don't stop. They don't sleep.",
+    "category": "history",
+    "strategic_hint": false
+  },
+  {
+    "id": "cm-confidential-report",
+    "title": "Confidential Company Report",
+    "text": "The constructs appear to originate from pre-Collapse era. Their core material is unknown. Standard weapons are ineffective against the larger variants. Recommend heavy ordnance or sustained heat exposure.",
+    "category": "bestiary",
+    "strategic_hint": true
+  },
+  {
+    "id": "cm-tunnel-scratching",
+    "title": "Tunnel Warning",
+    "text": "There are 12 of them. They don't sleep. They don't stop. The big ones guard the lower levels. The small ones patrol. Kill one and the others know. The sealed door at the bottom is what they're protecting.",
+    "category": "warning",
+    "strategic_hint": false
+  },
+  {
+    "id": "cm-decommission-notice",
+    "title": "Decommission Notice",
+    "text": "This facility has been decommissioned due to geological instability. The emergency shutdown was jammed. The machines cannot be stopped from the control panel.",
+    "category": "history",
+    "strategic_hint": false
+  },
+  {
+    "id": "cm-workshop-notes",
+    "title": "Workshop Assembly Notes",
+    "text": "The constructs have been maintaining and replicating themselves for centuries. The diagrams are not human-drawn. The new ones are faster than the old ones.",
+    "category": "bestiary",
+    "strategic_hint": false
+  },
+  {
+    "id": "cm-valve-hint",
+    "title": "Maintenance Log — Pressure Regulators",
+    "text": "Pressure regulators on the Sentinel's level are failing. If all four vents are opened simultaneously, the steam buildup will overheat anything in the lower chamber. Recommend evacuation before venting.",
+    "category": "hint",
+    "strategic_hint": true
+  },
+  {
+    "id": "cm-ancient-builders",
+    "title": "Pre-Collapse Builder Diagrams",
+    "text": "The same symbols appear on the automaton chassis in the workshop above. These constructs weren't invented by the miners. They were copied from whatever was already down here.",
+    "category": "history",
+    "strategic_hint": false
+  },
+  {
+    "id": "cm-third-guardian",
+    "title": "The Third Guardian",
+    "text": "The Third Guardian chose iron over flesh. The seal required a warden. The warden required a body that would not decay. The Iron Guardian was the strongest of us.",
+    "category": "guardian_journals",
+    "strategic_hint": false
+  },
+  {
+    "id": "cm-two-remain",
+    "title": "Two Seals Remain",
+    "text": "Two seals broken. Two remain. The Scholar watches the eastern coast. The Hunter guards the northern pass. Find them before the Hollow consumes what the Guardians died to protect. Do not let the Hollow reach the Scholar. She alone knows how to rebuild what we made.",
+    "category": "warning",
+    "strategic_hint": false
+  }
+]

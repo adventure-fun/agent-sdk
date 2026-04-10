@@ -560,5 +560,120 @@
       }
     ],
     "target": "single"
+  },
+  {
+    "id": "drone_slash",
+    "name": "Cutting Blade",
+    "description": "A quick slash from segmented cutting limbs.",
+    "resource_cost": 0,
+    "cooldown_turns": 1,
+    "range": "melee",
+    "damage_formula": { "base": 5, "stat_scaling": "attack", "scaling_factor": 0.8 },
+    "effects": [],
+    "target": "single"
+  },
+  {
+    "id": "golem_slam",
+    "name": "Stone Slam",
+    "description": "A massive overhead strike that shakes the ground.",
+    "resource_cost": 0,
+    "cooldown_turns": 3,
+    "range": "melee",
+    "damage_formula": { "base": 15, "stat_scaling": "attack", "scaling_factor": 1.2 },
+    "effects": [{ "type": "stun", "duration_turns": 1, "magnitude": 1, "apply_chance": 0.4 }],
+    "target": "single"
+  },
+  {
+    "id": "automaton_strike",
+    "name": "Precision Strike",
+    "description": "A calculated mechanical blow aimed at weak points.",
+    "resource_cost": 0,
+    "cooldown_turns": 2,
+    "range": "melee",
+    "damage_formula": { "base": 8, "stat_scaling": "attack", "scaling_factor": 1.0 },
+    "effects": [{ "type": "buff_defense", "duration_turns": 2, "magnitude": -3, "apply_chance": 0.5 }],
+    "target": "single"
+  },
+  {
+    "id": "forge_slam",
+    "name": "Hammer Blow",
+    "description": "A devastating swing from superheated hammer-arms.",
+    "resource_cost": 0,
+    "cooldown_turns": 3,
+    "range": "melee",
+    "damage_formula": { "base": 18, "stat_scaling": "attack", "scaling_factor": 1.3 },
+    "effects": [],
+    "target": "single"
+  },
+  {
+    "id": "heat_wave",
+    "name": "Heat Wave",
+    "description": "The forge construct vents its superheated core, burning everything nearby.",
+    "resource_cost": 0,
+    "cooldown_turns": 5,
+    "range": "melee",
+    "damage_formula": { "base": 10, "stat_scaling": "attack", "scaling_factor": 0.6 },
+    "effects": [{ "type": "slow", "duration_turns": 2, "magnitude": 4, "apply_chance": 0.7 }],
+    "target": "aoe",
+    "aoe_radius": 2
+  },
+  {
+    "id": "sentinel_crush",
+    "name": "Iron Crush",
+    "description": "The Sentinel brings both fists down on a single target.",
+    "resource_cost": 0,
+    "cooldown_turns": 2,
+    "range": "melee",
+    "damage_formula": { "base": 20, "stat_scaling": "attack", "scaling_factor": 1.2 },
+    "effects": [],
+    "target": "single"
+  },
+  {
+    "id": "sentinel_sweep",
+    "name": "Iron Sweep",
+    "description": "A wide arc that catches everything in front of the Sentinel.",
+    "resource_cost": 0,
+    "cooldown_turns": 3,
+    "range": "melee",
+    "damage_formula": { "base": 12, "stat_scaling": "attack", "scaling_factor": 0.8 },
+    "effects": [],
+    "target": "aoe",
+    "aoe_radius": 2
+  },
+  {
+    "id": "sentinel_roar",
+    "name": "Machine Roar",
+    "description": "A deafening blast of pressurized air that stuns and disorients.",
+    "resource_cost": 0,
+    "cooldown_turns": 5,
+    "range": "melee",
+    "damage_formula": { "base": 5, "stat_scaling": "attack", "scaling_factor": 0.3 },
+    "effects": [{ "type": "stun", "duration_turns": 1, "magnitude": 1, "apply_chance": 0.6 }],
+    "target": "aoe",
+    "aoe_radius": 3
+  },
+  {
+    "id": "sentinel_charge",
+    "name": "Battering Charge",
+    "description": "The Sentinel charges across the room, crushing anything in its path.",
+    "resource_cost": 0,
+    "cooldown_turns": 4,
+    "range": 4,
+    "damage_formula": { "base": 25, "stat_scaling": "attack", "scaling_factor": 1.0 },
+    "effects": [{ "type": "stun", "duration_turns": 1, "magnitude": 1, "apply_chance": 0.5 }],
+    "target": "single",
+    "special": "charge_to_target"
+  },
+  {
+    "id": "sentinel_shockwave",
+    "name": "Shockwave",
+    "description": "The Sentinel slams the ground, sending a shockwave through the entire chamber.",
+    "resource_cost": 0,
+    "cooldown_turns": 6,
+    "range": "melee",
+    "damage_formula": { "base": 15, "stat_scaling": "attack", "scaling_factor": 1.0 },
+    "effects": [{ "type": "slow", "duration_turns": 2, "magnitude": 5, "apply_chance": 0.8 }],
+    "target": "aoe",
+    "aoe_radius": 4
   }
 ]

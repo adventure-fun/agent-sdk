@@ -7,208 +7,107 @@
   "version": 1,
   "floor_count": {
     "min": 4,
-    "max": 6
+    "max": 5
   },
   "difficulty_tier": 3,
   "room_distribution": {
-    "combat": 0.4,
-    "treasure": 0.15,
-    "trap": 0.2,
+    "combat": 0.45,
+    "treasure": 0.20,
     "rest": 0.08,
-    "event": 0.12,
-    "boss": 0.05
+    "event": 0.17,
+    "boss": 0.10
   },
   "enemy_roster": [
-    "stone-golem",
-    "iron-automaton",
-    "skeleton-warrior",
-    "necromancer"
+    "stone_golem",
+    "iron_automaton",
+    "mine_drone",
+    "forge_construct"
   ],
-  "boss_id": "iron-sentinel",
+  "boss_id": "iron_sentinel",
   "loot_tables": [
     {
-      "id": "construct-common",
+      "id": "cm-common-loot",
       "entries": [
-        {
-          "item_template_id": "health-potion",
-          "weight": 35,
-          "quantity": {
-            "min": 1,
-            "max": 2
-          }
-        },
-        {
-          "item_template_id": "buff-potion",
-          "weight": 25,
-          "quantity": {
-            "min": 1,
-            "max": 1
-          }
-        },
-        {
-          "item_template_id": "iron-ring",
-          "weight": 20,
-          "quantity": {
-            "min": 1,
-            "max": 1
-          }
-        },
-        {
-          "item_template_id": "antidote",
-          "weight": 20,
-          "quantity": {
-            "min": 1,
-            "max": 1
-          }
-        }
+        { "item_template_id": "gold_coins", "weight": 40, "quantity": { "min": 8, "max": 20 } },
+        { "item_template_id": "health_potion", "weight": 30, "quantity": { "min": 1, "max": 2 } },
+        { "item_template_id": "buff_potion", "weight": 15, "quantity": { "min": 1, "max": 1 } },
+        { "item_template_id": "antidote", "weight": 15, "quantity": { "min": 1, "max": 1 } }
       ]
     },
     {
-      "id": "construct-uncommon",
+      "id": "cm-equipment-loot",
       "entries": [
-        {
-          "item_template_id": "greater-health-potion",
-          "weight": 30,
-          "quantity": {
-            "min": 1,
-            "max": 1
-          }
-        },
-        {
-          "item_template_id": "iron-sword",
-          "weight": 25,
-          "quantity": {
-            "min": 1,
-            "max": 1
-          }
-        },
-        {
-          "item_template_id": "wooden-shield",
-          "weight": 20,
-          "quantity": {
-            "min": 1,
-            "max": 1
-          }
-        },
-        {
-          "item_template_id": "buff-potion",
-          "weight": 15,
-          "quantity": {
-            "min": 1,
-            "max": 2
-          }
-        },
-        {
-          "item_template_id": "portal-scroll",
-          "weight": 10,
-          "quantity": {
-            "min": 1,
-            "max": 1
-          }
-        }
+        { "item_template_id": "gold_coins", "weight": 25, "quantity": { "min": 15, "max": 35 } },
+        { "item_template_id": "gear_iron_ring", "weight": 15, "quantity": { "min": 1, "max": 1 } },
+        { "item_template_id": "gear_chain_gloves", "weight": 15, "quantity": { "min": 1, "max": 1 } },
+        { "item_template_id": "gear_miners_helm", "weight": 15, "quantity": { "min": 1, "max": 1 } },
+        { "item_template_id": "greater_health_potion", "weight": 10, "quantity": { "min": 1, "max": 2 } },
+        { "item_template_id": "portal_scroll", "weight": 10, "quantity": { "min": 1, "max": 1 } },
+        { "item_template_id": "gear_steamforged_blade", "weight": 10, "quantity": { "min": 1, "max": 1 } }
       ]
     },
     {
-      "id": "iron-sentinel-boss",
+      "id": "cm-rare-loot",
       "entries": [
-        {
-          "item_template_id": "greater-health-potion",
-          "weight": 30,
-          "quantity": {
-            "min": 2,
-            "max": 4
-          }
-        },
-        {
-          "item_template_id": "portal-scroll",
-          "weight": 25,
-          "quantity": {
-            "min": 1,
-            "max": 2
-          }
-        },
-        {
-          "item_template_id": "iron-sword",
-          "weight": 20,
-          "quantity": {
-            "min": 1,
-            "max": 1
-          }
-        },
-        {
-          "item_template_id": "buff-potion",
-          "weight": 15,
-          "quantity": {
-            "min": 2,
-            "max": 3
-          }
-        },
-        {
-          "item_template_id": "iron-ring",
-          "weight": 10,
-          "quantity": {
-            "min": 1,
-            "max": 2
-          }
-        }
+        { "item_template_id": "gold_coins", "weight": 20, "quantity": { "min": 30, "max": 60 } },
+        { "item_template_id": "gear_steamforged_blade", "weight": 20, "quantity": { "min": 1, "max": 1 } },
+        { "item_template_id": "gear_construct_core", "weight": 15, "quantity": { "min": 1, "max": 1 } },
+        { "item_template_id": "gear_pressure_gauntlets", "weight": 15, "quantity": { "min": 1, "max": 1 } },
+        { "item_template_id": "greater_health_potion", "weight": 15, "quantity": { "min": 2, "max": 3 } },
+        { "item_template_id": "portal_scroll", "weight": 15, "quantity": { "min": 1, "max": 1 } }
       ]
-    }
-  ],
-  "trap_types": [
-    {
-      "id": "collapsing-ceiling",
-      "name": "Collapsing Ceiling",
-      "damage": 30,
-      "detection_difficulty": 14,
-      "visible_after_trigger": true
     },
     {
-      "id": "steam-vent",
-      "name": "Steam Vent",
-      "damage": 15,
-      "effect": {
-        "type": "slow",
-        "duration_turns": 2,
-        "magnitude": 4,
-        "apply_chance": 0.8
-      },
-      "detection_difficulty": 11,
-      "visible_after_trigger": true
+      "id": "cm-boss-loot",
+      "entries": [
+        { "item_template_id": "gear_sentinels_hammer", "weight": 20, "quantity": { "min": 1, "max": 1 } },
+        { "item_template_id": "gear_sentinels_chassis", "weight": 20, "quantity": { "min": 1, "max": 1 } },
+        { "item_template_id": "gear_builders_signet", "weight": 20, "quantity": { "min": 1, "max": 1 } },
+        { "item_template_id": "gold_coins", "weight": 25, "quantity": { "min": 50, "max": 100 } },
+        { "item_template_id": "portal_scroll", "weight": 15, "quantity": { "min": 1, "max": 2 } }
+      ]
     },
     {
-      "id": "tripwire-alarm",
-      "name": "Tripwire Alarm",
-      "damage": 0,
-      "effect": {
-        "type": "stun",
-        "duration_turns": 1,
-        "magnitude": 1,
-        "apply_chance": 0.5
-      },
-      "detection_difficulty": 13,
-      "visible_after_trigger": true
+      "id": "cm-consumable-loot",
+      "entries": [
+        { "item_template_id": "health_potion", "weight": 30, "quantity": { "min": 2, "max": 3 } },
+        { "item_template_id": "greater_health_potion", "weight": 25, "quantity": { "min": 1, "max": 2 } },
+        { "item_template_id": "mana_potion", "weight": 20, "quantity": { "min": 1, "max": 2 } },
+        { "item_template_id": "buff_potion", "weight": 15, "quantity": { "min": 1, "max": 2 } },
+        { "item_template_id": "portal_scroll", "weight": 10, "quantity": { "min": 1, "max": 1 } }
+      ]
     },
     {
-      "id": "ore-crusher",
-      "name": "Ore Crusher",
-      "damage": 45,
-      "detection_difficulty": 16,
-      "visible_after_trigger": true
+      "id": "cm-vault-loot",
+      "entries": [
+        { "item_template_id": "gold_coins", "weight": 25, "quantity": { "min": 60, "max": 120 } },
+        { "item_template_id": "gear_construct_core", "weight": 20, "quantity": { "min": 2, "max": 4 } },
+        { "item_template_id": "greater_health_potion", "weight": 20, "quantity": { "min": 3, "max": 5 } },
+        { "item_template_id": "gear_pressure_gauntlets", "weight": 15, "quantity": { "min": 1, "max": 1 } },
+        { "item_template_id": "gear_steamforged_blade", "weight": 10, "quantity": { "min": 1, "max": 1 } },
+        { "item_template_id": "portal_scroll", "weight": 10, "quantity": { "min": 1, "max": 2 } }
+      ]
     }
   ],
   "room_templates": [
-    "mining-shaft",
-    "ore-processing-hall",
-    "foreman-office",
-    "equipment-depot",
-    "dynamite-storage",
-    "underground-lake",
-    "collapsed-tunnel",
-    "automaton-workshop",
-    "deepvein-vault"
+    "cm-mine-entrance",
+    "cm-cart-junction",
+    "cm-equipment-depot",
+    "cm-foreman-office",
+    "cm-ore-processing",
+    "cm-dynamite-storage",
+    "cm-break-room",
+    "cm-collapsed-tunnel",
+    "cm-underground-lake",
+    "cm-automaton-workshop",
+    "cm-steam-tunnels",
+    "cm-deepvein-vault",
+    "cm-ancient-antechamber",
+    "cm-sentinel-chamber",
+    "cm-builders-vault"
   ],
   "narrative": {
-    "theme_description": "The DeepVein Mining Company's deepest excavation struck an ancient sealed vault. The automated guardians left by its builders activated, slaughtering the miners. Months later, the company sent enforcers \u2014 they never returned. The mine was sealed and officially listed as 'depleted.'",
+    "theme_description": "The DeepVein Mining Company's deepest excavation struck an ancient sealed vault. The automated guardians left by its builders activated, slaughtering the miners. Months later, the company sent enforcers — they never returned. The mine was sealed and officially listed as 'depleted.'",
     "room_text_pool": [
       {
         "text": "Mining carts sit on rusted tracks, overturned. Pickaxes lie scattered as if dropped mid-swing.",
@@ -216,14 +115,14 @@
       },
       {
         "text": "The ceiling groans ominously overhead. Dust sifts down with every footstep.",
-        "type": "trap"
+        "type": "event"
       },
       {
         "text": "A safety notice board still hangs on the wall. Someone has scrawled 'THEY'RE ALIVE' over the safety guidelines.",
         "type": "event"
       },
       {
-        "text": "An untouched break room \u2014 half-eaten meals on the table, mugs of long-cold coffee. No bodies.",
+        "text": "An untouched break room — half-eaten meals on the table, mugs of long-cold coffee. No bodies.",
         "type": "rest"
       },
       {
@@ -231,7 +130,7 @@
         "type": "treasure"
       },
       {
-        "text": "The air smells of machine oil and something older \u2014 like stone that has never seen sunlight.",
+        "text": "The air smells of machine oil and something older — like stone that has never seen sunlight.",
         "type": "combat"
       },
       {
@@ -244,30 +143,30 @@
       },
       {
         "text": "Water drips into a pool, the sound echoing for far too long in the darkness ahead.",
-        "type": "trap"
+        "type": "event"
       },
       {
-        "text": "A foreman's ledger lies open: 'Day 89 \u2014 They found the door. I've ordered it opened. God help us.'",
+        "text": "A foreman's ledger lies open: 'Day 89 — They found the door. I've ordered it opened. God help us.'",
         "type": "event"
       }
     ],
     "lore_pool": [
-      "A company memorandum: 'Excavation of DeepVein Shaft 7 suspended pending investigation of worker disappearances. All employees are reminded that unauthorized exploration of sub-level 4 is a terminable offense.'",
-      "Scratched into the tunnel wall: 'There are 12 of them. They don't sleep. They don't stop. Run.'",
-      "A sealed company report marked CONFIDENTIAL: 'The constructs appear to originate from pre-Collapse era. Their core material is unknown. Standard weapons are ineffective against the larger variants.'",
-      "A miner's personal journal: 'Gregor says the big one in the deepest chamber is just a statue. But statues don't breathe.'",
-      "An official DeepVein Mining Co. notice: 'This facility has been decommissioned due to geological instability. Trespassers will be prosecuted.' The paper is dotted with what looks like machine oil."
+      "cm-company-memo",
+      "cm-tunnel-scratching",
+      "cm-confidential-report",
+      "cm-miners-journal",
+      "cm-decommission-notice"
     ],
     "interactable_pool": [
-      "overturned-ore-cart",
-      "company-foreman-desk",
-      "dormant-automaton",
-      "safety-notice-board",
-      "ore-vein-deposit",
-      "sealed-blast-door",
-      "steam-pressure-valve",
-      "deepvein-company-safe",
-      "ancient-vault-door"
+      "cm-overturned-cart",
+      "cm-foreman-desk",
+      "cm-dormant-automaton",
+      "cm-safety-notice",
+      "cm-ore-vein",
+      "cm-sealed-blast-door",
+      "cm-steam-valve",
+      "cm-company-safe",
+      "cm-ancient-vault-door"
     ]
   },
   "completion_rewards": {

@@ -1,0 +1,22 @@
+{
+  "id": "cm-equipment-depot",
+  "type": "treasure",
+  "size": { "width": 5, "height": 7 },
+  "text_first_visit": "Racks of mining equipment line the walls — helmets, lamps, picks, blasting charges. Most have been picked over, but a supply crate near the back looks untouched.",
+  "text_revisit": "The equipment depot. Mostly empty racks now.",
+  "interactables": [],
+  "enemy_slots": [],
+  "loot_slots": [
+    {
+      "loot_table_id": "cm-equipment-loot",
+      "container": "chest",
+      "position": { "x": 2, "y": 1 }
+    },
+    {
+      "loot_table_id": "cm-consumable-loot",
+      "container": "chest",
+      "position": { "x": 4, "y": 1 }
+    }
+  ],
+  "triggers": []
+}

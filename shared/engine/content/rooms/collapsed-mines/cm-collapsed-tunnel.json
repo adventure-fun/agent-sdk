@@ -1,0 +1,20 @@
+{
+  "id": "cm-collapsed-tunnel",
+  "type": "event",
+  "size": { "width": 3, "height": 9 },
+  "text_first_visit": "A narrow tunnel, half-collapsed. Support beams have buckled and rubble fills most of the passage. You have to squeeze through gaps between fallen stone. Scratched into the wall at eye level: 'There are 12 of them. They don't sleep. They don't stop. Run.'",
+  "text_revisit": "The collapsed tunnel. The scratched warning is still there.",
+  "interactables": [
+    {
+      "id": "cm-wall-scratching",
+      "name": "Scratched Warning",
+      "text_on_interact": "Below the main warning, smaller text: 'The big ones guard the lower levels. The small ones patrol. They communicate somehow — kill one and the others know. The sealed door at the bottom is what they're protecting. Whatever's behind it, the company wanted it badly enough to sacrifice us.'",
+      "conditions": [],
+      "effects": [{ "type": "reveal_lore", "lore_id": "cm-tunnel-scratching" }],
+      "lore_entry_id": "cm-tunnel-scratching"
+    }
+  ],
+  "enemy_slots": [],
+  "loot_slots": [],
+  "triggers": []
+}

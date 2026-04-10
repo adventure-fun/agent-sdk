@@ -1,0 +1,31 @@
+{
+  "id": "cm-foreman-office",
+  "type": "event",
+  "size": { "width": 5, "height": 5 },
+  "text_first_visit": "A cramped office carved into the rock wall. A battered desk is covered in papers and a dead lantern. The foreman's chair is overturned. On the desk, a ledger lies open to its last entry.",
+  "text_revisit": "The foreman's office. Papers still scattered, chair still overturned.",
+  "interactables": [
+    {
+      "id": "cm-foreman-ledger",
+      "name": "Foreman's Ledger",
+      "text_on_interact": "The final entry, written in an increasingly unsteady hand: 'Day 89 — They found the door. I told them not to open it. Corporate overruled me. They sent the order at noon. By sunset, four men were dead. The things behind the door don't stop. They don't sleep. I'm locking my office and I'm not coming out.'",
+      "conditions": [],
+      "effects": [{ "type": "reveal_lore", "lore_id": "cm-miners-journal" }],
+      "lore_entry_id": "cm-miners-journal"
+    },
+    {
+      "id": "cm-foreman-safe",
+      "name": "Wall Safe",
+      "text_on_interact": "The safe is unlocked — the foreman left in a hurry. Inside: a ring of heavy keys and a company report stamped CONFIDENTIAL.",
+      "conditions": [],
+      "effects": [
+        { "type": "grant_item", "item_template_id": "shaft_access_key" },
+        { "type": "reveal_lore", "lore_id": "cm-confidential-report" }
+      ],
+      "lore_entry_id": "cm-confidential-report"
+    }
+  ],
+  "enemy_slots": [],
+  "loot_slots": [],
+  "triggers": []
+}

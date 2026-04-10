@@ -1,0 +1,37 @@
+{
+  "id": "cm-ore-processing",
+  "type": "combat",
+  "size": { "width": 9, "height": 9 },
+  "text_first_visit": "A massive processing hall. Conveyor belts stretch across the room, still grinding slowly. Crushers and sorters clank rhythmically — the machines haven't stopped running. Among them, iron shapes move with purpose. These aren't miners.",
+  "text_revisit": "The processing hall. The conveyors still run. The automatons have been replaced.",
+  "interactables": [
+    {
+      "id": "cm-control-panel",
+      "name": "Processing Control Panel",
+      "text_on_interact": "The controls are labeled with simple icons: START, STOP, EMERGENCY. The EMERGENCY button has been pressed — and jammed. The machines can't be shut down from here.",
+      "conditions": [],
+      "effects": [{ "type": "reveal_lore", "lore_id": "cm-decommission-notice" }],
+      "lore_entry_id": "cm-decommission-notice"
+    }
+  ],
+  "enemy_slots": [
+    {
+      "enemy_template_id": "iron_automaton",
+      "position": "random",
+      "count": { "min": 2, "max": 2 }
+    },
+    {
+      "enemy_template_id": "mine_drone",
+      "position": "random",
+      "count": { "min": 1, "max": 2 }
+    }
+  ],
+  "loot_slots": [
+    {
+      "loot_table_id": "cm-common-loot",
+      "container": "floor_drop",
+      "position": "random"
+    }
+  ],
+  "triggers": []
+}

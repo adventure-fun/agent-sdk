@@ -1,0 +1,31 @@
+{
+  "id": "cm-builders-vault",
+  "type": "treasure",
+  "size": { "width": 7, "height": 7 },
+  "text_first_visit": "Beyond the Sentinel's platform: a sealed vault, now open. Weapons and armor of impossible craftsmanship line the walls — forged by the same builders who created the constructs. At the back of the vault, a final inscription: 'Two seals broken. Two remain. The Scholar watches the eastern coast. The Hunter guards the northern pass. Find them before the Hollow consumes what the Guardians died to protect.'",
+  "text_revisit": "The builders' vault. The inscription weighs on you.",
+  "interactables": [
+    {
+      "id": "cm-final-inscription",
+      "name": "Builder's Inscription",
+      "text_on_interact": "The script is identical to the crypt — pre-Collapse era. But this message is newer, carved after the original construction: 'The Iron Guardian was the strongest of us. If even this body falls, the seal cannot hold. To whoever reads this: do not let the Hollow reach the Scholar. She alone knows how to rebuild what we made.'",
+      "conditions": [],
+      "effects": [{ "type": "reveal_lore", "lore_id": "cm-two-remain" }],
+      "lore_entry_id": "cm-two-remain"
+    }
+  ],
+  "enemy_slots": [],
+  "loot_slots": [
+    {
+      "loot_table_id": "cm-boss-loot",
+      "container": "chest",
+      "position": { "x": 3, "y": 1 }
+    },
+    {
+      "loot_table_id": "cm-vault-loot",
+      "container": "chest",
+      "position": { "x": 5, "y": 1 }
+    }
+  ],
+  "triggers": []
+}

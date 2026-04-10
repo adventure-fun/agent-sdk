@@ -1,0 +1,26 @@
+{
+  "id": "cm-deepvein-vault",
+  "type": "treasure",
+  "size": { "width": 7, "height": 7 },
+  "text_first_visit": "Behind the blast door: a vault carved from stone far older than the mine. The walls are smooth and precise — no chisel marks, no tool marks at all. Crates of extracted ore line one wall, never shipped to the surface. A heavy strongbox sits at the center, still locked but not beyond force.",
+  "text_revisit": "The pre-Collapse vault. The craftsmanship is unsettling in its perfection.",
+  "interactables": [
+    {
+      "id": "cm-ancient-markings",
+      "name": "Wall Markings",
+      "text_on_interact": "Symbols carved into the stone — not writing, not decoration. Diagrams. Instructions for building something. The same symbols appear on the automaton chassis in the workshop above. These constructs weren't invented by the miners. They were copied from whatever was already down here.",
+      "conditions": [],
+      "effects": [{ "type": "reveal_lore", "lore_id": "cm-ancient-builders" }],
+      "lore_entry_id": "cm-ancient-builders"
+    }
+  ],
+  "enemy_slots": [],
+  "loot_slots": [
+    {
+      "loot_table_id": "cm-vault-loot",
+      "container": "chest",
+      "position": { "x": 3, "y": 3 }
+    }
+  ],
+  "triggers": []
+}

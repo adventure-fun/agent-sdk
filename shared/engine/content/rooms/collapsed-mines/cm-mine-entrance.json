@@ -1,0 +1,20 @@
+{
+  "id": "cm-mine-entrance",
+  "type": "event",
+  "size": { "width": 5, "height": 7 },
+  "text_first_visit": "A heavy iron gate hangs open on broken hinges. Beyond it, a mine shaft descends at a steep angle. 'DEEPVEIN MINING CO. — SHAFT 7 — CONDEMNED' is stenciled above the frame. Someone has added in red paint: 'SEALED BY ORDER. DO NOT ENTER.'",
+  "text_revisit": "The condemned entrance. The red paint warning drips in the damp air.",
+  "interactables": [
+    {
+      "id": "cm-entrance-notice",
+      "name": "Official Notice Board",
+      "text_on_interact": "A DeepVein Mining Company memorandum, water-stained but legible: 'Excavation of Shaft 7 suspended pending investigation of worker disappearances. All employees are reminded that unauthorized exploration of sub-level 4 is a terminable offense.' The word 'terminable' has been circled three times.",
+      "conditions": [],
+      "effects": [{ "type": "reveal_lore", "lore_id": "cm-company-memo" }],
+      "lore_entry_id": "cm-company-memo"
+    }
+  ],
+  "enemy_slots": [],
+  "loot_slots": [],
+  "triggers": []
+}

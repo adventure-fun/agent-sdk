@@ -1,0 +1,77 @@
+{
+  "id": "cm-sentinel-chamber",
+  "type": "boss",
+  "size": { "width": 10, "height": 10 },
+  "text_first_visit": "The deepest chamber. Circular, ringed with four massive steam vents sealed by pressure valves. At the center, on a platform of black stone, stands the Iron Sentinel — fifteen feet of forged metal, ancient beyond reckoning, its chest glowing with the same violet light as the Hollow seals. It does not attack immediately. It watches. It assesses. Then it moves.",
+  "text_revisit": null,
+  "interactables": [
+    {
+      "id": "cm-valve-north",
+      "name": "Steam Valve (North)",
+      "text_on_interact": "You wrench the valve open. Superheated steam blasts into the chamber. The Sentinel staggers, its joints glowing red.",
+      "conditions": [],
+      "effects": [{ "type": "grant_quest_flag", "flag": "cm_valve_north_open" }],
+      "lore_entry_id": null
+    },
+    {
+      "id": "cm-valve-south",
+      "name": "Steam Valve (South)",
+      "text_on_interact": "Another valve opened. Steam pours from the vents. The Sentinel's plating buckles and warps.",
+      "conditions": [],
+      "effects": [{ "type": "grant_quest_flag", "flag": "cm_valve_south_open" }],
+      "lore_entry_id": null
+    },
+    {
+      "id": "cm-valve-east",
+      "name": "Steam Valve (East)",
+      "text_on_interact": "The third valve screams as it opens. The air is almost unbearable. The Sentinel's movements become jerky, uncoordinated.",
+      "conditions": [],
+      "effects": [{ "type": "grant_quest_flag", "flag": "cm_valve_east_open" }],
+      "lore_entry_id": null
+    },
+    {
+      "id": "cm-valve-west",
+      "name": "Steam Valve (West)",
+      "text_on_interact": "The final valve. The chamber fills with steam. The Sentinel's armor cracks open, exposing the violet core within. It roars — a sound of grinding metal and something almost like pain.",
+      "conditions": [],
+      "effects": [{ "type": "grant_quest_flag", "flag": "cm_valve_west_open" }],
+      "lore_entry_id": null
+    }
+  ],
+  "enemy_slots": [
+    {
+      "enemy_template_id": "iron_sentinel",
+      "position": { "x": 5, "y": 5 },
+      "count": { "min": 1, "max": 1 }
+    }
+  ],
+  "loot_slots": [],
+  "triggers": [
+    {
+      "conditions": [
+        { "type": "has_flag", "flag": "cm_valve_north_open" },
+        { "type": "has_flag", "flag": "cm_valve_south_open" }
+      ],
+      "effects": [
+        { "type": "modify_enemy_stat", "entity_id": "f4_r2_enemy_01", "stat": "defense", "modifier": -0.25 },
+        { "type": "show_text", "text": "The steam is affecting the Sentinel. Its armor is softening." }
+      ],
+      "fire_once": true
+    },
+    {
+      "conditions": [
+        { "type": "has_flag", "flag": "cm_valve_north_open" },
+        { "type": "has_flag", "flag": "cm_valve_south_open" },
+        { "type": "has_flag", "flag": "cm_valve_east_open" },
+        { "type": "has_flag", "flag": "cm_valve_west_open" }
+      ],
+      "effects": [
+        { "type": "modify_enemy_stat", "entity_id": "f4_r2_enemy_01", "stat": "defense", "modifier": -0.50 },
+        { "type": "modify_enemy_stat", "entity_id": "f4_r2_enemy_01", "stat": "speed", "modifier": -0.30 },
+        { "type": "modify_enemy_stat", "entity_id": "f4_r2_enemy_01", "stat": "attack", "modifier": 0.20 },
+        { "type": "show_text", "text": "The Sentinel's armor splits apart. It is exposed — but enraged. Its attacks are more desperate, more powerful." }
+      ],
+      "fire_once": true
+    }
+  ]
+}

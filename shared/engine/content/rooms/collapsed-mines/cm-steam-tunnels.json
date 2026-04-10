@@ -1,0 +1,36 @@
+{
+  "id": "cm-steam-tunnels",
+  "type": "event",
+  "size": { "width": 3, "height": 9 },
+  "text_first_visit": "Narrow maintenance tunnels lined with pressurized pipes. Steam hisses from joints and valves. The air is hot and wet. A heavy blast door at the far end is sealed with a mechanical lock — the shaft master's key would open it.",
+  "text_revisit": "The steam tunnels. Still hot. Still hissing.",
+  "interactables": [
+    {
+      "id": "cm-blast-door",
+      "name": "Sealed Blast Door",
+      "text_on_interact": "The mechanical lock clicks open. The blast door groans inward, revealing a vault carved from raw stone — older than the mine, older than anything you've seen.",
+      "conditions": [{ "type": "has_item", "item_id": "shaft_master_key" }],
+      "effects": [{ "type": "unlock_door", "entity_id": "cm-blast-door" }],
+      "lore_entry_id": null
+    },
+    {
+      "id": "cm-steam-valve-hint",
+      "name": "Maintenance Log",
+      "text_on_interact": "A water-stained maintenance log, the last entry readable: 'Pressure regulators on the Sentinel's level are failing. If all four vents are opened simultaneously, the steam buildup will overheat anything in the lower chamber. Recommend evacuation before venting.' The entry is dated three months before the mine was sealed.",
+      "conditions": [],
+      "effects": [{ "type": "reveal_lore", "lore_id": "cm-valve-hint" }],
+      "lore_entry_id": "cm-valve-hint"
+    }
+  ],
+  "enemy_slots": [],
+  "loot_slots": [],
+  "triggers": [
+    {
+      "conditions": [],
+      "effects": [{ "type": "show_text", "text": "The blast door is sealed. You need a key with a shaft master's stamp." }],
+      "fire_once": false,
+      "trigger_on": "interact_failed",
+      "target_id": "cm-blast-door"
+    }
+  ]
+}
