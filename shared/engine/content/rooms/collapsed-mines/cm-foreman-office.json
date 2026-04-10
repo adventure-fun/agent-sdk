@@ -19,8 +19,8 @@
       "text_on_interact": "The safe is unlocked — the foreman left in a hurry. Inside: a ring of heavy keys and a company report stamped CONFIDENTIAL.",
       "conditions": [],
       "effects": [
-        { "type": "grant_item", "item_template_id": "shaft-access-key" },
-        { "type": "reveal_lore", "lore_id": "cm-confidential-report" }
+        { "type": "grant-item", "item_template_id": "shaft-access-key" },
+        { "type": "reveal-lore", "lore_id": "cm-confidential-report" }
       ],
       "lore_entry_id": "cm-confidential-report"
     }

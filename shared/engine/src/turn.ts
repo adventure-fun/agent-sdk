@@ -2224,6 +2224,19 @@ function applyEffect(
       parts.push("The way ahead is now open.")
       break
     }
+    case "consume-item": {
+      const itemId = effect.item_id as string
+      const idx = s.inventory.findIndex((i) => i.template_id === itemId)
+      if (idx >= 0) {
+        const item = s.inventory[idx]
+        if (item.quantity > 1) {
+          item.quantity -= 1
+        } else {
+          s.inventory.splice(idx, 1)
+        }
+      }
+      break
+    }
   }
 }
 

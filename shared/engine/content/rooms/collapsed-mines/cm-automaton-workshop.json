@@ -17,8 +17,11 @@
       "id": "cm-workshop-lockbox",
       "name": "Foreman's Lockbox",
       "text_on_interact": "A heavy lockbox bolted to the workbench. The shaft access key from the office above fits the lock. Inside: a larger key stamped 'SHAFT MASTER — AUTHORIZED PERSONNEL ONLY.'",
-      "conditions": [{ "type": "has_item", "item_id": "shaft-access-key" }],
-      "effects": [{ "type": "grant_item", "item_template_id": "shaft-master-key" }],
+      "conditions": [{ "type": "has-item", "item_id": "shaft-access-key" }],
+      "effects": [
+        { "type": "grant-item", "item_template_id": "shaft-master-key" },
+        { "type": "consume-item", "item_id": "shaft-access-key" }
+      ],
       "lore_entry_id": null
     }
   ],

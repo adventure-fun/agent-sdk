@@ -599,6 +599,7 @@ export type Effect =
   | { type: "heal-hp"; amount: number }
   | { type: "cure-debuffs" }
   | { type: "modify-enemy-stat"; entity_id: string; stat: string; modifier: number }
+  | { type: "consume-item"; item_id: string }
 
 export interface TriggerTemplate {
   conditions: Condition[]

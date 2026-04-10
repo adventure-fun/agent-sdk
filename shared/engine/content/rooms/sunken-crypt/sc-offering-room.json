@@ -22,6 +22,10 @@
         {
           "type": "unlock-door",
           "entity_id": "sc-locked-door-f2"
+        },
+        {
+          "type": "consume-item",
+          "item_id": "crypt-key"
         }
       ],
       "lore_entry_id": null

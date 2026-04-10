@@ -24,6 +24,10 @@
           "entity_id": "cp-iron-gate"
         },
         {
+          "type": "consume-item",
+          "item_id": "mine-key"
+        },
+        {
           "type": "show-text",
           "text": "You insert the mine key. The gate groans open, rust flaking from the hinges."
         }

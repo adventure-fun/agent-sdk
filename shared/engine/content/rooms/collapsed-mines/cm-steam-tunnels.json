@@ -9,8 +9,11 @@
       "id": "cm-blast-door",
       "name": "Sealed Blast Door",
       "text_on_interact": "The mechanical lock clicks open. The blast door groans inward, revealing a vault carved from raw stone — older than the mine, older than anything you've seen.",
-      "conditions": [{ "type": "has_item", "item_id": "shaft_master_key" }],
-      "effects": [{ "type": "unlock_door", "entity_id": "cm-blast-door" }],
+      "conditions": [{ "type": "has-item", "item_id": "shaft-master-key" }],
+      "effects": [
+        { "type": "unlock-door", "entity_id": "cm-blast-door" },
+        { "type": "consume-item", "item_id": "shaft-master-key" }
+      ],
       "lore_entry_id": null
     },
     {
@@ -18,7 +21,7 @@
       "name": "Maintenance Log",
       "text_on_interact": "A water-stained maintenance log, the last entry readable: 'Pressure regulators on the Sentinel's level are failing. If all four vents are opened simultaneously, the steam buildup will overheat anything in the lower chamber. Recommend evacuation before venting.' The entry is dated three months before the mine was sealed.",
       "conditions": [],
-      "effects": [{ "type": "reveal_lore", "lore_id": "cm-valve-hint" }],
+      "effects": [{ "type": "reveal-lore", "lore_id": "cm-valve-hint" }],
       "lore_entry_id": "cm-valve-hint"
     }
   ],
