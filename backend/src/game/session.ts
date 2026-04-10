@@ -290,10 +290,21 @@ export class GameSession {
       if (item.slot && item.slot in equipment) {
         equipment[item.slot as EquipSlot] = inv
       } else {
-        // Merge with existing stack of same template
-        const existing = inventory.find((i) => i.template_id === item.template_id)
+        // Merge with existing stack of same template, respecting stack_limit
+        let itemTemplate: { stack_limit: number } | null = null
+        try { itemTemplate = getItem(item.template_id) } catch { /* skip */ }
+        const limit = itemTemplate?.stack_limit ?? 99
+        const existing = inventory.find(
+          (i) => i.template_id === item.template_id && i.quantity < limit,
+        )
         if (existing) {
-          existing.quantity += inv.quantity
+          const canAdd = limit - existing.quantity
+          const toAdd = Math.min(inv.quantity, canAdd)
+          existing.quantity += toAdd
+          const overflow = inv.quantity - toAdd
+          if (overflow > 0) {
+            inventory.push({ ...inv, id: crypto.randomUUID(), quantity: overflow })
+          }
         } else {
           inventory.push(inv)
         }

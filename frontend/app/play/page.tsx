@@ -700,13 +700,18 @@ export default function PlayPage() {
           onClose={() => setPaymentToast(null)}
         />
         <Shell wide>
-          <AccountPanel
-            walletAddress={evmAddress}
-            handle={account?.handle}
-            balanceLabel={balanceLabel}
-            isTestnet={isX402Testnet}
-            onLogout={logout}
-          />
+          <div className="flex items-center justify-between">
+            <Link href="/" className="rounded border border-gray-700 px-4 py-1.5 text-xs text-gray-300 transition-colors hover:border-gray-500">
+              Home
+            </Link>
+            <AccountPanel
+              walletAddress={evmAddress}
+              handle={account?.handle}
+              balanceLabel={balanceLabel}
+              isTestnet={isX402Testnet}
+              onLogout={logout}
+            />
+          </div>
           <h1 className="text-3xl font-bold text-amber-400">{character.name}</h1>
           <p className="text-gray-400 text-sm">
             Level {character.level} {classMap[cls]?.name ?? cls} — {character.gold} gold
@@ -1075,13 +1080,18 @@ export default function PlayPage() {
         />
         <main className="min-h-screen flex flex-col items-center p-8">
           <div className="max-w-5xl w-full space-y-6">
-            <AccountPanel
-              walletAddress={evmAddress}
-              handle={account?.handle}
-              balanceLabel={balanceLabel}
-              isTestnet={isX402Testnet}
-              onLogout={logout}
-            />
+            <div className="flex items-center justify-between">
+              <Link href="/" className="rounded border border-gray-700 px-4 py-1.5 text-xs text-gray-300 transition-colors hover:border-gray-500">
+                Home
+              </Link>
+              <AccountPanel
+                walletAddress={evmAddress}
+                handle={account?.handle}
+                balanceLabel={balanceLabel}
+                isTestnet={isX402Testnet}
+                onLogout={logout}
+              />
+            </div>
           <h1 className="text-3xl font-bold text-amber-400 text-center">ADVENTURE.FUN</h1>
 
           <div className="grid gap-6 xl:grid-cols-[1.9fr_1fr]">
@@ -1339,7 +1349,7 @@ export default function PlayPage() {
                 )}
                 {tutorialCompleted && tutorialRealm && (
                   <div className="rounded border border-emerald-900/40 bg-emerald-950/10 p-4 text-sm text-emerald-200">
-                    Tutorial complete. New realms are now open, and {tutorialTemplate?.name ?? "The Cellar"} can be replayed from its completed card whenever you want a refresher run.
+                    Tutorial complete. New realms are now open.
                   </div>
                 )}
 
@@ -1502,12 +1512,6 @@ export default function PlayPage() {
             )}
           </div>
 
-          <button
-            onClick={logout}
-            className="text-sm text-gray-600 hover:text-gray-400 transition-colors"
-          >
-            Disconnect
-          </button>
           </div>
         </main>
         <PaymentModal
@@ -1567,12 +1571,6 @@ export default function PlayPage() {
       ) : (
         <p className="text-gray-400">Preparing...</p>
       )}
-      <button
-        onClick={logout}
-        className="text-sm text-gray-600 hover:text-gray-400 transition-colors"
-      >
-        Disconnect
-      </button>
     </Shell>
   )
 }

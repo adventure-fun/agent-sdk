@@ -127,6 +127,14 @@ export default function LeaderboardPage() {
       className="min-h-screen bg-gradient-to-b from-gray-950 via-black to-gray-950 p-6 sm:p-8"
     >
       <div className="mx-auto max-w-6xl space-y-6">
+        <div>
+          <Link
+            href="/play"
+            className="rounded bg-amber-500 px-5 py-2 text-sm font-bold text-black transition-colors hover:bg-amber-400"
+          >
+            Return to Hub
+          </Link>
+        </div>
         <motion.section variants={sectionReveal} className="panel-elevated rounded-2xl border border-amber-500/20 bg-amber-500/5 p-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="space-y-2">

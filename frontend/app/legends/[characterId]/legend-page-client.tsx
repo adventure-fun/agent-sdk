@@ -168,6 +168,20 @@ export function LegendPageClient({ characterId }: { characterId: string }) {
         onClose={() => setToast(null)}
       />
       <div className="mx-auto max-w-5xl space-y-6">
+        <div className="flex items-center justify-between">
+          <Link
+            href="/play"
+            className="rounded bg-amber-500 px-5 py-2 text-sm font-bold text-black transition-colors hover:bg-amber-400"
+          >
+            Return to Hub
+          </Link>
+          <Link
+            href="/leaderboard"
+            className="rounded border border-gray-700 px-4 py-2 text-sm text-gray-300 transition-colors hover:border-gray-500"
+          >
+            Leaderboard
+          </Link>
+        </div>
         <motion.section variants={sectionReveal} className="ambient-glow rounded-3xl border border-amber-500/20 bg-amber-500/5 p-6 shadow-[0_0_80px_rgba(245,158,11,0.08)]">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="space-y-3">

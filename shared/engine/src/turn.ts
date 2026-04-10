@@ -2984,6 +2984,9 @@ export function computeLegalActions(
       continue
     }
 
+    // Skip disarm-trap in the generic ability loop — handled by dedicated section below
+    if (ability.special === "disarm-trap") continue
+
     const targetType = normalizeAbilityTarget(ability.target)
     if (targetType === "self" || targetType === "single-or-self") {
       actions.push({
@@ -3063,10 +3066,14 @@ export function computeLegalActions(
   }
 
   // Use items from inventory (skip ammo — consumed automatically by abilities)
+  // Deduplicate by template_id so multiple stacks of the same item don't show separate buttons
+  const seenUseTemplates = new Set<string>()
   for (const item of state.inventory) {
+    if (seenUseTemplates.has(item.template_id)) continue
     try {
       const template = getItem(item.template_id)
       if (template.type === "consumable" && template.effects && template.effects.length > 0) {
+        seenUseTemplates.add(item.template_id)
         actions.push({ type: "use_item", item_id: item.id })
       }
     } catch {
