@@ -228,6 +228,9 @@ export class GameSession {
     const character = charRes.data
     if (!realm || !character) return null
 
+    // Block entry to completed or dead realms
+    if (realm.status === "completed" || realm.status === "dead_end") return null
+
     const template = REALMS[realm.template_id]
     if (!template) return null
 
@@ -634,6 +637,19 @@ export class GameSession {
         .from("realm_instances")
         .update(realmUpdate)
         .eq("id", this.realmId)
+
+      // Increment completions counter on realm completion
+      if (realmStatus === "completed") {
+        const { data: current } = await db
+          .from("realm_instances")
+          .select("completions")
+          .eq("id", this.realmId)
+          .single()
+        await db
+          .from("realm_instances")
+          .update({ completions: ((current?.completions as number) ?? 0) + 1 })
+          .eq("id", this.realmId)
+      }
 
       // 4. Persist fog-of-war
       for (const [floor, tiles] of Object.entries(

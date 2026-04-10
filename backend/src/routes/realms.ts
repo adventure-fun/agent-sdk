@@ -80,8 +80,8 @@ realms.post("/generate", requireAuth, async (c) => {
     .eq("template_id", body.template_id)
     .maybeSingle()
 
-  if (existingRealm && existingRealm.status !== "completed" && existingRealm.status !== "dead_end") {
-    return c.json({ error: "Realm already exists for this character", realm: existingRealm }, 409)
+  if (existingRealm) {
+    return c.json({ error: "Realm already exists for this character. Use regenerate to replay.", realm: existingRealm }, 409)
   }
 
   // Check free realm
@@ -147,7 +147,7 @@ realms.post("/:id/regenerate", requireAuth, async (c) => {
 
   const { data: character } = await db
     .from("characters")
-    .select("id, gold")
+    .select("id")
     .eq("account_id", account_id)
     .eq("status", "alive")
     .maybeSingle()
@@ -169,11 +169,6 @@ realms.post("/:id/regenerate", requireAuth, async (c) => {
     return c.json({ error: "Tutorial realms cannot be replayed" }, 403)
   }
 
-  const REGEN_GOLD_COST = 100
-  if (character.gold < REGEN_GOLD_COST) {
-    return c.json({ error: `Requires ${REGEN_GOLD_COST} gold`, gold: character.gold }, 400)
-  }
-
   const regenNetworks = getRequestedNetworks(c)
   const settledPayment = await verifyAndSettle(c, "realm_regen", regenNetworks)
   if (!settledPayment) {
@@ -182,16 +177,11 @@ realms.post("/:id/regenerate", requireAuth, async (c) => {
 
   const newSeed = Math.floor(Math.random() * 2 ** 32)
 
-  const [{ data: updated }, _] = await Promise.all([
-    db.from("realm_instances")
-      .update({ seed: newSeed, status: "generated", floor_reached: 1 })
-      .eq("id", realmId)
-      .select()
-      .single(),
-    db.from("characters")
-      .update({ gold: character.gold - REGEN_GOLD_COST })
-      .eq("id", character.id),
-  ])
+  const { data: updated } = await db.from("realm_instances")
+    .update({ seed: newSeed, status: "generated", floor_reached: 1 })
+    .eq("id", realmId)
+    .select()
+    .single()
 
   await cleanupRealmForRegeneration(db, realmId)
 

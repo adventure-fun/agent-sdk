@@ -49,7 +49,6 @@ function formatItemQuantity(name: string, quantity: number, templateId?: string)
   if (templateId?.startsWith("ammo-")) return `${name} (${quantity})`
   return `${name} x${quantity}`
 }
-const REALM_REGEN_GOLD_COST = 100
 const REALM_REGEN_USDC_PRICE = "0.25"
 const TUTORIAL_TEMPLATE_ID = "tutorial-cellar"
 const EQUIP_SLOT_ORDER: EquipSlot[] = ["weapon", "armor", "helm", "hands", "accessory"]
@@ -1005,10 +1004,6 @@ export default function PlayPage() {
 
     const handleRegenerateRealm = (realmId: string, realmName: string) => {
       setRealmError(null)
-      if (displayedGold < REALM_REGEN_GOLD_COST) {
-        setRealmError(`Requires ${REALM_REGEN_GOLD_COST} gold to regenerate this realm.`)
-        return
-      }
 
       setPaymentError(null)
       setPendingPayment({ kind: "regenerate", realmId, realmName })
@@ -1355,7 +1350,6 @@ export default function PlayPage() {
                   const canEnter = realm.status === "generated" || realm.status === "paused" || realm.status === "active"
                   const isPaused = realm.status === "paused" || realm.status === "active"
                   const canRegenerate = realm.status === "completed" && !template?.is_tutorial
-                  const canAffordRegeneration = displayedGold >= REALM_REGEN_GOLD_COST
                   const isRegenerating = generatingTemplate === realm.id
                   const statusColor = realm.status === "completed"
                     ? "text-green-500"
@@ -1383,6 +1377,9 @@ export default function PlayPage() {
                         </div>
                         <p className={`text-xs ${statusColor}`}>
                           {statusLabel} — Floor {realm.floor_reached}
+                          {realm.completions > 0
+                            ? ` — Cleared ${realm.completions} time${realm.completions === 1 ? "" : "s"}`
+                            : ""}
                         </p>
                         {template?.is_tutorial && !tutorialCompleted && (
                           <p className="mt-0.5 text-xs text-gray-500">
@@ -1395,13 +1392,8 @@ export default function PlayPage() {
                           </p>
                         )}
                         {canRegenerate && (
-                          <div className="mt-1.5 space-y-1 text-xs">
-                            <p className="text-amber-200/80">
-                              Replay cost: {REALM_REGEN_GOLD_COST} gold + ${REALM_REGEN_USDC_PRICE} USDC
-                            </p>
-                            <p className="text-gray-500">
-                              Fully resets the realm with a new seed, enemies, and loot. Current gold: {displayedGold}
-                            </p>
+                          <div className="mt-1.5 text-xs text-gray-500">
+                            Fully resets the realm with a new seed, enemies, and loot.
                           </div>
                         )}
                       </div>
@@ -1422,23 +1414,14 @@ export default function PlayPage() {
                           <button
                             type="button"
                             onClick={() => handleRegenerateRealm(realm.id, realmName)}
-                            disabled={!canAffordRegeneration || isProcessingPayment || !!generatingTemplate}
-                            title={
-                              canAffordRegeneration
-                                ? "Reset this completed realm with a new seed."
-                                : `Requires ${REALM_REGEN_GOLD_COST} gold`
-                            }
+                            disabled={isProcessingPayment || !!generatingTemplate}
+                            title="Reset this completed realm with a new seed."
                             className="px-4 py-1 border border-cyan-700/70 bg-cyan-950/20 text-cyan-200 text-sm font-bold rounded transition-colors hover:bg-cyan-900/30 disabled:border-gray-700 disabled:bg-transparent disabled:text-gray-500 disabled:cursor-not-allowed disabled:opacity-60"
                           >
                             {isRegenerating
                               ? "Regenerating..."
-                              : `Regenerate (${REALM_REGEN_GOLD_COST}g + $${REALM_REGEN_USDC_PRICE})`}
+                              : `Regenerate ($${REALM_REGEN_USDC_PRICE})`}
                           </button>
-                        )}
-                        {canRegenerate && !canAffordRegeneration && (
-                          <p className="text-[11px] text-red-400">
-                            Requires {REALM_REGEN_GOLD_COST} gold
-                          </p>
                         )}
                       </div>
                     </div>
@@ -1447,7 +1430,7 @@ export default function PlayPage() {
 
                 {realmGenerationTemplates.map((template) => {
                   const existing = realms.find((r) => r.template_id === template.id)
-                  if (existing && existing.status !== "completed" && existing.status !== "dead_end") return null
+                  if (existing) return null
 
                   const isFree = template.is_tutorial || !realms.some((r) => r.is_free)
 
@@ -1544,7 +1527,7 @@ export default function PlayPage() {
             pendingPayment?.kind === "inn-rest"
               ? `Approve a 0.05 USDC x402 payment to rest at the inn and restore your HP and ${resourceLabel} to full.`
               : pendingPayment?.kind === "regenerate"
-                ? `Approve a ${REALM_REGEN_USDC_PRICE} USDC x402 payment and spend ${REALM_REGEN_GOLD_COST} gold to fully reset ${pendingPayment.realmName}. This creates a fresh layout with new enemies and loot for a new run.`
+                ? `Approve a ${REALM_REGEN_USDC_PRICE} USDC x402 payment to fully reset ${pendingPayment.realmName}. This creates a fresh layout with new enemies and loot for a new run.`
                 : `Approve a 0.25 USDC x402 payment to generate ${pendingPayment?.kind === "generate" ? pendingPayment.templateName : "this realm"}. The tutorial remains free, while advanced realms use your normal realm payment flow.`
           }
           priceUsd={

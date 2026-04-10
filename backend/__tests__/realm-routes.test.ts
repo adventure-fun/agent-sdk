@@ -81,37 +81,6 @@ describe("Group 3 — realm regeneration route", () => {
     })
   })
 
-  it("rejects regeneration when the character lacks enough gold", async () => {
-    mockDb.setResponse("characters", "select", {
-      data: { id: "char-1", gold: 65 },
-      error: null,
-    })
-    mockDb.setResponse("realm_instances", "select", {
-      data: {
-        id: "realm-1",
-        character_id: "char-1",
-        template_id: "collapsed-passage",
-        status: "completed",
-      },
-      error: null,
-    })
-
-    const { realmRoutes } = await importFreshRealmRoutes(mockDb)
-    const app = new Hono()
-    app.route("/realms", realmRoutes)
-
-    const response = await app.request(
-      "http://example.test/realms/realm-1/regenerate",
-      { method: "POST" },
-    )
-
-    expect(response.status).toBe(400)
-    expect(await response.json()).toEqual({
-      error: "Requires 100 gold",
-      gold: 65,
-    })
-  })
-
   it("regenerates a completed realm after payment settlement", async () => {
     mockDb.setResponse("characters", "select", {
       data: { id: "char-1", gold: 175 },
@@ -138,8 +107,6 @@ describe("Group 3 — realm regeneration route", () => {
       },
       error: null,
     })
-    mockDb.setResponse("characters", "update", { data: null, error: null })
-
     const { realmRoutes } = await importFreshRealmRoutes(mockDb, {
       settledPayment: {
         action: "realm_regen",
@@ -171,8 +138,6 @@ describe("Group 3 — realm regeneration route", () => {
       floor_reached: 1,
     })
 
-    const characterUpdate = mockDb.getCalls("characters", "update")[0]
-    expect(characterUpdate?.payload).toEqual({ gold: 75 })
   })
 })
 

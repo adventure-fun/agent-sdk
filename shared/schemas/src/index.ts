@@ -278,6 +278,7 @@ export interface RealmInstance {
   status: RealmStatus
   floor_reached: number
   is_free: boolean
+  completions: number
   created_at: string
 }
 
