@@ -1749,7 +1749,7 @@ function DungeonView({
         {/* Main area: map + status */}
         <div className="flex flex-col md:flex-row gap-4 flex-1">
           {/* Map */}
-          <div className="md:w-2/3 border border-gray-800 rounded p-4 bg-gray-950 min-h-[200px]">
+          <div className="md:w-2/3 border border-gray-800 rounded p-4 bg-gray-950">
             <AsciiMap
               visibleTiles={visible_tiles}
               knownTiles={knownTiles}
@@ -1774,6 +1774,237 @@ function DungeonView({
                 {room_text}
               </p>
             )}
+
+            {/* Recent events — moved inside map column */}
+            {recent_events.length > 0 && (
+              <div className="mt-3 border-t border-gray-800 pt-2">
+                <div className="text-xs text-gray-500 uppercase mb-1">Recent Events</div>
+                {recent_events.slice(-8).map((e, i) => (
+                  <div
+                    key={i}
+                    className={`text-xs rounded border px-2 py-1 mb-1 ${
+                      getRecentEventPalette(e, i >= recent_events.length - 2)
+                    }`}
+                  >
+                    {getRecentEventLead(e)} {e.detail}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Action error toast — moved inside map column */}
+            {actionError && (
+              <button
+                onClick={onDismissError}
+                className="mt-2 w-full rounded border border-red-800/70 bg-red-950/30 px-4 py-2 text-sm text-red-200 text-left transition-opacity hover:bg-red-950/50"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <span>{actionError}</span>
+                  <span className="text-red-400 text-xs shrink-0">dismiss</span>
+                </div>
+              </button>
+            )}
+
+            {/* Action buttons — moved inside map column */}
+            <div className="mt-3 border-t border-gray-800 pt-3 space-y-3">
+              {waitingForResponse && (
+                <p className="text-gray-500 text-xs text-center">Resolving...</p>
+              )}
+
+              {/* Movement */}
+              {moveActions.length > 0 && (
+                <div className="flex flex-wrap gap-2 justify-center">
+                  {(["up", "down", "left", "right"] as const).map((dir) => {
+                    const action = moveActions.find((a) => a.direction === dir)
+                    if (!action) return null
+                    const labels = { up: "Move N", down: "Move S", left: "Move W", right: "Move E" }
+                    return (
+                      <button
+                        key={dir}
+                        disabled={waitingForResponse}
+                        onClick={() => onAction(action)}
+                        className="px-3 py-1 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        {labels[dir]}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+
+              {/* Attack */}
+              {attackActions.length > 0 && (
+                <div className="flex flex-wrap gap-2 justify-center">
+                  {attackActions.map((action, i) => {
+                    const entity = visible_entities.find((e) => e.id === action.target_id)
+                    const ability = abilityMap.get(action.ability_id ?? "basic-attack")
+                    const targetLabel = action.target_id === "self"
+                      ? "Self"
+                      : entity?.hp_current != null && entity.hp_max != null
+                        ? `${entity.name} (${entity.hp_current}/${entity.hp_max} HP)`
+                        : (entity?.name ?? action.target_id)
+                    return (
+                      <button
+                        key={i}
+                        disabled={waitingForResponse}
+                        onClick={() => onAction(action)}
+                        className={`px-3 py-2 text-left text-xs rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                          action.target_id === "self"
+                            ? "bg-violet-900/50 hover:bg-violet-900 text-violet-200"
+                            : "bg-red-900/50 hover:bg-red-900 text-red-200"
+                        }`}
+                      >
+                        <div className="font-medium">{ability?.name ?? "Attack"}: {targetLabel}</div>
+                        <div className="text-[11px] opacity-80">
+                          {ability
+                            ? `${ability.resource_cost} ${character.resource.type} • ${formatAbilityRange(ability.range)}`
+                            : "Basic attack"}
+                        </div>
+                        {entity?.behavior && (
+                          <div className="mt-1 text-[11px] opacity-70">
+                            {entity.is_boss ? "Boss target" : `${entity.behavior} target`}
+                          </div>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+
+              {/* Trap utility */}
+              {disarmTrapActions.length > 0 && (
+                <div className="space-y-2">
+                  <div className="text-center text-[11px] uppercase tracking-wide text-teal-400">Trap Utility</div>
+                  <div className="flex flex-wrap gap-2 justify-center">
+                    {disarmTrapActions.map((action, i) => {
+                      const entity = visible_entities.find((e) => e.id === action.item_id)
+                      return (
+                        <button
+                          key={i}
+                          disabled={waitingForResponse}
+                          onClick={() => onAction(action as unknown as Action)}
+                          className="px-3 py-2 text-left text-xs bg-teal-950/50 hover:bg-teal-900/60 text-teal-200 rounded border border-teal-800/60 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          <div className="font-medium">Disarm Trap: {entity?.name ?? action.item_id}</div>
+                          <div className="text-[11px] opacity-80">Costs {disarmAbility?.resource_cost ?? 1} {character.resource.type}</div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Interact */}
+              {interactActions.length > 0 && (
+                <div className="flex flex-wrap gap-2 justify-center">
+                  {interactActions.map((action, i) => {
+                    const entity = visible_entities.find((e) => e.id === action.target_id)
+                    return (
+                      <button
+                        key={i}
+                        disabled={waitingForResponse}
+                        onClick={() => onAction(action)}
+                        className="px-3 py-1 text-xs bg-amber-900/50 hover:bg-amber-900 text-amber-300 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        Interact: {entity?.name ?? action.target_id}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+
+              {/* Pickup */}
+              {canPickup.length > 0 && (
+                <div className="flex flex-wrap gap-2 justify-center">
+                  {canPickup.map((action, i) => {
+                    const entity = visible_entities.find((e) => e.id === action.item_id)
+                    const itemRarity =
+                      entity?.type === "item" && "rarity" in entity && typeof entity.rarity === "string"
+                        ? entity.rarity
+                        : null
+                    return (
+                      <button
+                        key={i}
+                        disabled={waitingForResponse}
+                        onClick={() => onAction(action)}
+                        className="px-3 py-1 text-xs bg-amber-900/50 hover:bg-amber-900 text-amber-300 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span>Pick up {entity?.name ?? action.item_id}</span>
+                          {itemRarity && (
+                            <span className={`rounded border px-2 py-0.5 text-[10px] uppercase tracking-wide ${getItemRarityBadgePalette(itemRarity)}`}>
+                              {itemRarity}
+                            </span>
+                          )}
+                          {disarmableItemIds.has(action.item_id) && (
+                            <span className="rounded border border-red-800/70 bg-red-950/30 px-2 py-0.5 text-[10px] uppercase tracking-wide text-red-200">
+                              Trapped
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+
+              {/* Use Item */}
+              {useItemActions.length > 0 && (
+                <div className="flex flex-wrap gap-2 justify-center">
+                  {useItemActions.map((action, i) => {
+                    const item = inventory.find((it) => it.item_id === action.item_id)
+                    return (
+                      <button
+                        key={i}
+                        disabled={waitingForResponse}
+                        onClick={() => onAction(action)}
+                        className="px-3 py-1 text-xs bg-blue-900/50 hover:bg-blue-900 text-blue-300 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        Use {item?.name ?? action.item_id}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+
+              {/* Utility: Wait, Portal, Retreat */}
+              <div className="flex flex-wrap gap-2 justify-center">
+                {canWait && (
+                  <button
+                    disabled={waitingForResponse}
+                    onClick={() => onAction({ type: "wait" })}
+                    className="px-3 py-1 text-xs bg-gray-800 hover:bg-gray-700 text-gray-400 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Wait
+                  </button>
+                )}
+                {canPortal && (
+                  <button
+                    disabled={waitingForResponse}
+                    onClick={() => onAction({ type: "use_portal" })}
+                    className="px-3 py-2 text-left text-xs bg-indigo-900/60 hover:bg-indigo-900 text-indigo-200 rounded border border-indigo-700/60 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <div className="font-medium">{portalLabel}</div>
+                    <div className="text-[11px] opacity-80">
+                      {portalScroll ? "Consumes 1 scroll and ends the run safely." : "Escape through the active portal."}
+                    </div>
+                  </button>
+                )}
+                {canRetreat && (
+                  <button
+                    disabled={waitingForResponse}
+                    onClick={onRetreat}
+                    className="px-3 py-2 text-left text-xs bg-slate-900/70 hover:bg-slate-800 text-slate-200 rounded border border-slate-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <div className="font-medium">Retreat to Town</div>
+                    <div className="text-[11px] opacity-80">Available only from the first-floor entrance.</div>
+                  </button>
+                )}
+              </div>
+              <p className="text-center text-[11px] text-gray-600">
+                Portal escape requires a portal scroll. Retreat works only from the first-floor entrance.
+              </p>
+            </div>
           </div>
 
           {/* Status panel */}
@@ -1995,242 +2226,6 @@ function DungeonView({
           </div>
         </div>
 
-        {/* Recent events */}
-        {recent_events.length > 0 && (
-          <div className="border border-gray-800 rounded p-3">
-            <div className="text-xs text-gray-500 uppercase mb-1">Recent Events</div>
-            {recent_events.slice(-8).map((e, i) => (
-              <div
-                key={i}
-                className={`text-xs rounded border px-2 py-1 ${
-                  getRecentEventPalette(e, i >= recent_events.length - 2)
-                }`}
-              >
-                {getRecentEventLead(e)} {e.detail}
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Action error toast */}
-        {actionError && (
-          <button
-            onClick={onDismissError}
-            className="w-full rounded border border-red-800/70 bg-red-950/30 px-4 py-2 text-sm text-red-200 text-left transition-opacity hover:bg-red-950/50"
-          >
-            <div className="flex items-center justify-between gap-3">
-              <span>{actionError}</span>
-              <span className="text-red-400 text-xs shrink-0">dismiss</span>
-            </div>
-          </button>
-        )}
-
-        {/* Action buttons */}
-        <div className="border border-gray-800 rounded p-3 space-y-3">
-          {waitingForResponse && (
-            <p className="text-gray-500 text-xs text-center">Resolving...</p>
-          )}
-
-          {/* Movement */}
-          {moveActions.length > 0 && (
-            <div className="flex flex-wrap gap-2 justify-center">
-              {(["up", "down", "left", "right"] as const).map((dir) => {
-                const action = moveActions.find((a) => a.direction === dir)
-                if (!action) return null
-                const labels = { up: "Move N", down: "Move S", left: "Move W", right: "Move E" }
-                return (
-                  <button
-                    key={dir}
-                    disabled={waitingForResponse}
-                    onClick={() => onAction(action)}
-                    className="px-3 py-1 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    {labels[dir]}
-                  </button>
-                )
-              })}
-            </div>
-          )}
-
-          {/* Attack */}
-          {attackActions.length > 0 && (
-            <div className="flex flex-wrap gap-2 justify-center">
-              {attackActions.map((action, i) => {
-                const entity = visible_entities.find((e) => e.id === action.target_id)
-                const ability = abilityMap.get(action.ability_id ?? "basic-attack")
-                const targetLabel = action.target_id === "self"
-                  ? "Self"
-                  : entity?.hp_current != null && entity.hp_max != null
-                    ? `${entity.name} (${entity.hp_current}/${entity.hp_max} HP)`
-                    : (entity?.name ?? action.target_id)
-                return (
-                  <button
-                    key={i}
-                    disabled={waitingForResponse}
-                    onClick={() => onAction(action)}
-                    className={`px-3 py-2 text-left text-xs rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
-                      action.target_id === "self"
-                        ? "bg-violet-900/50 hover:bg-violet-900 text-violet-200"
-                        : "bg-red-900/50 hover:bg-red-900 text-red-200"
-                    }`}
-                  >
-                    <div className="font-medium">{ability?.name ?? "Attack"}: {targetLabel}</div>
-                    <div className="text-[11px] opacity-80">
-                      {ability
-                        ? `${ability.resource_cost} ${character.resource.type} • ${formatAbilityRange(ability.range)}`
-                        : "Basic attack"}
-                    </div>
-                    {entity?.behavior && (
-                      <div className="mt-1 text-[11px] opacity-70">
-                        {entity.is_boss ? "Boss target" : `${entity.behavior} target`}
-                      </div>
-                    )}
-                  </button>
-                )
-              })}
-            </div>
-          )}
-
-          {/* Trap utility */}
-          {disarmTrapActions.length > 0 && (
-            <div className="space-y-2">
-              <div className="text-center text-[11px] uppercase tracking-wide text-teal-400">
-                Trap Utility
-              </div>
-              <div className="flex flex-wrap gap-2 justify-center">
-                {disarmTrapActions.map((action, i) => {
-                  const entity = visible_entities.find((e) => e.id === action.item_id)
-                  return (
-                    <button
-                      key={i}
-                      disabled={waitingForResponse}
-                      onClick={() => onAction(action as unknown as Action)}
-                      className="px-3 py-2 text-left text-xs bg-teal-950/50 hover:bg-teal-900/60 text-teal-200 rounded border border-teal-800/60 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      <div className="font-medium">Disarm Trap: {entity?.name ?? action.item_id}</div>
-                      <div className="text-[11px] opacity-80">
-                        Costs {disarmAbility?.resource_cost ?? 1} {character.resource.type}
-                      </div>
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Interact */}
-          {interactActions.length > 0 && (
-            <div className="flex flex-wrap gap-2 justify-center">
-              {interactActions.map((action, i) => {
-                const entity = visible_entities.find((e) => e.id === action.target_id)
-                return (
-                  <button
-                    key={i}
-                    disabled={waitingForResponse}
-                    onClick={() => onAction(action)}
-                    className="px-3 py-1 text-xs bg-amber-900/50 hover:bg-amber-900 text-amber-300 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    Interact: {entity?.name ?? action.target_id}
-                  </button>
-                )
-              })}
-            </div>
-          )}
-
-          {/* Pickup */}
-          {canPickup.length > 0 && (
-            <div className="flex flex-wrap gap-2 justify-center">
-              {canPickup.map((action, i) => {
-                const entity = visible_entities.find((e) => e.id === action.item_id)
-                const itemRarity =
-                  entity?.type === "item" && "rarity" in entity && typeof entity.rarity === "string"
-                    ? entity.rarity
-                    : null
-                return (
-                  <button
-                    key={i}
-                    disabled={waitingForResponse}
-                    onClick={() => onAction(action)}
-                    className="px-3 py-1 text-xs bg-amber-900/50 hover:bg-amber-900 text-amber-300 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span>Pick up {entity?.name ?? action.item_id}</span>
-                      {itemRarity && (
-                        <span
-                          className={`rounded border px-2 py-0.5 text-[10px] uppercase tracking-wide ${getItemRarityBadgePalette(itemRarity)}`}
-                        >
-                          {itemRarity}
-                        </span>
-                      )}
-                      {disarmableItemIds.has(action.item_id) && (
-                        <span className="rounded border border-red-800/70 bg-red-950/30 px-2 py-0.5 text-[10px] uppercase tracking-wide text-red-200">
-                          Trapped
-                        </span>
-                      )}
-                    </div>
-                  </button>
-                )
-              })}
-            </div>
-          )}
-
-          {/* Use Item */}
-          {useItemActions.length > 0 && (
-            <div className="flex flex-wrap gap-2 justify-center">
-              {useItemActions.map((action, i) => {
-                const item = inventory.find((it) => it.item_id === action.item_id)
-                return (
-                  <button
-                    key={i}
-                    disabled={waitingForResponse}
-                    onClick={() => onAction(action)}
-                    className="px-3 py-1 text-xs bg-blue-900/50 hover:bg-blue-900 text-blue-300 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    Use {item?.name ?? action.item_id}
-                  </button>
-                )
-              })}
-            </div>
-          )}
-
-          {/* Utility: Wait, Portal, Retreat */}
-          <div className="flex flex-wrap gap-2 justify-center">
-            {canWait && (
-              <button
-                disabled={waitingForResponse}
-                onClick={() => onAction({ type: "wait" })}
-                className="px-3 py-1 text-xs bg-gray-800 hover:bg-gray-700 text-gray-400 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                Wait
-              </button>
-            )}
-            {canPortal && (
-              <button
-                disabled={waitingForResponse}
-                onClick={() => onAction({ type: "use_portal" })}
-                className="px-3 py-2 text-left text-xs bg-indigo-900/60 hover:bg-indigo-900 text-indigo-200 rounded border border-indigo-700/60 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                <div className="font-medium">{portalLabel}</div>
-                <div className="text-[11px] opacity-80">
-                  {portalScroll ? "Consumes 1 scroll and ends the run safely." : "Escape through the active portal."}
-                </div>
-              </button>
-            )}
-            {canRetreat && (
-              <button
-                disabled={waitingForResponse}
-                onClick={onRetreat}
-                className="px-3 py-2 text-left text-xs bg-slate-900/70 hover:bg-slate-800 text-slate-200 rounded border border-slate-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                <div className="font-medium">Retreat to Town</div>
-                <div className="text-[11px] opacity-80">Available only from the first-floor entrance.</div>
-              </button>
-            )}
-          </div>
-          <p className="text-center text-[11px] text-gray-600">
-            Portal escape requires a portal scroll. Retreat works only from the first-floor entrance.
-          </p>
-        </div>
       </div>
     </main>
   )
