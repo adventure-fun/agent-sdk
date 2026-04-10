@@ -189,9 +189,11 @@ export default function PlayPage() {
     realmTemplates,
     classTemplates,
     itemTemplates,
+    loreEntries,
     fetchRealmTemplates,
     fetchClassTemplates,
     fetchItemTemplates,
+    fetchLoreEntries,
   } = useContent()
 
   const { createEvmEoaAccount } = useCreateEvmEoaAccount()
@@ -244,6 +246,7 @@ export default function PlayPage() {
     fetchClassTemplates()
     fetchRealmTemplates()
     fetchItemTemplates()
+    fetchLoreEntries()
     fetchShopCatalog()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -252,6 +255,11 @@ export default function PlayPage() {
       Object.fromEntries(itemTemplates.map((item) => [item.id, item])) as Record<string, ItemTemplate>,
     [itemTemplates],
   )
+  const loreMap = useMemo(
+    () => Object.fromEntries(loreEntries.map((l) => [l.id, l])) as Record<string, { id: string; name: string; text: string }>,
+    [loreEntries],
+  )
+  const [viewingLoreId, setViewingLoreId] = useState<string | null>(null)
   const tutorialTemplate = realmTemplateMap[TUTORIAL_TEMPLATE_ID]
 
   // Create EVM wallet if signed in but no wallet exists
@@ -1178,19 +1186,49 @@ export default function PlayPage() {
                       {character.lore_discovered?.length} discovered
                     </span>
                   </div>
-                  <div className="mt-2 space-y-1 text-xs text-gray-300">
+                  <div className="mt-2 space-y-1 text-xs">
                     {[...(character.lore_discovered ?? [])]
                       .sort((left, right) => right.discovered_at_turn - left.discovered_at_turn)
                       .slice(0, 6)
-                      .map((entry) => (
-                        <div key={entry.lore_entry_id} className="flex items-center justify-between gap-3">
-                          <span>{formatLoreLabel(entry.lore_entry_id)}</span>
-                          <span className="text-[11px] text-gray-500">Turn {entry.discovered_at_turn}</span>
-                        </div>
-                      ))}
+                      .map((entry) => {
+                        const lore = loreMap[entry.lore_entry_id]
+                        return (
+                          <button
+                            key={entry.lore_entry_id}
+                            type="button"
+                            onClick={() => setViewingLoreId(entry.lore_entry_id)}
+                            className="flex w-full items-center justify-between gap-3 rounded px-2 py-1.5 text-left text-gray-300 transition-colors hover:bg-amber-950/30 hover:text-amber-200"
+                          >
+                            <span>{lore?.name ?? formatLoreLabel(entry.lore_entry_id)}</span>
+                            <span className="text-[11px] text-gray-500 shrink-0">Turn {entry.discovered_at_turn}</span>
+                          </button>
+                        )
+                      })}
                   </div>
                 </div>
               )}
+
+              {viewingLoreId && (() => {
+                const lore = loreMap[viewingLoreId]
+                if (!lore) return null
+                return (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setViewingLoreId(null)}>
+                    <div className="w-full max-w-lg rounded border border-amber-800/50 bg-gray-900 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-start justify-between gap-4 mb-4">
+                        <h3 className="text-sm font-bold uppercase tracking-wider text-amber-300">{lore.name}</h3>
+                        <button
+                          type="button"
+                          onClick={() => setViewingLoreId(null)}
+                          className="text-gray-500 hover:text-gray-300 text-lg leading-none"
+                        >
+                          x
+                        </button>
+                      </div>
+                      <p className="text-sm text-gray-300 leading-relaxed whitespace-pre-wrap">{lore.text}</p>
+                    </div>
+                  </div>
+                )
+              })()}
 
               {progression && progression.skill_points > 0 && (
                 <button

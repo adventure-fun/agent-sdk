@@ -28,10 +28,17 @@ export interface ClassTemplateSummary {
 
 export interface ItemTemplateSummary extends ItemTemplate {}
 
+export interface LoreEntrySummary {
+  id: string
+  name: string
+  text: string
+}
+
 export function useContent() {
   const [realmTemplates, setRealmTemplates] = useState<RealmTemplateSummary[]>([])
   const [classTemplates, setClassTemplates] = useState<ClassTemplateSummary[]>([])
   const [itemTemplates, setItemTemplates] = useState<ItemTemplateSummary[]>([])
+  const [loreEntries, setLoreEntries] = useState<LoreEntrySummary[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -98,14 +105,29 @@ export function useContent() {
     }
   }, [])
 
+  const fetchLoreEntries = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_URL}/content/lore`)
+      if (!res.ok) return []
+      const data = await res.json()
+      const list = (data.entries ?? []) as LoreEntrySummary[]
+      setLoreEntries(list)
+      return list
+    } catch {
+      return []
+    }
+  }, [])
+
   return {
     realmTemplates,
     classTemplates,
     itemTemplates,
+    loreEntries,
     isLoading,
     error,
     fetchRealmTemplates,
     fetchClassTemplates,
     fetchItemTemplates,
+    fetchLoreEntries,
   }
 }

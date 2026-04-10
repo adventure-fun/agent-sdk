@@ -1,5 +1,5 @@
 import { Hono } from "hono"
-import { REALMS, CLASSES, ABILITIES, ITEMS, SKILL_TREES } from "@adventure-fun/engine"
+import { REALMS, CLASSES, ABILITIES, ITEMS, SKILL_TREES, LORE } from "@adventure-fun/engine"
 
 const content = new Hono()
 
@@ -91,6 +91,16 @@ content.get("/classes/:id/skill-tree", (c) => {
   const tiers = tree?.tiers ?? cls.skill_tree?.tiers ?? []
 
   return c.json({ class_id: classId, tiers })
+})
+
+// GET /content/lore — lore entry names and text (no auth required)
+content.get("/lore", (c) => {
+  const entries = Object.values(LORE).map((entry) => ({
+    id: entry.id,
+    name: entry.name,
+    text: entry.text,
+  }))
+  return c.json({ entries })
 })
 
 export { content as contentRoutes }

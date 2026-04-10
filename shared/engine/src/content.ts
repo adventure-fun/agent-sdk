@@ -185,6 +185,27 @@ export const ROOMS: Record<string, RoomTemplate> = Object.fromEntries(
   allRoomTemplates.map((r) => [r.id, r])
 )
 
+// ---- Lore Registry ------------------------------------------
+
+export interface LoreEntry {
+  id: string
+  name: string
+  text: string
+}
+
+export const LORE: Record<string, LoreEntry> = {}
+for (const room of allRoomTemplates) {
+  for (const inter of room.interactables) {
+    if (inter.lore_entry_id && inter.text_on_interact) {
+      LORE[inter.lore_entry_id] = {
+        id: inter.lore_entry_id,
+        name: inter.name,
+        text: inter.text_on_interact,
+      }
+    }
+  }
+}
+
 // ---- Skill Trees --------------------------------------------
 
 const allSkillTrees = [
