@@ -141,3 +141,105 @@ textarea:focus-visible {
 .rarity-uncommon { color: var(--color-rarity-uncommon); }
 .rarity-rare     { color: var(--color-rarity-rare); }
 .rarity-epic     { color: var(--color-rarity-epic); }
+
+/* ── ARCANE_WATCH design system ──────────────────────────────────────────────
+   Additive — does not override existing tokens above.
+   Used by spectate page and progressively adopted by play page.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+@theme {
+  /* Color palette */
+  --color-aw-bg:                   #131313;
+  --color-aw-surface:              #131313;
+  --color-aw-surface-low:          #1c1b1b;
+  --color-aw-surface-container:    #20201f;
+  --color-aw-surface-high:         #2a2a2a;
+  --color-aw-surface-highest:      #353535;
+  --color-aw-surface-bright:       #393939;
+  --color-aw-surface-lowest:       #0e0e0e;
+
+  --color-aw-primary:              #ffb68d;
+  --color-aw-primary-dim:          #ffb68d;
+  --color-aw-primary-fixed:        #ffdbc9;
+  --color-aw-primary-container:    #904000;
+  --color-aw-on-primary:           #532200;
+  --color-aw-on-primary-container: #ffc09e;
+  --color-aw-inverse-primary:      #994707;
+
+  --color-aw-secondary:            #76d3f4;
+  --color-aw-secondary-container:  #379cbb;
+  --color-aw-on-secondary:         #003544;
+
+  --color-aw-tertiary:             #94ccff;
+  --color-aw-tertiary-container:   #135c8b;
+  --color-aw-on-tertiary:          #003352;
+
+  --color-aw-outline:              #a38c80;
+  --color-aw-outline-variant:      #554339;
+  --color-aw-on-surface:           #e5e2e1;
+  --color-aw-on-surface-variant:   #dbc1b4;
+  --color-aw-error:                #ffb4ab;
+  --color-aw-error-container:      #93000a;
+
+  /* Font families */
+  --font-headline: var(--font-noto-serif), "Noto Serif", Georgia, serif;
+  --font-label:    var(--font-space-grotesk), "Space Grotesk", system-ui, sans-serif;
+}
+
+/* ARCANE_WATCH utility classes */
+.aw-headline {
+  font-family: var(--font-headline);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.aw-label {
+  font-family: var(--font-label);
+}
+
+.aw-amber-glow {
+  text-shadow: 0 0 12px rgba(255, 182, 141, 0.4);
+}
+
+.aw-cyan-glow {
+  text-shadow: 0 0 12px rgba(118, 211, 244, 0.4);
+  box-shadow: 0 0 15px rgba(118, 211, 244, 0.1);
+}
+
+.aw-pixel-border {
+  box-shadow: 0 0 0 2px #131313, 0 0 0 4px #76d3f4;
+}
+
+.aw-scanline {
+  background: linear-gradient(
+    to bottom,
+    transparent 50%,
+    rgba(118, 211, 244, 0.04) 50%
+  );
+  background-size: 100% 4px;
+}
+
+.aw-corner-bracket::before,
+.aw-corner-bracket::after {
+  content: '';
+  position: absolute;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-color: rgba(118, 211, 244, 0.4);
+  border-style: solid;
+}
+.aw-corner-bracket::before {
+  top: 0.75rem;
+  left: 0.75rem;
+  border-width: 2px 0 0 2px;
+}
+.aw-corner-bracket::after {
+  bottom: 0.75rem;
+  right: 0.75rem;
+  border-width: 0 2px 2px 0;
+}
+
+@keyframes aw-pulse-live {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
