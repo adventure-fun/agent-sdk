@@ -13,7 +13,7 @@ import { useProgression } from "../hooks/use-progression"
 import type { ProgressionData } from "../hooks/use-progression"
 import { useShop } from "../hooks/use-shop"
 import { useInn } from "../hooks/use-inn"
-import { AsciiMap } from "../components/ascii-map"
+import { GameMap } from "../components/game-map"
 import { PaymentModal } from "../components/payment-modal"
 import { UiToast } from "../components/ui-toast"
 import { useUsdcBalance } from "../hooks/use-usdc-balance"
@@ -1810,7 +1810,7 @@ function DungeonView({
         <div className="flex flex-col md:flex-row gap-4 flex-1">
           {/* Map */}
           <div className="md:w-2/3 border border-gray-800 rounded p-4 bg-gray-950">
-            <AsciiMap
+            <GameMap
               visibleTiles={visible_tiles}
               knownTiles={knownTiles}
               playerPosition={position.tile}

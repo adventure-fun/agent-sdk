@@ -4,7 +4,7 @@ import Link from "next/link"
 import { motion } from "framer-motion"
 import { useEffect, useRef, useState } from "react"
 import type { SpectatorObservation } from "@adventure-fun/schemas"
-import { AsciiMap } from "../../components/ascii-map"
+import { GameMap } from "../../components/game-map"
 import { pageEnter, sectionReveal } from "../../lib/motion"
 
 interface Props {
@@ -257,7 +257,7 @@ export default function SpectatePage({ params }: Props) {
                 </div>
                 <div>Turn {observation.turn}</div>
               </div>
-              <AsciiMap
+              <GameMap
                 visibleTiles={observation.visible_tiles}
                 playerPosition={observation.position.tile}
                 entities={observation.visible_entities}
