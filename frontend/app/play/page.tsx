@@ -22,7 +22,7 @@ import {
   type ItemTemplate,
 } from "@adventure-fun/schemas"
 
-import { usePlayStore } from "./store"
+import { usePlayStore, HubTab } from "./store"
 import { STAT_KEYS, STAT_LABELS, CLASS_ROLE_LABELS, REALM_STATUS_LABELS, REALM_REGEN_USDC_PRICE, TUTORIAL_TEMPLATE_ID, EQUIP_SLOT_ORDER, EQUIP_SLOT_LABELS } from "./constants"
 import { delay, friendlyPaymentError, formatLoreLabel, getCompletionBonusText } from "./utils"
 
@@ -30,7 +30,8 @@ import { Shell } from "./components/shell"
 import { StatRangeBar, StatValueBar } from "./components/stat-bars"
 import { CharacterPanel } from "./components/character-panel"
 import { GearManagementPanel } from "./components/gear-management-panel"
-import { ShopPanel } from "./components/shop-panel"
+import { ShopBuyPanel } from "./components/shop-buy-panel"
+import { ShopSellPanel } from "./components/shop-sell-panel"
 import { SkillTreePanel } from "./components/skill-tree-panel"
 import { DungeonView } from "./components/dungeon-view"
 
@@ -129,7 +130,6 @@ export default function PlayPage() {
   const rerollDisabled = usePlayStore((s) => s.rerollDisabled)
   const generatingTemplate = usePlayStore((s) => s.generatingTemplate)
   const realmError = usePlayStore((s) => s.realmError)
-  const showSkillTree = usePlayStore((s) => s.showSkillTree)
   const hubTab = usePlayStore((s) => s.hubTab)
   const pendingPayment = usePlayStore((s) => s.pendingPayment)
   const isProcessingPayment = usePlayStore((s) => s.isProcessingPayment)
@@ -1004,35 +1004,272 @@ export default function PlayPage() {
                 </button>
               </div>
 
-              {(character.lore_discovered?.length ?? 0) > 0 && (
-                <div className="rounded border border-amber-900/40 bg-amber-950/10 p-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-xs font-bold uppercase tracking-wider text-amber-300/70">Lore Journal</p>
-                    <span className="text-[11px] text-amber-200/70">
-                      {character.lore_discovered?.length} discovered
-                    </span>
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { id: HubTab.Realms, label: "Realms" },
+                      { id: HubTab.ShopBuy, label: "Shop - Buy" },
+                      { id: HubTab.ShopSell, label: "Shop - Sell" },
+                      { id: HubTab.Skills, label: "Skills" },
+                      { id: HubTab.Lore, label: "Lore Journal" },
+                    ].map((tab) => (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => store.getState().setHubTab(tab.id)}
+                        className={`rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
+                          hubTab === tab.id
+                            ? "border-amber-400/60 bg-amber-500/10 text-amber-200"
+                            : "border-gray-700 text-gray-400 hover:border-gray-500 hover:text-gray-200"
+                        }`}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
                   </div>
-                  <div className="mt-2 space-y-1 text-xs">
-                    {[...(character.lore_discovered ?? [])]
-                      .sort((left, right) => right.discovered_at_turn - left.discovered_at_turn)
-                      .slice(0, 6)
-                      .map((entry) => {
-                        const lore = loreMap[entry.lore_entry_id]
-                        return (
-                          <button
-                            key={entry.lore_entry_id}
-                            type="button"
-                            onClick={() => store.getState().setViewingLoreId(entry.lore_entry_id)}
-                            className="flex w-full items-center justify-between gap-3 rounded px-2 py-1.5 text-left text-gray-300 transition-colors hover:bg-amber-950/30 hover:text-amber-200"
-                          >
-                            <span>{lore?.name ?? formatLoreLabel(entry.lore_entry_id)}</span>
-                            <span className="text-[11px] text-gray-500 shrink-0">Turn {entry.discovered_at_turn}</span>
-                          </button>
-                        )
-                      })}
-                  </div>
+                  {shopMessage ? <p className="text-xs text-gray-400">{shopMessage}</p> : null}
                 </div>
-              )}
+
+                {hubTab === HubTab.Realms ? (
+                  <div className="space-y-3">
+                    {realmsLoading && <p className="text-gray-500 text-sm">Loading realms...</p>}
+                    {realmsError && <p className="text-red-400 text-sm">{realmsError}</p>}
+                    {realmError && <p className="text-red-400 text-sm">{realmError}</p>}
+                    {!tutorialCompleted && (
+                      <div className="rounded border border-amber-900/40 bg-amber-950/10 p-4 text-sm">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="font-semibold text-amber-200">Tutorial First</p>
+                            <p className="mt-1 text-gray-400">
+                              New adventurers begin in {tutorialTemplate?.name ?? "the tutorial realm"}.
+                              Finish it to unlock the full realm roster.
+                            </p>
+                          </div>
+                          <span className="rounded-full border border-emerald-700/50 bg-emerald-950/20 px-3 py-1 text-xs font-semibold text-emerald-200">
+                            Always Free
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                    {tutorialCompleted && tutorialRealm && (
+                      <div className="rounded border border-emerald-900/40 bg-emerald-950/10 p-4 text-sm text-emerald-200">
+                        Tutorial complete. New realms are now open.
+                      </div>
+                    )}
+
+                    {visibleRealmEntries.map((realm) => {
+                      const template = realmTemplateMap[realm.template_id]
+                      const realmName = template?.name ?? realm.template_id
+                      const statusLabel = REALM_STATUS_LABELS[realm.status] ?? realm.status
+                      const canEnter = realm.status === "generated" || realm.status === "paused" || realm.status === "active"
+                      const isPaused = realm.status === "paused" || realm.status === "active"
+                      const canRegenerate = realm.status === "completed" && !template?.is_tutorial
+                      const isRegenerating = generatingTemplate === realm.id
+                      const statusColor = realm.status === "completed"
+                        ? "text-green-500"
+                        : realm.status === "dead_end"
+                          ? "text-red-500"
+                          : isPaused
+                            ? "text-amber-400"
+                            : "text-gray-600"
+
+                      return (
+                        <div
+                          key={realm.id}
+                          className={`bg-gray-900 border rounded p-4 flex items-center justify-between ${
+                            isPaused ? "border-amber-900/40" : "border-gray-800"
+                          }`}
+                        >
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <p className="text-gray-300 text-sm font-bold">{realmName}</p>
+                              {template?.is_tutorial && (
+                                <span className="rounded-full border border-amber-700/50 bg-amber-950/30 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-200">
+                                  Tutorial
+                                </span>
+                              )}
+                            </div>
+                            <p className={`text-xs ${statusColor}`}>
+                              {statusLabel} — Floor {realm.floor_reached}
+                              {realm.completions > 0
+                                ? ` — Cleared ${realm.completions} time${realm.completions === 1 ? "" : "s"}`
+                                : ""}
+                            </p>
+                            {template?.is_tutorial && !tutorialCompleted && (
+                              <p className="mt-0.5 text-xs text-gray-500">
+                                Clear this introductory run to unlock deeper realms and paid expeditions.
+                              </p>
+                            )}
+                            {isPaused && (
+                              <p className="text-gray-600 text-xs mt-0.5">
+                                Session saved — pick up where you left off
+                              </p>
+                            )}
+                            {canRegenerate && (
+                              <div className="mt-1.5 text-xs text-gray-500">
+                                Fully resets the realm with a new seed, enemies, and loot.
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex flex-col items-end gap-2">
+                            {canEnter && (
+                              <button
+                                onClick={() => handleEnterRealm(realm.id)}
+                                className={`px-4 py-1 font-bold text-sm rounded transition-colors ${
+                                  isPaused
+                                    ? "bg-amber-500 hover:bg-amber-400 text-black"
+                                    : "bg-green-600 hover:bg-green-500 text-white"
+                                }`}
+                              >
+                                {isPaused ? "Resume" : "Enter"}
+                              </button>
+                            )}
+                            {canRegenerate && (
+                              <button
+                                type="button"
+                                onClick={() => handleRegenerateRealm(realm.id, realmName)}
+                                disabled={isProcessingPayment || !!generatingTemplate}
+                                title="Reset this completed realm with a new seed."
+                                className="px-4 py-1 border border-cyan-700/70 bg-cyan-950/20 text-cyan-200 text-sm font-bold rounded transition-colors hover:bg-cyan-900/30 disabled:border-gray-700 disabled:bg-transparent disabled:text-gray-500 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                {isRegenerating
+                                  ? "Regenerating..."
+                                  : `Regenerate ($${REALM_REGEN_USDC_PRICE})`}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+
+                    {realmGenerationTemplates.map((template) => {
+                      const existing = realms.find((r) => r.template_id === template.id)
+                      if (existing) return null
+
+                      const isFree = template.is_tutorial || !realms.some((r) => r.is_free)
+
+                      return (
+                        <div
+                          key={template.id}
+                          className="bg-gray-900/50 border border-dashed border-gray-700 rounded p-4"
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <p className="text-gray-400 text-sm font-bold">{template.name}</p>
+                              {template.is_tutorial && (
+                                <span className="rounded-full border border-amber-700/50 bg-amber-950/30 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-200">
+                                  Tutorial
+                                </span>
+                              )}
+                            </div>
+                            <span className={`text-xs px-2 py-0.5 rounded ${isFree ? "bg-green-900/50 text-green-400" : "text-gray-500"}`}>
+                              {template.is_tutorial ? "Always Free" : isFree ? "Free" : "$0.25"}
+                            </span>
+                          </div>
+                          <p className="text-gray-600 text-xs mb-3">{template.description}</p>
+                          {!tutorialCompleted && template.is_tutorial && (
+                            <p className="mb-3 text-xs text-amber-200/80">
+                              Start here to learn movement, extraction, and your first gear pickup.
+                            </p>
+                          )}
+                          <button
+                            onClick={() => handleGenerateRealm(template.id)}
+                            disabled={generatingTemplate !== null}
+                            className="px-4 py-1 bg-amber-500 hover:bg-amber-400 text-black font-bold text-sm rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            {generatingTemplate === template.id ? "Generating..." : "Generate Realm"}
+                          </button>
+                        </div>
+                      )
+                    })}
+
+                    {!tutorialCompleted && lockedRealmTemplates.map((template) => (
+                      <div
+                        key={template.id}
+                        className="bg-gray-900/30 border border-dashed border-gray-800 rounded p-4 opacity-80"
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-gray-500 text-sm font-bold">{template.name}</p>
+                          <span className="text-xs px-2 py-0.5 rounded border border-gray-700 text-gray-500">
+                            Locked
+                          </span>
+                        </div>
+                        <p className="text-gray-600 text-xs mb-3">{template.description}</p>
+                        <p className="text-xs text-gray-500">
+                          Complete {tutorialTemplate?.name ?? "the tutorial"} to unlock this realm.
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : hubTab === HubTab.ShopBuy ? (
+                  <ShopBuyPanel
+                    sections={shopSections}
+                    featured={featuredShopItems}
+                    inventory={shopInventory}
+                    gold={displayedGold}
+                    isLoading={shopLoading}
+                    error={shopError}
+                    onBuy={handleBuyItem}
+                  />
+                ) : hubTab === HubTab.ShopSell ? (
+                  <ShopSellPanel
+                    sections={shopSections}
+                    inventory={shopInventory}
+                    gold={displayedGold}
+                    isLoading={shopLoading}
+                    onSell={handleSellItem}
+                    onDiscard={handleDiscardItem}
+                  />
+                ) : hubTab === HubTab.Skills ? (
+                  progression?.skill_tree_template ? (
+                    <SkillTreePanel
+                      progression={progression}
+                      onUnlock={async (nodeId) => {
+                        await unlockSkill(nodeId)
+                        await fetchCharacter()
+                      }}
+                      error={progressionError}
+                    />
+                  ) : (
+                    <p className="text-sm text-gray-500">No skill tree available yet.</p>
+                  )
+                ) : hubTab === HubTab.Lore ? (
+                  <div className="rounded border border-gray-800 bg-gray-900 p-4 space-y-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <h2 className="text-sm font-bold uppercase tracking-wider text-gray-500">Lore Journal</h2>
+                        <p className="text-xs text-gray-600">Fragments of history uncovered during your adventures.</p>
+                      </div>
+                      <span className="text-[11px] text-gray-500">
+                        {character.lore_discovered?.length ?? 0} discovered
+                      </span>
+                    </div>
+                    {(character.lore_discovered?.length ?? 0) === 0 ? (
+                      <p className="text-sm text-gray-500">No lore discovered yet. Explore realms to uncover secrets.</p>
+                    ) : (
+                      <div className="space-y-1 text-xs">
+                        {[...(character.lore_discovered ?? [])]
+                          .sort((left, right) => right.discovered_at_turn - left.discovered_at_turn)
+                          .map((entry) => {
+                            const lore = loreMap[entry.lore_entry_id]
+                            return (
+                              <button
+                                key={entry.lore_entry_id}
+                                type="button"
+                                onClick={() => store.getState().setViewingLoreId(entry.lore_entry_id)}
+                                className="flex w-full items-center justify-between gap-3 rounded px-2 py-1.5 text-left text-gray-300 transition-colors cursor-pointer hover:bg-amber-950/30 hover:text-amber-200"
+                              >
+                                <span>{lore?.name ?? formatLoreLabel(entry.lore_entry_id)}</span>
+                                <span className="text-[11px] text-gray-500 shrink-0">Turn {entry.discovered_at_turn}</span>
+                              </button>
+                            )
+                          })}
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+              </div>
             </div>
 
             {/* Right column — Player info */}
@@ -1084,7 +1321,7 @@ export default function PlayPage() {
 
               {progression && progression.skill_points > 0 && (
                 <button
-                  onClick={() => store.getState().setShowSkillTree(true)}
+                  onClick={() => store.getState().setHubTab(HubTab.Skills)}
                   className="w-full text-xs text-center py-1.5 rounded border border-amber-700/50 bg-amber-950/20 text-amber-300 hover:bg-amber-950/40 transition-colors"
                 >
                   {progression.skill_points} skill point{progression.skill_points !== 1 ? "s" : ""} available — View Skill Tree
@@ -1113,241 +1350,6 @@ export default function PlayPage() {
                 </div>
               )
             })()}
-          </div>
-
-          {/* Skill Tree Panel */}
-          {showSkillTree && progression?.skill_tree_template && (
-            <SkillTreePanel
-              progression={progression}
-              onUnlock={async (nodeId) => {
-                await unlockSkill(nodeId)
-                await fetchCharacter()
-              }}
-              onClose={() => store.getState().setShowSkillTree(false)}
-              error={progressionError}
-            />
-          )}
-
-          {/* View Skill Tree (when no points available) */}
-          {!showSkillTree && progression?.skill_tree_template && (
-            <button
-              onClick={() => store.getState().setShowSkillTree(true)}
-              className="text-xs text-gray-600 hover:text-gray-400 transition-colors"
-            >
-              View Skill Tree
-            </button>
-          )}
-
-          <div className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex gap-2">
-                {[
-                  { id: "realms", label: "Realms" },
-                  { id: "shop", label: "Shop" },
-                ].map((tab) => (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => store.getState().setHubTab(tab.id as "realms" | "shop")}
-                    className={`rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
-                      hubTab === tab.id
-                        ? "border-amber-400/60 bg-amber-500/10 text-amber-200"
-                        : "border-gray-700 text-gray-400 hover:border-gray-500 hover:text-gray-200"
-                    }`}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
-              </div>
-              {shopMessage ? <p className="text-xs text-gray-400">{shopMessage}</p> : null}
-            </div>
-
-            {hubTab === "realms" ? (
-              <div className="space-y-3">
-                <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider">Realms</h2>
-
-                {realmsLoading && <p className="text-gray-500 text-sm">Loading realms...</p>}
-                {realmsError && <p className="text-red-400 text-sm">{realmsError}</p>}
-                {realmError && <p className="text-red-400 text-sm">{realmError}</p>}
-                {!tutorialCompleted && (
-                  <div className="rounded border border-amber-900/40 bg-amber-950/10 p-4 text-sm">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="font-semibold text-amber-200">Tutorial First</p>
-                        <p className="mt-1 text-gray-400">
-                          New adventurers begin in {tutorialTemplate?.name ?? "the tutorial realm"}.
-                          Finish it to unlock the full realm roster.
-                        </p>
-                      </div>
-                      <span className="rounded-full border border-emerald-700/50 bg-emerald-950/20 px-3 py-1 text-xs font-semibold text-emerald-200">
-                        Always Free
-                      </span>
-                    </div>
-                  </div>
-                )}
-                {tutorialCompleted && tutorialRealm && (
-                  <div className="rounded border border-emerald-900/40 bg-emerald-950/10 p-4 text-sm text-emerald-200">
-                    Tutorial complete. New realms are now open.
-                  </div>
-                )}
-
-                {visibleRealmEntries.map((realm) => {
-                  const template = realmTemplateMap[realm.template_id]
-                  const realmName = template?.name ?? realm.template_id
-                  const statusLabel = REALM_STATUS_LABELS[realm.status] ?? realm.status
-                  const canEnter = realm.status === "generated" || realm.status === "paused" || realm.status === "active"
-                  const isPaused = realm.status === "paused" || realm.status === "active"
-                  const canRegenerate = realm.status === "completed" && !template?.is_tutorial
-                  const isRegenerating = generatingTemplate === realm.id
-                  const statusColor = realm.status === "completed"
-                    ? "text-green-500"
-                    : realm.status === "dead_end"
-                      ? "text-red-500"
-                      : isPaused
-                        ? "text-amber-400"
-                        : "text-gray-600"
-
-                  return (
-                    <div
-                      key={realm.id}
-                      className={`bg-gray-900 border rounded p-4 flex items-center justify-between ${
-                        isPaused ? "border-amber-900/40" : "border-gray-800"
-                      }`}
-                    >
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <p className="text-gray-300 text-sm font-bold">{realmName}</p>
-                          {template?.is_tutorial && (
-                            <span className="rounded-full border border-amber-700/50 bg-amber-950/30 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-200">
-                              Tutorial
-                            </span>
-                          )}
-                        </div>
-                        <p className={`text-xs ${statusColor}`}>
-                          {statusLabel} — Floor {realm.floor_reached}
-                          {realm.completions > 0
-                            ? ` — Cleared ${realm.completions} time${realm.completions === 1 ? "" : "s"}`
-                            : ""}
-                        </p>
-                        {template?.is_tutorial && !tutorialCompleted && (
-                          <p className="mt-0.5 text-xs text-gray-500">
-                            Clear this introductory run to unlock deeper realms and paid expeditions.
-                          </p>
-                        )}
-                        {isPaused && (
-                          <p className="text-gray-600 text-xs mt-0.5">
-                            Session saved — pick up where you left off
-                          </p>
-                        )}
-                        {canRegenerate && (
-                          <div className="mt-1.5 text-xs text-gray-500">
-                            Fully resets the realm with a new seed, enemies, and loot.
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex flex-col items-end gap-2">
-                        {canEnter && (
-                          <button
-                            onClick={() => handleEnterRealm(realm.id)}
-                            className={`px-4 py-1 font-bold text-sm rounded transition-colors ${
-                              isPaused
-                                ? "bg-amber-500 hover:bg-amber-400 text-black"
-                                : "bg-green-600 hover:bg-green-500 text-white"
-                            }`}
-                          >
-                            {isPaused ? "Resume" : "Enter"}
-                          </button>
-                        )}
-                        {canRegenerate && (
-                          <button
-                            type="button"
-                            onClick={() => handleRegenerateRealm(realm.id, realmName)}
-                            disabled={isProcessingPayment || !!generatingTemplate}
-                            title="Reset this completed realm with a new seed."
-                            className="px-4 py-1 border border-cyan-700/70 bg-cyan-950/20 text-cyan-200 text-sm font-bold rounded transition-colors hover:bg-cyan-900/30 disabled:border-gray-700 disabled:bg-transparent disabled:text-gray-500 disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            {isRegenerating
-                              ? "Regenerating..."
-                              : `Regenerate ($${REALM_REGEN_USDC_PRICE})`}
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  )
-                })}
-
-                {realmGenerationTemplates.map((template) => {
-                  const existing = realms.find((r) => r.template_id === template.id)
-                  if (existing) return null
-
-                  const isFree = template.is_tutorial || !realms.some((r) => r.is_free)
-
-                  return (
-                    <div
-                      key={template.id}
-                      className="bg-gray-900/50 border border-dashed border-gray-700 rounded p-4"
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <p className="text-gray-400 text-sm font-bold">{template.name}</p>
-                          {template.is_tutorial && (
-                            <span className="rounded-full border border-amber-700/50 bg-amber-950/30 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-200">
-                              Tutorial
-                            </span>
-                          )}
-                        </div>
-                        <span className={`text-xs px-2 py-0.5 rounded ${isFree ? "bg-green-900/50 text-green-400" : "text-gray-500"}`}>
-                          {template.is_tutorial ? "Always Free" : isFree ? "Free" : "$0.25"}
-                        </span>
-                      </div>
-                      <p className="text-gray-600 text-xs mb-3">{template.description}</p>
-                      {!tutorialCompleted && template.is_tutorial && (
-                        <p className="mb-3 text-xs text-amber-200/80">
-                          Start here to learn movement, extraction, and your first gear pickup.
-                        </p>
-                      )}
-                      <button
-                        onClick={() => handleGenerateRealm(template.id)}
-                        disabled={generatingTemplate !== null}
-                        className="px-4 py-1 bg-amber-500 hover:bg-amber-400 text-black font-bold text-sm rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                      >
-                        {generatingTemplate === template.id ? "Generating..." : "Generate Realm"}
-                      </button>
-                    </div>
-                  )
-                })}
-
-                {!tutorialCompleted && lockedRealmTemplates.map((template) => (
-                  <div
-                    key={template.id}
-                    className="bg-gray-900/30 border border-dashed border-gray-800 rounded p-4 opacity-80"
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-gray-500 text-sm font-bold">{template.name}</p>
-                      <span className="text-xs px-2 py-0.5 rounded border border-gray-700 text-gray-500">
-                        Locked
-                      </span>
-                    </div>
-                    <p className="text-gray-600 text-xs mb-3">{template.description}</p>
-                    <p className="text-xs text-gray-500">
-                      Complete {tutorialTemplate?.name ?? "the tutorial"} to unlock this realm.
-                    </p>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <ShopPanel
-                sections={shopSections}
-                featured={featuredShopItems}
-                inventory={shopInventory}
-                gold={displayedGold}
-                isLoading={shopLoading}
-                error={shopError}
-                onBuy={handleBuyItem}
-                onSell={handleSellItem}
-                onDiscard={handleDiscardItem}
-              />
-            )}
           </div>
 
           </div>

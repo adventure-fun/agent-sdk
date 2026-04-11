@@ -3,12 +3,10 @@ import type { ProgressionData } from "../../hooks/use-progression"
 export function SkillTreePanel({
   progression,
   onUnlock,
-  onClose,
   error,
 }: {
   progression: ProgressionData
   onUnlock: (nodeId: string) => Promise<void>
-  onClose: () => void
   error: string | null
 }) {
   const tree = progression.skill_tree_template
@@ -22,15 +20,13 @@ export function SkillTreePanel({
   return (
     <div className="bg-gray-900 border border-gray-800 rounded p-4 space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-bold text-amber-400 uppercase tracking-wider">Skill Tree</h3>
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-purple-400">
-            {progression.skill_points} point{progression.skill_points !== 1 ? "s" : ""} available
-          </span>
-          <button onClick={onClose} className="text-gray-600 hover:text-gray-400 text-xs">
-            Close
-          </button>
+        <div>
+          <h3 className="text-sm font-bold uppercase tracking-wider text-gray-500">Skill Tree</h3>
+          <p className="text-xs text-gray-600">Spend points to unlock passive and active abilities.</p>
         </div>
+        <span className="text-xs text-purple-400">
+          {progression.skill_points} point{progression.skill_points !== 1 ? "s" : ""} available
+        </span>
       </div>
 
       {error && <p className="text-red-400 text-xs">{error}</p>}

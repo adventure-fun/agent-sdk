@@ -2,6 +2,14 @@ import { create } from "zustand"
 import type { CharacterClass } from "@adventure-fun/schemas"
 import type { PageStep, PendingPayment } from "./types"
 
+export enum HubTab {
+  Realms = "realms",
+  ShopBuy = "shop-buy",
+  ShopSell = "shop-sell",
+  Skills = "skills",
+  Lore = "lore",
+}
+
 interface PlayState {
   // Flow
   step: PageStep
@@ -18,8 +26,7 @@ interface PlayState {
   realmError: string | null
 
   // Hub UI
-  showSkillTree: boolean
-  hubTab: "realms" | "shop"
+  hubTab: HubTab
   shopMessage: string | null
   innMessage: string | null
   viewingLoreId: string | null
@@ -42,8 +49,7 @@ interface PlayState {
   setRerollDisabled: (disabled: boolean) => void
   setGeneratingTemplate: (id: string | null) => void
   setRealmError: (error: string | null) => void
-  setShowSkillTree: (show: boolean) => void
-  setHubTab: (tab: "realms" | "shop") => void
+  setHubTab: (tab: HubTab) => void
   setShopMessage: (message: string | null) => void
   setInnMessage: (message: string | null) => void
   setViewingLoreId: (id: string | null) => void
@@ -72,8 +78,7 @@ export const usePlayStore = create<PlayState>((set, get) => ({
   realmError: null,
 
   // Hub UI
-  showSkillTree: false,
-  hubTab: "realms",
+  hubTab: HubTab.Realms,
   shopMessage: null,
   innMessage: null,
   viewingLoreId: null,
@@ -96,7 +101,6 @@ export const usePlayStore = create<PlayState>((set, get) => ({
   setRerollDisabled: (rerollDisabled) => set({ rerollDisabled }),
   setGeneratingTemplate: (generatingTemplate) => set({ generatingTemplate }),
   setRealmError: (realmError) => set({ realmError }),
-  setShowSkillTree: (showSkillTree) => set({ showSkillTree }),
   setHubTab: (hubTab) => set({ hubTab }),
   setShopMessage: (shopMessage) => set({ shopMessage }),
   setInnMessage: (innMessage) => set({ innMessage }),
