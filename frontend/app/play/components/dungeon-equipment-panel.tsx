@@ -1,6 +1,7 @@
 import type { Action, EquipSlot, ItemTemplate, Observation } from "@adventure-fun/schemas"
 import { EQUIP_SLOT_ORDER, EQUIP_SLOT_LABELS } from "../constants"
-import { formatItemQuantity, safeGetItemTemplate, formatItemStats, getEquipComparisonTitle } from "../utils"
+import { formatItemQuantity, safeGetItemTemplate, getEquipComparisonTitle } from "../utils"
+import { ItemGridSlot } from "./item-grid-slot"
 
 export function DungeonEquipmentPanel({
   inventory,
@@ -29,45 +30,39 @@ export function DungeonEquipmentPanel({
 
   return (
     <>
+      {/* Equipment grid */}
       <div>
-        <div className="text-xs text-gray-500 uppercase mb-1">Equipment</div>
-        <div className="space-y-2 text-xs">
+        <div className="text-xs text-gray-500 uppercase mb-2">Equipment</div>
+        <div className="flex flex-wrap gap-2">
           {EQUIP_SLOT_ORDER.map((slot) => {
             const item = equipment[slot]
             const template = item ? safeGetItemTemplate(item.template_id, itemTemplateMap) : null
             const action = unequipActionBySlot.get(slot)
             return (
-              <div
+              <ItemGridSlot
                 key={slot}
-                className="flex items-center justify-between gap-3 rounded border border-gray-800 bg-gray-950/50 px-2 py-1.5"
-              >
-                <div className="min-w-0">
-                  <p className="text-gray-500">{EQUIP_SLOT_LABELS[slot]}</p>
-                  <p className={item ? "truncate text-gray-300" : "text-gray-700"}>
-                    {item?.name ?? "Empty"}
-                  </p>
-                  {template?.stats ? (
-                    <p className="text-[11px] text-gray-500">{formatItemStats(template.stats)}</p>
-                  ) : null}
-                </div>
-                {item && action ? (
+                label={EQUIP_SLOT_LABELS[slot]}
+                item={item}
+                template={template}
+                action={item && action ? (
                   <button
                     type="button"
                     disabled={waitingForResponse}
                     onClick={() => onAction(action)}
-                    className="rounded border border-gray-700 px-2 py-1 text-[11px] text-gray-300 transition-colors hover:border-gray-500 disabled:cursor-not-allowed disabled:opacity-40"
+                    className="mt-2 w-full rounded border border-gray-700 px-2 py-1 text-[11px] text-gray-300 transition-colors hover:border-gray-500 disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     Unequip
                   </button>
-                ) : null}
-              </div>
+                ) : undefined}
+              />
             )
           })}
         </div>
       </div>
 
+      {/* Inventory grid */}
       <div>
-        <div className="flex items-center justify-between gap-3 mb-1">
+        <div className="flex items-center justify-between gap-3 mb-2">
           <div className="text-xs text-gray-500 uppercase">
             Inventory ({inventorySlotsUsed}/{inventoryCapacity})
           </div>
@@ -82,7 +77,7 @@ export function DungeonEquipmentPanel({
             </span>
           )}
         </div>
-        <div className="text-xs text-gray-400 space-y-2">
+        <div className="flex flex-wrap gap-2">
           {inventory.length > 0 ? (
             inventory.map((item) => {
               const template = safeGetItemTemplate(item.template_id, itemTemplateMap)
@@ -93,47 +88,40 @@ export function DungeonEquipmentPanel({
                   : null
 
               return (
-                <div
+                <ItemGridSlot
                   key={item.item_id}
-                  className="flex items-start justify-between gap-3 rounded border border-gray-800 bg-gray-950/50 px-2 py-1.5"
-                >
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="truncate">
-                        {formatItemQuantity(item.name, item.quantity, item.template_id)}
-                      </p>
-                      {template?.type === "equipment" && template.equip_slot ? (
-                        <span className="rounded border border-blue-800/60 bg-blue-950/20 px-2 py-0.5 text-[10px] uppercase tracking-wide text-blue-200">
-                          {EQUIP_SLOT_LABELS[template.equip_slot]}
-                        </span>
-                      ) : null}
-                      {newItemIds.has(item.item_id) && (
-                        <span className="rounded border border-emerald-800/70 bg-emerald-950/20 px-2 py-0.5 text-[10px] uppercase tracking-wide text-emerald-200">
-                          New
-                        </span>
-                      )}
-                    </div>
-                    {template?.stats ? (
-                      <p className="text-[11px] text-gray-500">{formatItemStats(template.stats)}</p>
-                    ) : null}
-                  </div>
-                  {equipAction ? (
+                  label=""
+                  item={item}
+                  template={template}
+                  quantityLabel={item.quantity > 1 ? `x${item.quantity}` : undefined}
+                  badge={
+                    newItemIds.has(item.item_id) ? (
+                      <span className="absolute -top-1 -right-1 rounded-full border border-emerald-700 bg-emerald-950 px-1 text-[8px] text-emerald-300">
+                        New
+                      </span>
+                    ) : undefined
+                  }
+                  action={equipAction ? (
                     <button
                       type="button"
                       disabled={waitingForResponse}
                       onClick={() => onAction(equipAction)}
                       title={template ? getEquipComparisonTitle(template, equippedInSlot, itemTemplateMap) : undefined}
-                      className="rounded border border-cyan-700/70 bg-cyan-950/20 px-2 py-1 text-[11px] font-semibold text-cyan-200 transition-colors hover:bg-cyan-900/30 disabled:cursor-not-allowed disabled:opacity-40"
+                      className="mt-2 w-full rounded border border-cyan-700/70 bg-cyan-950/20 px-2 py-1 text-[11px] font-semibold text-cyan-200 transition-colors hover:bg-cyan-900/30 disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       Equip
                     </button>
-                  ) : null}
-                </div>
+                  ) : undefined}
+                />
               )
             })
           ) : (
-            <p className="text-gray-600">Pack is empty.</p>
+            <p className="text-xs text-gray-600">Pack is empty.</p>
           )}
+          {/* Empty slots */}
+          {Array.from({ length: Math.max(0, inventoryCapacity - inventory.length) }, (_, i) => (
+            <ItemGridSlot key={`empty-${i}`} label="" item={null} template={null} />
+          ))}
         </div>
       </div>
     </>

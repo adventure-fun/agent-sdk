@@ -1,13 +1,13 @@
 "use client"
 
-import { useEffect, useRef, useMemo } from "react"
+import { useEffect, useRef, useMemo, useState } from "react"
 import type { Observation, Action, ItemTemplate, Tile } from "@adventure-fun/schemas"
 import { GameMap } from "../../components/game-map"
+import { CharacterPanel } from "./character-panel"
 import { StatusMeter } from "./status-meter"
 import { StatusEffectBadge } from "./status-effect-badge"
 import { EnemyBehaviorBadge } from "./enemy-behavior-badge"
 import { DungeonEquipmentPanel } from "./dungeon-equipment-panel"
-import { XpProgressBar } from "./xp-progress-bar"
 import {
   getExtractionHint,
   getResourceBarColor,
@@ -493,55 +493,25 @@ export function DungeonView({
           </div>
 
           {/* Status panel */}
-          <div className="md:w-1/3 border border-gray-800 rounded p-4 space-y-4">
-            {/* Character info */}
-            <div>
-              <div className="text-xs text-gray-500 uppercase mb-1">
-                Level {character.level} {character.class}
-              </div>
-              <div className="text-xs text-gray-500 mb-2">Gold: {gold}</div>
-              <XpProgressBar
-                xp={character.xp}
-                level={character.level}
-                xpToNext={dungeonXpToNext}
-                xpForNext={character.xp + dungeonXpToNext}
-                compact
-              />
-            </div>
-
-            <StatusMeter
-              label="HP"
-              current={character.hp.current}
-              max={character.hp.max}
-              colorClass={hpColor}
-            />
-
-            <StatusMeter
-              label={character.resource.type}
-              current={character.resource.current}
-              max={character.resource.max}
-              colorClass={resourceColor}
-            />
-
-            {/* Stats */}
-            <div className="text-xs text-gray-600 space-y-1">
-              {statRows.map((stat) => (
-                <div key={stat.label} className="flex justify-between gap-3">
-                  <span>{stat.label}</span>
-                  <span className="text-gray-300">
-                    {stat.effective}
-                    {stat.effective !== stat.base && (
-                      <span className={stat.effective > stat.base ? "text-green-400" : "text-red-400"}>
-                        {" "}
-                        ({stat.effective > stat.base ? "+" : ""}
-                        {stat.effective - stat.base})
-                      </span>
-                    )}
-                  </span>
-                </div>
-              ))}
-            </div>
-
+          <CharacterPanel
+            className="md:w-1/3"
+            classLabel={character.class}
+            level={character.level}
+            gold={gold}
+            xpToNext={dungeonXpToNext}
+            xpForNext={character.xp + dungeonXpToNext}
+            xpLevel={character.level}
+            xp={character.xp}
+            compactXp
+            hpCurrent={character.hp.current}
+            hpMax={character.hp.max}
+            hpColor={hpColor}
+            resourceLabel={character.resource.type}
+            resourceCurrent={character.resource.current}
+            resourceMax={character.resource.max}
+            resourceColor={resourceColor}
+            statRows={statRows}
+          >
             {/* Buffs/Debuffs */}
             {(character.buffs.length > 0 || character.debuffs.length > 0) && (
               <div>
@@ -654,45 +624,15 @@ export function DungeonView({
             <div>
               <div className="text-xs text-gray-500 uppercase mb-1">Abilities</div>
               <div className="space-y-2">
-                {character.abilities.map((ability) => {
-                  const usable = usableAbilityIds.has(ability.id)
-                  const onCooldown = ability.current_cooldown > 0
-                  const missingResource =
-                    character.resource.current < ability.resource_cost && !onCooldown
-                  const tone = onCooldown
-                    ? "border-gray-800 bg-gray-950 text-gray-500"
-                    : missingResource
-                      ? "border-red-900/70 bg-red-950/30 text-red-300"
-                      : usable
-                        ? "border-emerald-800/70 bg-emerald-950/20 text-emerald-300"
-                        : "border-gray-800 bg-gray-950 text-gray-400"
-
-                  return (
-                    <div key={ability.id} className={`rounded border p-2 text-xs ${tone}`}>
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="font-medium">{ability.name}</span>
-                        <span className="text-[10px] uppercase tracking-wide">
-                          {formatAbilityRange(ability.range)}
-                        </span>
-                      </div>
-                      <div className="mt-1 flex items-center justify-between gap-3 text-[11px]">
-                        <span>
-                          Cost {ability.resource_cost} {character.resource.type}
-                        </span>
-                        <span>
-                          {onCooldown
-                            ? `${ability.current_cooldown}t cooldown`
-                            : missingResource
-                              ? "Need more resource"
-                              : usable
-                                ? "Ready"
-                                : "No target"}
-                        </span>
-                      </div>
-                      <p className="mt-1 text-[11px] text-gray-400">{ability.description}</p>
-                    </div>
-                  )
-                })}
+                {character.abilities.map((ability) => (
+                  <AbilityCard
+                    key={ability.id}
+                    ability={ability}
+                    resourceType={character.resource.type}
+                    resourceCurrent={character.resource.current}
+                    usable={usableAbilityIds.has(ability.id)}
+                  />
+                ))}
               </div>
             </div>
 
@@ -708,10 +648,66 @@ export function DungeonView({
               waitingForResponse={waitingForResponse}
               onAction={onAction}
             />
-          </div>
+          </CharacterPanel>
         </div>
 
       </div>
     </main>
+  )
+}
+
+function AbilityCard({
+  ability,
+  resourceType,
+  resourceCurrent,
+  usable,
+}: {
+  ability: Observation["character"]["abilities"][number]
+  resourceType: string
+  resourceCurrent: number
+  usable: boolean
+}) {
+  const [open, setOpen] = useState(false)
+  const onCooldown = ability.current_cooldown > 0
+  const missingResource = resourceCurrent < ability.resource_cost && !onCooldown
+  const tone = onCooldown
+    ? "border-gray-800 bg-gray-950 text-gray-500"
+    : missingResource
+      ? "border-red-900/70 bg-red-950/30 text-red-300"
+      : usable
+        ? "border-emerald-800/70 bg-emerald-950/20 text-emerald-300"
+        : "border-gray-800 bg-gray-950 text-gray-400"
+
+  const statusLabel = onCooldown
+    ? `${ability.current_cooldown}t cd`
+    : missingResource
+      ? "Low res"
+      : usable
+        ? "Ready"
+        : "No target"
+
+  return (
+    <div className={`rounded border text-xs ${tone}`}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between gap-2 px-2 py-1.5 text-left"
+      >
+        <span className="font-medium">{ability.name}</span>
+        <span className="flex items-center gap-1.5">
+          <span className="text-[10px] uppercase tracking-wide">{statusLabel}</span>
+          <svg className={`h-3 w-3 transition-transform ${open ? "rotate-180" : ""}`} viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 5l3 3 3-3" /></svg>
+        </span>
+      </button>
+      {open ? (
+        <div className="border-t border-current/10 px-2 py-1.5 space-y-1">
+          <div className="flex items-center justify-between gap-3 text-[11px]">
+            <span>{formatAbilityRange(ability.range)}</span>
+            <span>Cost {ability.resource_cost} {resourceType}</span>
+          </div>
+          <p className="text-[11px] text-gray-400">{ability.description}</p>
+        </div>
+      ) : null}
+    </div>
   )
 }

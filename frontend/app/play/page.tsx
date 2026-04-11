@@ -27,9 +27,8 @@ import { STAT_KEYS, STAT_LABELS, CLASS_ROLE_LABELS, REALM_STATUS_LABELS, REALM_R
 import { delay, friendlyPaymentError, formatLoreLabel, getCompletionBonusText } from "./utils"
 
 import { Shell } from "./components/shell"
-import { StatusMeter } from "./components/status-meter"
 import { StatRangeBar, StatValueBar } from "./components/stat-bars"
-import { XpProgressBar } from "./components/xp-progress-bar"
+import { CharacterPanel } from "./components/character-panel"
 import { GearManagementPanel } from "./components/gear-management-panel"
 import { ShopPanel } from "./components/shop-panel"
 import { SkillTreePanel } from "./components/skill-tree-panel"
@@ -972,93 +971,38 @@ export default function PlayPage() {
           <div className="max-w-5xl w-full space-y-6">
 
           <div className="grid gap-6 xl:grid-cols-[1.9fr_1fr]">
-            <div className="bg-gray-900 border border-gray-800 rounded p-4 text-sm space-y-3">
-              <div className="flex items-center justify-between">
-                <h2 className="text-amber-400 font-bold">{character.name}</h2>
-                <span className="text-gray-500 text-xs">
-                  Level {character.level} {classMap[character.class]?.name ?? character.class}
-                </span>
-              </div>
-              <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs">
-                <p>
-                  <span className="text-gray-500">Gold:</span>{" "}
-                  <span className="text-amber-300 font-semibold transition-colors">{displayedGold}</span>
+            {/* Left column — Inn */}
+            <div className="space-y-4">
+              <div className="rounded border border-amber-900/40 bg-gradient-to-br from-amber-950/30 via-gray-900 to-gray-950 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.2em] text-amber-300/60">Inn</p>
+                    <h3 className="text-lg font-bold text-amber-200">Hearth & Rest</h3>
+                  </div>
+                  <span className="rounded-full border border-amber-600/30 bg-amber-500/10 px-3 py-1 text-xs text-amber-200">
+                    $0.05
+                  </span>
+                </div>
+                <p className="text-sm text-gray-400">
+                  Recover fully before the next dive. The innkeeper patches wounds, restores {resourceLabel}, and sends you back out ready.
                 </p>
-                <p>
-                  <span className="text-gray-500">XP:</span>{" "}
-                  <span className="text-gray-300">{character.xp}</span>
-                </p>
+                {innMessage ? (
+                  <p className={`text-xs ${canRestAtInn ? "text-green-300" : "text-gray-500"}`}>{innMessage}</p>
+                ) : null}
+                {innError ? <p className="text-xs text-red-400">{innError}</p> : null}
+                <button
+                  type="button"
+                  disabled={!canRestAtInn || innLoading}
+                  onClick={() => {
+                    store.getState().setPaymentError(null)
+                    store.getState().setInnMessage(null)
+                    store.getState().setPendingPayment({ kind: "inn-rest" })
+                  }}
+                  className="w-full rounded bg-amber-500 px-4 py-2 text-sm font-bold text-black transition-colors hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {canRestAtInn ? "Rest at the Inn" : "Already Fully Rested"}
+                </button>
               </div>
-
-              {progression && (
-                <XpProgressBar
-                  xp={progression.xp}
-                  level={progression.level}
-                  xpToNext={progression.xp_to_next_level}
-                  xpForNext={progression.xp_for_next_level}
-                />
-              )}
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <StatusMeter
-                  label="HP"
-                  current={character.hp_current}
-                  max={character.hp_max}
-                  colorClass={hubHpColor}
-                />
-                <StatusMeter
-                  label={resourceLabel}
-                  current={character.resource_current}
-                  max={character.resource_max}
-                  colorClass="bg-blue-500"
-                />
-              </div>
-              {(() => {
-                const base = character.stats
-                const bonus = { attack: 0, defense: 0, accuracy: 0, evasion: 0, speed: 0, hp: 0 }
-                for (const item of shopInventory) {
-                  if (!item.slot) continue
-                  const tmpl = itemTemplateMap[item.template_id]
-                  if (!tmpl?.stats) continue
-                  for (const [stat, val] of Object.entries(tmpl.stats)) {
-                    if (stat in bonus && typeof val === "number") {
-                      bonus[stat as keyof typeof bonus] += val
-                    }
-                  }
-                }
-                const statRows = [
-                  { label: "ATK", base: base.attack, effective: base.attack + bonus.attack },
-                  { label: "DEF", base: base.defense, effective: base.defense + bonus.defense },
-                  { label: "ACC", base: base.accuracy, effective: base.accuracy + bonus.accuracy },
-                  { label: "EVA", base: base.evasion, effective: base.evasion + bonus.evasion },
-                  { label: "SPD", base: base.speed, effective: base.speed + bonus.speed },
-                ]
-                return (
-                  <p className="text-xs text-gray-600">
-                    {statRows.map((stat, i) => (
-                      <span key={stat.label}>
-                        {i > 0 ? " | " : ""}
-                        {stat.label}{" "}
-                        <span className="text-gray-300">{stat.effective}</span>
-                        {stat.effective !== stat.base && (
-                          <span className={stat.effective > stat.base ? "text-green-400" : "text-red-400"}>
-                            ({stat.effective > stat.base ? "+" : ""}{stat.effective - stat.base})
-                          </span>
-                        )}
-                      </span>
-                    ))}
-                  </p>
-                )
-              })()}
-
-              <GearManagementPanel
-                inventory={shopInventory}
-                itemTemplateMap={itemTemplateMap}
-                characterClass={character.class}
-                isLoading={shopLoading}
-                onEquip={handleEquipLobbyItem}
-                onUnequip={handleUnequipLobbySlot}
-              />
 
               {(character.lore_discovered?.length ?? 0) > 0 && (
                 <div className="rounded border border-amber-900/40 bg-amber-950/10 p-3">
@@ -1089,28 +1033,54 @@ export default function PlayPage() {
                   </div>
                 </div>
               )}
+            </div>
 
-              {viewingLoreId && (() => {
-                const lore = loreMap[viewingLoreId]
-                if (!lore) return null
-                return (
-                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => store.getState().setViewingLoreId(null)}>
-                    <div className="w-full max-w-lg rounded border border-amber-800/50 bg-gray-900 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-start justify-between gap-4 mb-4">
-                        <h3 className="text-sm font-bold uppercase tracking-wider text-amber-300">{lore.name}</h3>
-                        <button
-                          type="button"
-                          onClick={() => store.getState().setViewingLoreId(null)}
-                          className="text-gray-500 hover:text-gray-300 text-lg leading-none"
-                        >
-                          x
-                        </button>
-                      </div>
-                      <p className="text-sm text-gray-300 leading-relaxed whitespace-pre-wrap">{lore.text}</p>
-                    </div>
-                  </div>
-                )
+            {/* Right column — Player info */}
+            <CharacterPanel
+              classLabel={classMap[character.class]?.name ?? character.class}
+              level={character.level}
+              gold={displayedGold}
+              xp={progression?.xp ?? character.xp}
+              xpLevel={progression?.level ?? character.level}
+              xpToNext={progression?.xp_to_next_level ?? 0}
+              xpForNext={progression?.xp_for_next_level ?? 0}
+              hpCurrent={character.hp_current}
+              hpMax={character.hp_max}
+              hpColor={hubHpColor}
+              resourceLabel={resourceLabel}
+              resourceCurrent={character.resource_current}
+              resourceMax={character.resource_max}
+              resourceColor="bg-blue-500"
+              statRows={(() => {
+                const base = character.stats
+                const bonus = { attack: 0, defense: 0, accuracy: 0, evasion: 0, speed: 0, hp: 0 }
+                for (const item of shopInventory) {
+                  if (!item.slot) continue
+                  const tmpl = itemTemplateMap[item.template_id]
+                  if (!tmpl?.stats) continue
+                  for (const [stat, val] of Object.entries(tmpl.stats)) {
+                    if (stat in bonus && typeof val === "number") {
+                      bonus[stat as keyof typeof bonus] += val
+                    }
+                  }
+                }
+                return [
+                  { label: "ATK", base: base.attack, effective: base.attack + bonus.attack },
+                  { label: "DEF", base: base.defense, effective: base.defense + bonus.defense },
+                  { label: "ACC", base: base.accuracy, effective: base.accuracy + bonus.accuracy },
+                  { label: "EVA", base: base.evasion, effective: base.evasion + bonus.evasion },
+                  { label: "SPD", base: base.speed, effective: base.speed + bonus.speed },
+                ]
               })()}
+            >
+              <GearManagementPanel
+                inventory={shopInventory}
+                itemTemplateMap={itemTemplateMap}
+                characterClass={character.class}
+                isLoading={shopLoading}
+                onEquip={handleEquipLobbyItem}
+                onUnequip={handleUnequipLobbySlot}
+              />
 
               {progression && progression.skill_points > 0 && (
                 <button
@@ -1120,38 +1090,29 @@ export default function PlayPage() {
                   {progression.skill_points} skill point{progression.skill_points !== 1 ? "s" : ""} available — View Skill Tree
                 </button>
               )}
-            </div>
+            </CharacterPanel>
 
-            <div className="rounded border border-amber-900/40 bg-gradient-to-br from-amber-950/30 via-gray-900 to-gray-950 p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.2em] text-amber-300/60">Inn</p>
-                  <h3 className="text-lg font-bold text-amber-200">Hearth & Rest</h3>
+            {viewingLoreId && (() => {
+              const lore = loreMap[viewingLoreId]
+              if (!lore) return null
+              return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => store.getState().setViewingLoreId(null)}>
+                  <div className="w-full max-w-lg rounded border border-amber-800/50 bg-gray-900 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-start justify-between gap-4 mb-4">
+                      <h3 className="text-sm font-bold uppercase tracking-wider text-amber-300">{lore.name}</h3>
+                      <button
+                        type="button"
+                        onClick={() => store.getState().setViewingLoreId(null)}
+                        className="text-gray-500 hover:text-gray-300 text-lg leading-none"
+                      >
+                        x
+                      </button>
+                    </div>
+                    <p className="text-sm text-gray-300 leading-relaxed whitespace-pre-wrap">{lore.text}</p>
+                  </div>
                 </div>
-                <span className="rounded-full border border-amber-600/30 bg-amber-500/10 px-3 py-1 text-xs text-amber-200">
-                  $0.05
-                </span>
-              </div>
-              <p className="text-sm text-gray-400">
-                Recover fully before the next dive. The innkeeper patches wounds, restores {resourceLabel}, and sends you back out ready.
-              </p>
-              {innMessage ? (
-                <p className={`text-xs ${canRestAtInn ? "text-green-300" : "text-gray-500"}`}>{innMessage}</p>
-              ) : null}
-              {innError ? <p className="text-xs text-red-400">{innError}</p> : null}
-              <button
-                type="button"
-                disabled={!canRestAtInn || innLoading}
-                onClick={() => {
-                  store.getState().setPaymentError(null)
-                  store.getState().setInnMessage(null)
-                  store.getState().setPendingPayment({ kind: "inn-rest" })
-                }}
-                className="w-full rounded bg-amber-500 px-4 py-2 text-sm font-bold text-black transition-colors hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                {canRestAtInn ? "Rest at the Inn" : "Already Fully Rested"}
-              </button>
-            </div>
+              )
+            })()}
           </div>
 
           {/* Skill Tree Panel */}

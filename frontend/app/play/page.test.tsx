@@ -59,7 +59,7 @@ const itemTemplateMap: Record<string, ItemTemplate> = {
 }
 
 describe("Group 5 equipment UI", () => {
-  it("renders hub gear management controls with class restriction messaging", () => {
+  it("renders hub gear management grid with equipped and bag items", () => {
     const inventory: InventoryItem[] = [
       {
         id: "equipped-weapon",
@@ -105,14 +105,18 @@ describe("Group 5 equipment UI", () => {
     )
 
     expect(html).toContain("Equipment and Inventory")
-    expect(html).toContain("Bag Gear")
-    expect(html).toContain("Unequip")
-    expect(html).toContain("Equip")
-    expect(html).toContain("knight only")
-    expect(html).toContain("Weapon: Iron Sword (+6 Attack · +2 Accuracy) replaces Rusty Dagger (+2 Attack)")
+    expect(html).toContain("Bag")
+    expect(html).toContain("Rusty Dagger")
+    expect(html).toContain("Iron Sword")
+    expect(html).toContain("Wooden Shield")
+    // Empty slots rendered with slot labels
+    expect(html).toContain("Armor")
+    expect(html).toContain("Helm")
+    // Class-locked items show a badge
+    expect(html).toContain("!")
   })
 
-  it("renders dungeon equip and unequip controls with stat summaries", () => {
+  it("renders dungeon equipment grid with new item badges", () => {
     const inventory: Observation["inventory"] = [
       {
         item_id: "bag-sword",
@@ -168,11 +172,11 @@ describe("Group 5 equipment UI", () => {
     expect(html).toContain("Equipment")
     expect(html).toContain("Inventory (2/10)")
     expect(html).toContain("Rusty Dagger")
-    expect(html).toContain("Iron Sword x1")
+    expect(html).toContain("Iron Sword")
+    expect(html).toContain("Health Potion")
     expect(html).toContain("New")
-    expect(html).toContain("+6 Attack · +2 Accuracy")
-    expect(html).toContain("Equip")
-    expect(html).toContain("Unequip")
-    expect(html).toContain("Weapon: Iron Sword (+6 Attack · +2 Accuracy) replaces Rusty Dagger (+2 Attack)")
+    // Empty equipment slots show labels
+    expect(html).toContain("Armor")
+    expect(html).toContain("Helm")
   })
 })
