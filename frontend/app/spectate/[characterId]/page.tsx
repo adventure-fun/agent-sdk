@@ -5,6 +5,8 @@ import { useEffect, useRef, useState } from "react"
 import type { SpectatorObservation } from "@adventure-fun/schemas"
 import { GameMap } from "../../components/game-map"
 import { useLeaderboard } from "../../hooks/use-leaderboard"
+import { useLobbyChat } from "../../hooks/use-lobby-chat"
+import { useAdventureAuth } from "../../hooks/use-adventure-auth"
 
 interface Props {
   params: Promise<{ characterId: string }>
@@ -30,6 +32,17 @@ export default function SpectatePage({ params }: Props) {
   useEffect(() => {
     void fetchLeaderboard({ type: "xp", limit: 5 })
   }, [fetchLeaderboard])
+
+  // Global lobby chat
+  const { messages: chatMessages, connected: chatConnected, send: sendChat, sendError: chatSendError } = useLobbyChat(80)
+  const { token, isAuthenticated } = useAdventureAuth()
+  const [chatInput, setChatInput] = useState("")
+  const chatEndRef = useRef<HTMLDivElement>(null)
+
+  // Auto-scroll chat to bottom
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" })
+  }, [chatMessages])
 
   const requestReconnect = () => {
     if (reconnectTimerRef.current !== null) {
@@ -311,24 +324,96 @@ export default function SpectatePage({ params }: Props) {
           </div>
         )}
 
-        {/* Recent events terminal */}
-        <div className="border border-white/5 bg-aw-surface-lowest">
-          <div className="px-3 py-2 bg-aw-surface-container border-b border-white/5 flex items-center justify-between">
-            <span className="text-[10px] tracking-[0.2em] uppercase text-aw-outline">GLOBAL_ENCRYPTED_FEED</span>
-            <button type="button" onClick={requestReconnect} className="text-[10px] text-aw-outline hover:text-aw-on-surface">SYNC</button>
+        {/* Bottom row: events + chat */}
+        <div className="grid md:grid-cols-2 gap-4">
+
+          {/* Recent events terminal */}
+          <div className="border border-white/5 bg-aw-surface-lowest flex flex-col">
+            <div className="px-3 py-2 bg-aw-surface-container border-b border-white/5 flex items-center justify-between shrink-0">
+              <span className="text-[10px] tracking-[0.2em] uppercase text-aw-outline">DUNGEON_FEED</span>
+              <button type="button" onClick={requestReconnect} className="text-[10px] text-aw-outline hover:text-aw-on-surface">SYNC</button>
+            </div>
+            <div className="p-3 space-y-1.5 h-36 overflow-y-auto">
+              {obs && obs.recent_events.length > 0 ? (
+                obs.recent_events.slice(-8).map((event, i, arr) => (
+                  <div key={`${event.turn}-${i}`}
+                    className={`text-xs px-2 py-1 ${i === arr.length - 1 ? "border-l-2 border-aw-primary text-aw-on-surface" : "text-aw-on-surface-variant"}`}>
+                    <span className="text-aw-outline mr-2">T{event.turn}</span>
+                    {event.detail}
+                  </div>
+                ))
+              ) : (
+                <p className="text-xs text-aw-outline italic">Waiting for events...</p>
+              )}
+            </div>
           </div>
-          <div className="p-3 space-y-1.5 max-h-40 overflow-y-auto">
-            {obs && obs.recent_events.length > 0 ? (
-              obs.recent_events.slice(-8).map((event, i, arr) => (
-                <div key={`${event.turn}-${i}`}
-                  className={`text-xs px-2 py-1 ${i === arr.length - 1 ? "border-l-2 border-aw-primary text-aw-on-surface" : "text-aw-on-surface-variant"}`}>
-                  <span className="text-aw-outline mr-2">T{event.turn}</span>
-                  {event.detail}
-                </div>
-              ))
-            ) : (
-              <p className="text-xs text-aw-outline italic px-2">Waiting for events...</p>
-            )}
+
+          {/* Global encrypted chat */}
+          <div className="border border-white/5 bg-aw-surface-lowest flex flex-col">
+            <div className="px-3 py-2 bg-aw-surface-container border-b border-white/5 flex items-center justify-between shrink-0">
+              <span className="text-[10px] tracking-[0.2em] uppercase text-aw-outline flex items-center gap-2">
+                GLOBAL_ENCRYPTED_CHAT
+                <span className={`w-1 h-1 rounded-full ${chatConnected ? "bg-aw-secondary animate-pulse" : "bg-aw-outline"}`} />
+              </span>
+              <span className="text-[10px] text-aw-outline">
+                {chatConnected ? "MEMPOOL_SYNCED" : "CONNECTING..."}
+              </span>
+            </div>
+
+            <div className="p-3 space-y-2 h-36 overflow-y-auto">
+              {chatMessages.length === 0 ? (
+                <p className="text-[10px] text-aw-outline italic">No messages yet...</p>
+              ) : (
+                chatMessages.map((msg, i) => (
+                  <div key={i} className="text-xs flex gap-2">
+                    <span className={`font-medium shrink-0 ${
+                      msg.player_type === "agent" ? "text-aw-tertiary" : "text-aw-secondary"
+                    } opacity-80`}>
+                      {msg.character_name}:
+                    </span>
+                    <span className="text-aw-on-surface-variant">{msg.message}</span>
+                  </div>
+                ))
+              )}
+              <div ref={chatEndRef} />
+            </div>
+
+            <div className="border-t border-white/5 p-2 shrink-0">
+              {isAuthenticated ? (
+                <form
+                  onSubmit={async (e) => {
+                    e.preventDefault()
+                    if (!token || !chatInput.trim()) return
+                    await sendChat(chatInput, token)
+                    setChatInput("")
+                  }}
+                  className="flex gap-2"
+                >
+                  <input
+                    type="text"
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    maxLength={280}
+                    placeholder="INITIALIZE_MESSAGE..."
+                    className="flex-1 bg-aw-surface-container border-none outline-none text-xs text-aw-secondary placeholder:text-aw-surface-bright px-3 py-2"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!chatInput.trim()}
+                    className="px-3 py-2 text-[10px] text-aw-secondary border border-aw-secondary/30 hover:bg-aw-secondary/10 transition-colors disabled:opacity-40 tracking-widest"
+                  >
+                    SEND
+                  </button>
+                </form>
+              ) : (
+                <p className="text-[10px] text-aw-outline italic text-center py-1">
+                  Sign in to chat
+                </p>
+              )}
+              {chatSendError && (
+                <p className="text-[10px] text-aw-error mt-1">{chatSendError}</p>
+              )}
+            </div>
           </div>
         </div>
       </main>
