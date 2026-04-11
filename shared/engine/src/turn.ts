@@ -2793,12 +2793,16 @@ export function buildObservationFromState(
 
       for (const inter of obsRoomTemplate.interactables) {
         if (state.mutatedEntities.includes(inter.id)) continue
-        // Interactables are room-wide by design; templates do not define positions.
+        // Locked-exit interactables (gates/doors) go at the right wall; others at room center
+        const isLockedExit = obsRoomTemplate.locked_exit === inter.id
+        const position = isLockedExit
+          ? { x: (room.tiles[0]?.length ?? 1) - 1, y: Math.floor(room.tiles.length / 2) }
+          : getInteractableMapPosition(room)
         visibleEntities.push({
           id: inter.id,
           type: "interactable",
           name: inter.name,
-          position: getInteractableMapPosition(room),
+          position,
         })
       }
     }
