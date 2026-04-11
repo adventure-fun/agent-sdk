@@ -3078,12 +3078,20 @@ export function computeLegalActions(
 
   // Use items from inventory (skip ammo — consumed automatically by abilities)
   // Deduplicate by template_id so multiple stacks of the same item don't show separate buttons
+  // Skip items where all effects would do nothing
   const seenUseTemplates = new Set<string>()
   for (const item of state.inventory) {
     if (seenUseTemplates.has(item.template_id)) continue
     try {
       const template = getItem(item.template_id)
       if (template.type === "consumable" && template.effects && template.effects.length > 0) {
+        const allUseless = template.effects.every((e) => {
+          if (e.type === "heal-hp") return state.character.hp.current >= state.character.hp.max
+          if (e.type === "restore-resource") return state.character.resource.current >= state.character.resource.max
+          if (e.type === "cure-debuffs") return state.character.debuffs.length === 0
+          return false
+        })
+        if (allUseless) continue
         seenUseTemplates.add(item.template_id)
         actions.push({ type: "use_item", item_id: item.id })
       }

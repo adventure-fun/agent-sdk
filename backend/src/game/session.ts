@@ -394,6 +394,20 @@ export class GameSession {
           : "active",
     }
 
+    // Apply equipment HP bonus to max HP so initial observation is correct
+    let equipHpBonus = 0
+    for (const eq of Object.values(equipment)) {
+      if (!eq) continue
+      try { equipHpBonus += getItem(eq.template_id).stats?.hp ?? 0 } catch { /* skip */ }
+    }
+    if (equipHpBonus > 0) {
+      gameState.character.hp.max = gameState.character.stats.hp + equipHpBonus
+      gameState.character.effective_stats.hp = gameState.character.hp.max
+      if (gameState.character.hp.current > gameState.character.hp.max) {
+        gameState.character.hp.current = gameState.character.hp.max
+      }
+    }
+
     // 8.2: Restore enemy positions from persisted session state on reconnect
     const dbSessionState = realm.session_state as SessionState | null
     if (dbSessionState?.rooms?.length) {

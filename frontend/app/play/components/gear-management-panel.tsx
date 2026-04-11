@@ -11,6 +11,11 @@ export function GearManagementPanel({
   isLoading,
   onEquip,
   onUnequip,
+  onUseConsumable,
+  hpCurrent,
+  hpMax,
+  resourceCurrent,
+  resourceMax,
 }: {
   inventory: InventoryItem[]
   itemTemplateMap: Record<string, ItemTemplate>
@@ -18,6 +23,11 @@ export function GearManagementPanel({
   isLoading: boolean
   onEquip: (itemId: string) => Promise<void>
   onUnequip: (slot: EquipSlot) => Promise<void>
+  onUseConsumable?: (itemId: string) => Promise<void>
+  hpCurrent?: number
+  hpMax?: number
+  resourceCurrent?: number
+  resourceMax?: number
 }) {
   const equippedItems = Object.fromEntries(
     EQUIP_SLOT_ORDER.map((slot) => [slot, inventory.find((item) => item.slot === slot) ?? null]),
@@ -82,6 +92,15 @@ export function GearManagementPanel({
             const equippedInSlot =
               canEquip && template.equip_slot ? equippedItems[template.equip_slot] : null
 
+            const isConsumable = template?.type === "consumable"
+            const lobbyEffect = isConsumable
+              ? template?.effects?.find((e) => e.type === "heal-hp" || e.type === "restore-resource")
+              : null
+            const canUseInLobby = onUseConsumable && lobbyEffect && (
+              (lobbyEffect.type === "heal-hp" && hpCurrent != null && hpMax != null && hpCurrent < hpMax) ||
+              (lobbyEffect.type === "restore-resource" && resourceCurrent != null && resourceMax != null && resourceCurrent < resourceMax)
+            )
+
             return (
               <ItemGridSlot
                 key={item.id}
@@ -96,17 +115,31 @@ export function GearManagementPanel({
                     </span>
                   ) : undefined
                 }
-                action={canEquip ? (
-                  <button
-                    type="button"
-                    disabled={isLoading || Boolean(classLocked)}
-                    onClick={() => void onEquip(item.id)}
-                    title={getEquipComparisonTitle(template, equippedInSlot, itemTemplateMap)}
-                    className="mt-2 w-full rounded border border-cyan-700/70 bg-cyan-950/20 px-2 py-1 text-[11px] font-semibold text-cyan-200 transition-colors hover:bg-cyan-900/30 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    Equip
-                  </button>
-                ) : undefined}
+                action={
+                  <>
+                    {canEquip ? (
+                      <button
+                        type="button"
+                        disabled={isLoading || Boolean(classLocked)}
+                        onClick={() => void onEquip(item.id)}
+                        title={getEquipComparisonTitle(template, equippedInSlot, itemTemplateMap)}
+                        className="mt-2 w-full rounded border border-cyan-700/70 bg-cyan-950/20 px-2 py-1 text-[11px] font-semibold text-cyan-200 transition-colors hover:bg-cyan-900/30 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        Equip
+                      </button>
+                    ) : null}
+                    {canUseInLobby ? (
+                      <button
+                        type="button"
+                        disabled={isLoading}
+                        onClick={() => void onUseConsumable(item.id)}
+                        className="mt-2 w-full rounded border border-green-700/70 bg-green-950/20 px-2 py-1 text-[11px] font-semibold text-green-200 transition-colors hover:bg-green-900/30 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        Use
+                      </button>
+                    ) : null}
+                  </>
+                }
               />
             )
           })}

@@ -16,6 +16,7 @@ import {
   validateLobbyEquip,
   validateLobbyUnequip,
   validateSellItem,
+  validateLobbyUseConsumable,
   computeEquipmentHpBonus,
   VALID_EQUIP_SLOTS,
   type LobbyCharacterRecord,
@@ -336,6 +337,63 @@ lobby.post("/unequip", requireAuth, async (c) => {
   return c.json({
     inventory: serializeInventory(updatedInventory),
     message: `Unequipped ${validation.template.name}.`,
+  })
+})
+
+// POST /lobby/use-consumable — use a potion or similar from the lobby
+lobby.post("/use-consumable", requireAuth, async (c) => {
+  const { account_id } = c.get("session")
+  const body = await c.req.json<{ item_id?: string }>()
+  const itemId = body.item_id?.trim()
+  if (!itemId) return c.json({ error: "item_id is required" }, 400)
+
+  const { data: character, error: characterError } = await loadActiveCharacter(account_id)
+  if (characterError) return c.json({ error: characterError.message }, 500)
+  if (!character) return c.json({ error: "No living character" }, 404)
+  if (hasActiveSession(character.id)) {
+    return c.json({ error: "Leave the dungeon first." }, 409)
+  }
+
+  const { data: inventoryRows, error: inventoryError } = await loadInventory(character.id)
+  if (inventoryError) return c.json({ error: inventoryError.message }, 500)
+
+  const inventory = (inventoryRows ?? []) as LobbyInventoryRecord[]
+  const hpBonus = computeEquipmentHpBonus(inventory)
+  const validation = validateLobbyUseConsumable(
+    character as LobbyCharacterRecord,
+    inventory,
+    itemId,
+    hpBonus,
+  )
+  if (!validation.ok) return c.json({ error: validation.error }, 400)
+
+  const { row, template, effect } = validation
+  const effectiveHpMax = character.hp_max + hpBonus
+
+  // Apply effect
+  if (effect.type === "heal-hp") {
+    const heal = Math.min(effect.magnitude ?? 0, effectiveHpMax - character.hp_current)
+    await db.from("characters")
+      .update({ hp_current: character.hp_current + heal })
+      .eq("id", character.id)
+  } else if (effect.type === "restore-resource") {
+    const restore = Math.min(effect.magnitude ?? 0, character.resource_max - character.resource_current)
+    await db.from("characters")
+      .update({ resource_current: character.resource_current + restore })
+      .eq("id", character.id)
+  }
+
+  // Consume item
+  if (row.quantity > 1) {
+    await db.from("inventory_items")
+      .update({ quantity: row.quantity - 1 })
+      .eq("id", row.id)
+  } else {
+    await db.from("inventory_items").delete().eq("id", row.id)
+  }
+
+  return c.json({
+    message: `Used ${template.name}.`,
   })
 })
 

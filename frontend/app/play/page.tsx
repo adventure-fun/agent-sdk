@@ -93,6 +93,7 @@ export default function PlayPage() {
     equipItem,
     unequipItem,
     discardItem,
+    useConsumable,
   } = useShop()
 
   const {
@@ -946,6 +947,16 @@ export default function PlayPage() {
       }
     }
 
+    const handleUseConsumable = async (itemId: string) => {
+      const result = await useConsumable(itemId)
+      if (result.ok) {
+        store.getState().setShopMessage(result.message)
+        await fetchCharacter()
+      } else {
+        store.getState().setShopMessage(result.error)
+      }
+    }
+
     const handleEquipLobbyItem = async (itemId: string) => {
       const result = await equipItem(itemId)
       if (result.ok) {
@@ -1326,6 +1337,11 @@ export default function PlayPage() {
                 isLoading={shopLoading}
                 onEquip={handleEquipLobbyItem}
                 onUnequip={handleUnequipLobbySlot}
+                onUseConsumable={handleUseConsumable}
+                hpCurrent={character.hp_current}
+                hpMax={effectiveHpMax}
+                resourceCurrent={character.resource_current}
+                resourceMax={character.resource_max}
               />
 
               {progression && progression.skill_points > 0 && (

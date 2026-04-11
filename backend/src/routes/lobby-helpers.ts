@@ -4,6 +4,7 @@ import {
   type CharacterClass,
   type EquipSlot,
   type InventoryItem,
+  type ItemEffect,
   type ItemTemplate,
 } from "@adventure-fun/schemas"
 
@@ -270,4 +271,45 @@ export function computeEquipmentHpBonus(inventoryRows: LobbyInventoryRecord[]): 
     } catch { /* skip */ }
   }
   return bonus
+}
+
+const LOBBY_USABLE_EFFECTS = new Set(["heal-hp", "restore-resource"])
+
+export function validateLobbyUseConsumable(
+  character: LobbyCharacterRecord,
+  inventory: LobbyInventoryRecord[],
+  itemId: string,
+  equipmentHpBonus: number,
+):
+  | { ok: true; row: LobbyInventoryRecord; template: ItemTemplate; effect: ItemEffect }
+  | { ok: false; error: string } {
+  const row = inventory.find((item) => item.id === itemId)
+  if (!row) return { ok: false, error: "Item not found in your inventory." }
+  if (row.slot) return { ok: false, error: "Cannot use an equipped item." }
+
+  let template: ItemTemplate
+  try {
+    template = getItem(row.template_id)
+  } catch {
+    return { ok: false, error: "Unknown item template." }
+  }
+
+  if (template.type !== "consumable" || !template.effects?.length) {
+    return { ok: false, error: "This item cannot be used." }
+  }
+
+  const effect = template.effects.find((e) => LOBBY_USABLE_EFFECTS.has(e.type))
+  if (!effect) {
+    return { ok: false, error: "This item can only be used inside a dungeon." }
+  }
+
+  const effectiveHpMax = character.hp_max + equipmentHpBonus
+  if (effect.type === "heal-hp" && character.hp_current >= effectiveHpMax) {
+    return { ok: false, error: "Already at full HP." }
+  }
+  if (effect.type === "restore-resource" && character.resource_current >= character.resource_max) {
+    return { ok: false, error: "Resource already full." }
+  }
+
+  return { ok: true, row, template, effect }
 }
