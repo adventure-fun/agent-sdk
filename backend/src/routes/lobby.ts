@@ -16,6 +16,7 @@ import {
   validateLobbyEquip,
   validateLobbyUnequip,
   validateSellItem,
+  computeEquipmentHpBonus,
   VALID_EQUIP_SLOTS,
   type LobbyCharacterRecord,
   type LobbyInventoryRecord,
@@ -279,6 +280,13 @@ lobby.post("/equip", requireAuth, async (c) => {
     return row
   })
 
+  // Cap hp_current if it now exceeds base hp_max + new equipment bonus
+  const hpBonus = computeEquipmentHpBonus(updatedInventory)
+  const effectiveMax = character.hp_max + hpBonus
+  if (character.hp_current > effectiveMax) {
+    await db.from("characters").update({ hp_current: effectiveMax }).eq("id", character.id)
+  }
+
   return c.json({
     inventory: serializeInventory(updatedInventory),
     message: `Equipped ${validation.template.name}.`,
@@ -317,6 +325,13 @@ lobby.post("/unequip", requireAuth, async (c) => {
   const updatedInventory = inventory.map((row) =>
     row.id === validation.row.id ? { ...row, slot: null } : row,
   )
+
+  // Cap hp_current if it now exceeds base hp_max + remaining equipment bonus
+  const hpBonus = computeEquipmentHpBonus(updatedInventory)
+  const effectiveMax = character.hp_max + hpBonus
+  if (character.hp_current > effectiveMax) {
+    await db.from("characters").update({ hp_current: effectiveMax }).eq("id", character.id)
+  }
 
   return c.json({
     inventory: serializeInventory(updatedInventory),
@@ -365,8 +380,14 @@ lobby.post("/inn/rest", requireAuth, async (c) => {
   if (hasActiveSession(character.id)) {
     return c.json({ error: "Leave the dungeon before resting." }, 409)
   }
+
+  // Compute effective HP max including equipment bonuses
+  const { data: inventoryRows } = await loadInventory(character.id)
+  const innHpBonus = computeEquipmentHpBonus((inventoryRows ?? []) as LobbyInventoryRecord[])
+  const effectiveHpMax = character.hp_max + innHpBonus
+
   if (
-    character.hp_current >= character.hp_max
+    character.hp_current >= effectiveHpMax
     && character.resource_current >= character.resource_max
   ) {
     return c.json({ error: "You are already fully rested." }, 409)
@@ -381,7 +402,7 @@ lobby.post("/inn/rest", requireAuth, async (c) => {
   const { data: updatedCharacter, error } = await db
     .from("characters")
     .update({
-      hp_current: character.hp_max,
+      hp_current: effectiveHpMax,
       resource_current: character.resource_max,
     })
     .eq("id", character.id)

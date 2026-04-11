@@ -259,3 +259,15 @@ export function validateLobbyUnequip(
 
   return { ok: true, row, template }
 }
+
+export function computeEquipmentHpBonus(inventoryRows: LobbyInventoryRecord[]): number {
+  let bonus = 0
+  for (const row of inventoryRows) {
+    if (!row.slot) continue
+    try {
+      const template = getItem(row.template_id)
+      bonus += template.stats?.hp ?? 0
+    } catch { /* skip */ }
+  }
+  return bonus
+}

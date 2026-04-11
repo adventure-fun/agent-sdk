@@ -506,6 +506,7 @@ export function DungeonView({
             hpCurrent={character.hp.current}
             hpMax={character.hp.max}
             hpColor={hpColor}
+            hpBonus={character.hp.max - character.base_stats.hp}
             resourceLabel={character.resource.type}
             resourceCurrent={character.resource.current}
             resourceMax={character.resource.max}

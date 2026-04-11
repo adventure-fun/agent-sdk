@@ -21,6 +21,7 @@ export function CharacterPanel({
   hpCurrent,
   hpMax,
   hpColor,
+  hpBonus,
   resourceLabel,
   resourceCurrent,
   resourceMax,
@@ -40,6 +41,7 @@ export function CharacterPanel({
   hpCurrent: number
   hpMax: number
   hpColor: string
+  hpBonus?: number
   resourceLabel: string
   resourceCurrent: number
   resourceMax: number
@@ -71,6 +73,7 @@ export function CharacterPanel({
         current={hpCurrent}
         max={hpMax}
         colorClass={hpColor}
+        bonus={hpBonus}
       />
       <StatusMeter
         label={resourceLabel}

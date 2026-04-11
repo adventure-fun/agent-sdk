@@ -2663,6 +2663,13 @@ function recalcStats(s: GameState) {
   }
 
   s.character.effective_stats = effective
+
+  // Sync equipment HP bonus to hp.max — only cap current if max dropped below it
+  const newMax = effective.hp
+  s.character.hp.max = newMax
+  if (s.character.hp.current > newMax) {
+    s.character.hp.current = newMax
+  }
 }
 
 function updateVisibility(s: GameState, room: RoomState, realm: GeneratedRealm) {

@@ -852,11 +852,19 @@ export default function PlayPage() {
 
   // ── Character hub ────────────────────────────────────────────────────────────
   if (step === "hub" && character) {
-    const hubHpPct = character.hp_max > 0 ? (character.hp_current / character.hp_max) * 100 : 0
+    // Compute effective HP max (base + equipment bonuses)
+    let equipHpBonus = 0
+    for (const item of shopInventory) {
+      if (!item.slot) continue
+      const tmpl = itemTemplateMap[item.template_id]
+      if (tmpl?.stats?.hp && typeof tmpl.stats.hp === "number") equipHpBonus += tmpl.stats.hp
+    }
+    const effectiveHpMax = character.hp_max + equipHpBonus
+    const hubHpPct = effectiveHpMax > 0 ? (character.hp_current / effectiveHpMax) * 100 : 0
     const hubHpColor = hubHpPct > 50 ? "bg-green-500" : hubHpPct > 25 ? "bg-yellow-500" : "bg-red-500"
     const resourceLabel = classMap[character.class]?.resource_type ?? "resource"
     const canRestAtInn =
-      character.hp_current < character.hp_max || character.resource_current < character.resource_max
+      character.hp_current < effectiveHpMax || character.resource_current < character.resource_max
     const displayedGold = shopGold ?? character.gold
     const tutorialCompleted = realms.some(
       (realm) => realm.template_id === TUTORIAL_TEMPLATE_ID && realm.status === "completed",
@@ -1282,8 +1290,9 @@ export default function PlayPage() {
               xpToNext={progression?.xp_to_next_level ?? 0}
               xpForNext={progression?.xp_for_next_level ?? 0}
               hpCurrent={character.hp_current}
-              hpMax={character.hp_max}
+              hpMax={effectiveHpMax}
               hpColor={hubHpColor}
+              hpBonus={equipHpBonus}
               resourceLabel={resourceLabel}
               resourceCurrent={character.resource_current}
               resourceMax={character.resource_max}
