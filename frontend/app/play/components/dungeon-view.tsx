@@ -208,16 +208,16 @@ export function DungeonView({
   }, [moveActions, waitingForResponse, onAction])
 
   return (
-    <main className="min-h-screen flex flex-col p-4">
+    <main className="min-h-screen flex flex-col p-4 bg-aw-bg aw-label">
       <div className="max-w-5xl w-full mx-auto flex-1 flex flex-col gap-4">
         {/* Header */}
-        <div className="flex items-center justify-between text-xs text-gray-500">
-          <span className="text-amber-400 font-bold">{realm_info.template_name}</span>
-          <span className="flex items-center gap-2">
+        <div className="flex items-center justify-between text-xs text-aw-outline">
+          <span className="text-aw-primary aw-headline font-bold tracking-widest">{realm_info.template_name}</span>
+          <span className="flex items-center gap-3 tracking-widest uppercase">
             <span>
               Floor {realm_info.current_floor} / {realm_info.floor_count}
             </span>
-            <span className="text-gray-600">
+            <span className="text-aw-surface-bright">
               {floorCanAscend ? "↑" : "·"}
               {floorCanDescend ? "↓" : "·"}
             </span>
@@ -225,11 +225,11 @@ export function DungeonView({
           </span>
         </div>
         {extractionHint && (
-          <div className="rounded border border-amber-800/70 bg-amber-950/20 px-4 py-3 text-sm text-amber-200">
-            <div className="font-semibold uppercase tracking-wide text-[11px] text-amber-400">
-              Extraction Ready
+          <div className="border border-aw-primary/30 bg-aw-primary-container/10 px-4 py-3 text-sm text-aw-on-primary-container">
+            <div className="aw-headline text-[10px] text-aw-primary tracking-widest mb-1">
+              EXTRACTION_READY
             </div>
-            <p className="mt-1">{extractionHint}</p>
+            <p className="text-aw-on-surface-variant">{extractionHint}</p>
           </div>
         )}
         {adjacentStairHint && (
@@ -242,7 +242,13 @@ export function DungeonView({
         {/* Main area: map + status */}
         <div className="flex flex-col md:flex-row gap-4 flex-1">
           {/* Map */}
-          <div className="md:w-2/3 border border-gray-800 rounded p-4 bg-gray-950">
+          <div className="md:w-2/3 border border-aw-secondary/20 rounded-sm p-4 bg-black relative"
+               style={{ boxShadow: "0 0 30px rgba(118,211,244,0.04)" }}>
+            {/* Corner brackets */}
+            <div className="absolute top-2 left-2 w-4 h-4 border-t-2 border-l-2 border-aw-secondary/30 pointer-events-none" />
+            <div className="absolute top-2 right-2 w-4 h-4 border-t-2 border-r-2 border-aw-secondary/30 pointer-events-none" />
+            <div className="absolute bottom-2 left-2 w-4 h-4 border-b-2 border-l-2 border-aw-secondary/30 pointer-events-none" />
+            <div className="absolute bottom-2 right-2 w-4 h-4 border-b-2 border-r-2 border-aw-secondary/30 pointer-events-none" />
             <GameMap
               visibleTiles={visible_tiles}
               knownTiles={knownTiles}
@@ -250,11 +256,11 @@ export function DungeonView({
               entities={visible_entities}
             />
             {visibleInteractables.length > 0 && (
-              <div className="mt-3 flex flex-wrap gap-2 border-t border-gray-800 pt-2">
+              <div className="mt-3 flex flex-wrap gap-2 border-t border-white/5 pt-2">
                 {visibleInteractables.map((entity) => (
                   <span
                     key={entity.id}
-                    className="rounded-full border border-amber-800/60 bg-amber-950/20 px-3 py-1 text-[11px] text-amber-200"
+                    className="border border-aw-primary/40 bg-aw-primary-container/20 px-3 py-1 text-[11px] text-aw-primary tracking-wide"
                     title="Room-wide interactable"
                   >
                     ! {entity.name}
@@ -263,15 +269,15 @@ export function DungeonView({
               </div>
             )}
             {room_text && (
-              <p className="text-gray-400 text-xs mt-3 italic border-t border-gray-800 pt-2">
+              <p className="text-aw-on-surface-variant text-xs mt-3 italic border-t border-white/5 pt-2">
                 {room_text}
               </p>
             )}
 
             {/* Recent events — moved inside map column */}
             {recent_events.length > 0 && (
-              <div className="mt-3 border-t border-gray-800 pt-2">
-                <div className="text-xs text-gray-500 uppercase mb-1">Recent Events</div>
+              <div className="mt-3 border-t border-white/5 pt-2">
+                <div className="text-[10px] text-aw-outline uppercase tracking-[0.2em] mb-1">RECENT_EVENTS</div>
                 {recent_events.slice(-8).map((e, i) => (
                   <div
                     key={i}
@@ -299,9 +305,9 @@ export function DungeonView({
             )}
 
             {/* Action buttons — moved inside map column */}
-            <div className="mt-3 border-t border-gray-800 pt-3 space-y-3">
+            <div className="mt-3 border-t border-white/5 pt-3 space-y-3">
               {waitingForResponse && (
-                <p className="text-gray-500 text-xs text-center">Resolving...</p>
+                <p className="text-aw-outline text-[10px] text-center tracking-widest uppercase">RESOLVING...</p>
               )}
 
               {/* Movement */}
@@ -316,7 +322,7 @@ export function DungeonView({
                         key={dir}
                         disabled={waitingForResponse}
                         onClick={() => onAction(action)}
-                        className="px-3 py-1 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        className="px-4 py-1.5 text-xs bg-aw-surface-container hover:bg-aw-surface-high text-aw-on-surface tracking-widest uppercase transition-colors disabled:opacity-40 disabled:cursor-not-allowed border border-white/5"
                       >
                         {labels[dir]}
                       </button>
@@ -397,7 +403,7 @@ export function DungeonView({
                         key={i}
                         disabled={waitingForResponse}
                         onClick={() => onAction(action)}
-                        className="px-3 py-1 text-xs bg-amber-900/50 hover:bg-amber-900 text-amber-300 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        className="px-3 py-1.5 text-xs bg-aw-primary-container/30 hover:bg-aw-primary-container/50 text-aw-primary border border-aw-primary/20 tracking-wide transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         Interact: {entity?.name ?? action.target_id}
                       </button>
@@ -420,7 +426,7 @@ export function DungeonView({
                         key={i}
                         disabled={waitingForResponse}
                         onClick={() => onAction(action)}
-                        className="px-3 py-1 text-xs bg-amber-900/50 hover:bg-amber-900 text-amber-300 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        className="px-3 py-1.5 text-xs bg-aw-primary-container/30 hover:bg-aw-primary-container/50 text-aw-primary border border-aw-primary/20 tracking-wide transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         <div className="flex items-center gap-2">
                           <span>Pick up {entity?.name ?? action.item_id}</span>
@@ -466,7 +472,7 @@ export function DungeonView({
                   <button
                     disabled={waitingForResponse}
                     onClick={() => onAction({ type: "wait" })}
-                    className="px-3 py-1 text-xs bg-gray-800 hover:bg-gray-700 text-gray-400 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="px-4 py-1.5 text-xs bg-aw-surface-container hover:bg-aw-surface-high text-aw-outline border border-white/5 tracking-widest uppercase transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     Wait
                   </button>
@@ -494,7 +500,7 @@ export function DungeonView({
                   </button>
                 )}
               </div>
-              <p className="text-center text-[11px] text-gray-600">
+              <p className="text-center text-[10px] text-aw-surface-bright tracking-wide">
                 Portal escape requires a portal scroll. Retreat works only from the first-floor entrance.
               </p>
             </div>
@@ -532,7 +538,7 @@ export function DungeonView({
             {/* Buffs/Debuffs */}
             {(character.buffs.length > 0 || character.debuffs.length > 0) && (
               <div>
-                <div className="text-xs text-gray-500 uppercase mb-1">Effects</div>
+                <div className="text-[10px] text-aw-outline uppercase tracking-[0.2em] mb-1">Effects</div>
                 <div className="flex flex-wrap gap-2">
                   {character.buffs.map((buff, index) => (
                     <StatusEffectBadge key={`buff-${index}`} effect={buff} tone="buff" />
@@ -546,7 +552,7 @@ export function DungeonView({
 
             {visibleEnemies.length > 0 && (
               <div>
-                <div className="text-xs text-gray-500 uppercase mb-2">Enemies</div>
+                <div className="text-[10px] text-aw-outline uppercase tracking-[0.2em] mb-2">Enemies</div>
                 <div className="space-y-3">
                   {visibleEnemies.map((enemy) => {
                     const enemyHpPct = enemy.hp_max ? ((enemy.hp_current ?? enemy.hp_max) / enemy.hp_max) * 100 : 0
@@ -597,7 +603,7 @@ export function DungeonView({
 
             {(nearbyItems.length > 0 || visibleTrapMarkers.length > 0) && (
               <div>
-                <div className="text-xs text-gray-500 uppercase mb-2">Nearby Objects</div>
+                <div className="text-[10px] text-aw-outline uppercase tracking-[0.2em] mb-2">Nearby Objects</div>
                 <div className="space-y-2">
                   {nearbyItems.map((item) => (
                     <div key={item.id} className="rounded border border-gray-800 bg-gray-950 p-2 text-xs">
@@ -639,7 +645,7 @@ export function DungeonView({
             )}
 
             <div>
-              <div className="text-xs text-gray-500 uppercase mb-1">Abilities</div>
+              <div className="text-[10px] text-aw-outline uppercase tracking-[0.2em] mb-1">Abilities</div>
               <div className="space-y-2">
                 {character.abilities.map((ability) => (
                   <AbilityCard
