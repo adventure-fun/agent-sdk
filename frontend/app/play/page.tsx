@@ -27,7 +27,6 @@ import { STAT_KEYS, STAT_LABELS, CLASS_ROLE_LABELS, REALM_STATUS_LABELS, REALM_R
 import { delay, friendlyPaymentError, formatLoreLabel, getCompletionBonusText } from "./utils"
 
 import { Shell } from "./components/shell"
-import { AccountPanel } from "./components/account-panel"
 import { StatusMeter } from "./components/status-meter"
 import { StatRangeBar, StatValueBar } from "./components/stat-bars"
 import { XpProgressBar } from "./components/xp-progress-bar"
@@ -340,7 +339,6 @@ export default function PlayPage() {
     return (
       <Shell>
         <UiToast open={!!paymentToast} tone="success" title="Payment Complete" message={paymentToast ?? ""} onClose={() => store.getState().setPaymentToast(null)} />
-        <h1 className="text-3xl font-bold text-amber-400">ADVENTURE.FUN</h1>
         <p className="text-gray-400">Loading CDP SDK...</p>
         <p className="text-xs text-gray-600">
           Project: {process.env.NEXT_PUBLIC_CDP_PROJECT_ID ?? "NOT SET"}
@@ -354,7 +352,6 @@ export default function PlayPage() {
     return (
       <Shell>
         <UiToast open={!!paymentToast} tone="success" title="Payment Complete" message={paymentToast ?? ""} onClose={() => store.getState().setPaymentToast(null)} />
-        <h1 className="text-3xl font-bold text-amber-400">ADVENTURE.FUN</h1>
         <p className="text-gray-400">Sign in to play</p>
         <div className="flex justify-center">
           <AuthButton />
@@ -370,7 +367,6 @@ export default function PlayPage() {
   if (!isAuthenticated) {
     return (
       <Shell>
-        <h1 className="text-3xl font-bold text-amber-400">ADVENTURE.FUN</h1>
         {isConnecting ? (
           <p className="text-gray-400">Connecting to adventure server...</p>
         ) : authError ? (
@@ -396,7 +392,6 @@ export default function PlayPage() {
   if (step === "loading") {
     return (
       <Shell>
-        <h1 className="text-3xl font-bold text-amber-400">ADVENTURE.FUN</h1>
         <p className="text-gray-400">Checking for existing character...</p>
       </Shell>
     )
@@ -613,18 +608,6 @@ export default function PlayPage() {
           onClose={() => store.getState().setPaymentToast(null)}
         />
         <Shell wide>
-          <div className="flex items-center justify-between">
-            <Link href="/" className="rounded border border-gray-700 px-4 py-1.5 text-xs text-gray-300 transition-colors hover:border-gray-500">
-              Home
-            </Link>
-            <AccountPanel
-              walletAddress={evmAddress}
-              handle={account?.handle}
-              balanceLabel={balanceLabel}
-              isTestnet={isX402Testnet}
-              onLogout={logout}
-            />
-          </div>
           <h1 className="text-3xl font-bold text-amber-400">{character.name}</h1>
           <p className="text-gray-400 text-sm">
             Level {character.level} {classMap[cls]?.name ?? cls} — {character.gold} gold
@@ -840,8 +823,7 @@ export default function PlayPage() {
     if (gameSession.isConnecting || !gameSession.observation) {
       return (
         <Shell>
-          <h1 className="text-3xl font-bold text-amber-400">ADVENTURE.FUN</h1>
-          <p className="text-gray-400">
+            <p className="text-gray-400">
             {realms.some((r) => r.status === "paused")
               ? "Restoring session..."
               : "Entering realm..."}
@@ -860,11 +842,6 @@ export default function PlayPage() {
         itemTemplateMap={itemTemplateMap}
         waitingForResponse={gameSession.waitingForResponse}
         actionError={gameSession.actionError}
-        walletAddress={evmAddress}
-        accountHandle={account?.handle}
-        balanceLabel={balanceLabel}
-        isTestnet={isX402Testnet}
-        onLogout={logout}
         onAction={gameSession.sendAction}
         onRetreat={() => {
           gameSession.sendAction({ type: "retreat" })
@@ -993,19 +970,6 @@ export default function PlayPage() {
         />
         <main className="min-h-screen flex flex-col items-center p-8">
           <div className="max-w-5xl w-full space-y-6">
-            <div className="flex items-center justify-between">
-              <Link href="/" className="rounded border border-gray-700 px-4 py-1.5 text-xs text-gray-300 transition-colors hover:border-gray-500">
-                Home
-              </Link>
-              <AccountPanel
-                walletAddress={evmAddress}
-                handle={account?.handle}
-                balanceLabel={balanceLabel}
-                isTestnet={isX402Testnet}
-                onLogout={logout}
-              />
-            </div>
-          <h1 className="text-3xl font-bold text-amber-400 text-center">ADVENTURE.FUN</h1>
 
           <div className="grid gap-6 xl:grid-cols-[1.9fr_1fr]">
             <div className="bg-gray-900 border border-gray-800 rounded p-4 text-sm space-y-3">

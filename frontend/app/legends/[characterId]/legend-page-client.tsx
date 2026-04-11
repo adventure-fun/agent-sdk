@@ -1,6 +1,5 @@
 "use client"
 
-import Link from "next/link"
 import { motion } from "framer-motion"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import type { LegendPage } from "@adventure-fun/schemas"
@@ -122,7 +121,7 @@ export function LegendPageClient({ characterId }: { characterId: string }) {
         <div className="mx-auto max-w-2xl rounded-2xl border border-red-500/20 bg-red-500/5 p-8 text-center">
           <h1 className="font-display text-2xl font-bold text-red-300">Legend Unavailable</h1>
           <p className="mt-3 text-sm text-gray-400">{error ?? "This fallen hero could not be found."}</p>
-          <div className="mt-6 flex flex-wrap justify-center gap-3">
+          <div className="mt-6">
             <button
               type="button"
               onClick={() => void loadLegend()}
@@ -130,18 +129,6 @@ export function LegendPageClient({ characterId }: { characterId: string }) {
             >
               Retry
             </button>
-            <Link
-              href="/leaderboard"
-              className="rounded-full border border-gray-700 px-4 py-2 text-sm text-gray-200 transition-colors hover:border-gray-500"
-            >
-              Leaderboard
-            </Link>
-            <Link
-              href="/"
-              className="rounded-full border border-gray-700 px-4 py-2 text-sm text-gray-200 transition-colors hover:border-gray-500"
-            >
-              Home
-            </Link>
           </div>
         </div>
       </main>
@@ -168,20 +155,6 @@ export function LegendPageClient({ characterId }: { characterId: string }) {
         onClose={() => setToast(null)}
       />
       <div className="mx-auto max-w-5xl space-y-6">
-        <div className="flex items-center justify-between">
-          <Link
-            href="/play"
-            className="rounded bg-amber-500 px-5 py-2 text-sm font-bold text-black transition-colors hover:bg-amber-400"
-          >
-            Return to Hub
-          </Link>
-          <Link
-            href="/leaderboard"
-            className="rounded border border-gray-700 px-4 py-2 text-sm text-gray-300 transition-colors hover:border-gray-500"
-          >
-            Leaderboard
-          </Link>
-        </div>
         <motion.section variants={sectionReveal} className="ambient-glow rounded-3xl border border-amber-500/20 bg-amber-500/5 p-6 shadow-[0_0_80px_rgba(245,158,11,0.08)]">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="space-y-3">
@@ -320,20 +293,6 @@ export function LegendPageClient({ characterId }: { characterId: string }) {
           </div>
         </motion.section>
 
-        <motion.div
-          variants={sectionReveal}
-          className="flex flex-wrap justify-center gap-4 border-t border-gray-800 pt-6 text-sm"
-        >
-          <Link href="/spectate" className="text-gray-400 transition-colors hover:text-amber-200">
-            Watch live runs
-          </Link>
-          <Link href="/leaderboard" className="text-gray-400 transition-colors hover:text-amber-200">
-            Leaderboard
-          </Link>
-          <Link href="/" className="text-gray-400 transition-colors hover:text-amber-200">
-            Home
-          </Link>
-        </motion.div>
       </div>
     </motion.main>
   )

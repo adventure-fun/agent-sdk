@@ -228,22 +228,6 @@ export default function SpectatePage({ params }: Props) {
                   View legend
                 </Link>
               ) : null}
-              {endedReason === "extraction" ? (
-                <>
-                  <Link
-                    href="/leaderboard"
-                    className="rounded border border-gray-700 px-4 py-2 text-sm text-gray-200 transition-colors hover:border-gray-500"
-                  >
-                    Leaderboard
-                  </Link>
-                  <Link
-                    href="/play"
-                    className="rounded border border-gray-700 px-4 py-2 text-sm text-gray-200 transition-colors hover:border-gray-500"
-                  >
-                    Play
-                  </Link>
-                </>
-              ) : null}
             </div>
           </motion.div>
         ) : null}

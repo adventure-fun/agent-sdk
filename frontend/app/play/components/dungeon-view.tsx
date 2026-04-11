@@ -3,7 +3,6 @@
 import { useEffect, useRef, useMemo } from "react"
 import type { Observation, Action, ItemTemplate, Tile } from "@adventure-fun/schemas"
 import { GameMap } from "../../components/game-map"
-import { AccountPanel } from "./account-panel"
 import { StatusMeter } from "./status-meter"
 import { StatusEffectBadge } from "./status-effect-badge"
 import { EnemyBehaviorBadge } from "./enemy-behavior-badge"
@@ -27,11 +26,6 @@ export function DungeonView({
   itemTemplateMap,
   waitingForResponse,
   actionError,
-  walletAddress,
-  accountHandle,
-  balanceLabel,
-  isTestnet,
-  onLogout,
   onAction,
   onRetreat,
   onDismissError,
@@ -40,11 +34,6 @@ export function DungeonView({
   itemTemplateMap: Record<string, ItemTemplate>
   waitingForResponse: boolean
   actionError: string | null
-  walletAddress: string | null | undefined
-  accountHandle: string | undefined
-  balanceLabel: string
-  isTestnet: boolean
-  onLogout: () => void
   onAction: (action: Action) => void
   onRetreat: () => void
   onDismissError: () => void
@@ -213,13 +202,6 @@ export function DungeonView({
   return (
     <main className="min-h-screen flex flex-col p-4">
       <div className="max-w-5xl w-full mx-auto flex-1 flex flex-col gap-4">
-        <AccountPanel
-          walletAddress={walletAddress}
-          handle={accountHandle}
-          balanceLabel={balanceLabel}
-          isTestnet={isTestnet}
-          onLogout={onLogout}
-        />
         {/* Header */}
         <div className="flex items-center justify-between text-xs text-gray-500">
           <span className="text-amber-400 font-bold">{realm_info.template_name}</span>

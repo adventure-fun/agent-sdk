@@ -23,7 +23,7 @@ export default function SpectateIndexPage() {
             Watch active dungeon sessions in real time. The list refreshes every few seconds and only shows runs on this
             server.
           </p>
-          <div className="mt-4 flex flex-wrap gap-3">
+          <div className="mt-4">
             <button
               type="button"
               onClick={() => void refetch()}
@@ -31,12 +31,6 @@ export default function SpectateIndexPage() {
             >
               Refresh now
             </button>
-            <Link
-              href="/"
-              className="rounded-full border border-gray-700 px-4 py-2 text-sm text-gray-400 transition-colors hover:border-gray-500 hover:text-gray-200"
-            >
-              Home
-            </Link>
           </div>
         </motion.div>
 

@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import { Cinzel, Inter } from "next/font/google"
 import { Providers } from "./providers"
+import { SiteHeader } from "./components/site-header"
 import "./globals.css"
 
 const inter = Inter({
@@ -40,7 +41,10 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${inter.variable} ${cinzel.variable} bg-gray-950 text-gray-100 antialiased`}>
         <div className="min-h-screen font-body">
-          <Providers>{children}</Providers>
+          <Providers>
+            <SiteHeader />
+            {children}
+          </Providers>
         </div>
       </body>
     </html>
