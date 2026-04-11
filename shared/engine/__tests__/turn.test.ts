@@ -642,7 +642,7 @@ describe("bossless realm completion", () => {
     )
   })
 
-  it("does not mark a bossless realm as cleared in a non-final room", () => {
+  it("does not mark a bossless realm as cleared when other rooms still have enemies", () => {
     const state = makeState({
       position: {
         floor: 2,
@@ -655,6 +655,12 @@ describe("bossless realm completion", () => {
             id: "f2_r1_entry",
             tiles: makeTiles(6, 4),
             enemies: [makeEnemy({ id: "enemy-mid", hp: 1, hp_max: 1 })],
+            items: [],
+          },
+          {
+            id: "f2_r2_final",
+            tiles: makeTiles(6, 4),
+            enemies: [makeEnemy({ id: "enemy-final", hp: 5, hp_max: 5 })],
             items: [],
           },
         ],

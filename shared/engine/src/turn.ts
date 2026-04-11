@@ -454,7 +454,17 @@ function isBosslessRealmCleared(state: GameState, room: RoomState, realm: Genera
     return false
   }
 
-  return isLastRoomOnLastFloor(state, room, realm) && !roomHasLiveEnemies(room)
+  // Must be on the last floor
+  if (state.position.floor !== realm.total_floors) {
+    return false
+  }
+
+  // All enemies across all rooms on this floor must be dead
+  for (const r of state.activeFloor.rooms) {
+    if (roomHasLiveEnemies(r)) return false
+  }
+
+  return true
 }
 
 function consumePortalScroll(state: GameState): boolean {
@@ -650,6 +660,20 @@ export function resolveTurn(
   }
 
   applyResourceRegen(s, regenBonusEligible)
+
+  // Check bossless realm completion (e.g., entering a final room with no enemies after clearing all others)
+  if (s.realmStatus === "active" && isBosslessRealmCleared(s, currentRoom, realm)) {
+    s.realmStatus = "realm_cleared"
+    const detail = "The final room falls silent. The realm is cleared."
+    events.push({ turn: 0, type: "realm_clear", detail, data: { floor: s.position.floor, room_id: currentRoom.id } })
+    notableEvents.push({
+      type: "realm_clear",
+      characterName: "",
+      characterClass: s.character.class,
+      detail,
+      timestamp: Date.now(),
+    })
+  }
 
   // 4. Visibility
   updateVisibility(s, currentRoom, realm)
@@ -2272,6 +2296,26 @@ function resolveInspect(
   return "Nothing to inspect."
 }
 
+function getEquipmentHpBonus(s: GameState): number {
+  let bonus = 0
+  for (const eq of Object.values(s.equipment)) {
+    if (!eq) continue
+    try { bonus += getItem(eq.template_id).stats?.hp ?? 0 } catch { /* skip */ }
+  }
+  return bonus
+}
+
+function adjustHpMaxForEquipmentChange(s: GameState, oldBonus: number): void {
+  const newBonus = getEquipmentHpBonus(s)
+  const delta = newBonus - oldBonus
+  if (delta !== 0) {
+    s.character.hp.max += delta
+    if (s.character.hp.current > s.character.hp.max) {
+      s.character.hp.current = s.character.hp.max
+    }
+  }
+}
+
 function resolveEquip(
   s: GameState,
   action: { type: "equip"; item_id: string },
@@ -2294,6 +2338,7 @@ function resolveEquip(
   }
 
   const slot = template.equip_slot as EquipSlot
+  const oldHpBonus = getEquipmentHpBonus(s)
 
   // Unequip current item in that slot
   const current = s.equipment[slot]
@@ -2305,8 +2350,9 @@ function resolveEquip(
   s.equipment[slot] = { ...item, slot }
   s.inventory.splice(itemIdx, 1)
 
-  // Recalculate effective stats
+  // Recalculate effective stats and adjust HP max
   recalcStats(s)
+  adjustHpMaxForEquipmentChange(s, oldHpBonus)
 
   const summary = `Equipped ${template.name}.`
   events.push({ turn: 0, type: "equip", detail: summary, data: { item_id: item.id, slot } })
@@ -2321,10 +2367,12 @@ function resolveUnequip(
   const item = s.equipment[action.slot]
   if (!item) return "Nothing equipped in that slot."
 
+  const oldHpBonus = getEquipmentHpBonus(s)
   s.inventory.push({ ...item, slot: null })
   s.equipment[action.slot] = null
 
   recalcStats(s)
+  adjustHpMaxForEquipmentChange(s, oldHpBonus)
 
   const summary = `Unequipped from ${action.slot}.`
   events.push({ turn: 0, type: "unequip", detail: summary, data: { slot: action.slot } })
@@ -2663,13 +2711,6 @@ function recalcStats(s: GameState) {
   }
 
   s.character.effective_stats = effective
-
-  // Sync equipment HP bonus to hp.max — only cap current if max dropped below it
-  const newMax = effective.hp
-  s.character.hp.max = newMax
-  if (s.character.hp.current > newMax) {
-    s.character.hp.current = newMax
-  }
 }
 
 function updateVisibility(s: GameState, room: RoomState, realm: GeneratedRealm) {

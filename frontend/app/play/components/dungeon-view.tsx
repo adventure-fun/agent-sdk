@@ -186,6 +186,14 @@ export function DungeonView({
         ArrowDown: "down",
         ArrowLeft: "left",
         ArrowRight: "right",
+        w: "up",
+        s: "down",
+        a: "left",
+        d: "right",
+        W: "up",
+        S: "down",
+        A: "left",
+        D: "right",
       }
       const direction = dirMap[e.key]
       if (!direction) return
@@ -506,7 +514,15 @@ export function DungeonView({
             hpCurrent={character.hp.current}
             hpMax={character.hp.max}
             hpColor={hpColor}
-            hpBonus={character.hp.max - character.base_stats.hp}
+            hpBonus={(() => {
+              let bonus = 0
+              for (const eq of Object.values(equipment)) {
+                if (!eq) continue
+                const tmpl = itemTemplateMap[eq.template_id]
+                if (tmpl?.stats?.hp && typeof tmpl.stats.hp === "number") bonus += tmpl.stats.hp
+              }
+              return bonus
+            })()}
             resourceLabel={character.resource.type}
             resourceCurrent={character.resource.current}
             resourceMax={character.resource.max}

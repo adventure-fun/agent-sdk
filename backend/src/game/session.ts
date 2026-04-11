@@ -395,13 +395,14 @@ export class GameSession {
     }
 
     // Apply equipment HP bonus to max HP so initial observation is correct
+    // hp_max from DB is the base (includes level-up gains but not equipment)
     let equipHpBonus = 0
     for (const eq of Object.values(equipment)) {
       if (!eq) continue
       try { equipHpBonus += getItem(eq.template_id).stats?.hp ?? 0 } catch { /* skip */ }
     }
     if (equipHpBonus > 0) {
-      gameState.character.hp.max = gameState.character.stats.hp + equipHpBonus
+      gameState.character.hp.max = character.hp_max + equipHpBonus
       gameState.character.effective_stats.hp = gameState.character.hp.max
       if (gameState.character.hp.current > gameState.character.hp.max) {
         gameState.character.hp.current = gameState.character.hp.max
@@ -702,9 +703,16 @@ export class GameSession {
 
   private async saveCharacterState(reason: string): Promise<void> {
     const char = this.gameState.character
+    // Strip equipment HP bonus — DB stores base hp_max only
+    let equipHpBonus = 0
+    for (const eq of Object.values(this.gameState.equipment)) {
+      if (!eq) continue
+      try { equipHpBonus += getItem(eq.template_id).stats?.hp ?? 0 } catch { /* skip */ }
+    }
+    const baseHpMax = char.hp.max - equipHpBonus
     const updates: Record<string, unknown> = {
-      hp_current: Math.max(0, char.hp.current),
-      hp_max: char.hp.max,
+      hp_current: Math.min(Math.max(0, char.hp.current), baseHpMax),
+      hp_max: baseHpMax,
       xp: char.xp,
       gold: char.gold,
       level: char.level,
