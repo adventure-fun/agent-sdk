@@ -16,7 +16,6 @@ const itemTemplateMap: Record<string, ItemTemplate> = {
     stack_limit: 1,
     sell_price: 12,
     buy_price: 30,
-    class_restriction: null,
   },
   "rusty-dagger": {
     id: "rusty-dagger",
@@ -30,7 +29,6 @@ const itemTemplateMap: Record<string, ItemTemplate> = {
     stack_limit: 1,
     sell_price: 6,
     buy_price: 15,
-    class_restriction: null,
   },
   "wooden-shield": {
     id: "wooden-shield",
@@ -57,7 +55,6 @@ const itemTemplateMap: Record<string, ItemTemplate> = {
     stack_limit: 5,
     sell_price: 3,
     buy_price: 8,
-    class_restriction: null,
   },
 }
 

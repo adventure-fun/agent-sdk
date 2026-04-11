@@ -23,7 +23,8 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "tailwindcss": "^4.2.2",
-    "viem": "^2.47.11"
+    "viem": "^2.47.11",
+    "zustand": "^5"
   },
   "devDependencies": {
     "@types/node": "*",
