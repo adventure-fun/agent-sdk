@@ -1,13 +1,14 @@
-/** Wallet adapter interface — OpenWallet is the default, raw key is the fallback */
-export interface WalletAdapter {
-  getAddress(): Promise<string>
-  signMessage(message: string): Promise<string>
-  signTransaction(tx: TransactionRequest): Promise<string>
-}
-
-export interface TransactionRequest {
-  to: string
-  value: bigint
-  data?: string
-  chainId: number
-}
+export type {
+  TransactionRequest,
+  WalletAdapter,
+  WalletNetwork,
+  X402CapableWalletAdapter,
+} from "./adapters/wallet/index.js"
+export {
+  EvmEnvWalletAdapter,
+  SolanaEnvWalletAdapter,
+  OpenWalletAdapter,
+  createWalletAdapter,
+  createX402Client,
+  isX402CapableWalletAdapter,
+} from "./adapters/wallet/index.js"

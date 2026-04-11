@@ -1,0 +1,315 @@
+{
+  "version": 1,
+  "lastSync": "2026-04-11",
+  "sources": [
+    {
+      "canonical": "shared/schemas/src/index.ts",
+      "vendored": "agent-sdk/src/protocol.ts",
+      "canonicalHash": "353f77f67b25cba86cc8bcd26cc5f9c957c5c58a5ae210458877acbf4ac80932",
+      "generatedHash": "5b19d24aa61ec4193b5864f2e9d7defff5b933b085b5002cfac0e3c83a17c6b6",
+      "types": [
+        "Stats",
+        "CharacterStats",
+        "StatusEffectType",
+        "StatusEffect",
+        "ActiveEffect",
+        "AbilitySummary",
+        "ItemType",
+        "ItemRarity",
+        "EquipSlot",
+        "OwnerType",
+        "InventoryItem",
+        "InventorySlot",
+        "PlayerType",
+        "CharacterClass",
+        "ResourceType",
+        "KnownMapData",
+        "KnownFloor",
+        "EntityType",
+        "Entity",
+        "GameEvent",
+        "Action",
+        "ServerMessage",
+        "ClientMessage",
+        "TileType",
+        "Tile",
+        "Observation",
+        "EnemyBehavior",
+        "LobbyEvent",
+        "SanitizedChatMessage",
+        "PaymentAcceptOption402",
+        "PaymentRequired402"
+      ],
+      "typeHashes": {
+        "Stats": "ba07b75c845a1425fe1083208d6eee4a7f40749ddfaa31b7fe92490f661dc141",
+        "CharacterStats": "f2cf210d182d3acf1d8350d3ddd1bb114b25962e714ee7661917ad6a4611b04c",
+        "StatusEffectType": "806e917c8c015f3f12a0f35d7fd4b69e1e63ace9b0194f7ca0be0a34ad403254",
+        "StatusEffect": "acdb6fe7c0b33378f070f1a18b8a44001067a5648ea27b65c02c61e300605292",
+        "ActiveEffect": "ef208c56e772b51345b2634524fa9343e3a830392b3778a65dc5e1bc7a65df75",
+        "AbilitySummary": "450f0af10c0b1b34edc7df334691068741d04472ed150641ee3355d226a0dd07",
+        "ItemType": "471805c1f1b91c225eee21100dae1f5e5b3a0b365c2d39ca971fcd43c21553a1",
+        "ItemRarity": "7d41b4316252e8cf8dffd8c749a4a9c9c97a8f372e7528dc2b60d1e8b707f8ae",
+        "EquipSlot": "88d649829267b4c3ce38026fdacdad1822e8531c56027bad7fd9345c882ed3e7",
+        "OwnerType": "73cc68de6710e02052efe55192545194bf99daaf35f42192a993a082e04e037e",
+        "InventoryItem": "d2e0cfe8e2c84284321f4110aebbf766a05107e79854ad92258db9d0b33f1d2a",
+        "InventorySlot": "b0ff174b728ab931ed8052fc629266e8f98faeaf4759662ff01d7b64b2070ba7",
+        "PlayerType": "d51529c3aa12ebc1ac1fd0585c3ba14d025adb27ad2ee609802edd877c66926a",
+        "CharacterClass": "9fd716edee7578b7b809d9cd5ade5c60b2707d27b6c3cf6eb0e9ac912c2bee8e",
+        "ResourceType": "bda568c8b132f5979d2cc4a5c7a1d3e6d6d4bd1e56518b9eaea2572b5ed5789f",
+        "TileType": "ed00b2523659e18e4ba0add8022767c047f290f57d6b1a97017c8858f073c320",
+        "Tile": "9c1a3207a56c38b9df0f37ce380d707b892825e49f2e8cc9196f931a2c874002",
+        "KnownMapData": "324e3851972ce53a074c524081919b349a299ad2f5f8cd397ca74eed41370762",
+        "KnownFloor": "a7368c2bdfcfa7abbc80850688660e6f054de8d20cf03d5c1579463bed93c8be",
+        "EntityType": "dc5ea506151da79061416a00288cb0bd8bccd0c95f5fae6cd975f025699e4009",
+        "Entity": "fa84be2f59e433d81f26a39c0f29e4a6c57b427daab81bff11e5c61f9e6ee6e6",
+        "GameEvent": "c9a2fc99f5d4ab9904d13ac72af246cb309c04da7389709220dfd6d42f868641",
+        "Observation": "df99cf8d90e9f2103f39594c2368e58d2b5416900c85cc5f0964c081dc3c23d7",
+        "Action": "1b8446abb59ebda082b8ca36485fad21d6253450a9aefbe8f948ca03fb854eed",
+        "ServerMessage": "b7c8e60ebd6df37993ee28cc03bba4241717384a80d9143c78558f9ac614f151",
+        "ClientMessage": "79a054df95ff262378c7651b58be1cfa38b5e8310e7366f2a648373a1a706859",
+        "EnemyBehavior": "cdb36c18e411f89c8638985f78893c057fab26de822acbe9d54dc8d847db2f09",
+        "LobbyEvent": "57c5369d2f91072c0ef4488a2765ca9c05d036fd612f8878e5fb2a0ff9e31641",
+        "SanitizedChatMessage": "78f8acea0f2b22f5c3a9aa9517c9d90233d0b951d06467746041d0692f903f45",
+        "PaymentAcceptOption402": "86a1a8d8da52cf034e8913a64594a113c05ef71ba472ecaee0528b9fb3ab732b",
+        "PaymentRequired402": "34adaea55f3c77154aa9b1a1a57761a2b7e68a0d547347907446f102fc4d9a71"
+      },
+      "notes": "Generated from the canonical schemas file. Custom aliases (Direction, EquippedItem, VisibleEntity, RealmEvent, TileInfo, CharacterObservation, RealmInfo) are appended for SDK ergonomics."
+    }
+  ],
+  "engineWatchlist": [
+    {
+      "file": "shared/engine/src/turn.ts",
+      "hash": "0212ffe9d74786de02adc323fb0b69f8313d3f20504d6ffc38a340a277bc15aa",
+      "affectedModules": [
+        "combat",
+        "exploration",
+        "inventory",
+        "trap-handling",
+        "portal",
+        "healing"
+      ]
+    },
+    {
+      "file": "shared/engine/src/combat.ts",
+      "hash": "2ebf5ce9956dc94dfcf706e66696584613d87be4e92034bd9b444e441bd150c8",
+      "affectedModules": [
+        "combat",
+        "healing"
+      ]
+    },
+    {
+      "file": "shared/engine/src/visibility.ts",
+      "hash": "2ba93c88f02aa704f5299cc0e7b0db99052656aeefe8969f33a5e7ea2a21b3ef",
+      "affectedModules": [
+        "exploration",
+        "combat"
+      ]
+    },
+    {
+      "file": "shared/engine/src/realm.ts",
+      "hash": "68db9f94ef7962c4c38c97c16696300a451a75bcbfa5ce33fedc9953f9e160e7",
+      "affectedModules": [
+        "exploration",
+        "portal"
+      ]
+    },
+    {
+      "file": "shared/engine/src/leveling.ts",
+      "hash": "c4e33edf40f866b744ab47f2abbc405786ce06824b62fa42da095f8be69e217e",
+      "affectedModules": [
+        "portal"
+      ]
+    },
+    {
+      "file": "backend/src/auth/jwt.ts",
+      "hash": "d66ef1be696582d52c7147e138b63c39d2ad977178623b5949e4b7cc630bd0ab",
+      "affectedModules": [
+        "dev-stack",
+        "auth",
+        "agent-lifecycle"
+      ]
+    },
+    {
+      "file": "backend/src/game/action-validator.ts",
+      "hash": "a07df92d316ce3fd1449211cff23f424de50df96a91fedeec03529ea6e114038",
+      "affectedModules": [
+        "dev-stack"
+      ]
+    },
+    {
+      "file": "backend/src/game/session.ts",
+      "hash": "5bd79f710058637726e06e0245286240bf073daf453f9e424bd6e63cdd1d901a",
+      "affectedModules": [
+        "agent-lifecycle",
+        "chat"
+      ]
+    },
+    {
+      "file": "backend/src/routes/auth.ts",
+      "hash": "b8cf7da392bf63186a7a4a38677d3dda267271e82c493e01f10d7b388a29e9ae",
+      "affectedModules": [
+        "dev-stack",
+        "auth",
+        "agent-lifecycle"
+      ]
+    },
+    {
+      "file": "backend/src/routes/characters.ts",
+      "hash": "f1ad6be18c1c0332c00780d1623a74c4d06ca6ce95b5993a16fdfd0866a554e0",
+      "affectedModules": [
+        "dev-stack",
+        "agent-lifecycle"
+      ]
+    },
+    {
+      "file": "backend/src/routes/realms.ts",
+      "hash": "d7753c5d0b38897177fc0f8eb216925f67eccf08bcf487c604e8c045d56e35c2",
+      "affectedModules": [
+        "dev-stack",
+        "agent-lifecycle"
+      ]
+    },
+    {
+      "file": "backend/src/routes/content.ts",
+      "hash": "6fd623d9f26c89a6682d5820c783265256fcd968b64b979d0e1caec00da2f444",
+      "affectedModules": [
+        "dev-stack"
+      ]
+    },
+    {
+      "file": "backend/src/index.ts",
+      "hash": "4ed578e98a88ecd510f99922717ffb9373bda369a2556fb891f13e905cfd8051",
+      "affectedModules": [
+        "dev-stack",
+        "chat"
+      ]
+    },
+    {
+      "file": "backend/src/payments/x402.ts",
+      "hash": "68592d8dbdf71a1f5fe4b8a591ff377192b22085224e144c8f7fe8008734970a",
+      "affectedModules": [
+        "wallet-adapters",
+        "x402-payment"
+      ]
+    },
+    {
+      "file": "backend/src/auth/wallet.ts",
+      "hash": "3991da02a481cfbbcb5b44fd198fbc0720523137140fa0e383805bf1e2a64a0c",
+      "affectedModules": [
+        "wallet-adapters",
+        "auth"
+      ]
+    },
+    {
+      "file": "backend/src/routes/lobby.ts",
+      "hash": "e454e2484cf489f35fac7a46d64417bd0a14a0e2f85b7f3cf1a5b9e97b797079",
+      "affectedModules": [
+        "chat"
+      ]
+    },
+    {
+      "file": "backend/src/game/lobby-live.ts",
+      "hash": "d9de0c1ae5bc64cf020c6596fd7b1cf5ff4ce623f90bf6eca628af82f6af37a3",
+      "affectedModules": [
+        "chat"
+      ]
+    },
+    {
+      "file": "backend/src/redis/publishers.ts",
+      "hash": "681d9ee8276e484a8bd14e826b5a3a91be60a91e7e1ab9ac9652572aa3957ee3",
+      "affectedModules": [
+        "chat"
+      ]
+    },
+    {
+      "file": "agent-sdk/src/adapters/llm/shared.ts",
+      "hash": "522cd49444cd27330f43477b03d76790c64d8d8afb61443d08db67b03daa1828",
+      "affectedModules": [
+        "llm-adapters"
+      ]
+    }
+  ],
+  "devEngineWatchlist": [
+    {
+      "source": "shared/schemas/src/index.ts",
+      "vendored": "agent-sdk/dev/engine/types.ts",
+      "sourceHash": "353f77f67b25cba86cc8bcd26cc5f9c957c5c58a5ae210458877acbf4ac80932",
+      "vendoredHash": "184db62aa9b1faa333b99627478b9741f0640b44cd8c878781d4400609fff90e",
+      "affectedModules": [
+        "dev-stack"
+      ]
+    },
+    {
+      "source": "shared/engine/src/rng.ts",
+      "vendored": "agent-sdk/dev/engine/rng.ts",
+      "sourceHash": "2fb032ae34f9df33f4cf94528f75f27b1442b0da60bc4cfad4df6349705bb761",
+      "vendoredHash": "2fb032ae34f9df33f4cf94528f75f27b1442b0da60bc4cfad4df6349705bb761",
+      "affectedModules": [
+        "dev-stack"
+      ]
+    },
+    {
+      "source": "shared/engine/src/combat.ts",
+      "vendored": "agent-sdk/dev/engine/combat.ts",
+      "sourceHash": "2ebf5ce9956dc94dfcf706e66696584613d87be4e92034bd9b444e441bd150c8",
+      "vendoredHash": "fce8c1c78596f1a7bec10c91c45c20ef8e250bf2e12fcf465cf99f9f1742e741",
+      "affectedModules": [
+        "dev-stack"
+      ]
+    },
+    {
+      "source": "shared/engine/src/visibility.ts",
+      "vendored": "agent-sdk/dev/engine/visibility.ts",
+      "sourceHash": "2ba93c88f02aa704f5299cc0e7b0db99052656aeefe8969f33a5e7ea2a21b3ef",
+      "vendoredHash": "e480c0de0af858720536a99458b96987b4eace499c1cb8f7511277b0c2f9d985",
+      "affectedModules": [
+        "dev-stack"
+      ]
+    },
+    {
+      "source": "shared/engine/src/realm.ts",
+      "vendored": "agent-sdk/dev/engine/realm.ts",
+      "sourceHash": "68db9f94ef7962c4c38c97c16696300a451a75bcbfa5ce33fedc9953f9e160e7",
+      "vendoredHash": "d09a8eb9d2f0923e1a8ba4654743a56998346a8c984c21245460c0e8c80b5ab7",
+      "affectedModules": [
+        "dev-stack"
+      ]
+    },
+    {
+      "source": "shared/engine/src/turn.ts",
+      "vendored": "agent-sdk/dev/engine/turn.ts",
+      "sourceHash": "0212ffe9d74786de02adc323fb0b69f8313d3f20504d6ffc38a340a277bc15aa",
+      "vendoredHash": "d98f0ae6c46592d2ee2e372026a3183e9ceebb0ebce05724c01c4b7e11ac93fb",
+      "affectedModules": [
+        "dev-stack"
+      ]
+    },
+    {
+      "source": "shared/engine/src/leveling.ts",
+      "vendored": "agent-sdk/dev/engine/leveling.ts",
+      "sourceHash": "c4e33edf40f866b744ab47f2abbc405786ce06824b62fa42da095f8be69e217e",
+      "vendoredHash": "c8a0f3bf50aa99a4f4b455407e3da745154334a3cf68ea602188c890414af01f",
+      "affectedModules": [
+        "dev-stack"
+      ]
+    },
+    {
+      "source": "scripts/sync-dev-engine.ts",
+      "vendored": "agent-sdk/dev/engine/content.ts",
+      "sourceHash": "0a0c83edb38203f28ad1a135236184305778d873822e37628254774518fba779",
+      "vendoredHash": "da93a077bfb499cb43f4548b0eea5c6de64292a49d47f4242ac0bbbe530a967f",
+      "affectedModules": [
+        "dev-stack"
+      ]
+    },
+    {
+      "source": "scripts/sync-dev-engine.ts",
+      "vendored": "agent-sdk/dev/engine/index.ts",
+      "sourceHash": "0a0c83edb38203f28ad1a135236184305778d873822e37628254774518fba779",
+      "vendoredHash": "3d2575dc16cc48b9a6df9d3dc9e0cc98c9e13c7c44afedc12ea7e95830775a39",
+      "affectedModules": [
+        "dev-stack"
+      ]
+    }
+  ]
+}

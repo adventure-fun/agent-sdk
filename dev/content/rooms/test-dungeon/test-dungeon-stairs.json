@@ -1,0 +1,38 @@
+{
+  "id": "test-dungeon-stairs",
+  "type": "event",
+  "size": {
+    "width": 7,
+    "height": 7
+  },
+  "text_first_visit": "The corridor bends toward a stairwell descending deeper.",
+  "text_revisit": "The stairwell waits in silence.",
+  "interactables": [
+    {
+      "id": "test-dungeon-gate",
+      "name": "Locked Gate Lever",
+      "text_on_interact": "The rusty key turns and the gate unlocks with a groan.",
+      "conditions": [
+        {
+          "type": "has-item",
+          "item_id": "rusty-key"
+        }
+      ],
+      "effects": [
+        {
+          "type": "unlock-door",
+          "entity_id": "test-dungeon-gate"
+        },
+        {
+          "type": "consume-item",
+          "item_id": "rusty-key"
+        }
+      ],
+      "lore_entry_id": "dungeon-warning"
+    }
+  ],
+  "enemy_slots": [],
+  "loot_slots": [],
+  "triggers": [],
+  "locked_exit": "test-dungeon-gate"
+}

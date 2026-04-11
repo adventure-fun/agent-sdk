@@ -1,0 +1,28 @@
+{
+  "id": "test-dungeon-entry",
+  "type": "event",
+  "size": {
+    "width": 7,
+    "height": 7
+  },
+  "text_first_visit": "An iron gate and a dusty key pedestal greet you.",
+  "text_revisit": "The entry chamber is still.",
+  "interactables": [
+    {
+      "id": "dungeon-key-pedestal",
+      "name": "Key Pedestal",
+      "text_on_interact": "A rusty key rests on the pedestal.",
+      "conditions": [],
+      "effects": [
+        {
+          "type": "grant-item",
+          "item_template_id": "rusty-key"
+        }
+      ],
+      "lore_entry_id": null
+    }
+  ],
+  "enemy_slots": [],
+  "loot_slots": [],
+  "triggers": []
+}

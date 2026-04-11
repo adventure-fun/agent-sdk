@@ -1,0 +1,124 @@
+{
+  "id": "test-dungeon",
+  "orderIndex": 2,
+  "name": "Test Dungeon",
+  "description": "Two-floor validation dungeon covering all supported action types.",
+  "theme": "ruined-keep",
+  "version": 1,
+  "procedural": false,
+  "floor_count": {
+    "min": 2,
+    "max": 2
+  },
+  "difficulty_tier": 2,
+  "room_distribution": {
+    "combat": 0.4,
+    "treasure": 0.2,
+    "trap": 0.2,
+    "rest": 0,
+    "event": 0.2,
+    "boss": 0
+  },
+  "enemy_roster": [
+    "goblin",
+    "skeleton",
+    "boss-troll"
+  ],
+  "boss_id": "boss-troll",
+  "loot_tables": [
+    {
+      "id": "arena-loot",
+      "entries": [
+        {
+          "item_template_id": "iron-sword",
+          "weight": 30,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item_template_id": "leather-armor",
+          "weight": 30,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item_template_id": "health-potion",
+          "weight": 40,
+          "quantity": {
+            "min": 1,
+            "max": 2
+          }
+        }
+      ]
+    },
+    {
+      "id": "boss-loot",
+      "entries": [
+        {
+          "item_template_id": "portal-scroll",
+          "weight": 50,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item_template_id": "gold-coins",
+          "weight": 50,
+          "quantity": {
+            "min": 30,
+            "max": 35
+          }
+        }
+      ]
+    }
+  ],
+  "trap_types": [
+    {
+      "id": "spike-trap",
+      "name": "Spike Trap",
+      "damage": 8,
+      "effect": {
+        "type": "bleed",
+        "magnitude": 2,
+        "duration": 3
+      },
+      "detection_difficulty": 8,
+      "visible_after_trigger": true
+    }
+  ],
+  "room_templates": [
+    "test-dungeon-entry",
+    "test-dungeon-trap-hall",
+    "test-dungeon-stairs",
+    "test-dungeon-antechamber",
+    "test-dungeon-boss"
+  ],
+  "narrative": {
+    "theme_description": "A compact two-floor dungeon assembled for integration coverage.",
+    "room_text_pool": [
+      {
+        "text": "The dungeon corridor narrows toward a suspicious chest.",
+        "type": "trap"
+      },
+      {
+        "text": "A locked gate bars the way to the inner sanctum.",
+        "type": "event"
+      }
+    ],
+    "lore_pool": [
+      "dungeon-warning"
+    ],
+    "interactable_pool": [
+      "test-dungeon-gate"
+    ]
+  },
+  "completion_rewards": {
+    "xp": 45,
+    "gold": 30
+  }
+}
