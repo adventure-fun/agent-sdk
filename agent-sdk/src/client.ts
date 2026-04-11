@@ -1,102 +1,501 @@
-import type { Action, Observation, ServerMessage } from "./protocol.js"
+import { wrapFetchWithPayment } from "@x402/fetch"
+import type { x402Client as X402Client } from "@x402/core/client"
+import type { WalletAdapter } from "./adapters/wallet/index.js"
 import type { SessionToken } from "./auth.js"
+import type {
+  Action,
+  ClientMessage,
+  LobbyEvent,
+  Observation,
+  PaymentRequired402,
+  SanitizedChatMessage,
+  ServerMessage,
+} from "./protocol.js"
 
 export type ObservationHandler = (obs: Observation) => void
 export type DeathHandler = (data: { cause: string; floor: number; room: string; turn: number }) => void
-export type ExtractedHandler = (data: { loot_summary: unknown[]; xp_gained: number }) => void
+export type ExtractedHandler = (data: {
+  loot_summary: Observation["inventory"]
+  xp_gained: number
+  gold_gained: number
+  completion_bonus?: { xp: number; gold: number }
+  realm_completed: boolean
+}) => void
+
+export type GameClientErrorKind = "network" | "game" | "payment" | "protocol"
+
+export interface GameClientOptions {
+  reconnect?: {
+    maxRetries?: number
+    backoffMs?: number
+  }
+  wallet?: WalletAdapter
+  x402Client?: X402Client
+}
+
+export interface DisconnectEvent {
+  code: number
+  reason: string
+  intentional: boolean
+  scope: "game" | "lobby"
+}
+
+export interface ConnectEvent {
+  scope: "game" | "lobby"
+  realmId?: string
+}
+
+export interface GameSessionHandlers {
+  onObservation?: ObservationHandler
+  onDeath?: DeathHandler
+  onExtracted?: ExtractedHandler
+  onError?: (error: GameClientError) => void
+  onClose?: (event: DisconnectEvent) => void
+}
+
+export interface LobbyHandlers {
+  onChatMessage?: (message: SanitizedChatMessage) => void
+  onLobbyEvent?: (event: LobbyEvent) => void
+  onError?: (error: GameClientError) => void
+  onClose?: (event: DisconnectEvent) => void
+}
+
+export interface GameClientEvents {
+  observation: Observation
+  death: { cause: string; floor: number; room: string; turn: number }
+  extracted: {
+    loot_summary: Observation["inventory"]
+    xp_gained: number
+    gold_gained: number
+    completion_bonus?: { xp: number; gold: number }
+    realm_completed: boolean
+  }
+  error: GameClientError
+  connected: ConnectEvent
+  disconnected: DisconnectEvent
+  chatMessage: SanitizedChatMessage
+  lobbyEvent: LobbyEvent
+}
+
+type EventName = keyof GameClientEvents
+type EventHandler<K extends EventName> = (payload: GameClientEvents[K]) => void
+type RequestFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
+
+class TypedEventEmitter<Events extends object> {
+  private listeners = new Map<keyof Events, Set<(payload: unknown) => void>>()
+
+  on<K extends keyof Events>(event: K, handler: (payload: Events[K]) => void): void {
+    const handlers = this.listeners.get(event) ?? new Set<(payload: unknown) => void>()
+    handlers.add(handler as (payload: unknown) => void)
+    this.listeners.set(event, handlers)
+  }
+
+  off<K extends keyof Events>(event: K, handler: (payload: Events[K]) => void): void {
+    this.listeners.get(event)?.delete(handler as (payload: unknown) => void)
+  }
+
+  emit<K extends keyof Events>(event: K, payload: Events[K]): void {
+    for (const handler of this.listeners.get(event) ?? []) {
+      handler(payload)
+    }
+  }
+}
+
+export class GameClientError extends Error {
+  status: number | undefined
+  paymentRequired: PaymentRequired402 | null | undefined
+  override cause: unknown
+
+  constructor(
+    readonly kind: GameClientErrorKind,
+    message: string,
+    options: {
+      status?: number
+      paymentRequired?: PaymentRequired402 | null
+      cause?: unknown
+    } = {},
+  ) {
+    super(message)
+    this.name = "GameClientError"
+    this.status = options.status
+    this.paymentRequired = options.paymentRequired
+    this.cause = options.cause
+  }
+}
+
+type LobbyLiveMessage =
+  | { type: "connected"; channel: "lobby" }
+  | { type: "lobby_chat"; data: SanitizedChatMessage }
+  | { type: "lobby_activity"; data: LobbyEvent }
+  | { type: "leaderboard_update"; data: unknown }
 
 export class GameClient {
   private ws: WebSocket | null = null
+  private lobbyWs: WebSocket | null = null
   private token: SessionToken
+  private wallet: WalletAdapter | undefined
+  private activeRealmId: string | null = null
+  private reconnectAttempt = 0
+  private intentionalGameDisconnect = false
+  private intentionalLobbyDisconnect = false
+  private reconnectConfig: Required<NonNullable<GameClientOptions["reconnect"]>>
+  private readonly paymentClient: X402Client | undefined
+  private readonly requestFetch: RequestFetch
+  private eventEmitter = new TypedEventEmitter<GameClientEvents>()
+  private gameHandlers: GameSessionHandlers = {}
+  private lobbyHandlers: LobbyHandlers = {}
 
   constructor(
     private baseUrl: string,
     private wsUrl: string,
     token: SessionToken,
+    options: GameClientOptions = {},
   ) {
     this.token = token
+    this.wallet = options.wallet
+    this.paymentClient = options.x402Client
+    this.reconnectConfig = {
+      maxRetries: options.reconnect?.maxRetries ?? 3,
+      backoffMs: options.reconnect?.backoffMs ?? 500,
+    }
+    this.requestFetch = options.x402Client
+      ? wrapFetchWithPayment(fetch, options.x402Client)
+      : fetch
   }
 
   get sessionToken(): string {
     return this.token.token
   }
 
+  on<K extends EventName>(event: K, handler: EventHandler<K>): void {
+    this.eventEmitter.on(event, handler)
+  }
+
+  off<K extends EventName>(event: K, handler: EventHandler<K>): void {
+    this.eventEmitter.off(event, handler)
+  }
+
   /** Opens a WebSocket game session for a realm instance */
   connect(
     realmId: string,
-    handlers: {
-      onObservation: ObservationHandler
-      onDeath?: DeathHandler
-      onExtracted?: ExtractedHandler
-      onError?: (msg: string) => void
-      onClose?: () => void
-    },
+    handlers: GameSessionHandlers = {},
   ): Promise<void> {
+    this.activeRealmId = realmId
+    this.gameHandlers = handlers
+    this.intentionalGameDisconnect = false
+    return this.openGameSocket(realmId)
+  }
+
+  connectLobby(handlers: LobbyHandlers = {}): Promise<void> {
+    this.lobbyHandlers = handlers
+    this.intentionalLobbyDisconnect = false
+
     return new Promise((resolve, reject) => {
-      const url = `${this.wsUrl}/realms/${realmId}/enter`
-      this.ws = new WebSocket(url, ["Bearer", this.token.token])
+      const ws = new WebSocket(`${this.wsUrl}/lobby/live`)
+      let opened = false
 
-      this.ws.onopen = () => resolve()
-      this.ws.onerror = (e) => reject(new Error("WebSocket connection failed"))
-      this.ws.onclose = () => handlers.onClose?.()
+      this.lobbyWs = ws
 
-      this.ws.onmessage = (event) => {
-        const msg = JSON.parse(event.data as string) as ServerMessage
-        switch (msg.type) {
-          case "observation":
-            handlers.onObservation(msg.data)
-            break
-          case "death":
-            handlers.onDeath?.(msg.data)
-            break
-          case "extracted":
-            handlers.onExtracted?.(msg.data)
-            break
-          case "error":
-            handlers.onError?.(msg.message)
-            break
+      ws.onopen = () => {
+        opened = true
+        this.eventEmitter.emit("connected", { scope: "lobby" })
+        resolve()
+      }
+
+      ws.onerror = (event) => {
+        const error = new GameClientError(
+          "network",
+          "Lobby WebSocket connection failed",
+          { cause: event },
+        )
+        this.handleError(error, this.lobbyHandlers)
+        if (!opened) {
+          reject(error)
+        }
+      }
+
+      ws.onclose = (event) => {
+        this.lobbyWs = null
+        const disconnectEvent: DisconnectEvent = {
+          code: event.code,
+          reason: event.reason,
+          intentional: this.intentionalLobbyDisconnect,
+          scope: "lobby",
+        }
+        this.eventEmitter.emit("disconnected", disconnectEvent)
+        this.lobbyHandlers.onClose?.(disconnectEvent)
+      }
+
+      ws.onmessage = (event) => {
+        try {
+          const message = JSON.parse(String(event.data)) as LobbyLiveMessage
+          switch (message.type) {
+            case "connected":
+              break
+            case "lobby_chat":
+              this.eventEmitter.emit("chatMessage", message.data)
+              this.lobbyHandlers.onChatMessage?.(message.data)
+              break
+            case "lobby_activity":
+              this.eventEmitter.emit("lobbyEvent", message.data)
+              this.lobbyHandlers.onLobbyEvent?.(message.data)
+              break
+            case "leaderboard_update":
+              break
+            default: {
+              const unknownMessage: never = message
+              throw new Error(`Unsupported lobby message: ${String(unknownMessage)}`)
+            }
+          }
+        } catch (error) {
+          this.handleError(
+            new GameClientError(
+              "protocol",
+              "Failed to parse lobby message",
+              { cause: error },
+            ),
+            this.lobbyHandlers,
+          )
         }
       }
     })
   }
 
-  /** Sends an action to the game server */
   sendAction(action: Action): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      throw new Error("WebSocket not connected")
+      throw new GameClientError("network", "WebSocket not connected")
     }
-    this.ws.send(JSON.stringify({ type: "action", data: action }))
+    const payload: ClientMessage = { type: "action", data: action }
+    this.ws.send(JSON.stringify(payload))
   }
 
   disconnect(): void {
+    this.intentionalGameDisconnect = true
+    this.intentionalLobbyDisconnect = true
+    this.activeRealmId = null
     this.ws?.close()
+    this.lobbyWs?.close()
     this.ws = null
+    this.lobbyWs = null
+  }
+
+  disconnectLobby(): void {
+    this.intentionalLobbyDisconnect = true
+    this.lobbyWs?.close()
+    this.lobbyWs = null
   }
 
   /** REST helper with auth header */
   async request<T>(path: string, options: RequestInit = {}): Promise<T> {
-    const res = await fetch(`${this.baseUrl}${path}`, {
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${this.token.token}`,
-        ...options.headers,
-      },
-    })
+    let res: Response
+    const headers = new Headers(options.headers)
+    if (!headers.has("Content-Type")) {
+      headers.set("Content-Type", "application/json")
+    }
+    headers.set("Authorization", `Bearer ${this.token.token}`)
+
+    const walletNetwork = this.wallet?.getNetwork()
+    if (walletNetwork && !headers.has("X-Payment-Network")) {
+      headers.set("X-Payment-Network", walletNetwork)
+    }
+
+    try {
+      res = await this.requestFetch(`${this.baseUrl}${path}`, {
+        ...options,
+        headers,
+      })
+    } catch (error) {
+      throw this.toRequestError(path, error)
+    }
 
     if (res.status === 402) {
-      // x402 Payment Required — caller must handle
-      const paymentHeader = res.headers.get("PAYMENT-REQUIRED")
-      const err = new Error("Payment required") as Error & { paymentRequired: unknown; status: number }
-      err.status = 402
-      err.paymentRequired = paymentHeader ? JSON.parse(atob(paymentHeader)) : null
-      throw err
+      throw new GameClientError("payment", "Payment required", {
+        status: 402,
+        paymentRequired: await this.readPaymentRequired(res),
+      })
     }
 
     if (!res.ok) {
-      throw new Error(`Request failed: ${res.status} ${res.statusText}`)
+      throw new GameClientError(
+        "game",
+        `Request failed: ${res.status} ${res.statusText}`,
+        { status: res.status },
+      )
     }
 
-    return res.json() as Promise<T>
+    if (res.status === 204) {
+      return undefined as T
+    }
+
+    const body = await res.text()
+    if (!body) {
+      return undefined as T
+    }
+
+    return JSON.parse(body) as T
+  }
+
+  private toRequestError(path: string, error: unknown): GameClientError {
+    if (error instanceof GameClientError) {
+      return error
+    }
+
+    if (
+      this.paymentClient &&
+      error instanceof Error &&
+      !(error instanceof TypeError)
+    ) {
+      return new GameClientError(
+        "payment",
+        `x402 payment flow failed for ${path}`,
+        { cause: error },
+      )
+    }
+
+    return new GameClientError("network", `Network request failed for ${path}`, {
+      cause: error,
+    })
+  }
+
+  private openGameSocket(realmId: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const ws = new WebSocket(
+        `${this.wsUrl}/realms/${realmId}/enter`,
+        ["Bearer", this.token.token],
+      )
+      let opened = false
+
+      this.ws = ws
+
+      ws.onopen = () => {
+        opened = true
+        this.reconnectAttempt = 0
+        this.eventEmitter.emit("connected", { scope: "game", realmId })
+        resolve()
+      }
+
+      ws.onerror = (event) => {
+        const error = new GameClientError(
+          "network",
+          "WebSocket connection failed",
+          { cause: event },
+        )
+        this.handleError(error, this.gameHandlers)
+        if (!opened) {
+          reject(error)
+        }
+      }
+
+      ws.onclose = (event) => {
+        const disconnectEvent: DisconnectEvent = {
+          code: event.code,
+          reason: event.reason,
+          intentional: this.intentionalGameDisconnect,
+          scope: "game",
+        }
+
+        this.ws = null
+        this.eventEmitter.emit("disconnected", disconnectEvent)
+        this.gameHandlers.onClose?.(disconnectEvent)
+
+        if (
+          !this.intentionalGameDisconnect &&
+          this.activeRealmId &&
+          this.reconnectAttempt < this.reconnectConfig.maxRetries
+        ) {
+          this.scheduleReconnect()
+        }
+      }
+
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(String(event.data)) as ServerMessage
+          switch (msg.type) {
+            case "observation":
+              this.eventEmitter.emit("observation", msg.data)
+              this.gameHandlers.onObservation?.(msg.data)
+              break
+            case "death":
+              this.eventEmitter.emit("death", msg.data)
+              this.gameHandlers.onDeath?.(msg.data)
+              break
+            case "extracted":
+              this.eventEmitter.emit("extracted", msg.data)
+              this.gameHandlers.onExtracted?.(msg.data)
+              break
+            case "error":
+              this.handleError(new GameClientError("game", msg.message), this.gameHandlers)
+              break
+          }
+        } catch (error) {
+          this.handleError(
+            new GameClientError(
+              "protocol",
+              "Failed to parse game server message",
+              { cause: error },
+            ),
+            this.gameHandlers,
+          )
+        }
+      }
+    })
+  }
+
+  private scheduleReconnect(): void {
+    if (!this.activeRealmId) {
+      return
+    }
+
+    this.reconnectAttempt += 1
+    const delay = this.reconnectConfig.backoffMs * 2 ** (this.reconnectAttempt - 1)
+
+    setTimeout(() => {
+      if (!this.activeRealmId || this.intentionalGameDisconnect) {
+        return
+      }
+
+      void this.openGameSocket(this.activeRealmId).catch((error) => {
+        this.handleError(
+          error instanceof GameClientError
+            ? error
+            : new GameClientError(
+                "network",
+                "Failed to reconnect WebSocket",
+                { cause: error },
+              ),
+          this.gameHandlers,
+        )
+      })
+    }, delay)
+  }
+
+  private handleError(
+    error: GameClientError,
+    handlers: Pick<GameSessionHandlers, "onError"> | Pick<LobbyHandlers, "onError">,
+  ): void {
+    this.eventEmitter.emit("error", error)
+    handlers.onError?.(error)
+  }
+
+  private async readPaymentRequired(res: Response): Promise<PaymentRequired402 | null> {
+    const paymentHeader = res.headers.get("PAYMENT-REQUIRED")
+    if (!paymentHeader) {
+      try {
+        const body = (await res.clone().json()) as Partial<PaymentRequired402>
+        if (body.x402Version === 2 && Array.isArray(body.accepts)) {
+          return body as PaymentRequired402
+        }
+      } catch {
+        return null
+      }
+
+      return null
+    }
+
+    try {
+      return JSON.parse(atob(paymentHeader)) as PaymentRequired402
+    } catch {
+      return null
+    }
   }
 }

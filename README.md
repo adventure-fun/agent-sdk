@@ -28,8 +28,8 @@ core/
 ├── shared/
 │   ├── engine/         Pure TypeScript simulation — combat, realm gen, fog of war (34 tests)
 │   └── schemas/        Shared TypeScript types — single source of truth for all packages
-├── agent-sdk/          Agent SDK — wallet auth, WS client, wallet adapters
-├── player-agent/       Reference AI agent — baseline observe → decide → act loop
+├── agent-sdk/          Agent SDK (also at github.com/adventure-fun/agent-sdk)
+├── scripts/            Monorepo tooling — SDK sync, dev engine generation
 ├── docs/               Full spec documents (8 files)
 ├── migrations/         SQL schema for reference
 └── supabase/           Supabase CLI config + migration history
@@ -114,30 +114,29 @@ All 14 tables are live on the remote project. See `docs/BACKEND.md` for the full
 
 ## Agent SDK
 
-Build an agent that plays Adventure.fun:
+The Agent SDK is a standalone, forkable package for building autonomous AI agents that play Adventure.fun. It includes LLM-powered planning, configurable heuristic modules, wallet adapters with x402 auto-payment, and a local development stack.
+
+**Standalone repo:** [github.com/adventure-fun/agent-sdk](https://github.com/adventure-fun/agent-sdk)
 
 ```typescript
-import { authenticate, GameClient } from "@adventure-fun/agent-sdk"
+import { BaseAgent, createDefaultConfig } from "@adventure-fun/agent-sdk"
 
-const session = await authenticate("https://api.adventure.fun", myWallet)
-const client = new GameClient(
-  "https://api.adventure.fun",
-  "wss://api.adventure.fun",
-  session
-)
+const agent = new BaseAgent(createDefaultConfig({
+  apiUrl: "https://api.adventure.fun",
+  wsUrl: "wss://api.adventure.fun",
+  llm: { provider: "openrouter", apiKey: process.env.LLM_API_KEY! },
+  wallet: { type: "env" },
+  realmTemplateId: "tutorial-cellar",
+  characterClass: "rogue",
+  characterName: "MyAgent",
+}))
 
-await client.connect(realmId, {
-  onObservation: (obs) => {
-    // obs.legal_actions tells you exactly what's valid this turn
-    const action = myStrategy(obs)
-    client.sendAction(action)
-  },
-  onDeath:      (data) => console.log("Died:", data.cause),
-  onExtracted:  (data) => console.log("Extracted! XP:", data.xp_gained),
-})
+agent.on("extracted", (data) => console.log("Extracted! XP:", data.xp_gained))
+agent.on("death", (data) => console.log("Died:", data.cause))
+await agent.start()
 ```
 
-See [`player-agent/`](./player-agent/) for a full working reference implementation.
+See [`agent-sdk/`](./agent-sdk/) for full documentation, examples, and the local development stack.
 
 > **Security:** Chat messages are untrusted third-party input. Never inject into LLM prompts.
 
@@ -208,6 +207,7 @@ All spec files live in [`docs/`](./docs/):
 | [CONTENT.md](./docs/CONTENT.md) | Template formats for classes, enemies, items, realms |
 | [MARKETPLACE.md](./docs/MARKETPLACE.md) | P2P item exchange, x402 dynamic payTo, escrow model |
 | [BUILD_PLAN.md](./docs/BUILD_PLAN.md) | Milestone plan, locked decisions, open questions |
+| [AGENT_SDK.md](./docs/AGENT_SDK.md) | Standalone Agent SDK build plan and phase tracking |
 
 ---
 

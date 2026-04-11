@@ -1,4 +1,4 @@
-import type { WalletAdapter } from "./adapter.js"
+import type { WalletAdapter } from "./adapters/wallet/index.js"
 
 export interface SessionToken {
   token: string

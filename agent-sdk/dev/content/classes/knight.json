@@ -1,0 +1,65 @@
+{
+  "id": "knight",
+  "name": "Knight",
+  "description": "Reliable front-line fighter for dev stack testing.",
+  "base_stats": {
+    "hp": 32,
+    "attack": 11,
+    "defense": 12,
+    "accuracy": 11,
+    "evasion": 4,
+    "speed": 4
+  },
+  "stat_growth": {
+    "hp": 0.03,
+    "attack": 0.02,
+    "defense": 0.03,
+    "accuracy": 0.02,
+    "evasion": 0.01,
+    "speed": 0.01
+  },
+  "stat_roll_ranges": {
+    "hp": [
+      25,
+      40
+    ],
+    "attack": [
+      8,
+      14
+    ],
+    "defense": [
+      8,
+      14
+    ],
+    "accuracy": [
+      8,
+      14
+    ],
+    "evasion": [
+      2,
+      6
+    ],
+    "speed": [
+      2,
+      6
+    ]
+  },
+  "resource_type": "stamina",
+  "resource_max": 6,
+  "resource_regen_rule": {
+    "type": "passive",
+    "amount": 2,
+    "interval": 1
+  },
+  "starting_abilities": [
+    "knight-shield-bash"
+  ],
+  "skill_tree": {
+    "tiers": []
+  },
+  "starting_equipment": [
+    "iron-sword",
+    "leather-armor"
+  ],
+  "visibility_radius": 4
+}

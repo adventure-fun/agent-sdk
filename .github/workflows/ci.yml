@@ -30,6 +30,23 @@ jobs:
         run: bun test --reporter=verbose
 
   # ── TypeScript typecheck ───────────────────────────────────────────────────────
+  sdk-sync-check:
+    name: Agent SDK Sync Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Verify vendored SDK protocol is synced
+        run: bun run scripts/check-sdk-sync.ts
+
   typecheck:
     name: TypeScript Typecheck
     runs-on: ubuntu-latest
@@ -119,12 +136,13 @@ jobs:
   all-tests-pass:
     name: All Tests Pass
     runs-on: ubuntu-latest
-    needs: [engine-tests, typecheck, sdk-tests, backend-tests, frontend-typecheck]
+    needs: [engine-tests, sdk-sync-check, typecheck, sdk-tests, backend-tests, frontend-typecheck]
     if: always()
     steps:
       - name: Check all jobs succeeded
         run: |
           if [[ "${{ needs.engine-tests.result }}"       != "success" ]] || \
+             [[ "${{ needs.sdk-sync-check.result }}"      != "success" ]] || \
              [[ "${{ needs.typecheck.result }}"           != "success" ]] || \
              [[ "${{ needs.sdk-tests.result }}"           != "success" ]] || \
              [[ "${{ needs.backend-tests.result }}"       != "success" ]] || \

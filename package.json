@@ -5,8 +5,7 @@
     "frontend",
     "backend",
     "shared/*",
-    "agent-sdk",
-    "player-agent"
+    "agent-sdk"
   ],
   "scripts": {
     "build": "turbo build",
@@ -16,10 +15,15 @@
     "dev:no-redis": "turbo dev --filter=@adventure-fun/web --filter=@adventure-fun/server",
     "lint": "turbo lint",
     "typecheck": "turbo typecheck",
-    "clean": "turbo clean && rm -rf node_modules"
+    "clean": "turbo clean && rm -rf node_modules",
+    "sdk:sync": "bun run scripts/sync-sdk-types.ts",
+    "sdk:sync:check": "bun run scripts/check-sdk-sync.ts",
+    "sdk:sync:dev": "bun run scripts/sync-dev-engine.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
+    "hono": "^4.12.12",
+    "jose": "^6.2.2",
     "postgres": "^3.4.9",
     "turbo": "^2.3.3",
     "typescript": "^5.7.2"

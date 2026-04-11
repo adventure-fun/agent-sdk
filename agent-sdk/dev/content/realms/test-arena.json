@@ -1,0 +1,77 @@
+{
+  "id": "test-arena",
+  "orderIndex": 1,
+  "name": "Test Arena",
+  "description": "Single-room combat sandbox with scattered loot.",
+  "theme": "arena",
+  "version": 1,
+  "procedural": false,
+  "floor_count": {
+    "min": 1,
+    "max": 1
+  },
+  "difficulty_tier": 1,
+  "room_distribution": {
+    "combat": 1,
+    "treasure": 0,
+    "trap": 0,
+    "rest": 0,
+    "event": 0,
+    "boss": 0
+  },
+  "enemy_roster": [
+    "goblin",
+    "skeleton"
+  ],
+  "boss_id": null,
+  "loot_tables": [
+    {
+      "id": "arena-loot",
+      "entries": [
+        {
+          "item_template_id": "iron-sword",
+          "weight": 30,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item_template_id": "leather-armor",
+          "weight": 30,
+          "quantity": {
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "item_template_id": "health-potion",
+          "weight": 40,
+          "quantity": {
+            "min": 1,
+            "max": 2
+          }
+        }
+      ]
+    }
+  ],
+  "trap_types": [],
+  "room_templates": [
+    "test-arena-gauntlet"
+  ],
+  "narrative": {
+    "theme_description": "An isolated arena used to validate combat and inventory behavior.",
+    "room_text_pool": [
+      {
+        "text": "The arena floor is littered with weapons and broken shields.",
+        "type": "combat"
+      }
+    ],
+    "lore_pool": [],
+    "interactable_pool": []
+  },
+  "completion_rewards": {
+    "xp": 24,
+    "gold": 18
+  }
+}

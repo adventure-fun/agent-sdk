@@ -1,31 +1,73 @@
 {
   "name": "@adventure-fun/agent-sdk",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": false,
   "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/adventure-fun/agent-sdk.git"
+  },
+  "homepage": "https://github.com/adventure-fun/agent-sdk#readme",
+  "bugs": {
+    "url": "https://github.com/adventure-fun/agent-sdk/issues"
+  },
   "main": "./dist/index.js",
-  "types": "./src/index.ts",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "import": "./dist/index.js",
-      "types": "./src/index.ts"
+      "types": "./dist/index.d.ts"
     }
+  },
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "build": "tsc",
     "test": "bun test",
     "test:watch": "bun test --watch",
     "typecheck": "tsc --noEmit",
-    "clean": "rm -rf dist"
-  },
-  "dependencies": {
-    "@adventure-fun/schemas": "*"
+    "typecheck:dev": "tsc --noEmit -p dev/tsconfig.json",
+    "clean": "rm -rf dist",
+    "dev": "bun run --watch examples/basic-agent/index.ts",
+    "dev:api": "bun --watch dev/api/index.ts",
+    "smoke": "bun run dev/smoke-test.ts",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down"
   },
   "devDependencies": {
-    "typescript": "*",
     "@types/bun": "latest",
     "@types/node": "*",
-    "ws": "^8.18.0",
-    "@types/ws": "^8.5.14"
+    "hono": "^4.12.12",
+    "jose": "^6.2.2",
+    "typescript": "*"
+  },
+  "dependencies": {
+    "@x402/core": "^2.9.0",
+    "@x402/evm": "^2.9.0",
+    "@x402/fetch": "^2.9.0",
+    "viem": "^2.47.12"
+  },
+  "peerDependencies": {
+    "@scure/base": "^2.0.0",
+    "@solana/kit": "^6.8.0",
+    "@x402/svm": "^2.9.0"
+  },
+  "peerDependenciesMeta": {
+    "@scure/base": {
+      "optional": true
+    },
+    "@solana/kit": {
+      "optional": true
+    },
+    "@x402/svm": {
+      "optional": true
+    }
   }
 }

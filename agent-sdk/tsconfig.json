@@ -1,9 +1,23 @@
 {
-  "extends": "../tsconfig.json",
+  "$schema": "https://json.schemastore.org/tsconfig",
   "compilerOptions": {
-    "outDir": "./dist",
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "exactOptionalPropertyTypes": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
     "rootDir": "./src",
-    "types": ["bun"]
+    "outDir": "./dist",
+    "types": ["bun", "node"]
   },
-  "include": ["src"]
+  "include": ["src/**/*.ts"]
 }
