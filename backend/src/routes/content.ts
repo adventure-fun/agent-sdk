@@ -34,6 +34,12 @@ content.get("/classes", (c) => {
   return c.json({ classes })
 })
 
+// GET /content/abilities — full ability registry (no auth required)
+content.get("/abilities", (c) => {
+  const abilities = Object.values(ABILITIES).sort((a, b) => a.id.localeCompare(b.id))
+  return c.json({ abilities })
+})
+
 // GET /content/items — item template metadata (no auth required)
 content.get("/items", (c) => {
   const items = Object.values(ITEMS)
@@ -66,16 +72,7 @@ content.get("/classes/:id/abilities", (c) => {
   const abilityIds = cls.starting_abilities ?? []
   const abilities = abilityIds
     .map((id) => ABILITIES[id])
-    .filter(Boolean)
-    .map((a) => ({
-      id: a.id,
-      name: a.name,
-      description: a.description,
-      resource_cost: a.resource_cost,
-      cooldown_turns: a.cooldown_turns,
-      range: a.range,
-      target: a.target,
-    }))
+    .filter((a): a is NonNullable<typeof a> => Boolean(a))
 
   return c.json({ abilities })
 })

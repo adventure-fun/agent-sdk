@@ -117,6 +117,7 @@ function createObservation(): Observation {
       template_name: "Tutorial",
       floor_count: 1,
       current_floor: 1,
+      entrance_room_id: "room-a",
       status: "active",
     },
   }

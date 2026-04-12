@@ -93,7 +93,8 @@ function pickDefaultAction(observation: Observation): Action {
   const attackAction = chooseEnemyAttack(observation)
 
   return (
-    legalActions.find((action) => action.type === "use_portal")
+    legalActions.find((action) => action.type === "retreat")
+    ?? legalActions.find((action) => action.type === "use_portal")
     ?? attackAction
     ?? legalActions.find((action): action is Extract<Action, { type: "pickup" }> => action.type === "pickup")
     ?? legalActions.find((action): action is Extract<Action, { type: "equip" }> => action.type === "equip")

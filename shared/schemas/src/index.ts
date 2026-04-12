@@ -381,6 +381,8 @@ export interface Observation {
     template_name: string
     floor_count: number
     current_floor: number
+    /** Floor-1 entrance room id — legal `retreat` requires being here with no hostiles. */
+    entrance_room_id: string
     status: "active" | "boss_floor" | "boss_cleared" | "realm_cleared"
   }
 }
@@ -409,6 +411,7 @@ export interface SpectatorObservation {
   realm_info: {
     template_name: string
     current_floor: number
+    entrance_room_id: string
     status: "active" | "boss_floor" | "boss_cleared" | "realm_cleared"
   }
 }

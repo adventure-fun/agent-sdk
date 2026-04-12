@@ -121,10 +121,24 @@ export default {
     if (match?.[1] && req.headers.get("upgrade") === "websocket") {
       const realmId = match[1]
 
-      // Auth check
-      const authHeader = req.headers.get("Authorization") ??
-        url.searchParams.get("token") ?? ""
-      const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : authHeader
+      // Auth check — support Authorization header, ?token= query param,
+      // and Sec-WebSocket-Protocol subprotocol pair ["Bearer", <token>]
+      let token = ""
+      let wsSubprotocol = false
+      const authHeader = req.headers.get("Authorization")
+      if (authHeader?.startsWith("Bearer ")) {
+        token = authHeader.slice(7)
+      } else if (url.searchParams.get("token")) {
+        token = url.searchParams.get("token")!
+      } else {
+        const proto = req.headers.get("Sec-WebSocket-Protocol") ?? ""
+        const parts = proto.split(/,\s*/)
+        const bearerIdx = parts.indexOf("Bearer")
+        if (bearerIdx !== -1 && parts[bearerIdx + 1]) {
+          token = parts[bearerIdx + 1]
+          wsSubprotocol = true
+        }
+      }
 
       let session
       try {
@@ -175,6 +189,9 @@ export default {
           session,
           characterId: character.id,
         } satisfies Omit<GameSessionData, "turnTimer">,
+        headers: wsSubprotocol
+          ? new Headers({ "Sec-WebSocket-Protocol": "Bearer" })
+          : undefined,
       })
 
       if (!upgraded) {

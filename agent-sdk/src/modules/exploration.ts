@@ -29,13 +29,25 @@ export class ExplorationModule implements AgentModule {
       (a): a is Extract<Action, { type: "move" }> => a.type === "move",
     )
 
-    if (COMPLETED_STATUSES.has(observation.realm_info.status)) {
+    if (COMPLETED_STATUSES.has(observation.realm_info.status) && !hasPendingLoot(observation)) {
+      const retreatAction = observation.legal_actions.find((a) => a.type === "retreat")
+      if (retreatAction) {
+        return {
+          suggestedAction: retreatAction,
+          reasoning: "Realm completed; returning to town via the first-floor entrance.",
+          confidence: 0.7,
+        }
+      }
+      const homing = chooseHomingTowardsEntrance(observation, context, moveActions)
+      if (homing) {
+        return homing
+      }
       const portalAction = observation.legal_actions.find((a) => a.type === "use_portal")
-      if (portalAction && !hasPendingLoot(observation)) {
+      if (portalAction) {
         return {
           suggestedAction: portalAction,
-          reasoning: "Realm completed, extracting via portal.",
-          confidence: 0.7,
+          reasoning: "Realm completed; no path toward entrance visible — extracting via portal.",
+          confidence: 0.65,
         }
       }
     }
@@ -151,6 +163,101 @@ function hasPendingLoot(observation: Observation): boolean {
     observation.legal_actions.some((action) => action.type === "pickup")
     || observation.visible_entities.some((entity) => entity.type === "item")
   )
+}
+
+/**
+ * After a boss/realm clear, `retreat` is only legal on floor 1 in `realm_info.entrance_room_id`.
+ * Until then, route toward stairs_up (deeper floors) or retrace doors toward that room.
+ */
+function chooseHomingTowardsEntrance(
+  observation: Observation,
+  context: AgentContext,
+  moveActions: Array<Extract<Action, { type: "move" }>>,
+): ModuleRecommendation | null {
+  const entranceId = observation.realm_info.entrance_room_id
+  if (!entranceId) {
+    return null
+  }
+
+  const { floor, room_id: roomId } = observation.position
+  if (floor === 1 && roomId === entranceId) {
+    return null
+  }
+
+  if (moveActions.length === 0) {
+    return null
+  }
+
+  const tileByCoordinate = new Map(
+    observation.visible_tiles.map((tile) => [`${tile.x},${tile.y}`, tile] as const),
+  )
+  const current = observation.position.tile
+
+  if (floor > 1) {
+    const stairUpMoves = moveActions.filter((a) => {
+      const next = nextPosition(current, a.direction)
+      return tileByCoordinate.get(`${next.x},${next.y}`)?.type === "stairs_up"
+    })
+    if (stairUpMoves.length > 0) {
+      return {
+        suggestedAction: stairUpMoves[0]!,
+        reasoning:
+          "Realm cleared; taking stairs up toward the surface, then the floor-1 entrance for retreat.",
+        confidence: 0.72,
+      }
+    }
+
+    // e.g. test-dungeon: boss room has no stairs_up — it lives in the floor entrance; walk through doors first.
+    const doorMoves = moveActions.filter((a) => {
+      const next = nextPosition(current, a.direction)
+      return tileByCoordinate.get(`${next.x},${next.y}`)?.type === "door"
+    })
+    if (doorMoves.length > 0) {
+      const cameFrom = context.mapMemory.lastRoomEntry?.roomId === roomId
+        ? context.mapMemory.lastRoomEntry.cameFromDirection
+        : null
+      const preferred =
+        cameFrom ? doorMoves.find((a) => a.direction === cameFrom) ?? doorMoves[0] : doorMoves[0]
+      return {
+        suggestedAction: preferred!,
+        reasoning:
+          "Realm cleared on a lower floor; moving through a doorway toward the stairs up, then the floor-1 entrance for retreat.",
+        confidence: 0.66,
+      }
+    }
+  }
+
+  if (floor === 1 && roomId !== entranceId) {
+    const cameFrom = context.mapMemory.lastRoomEntry?.roomId === roomId
+      ? context.mapMemory.lastRoomEntry.cameFromDirection
+      : null
+    if (cameFrom) {
+      const back = moveActions.find((a) => a.direction === cameFrom)
+      if (back) {
+        return {
+          suggestedAction: back,
+          reasoning:
+            "Realm cleared on floor 1; retracing toward the entrance room (realm_info.entrance_room_id) to retreat.",
+          confidence: 0.68,
+        }
+      }
+    }
+
+    const doorMoves = moveActions.filter((a) => {
+      const next = nextPosition(current, a.direction)
+      return tileByCoordinate.get(`${next.x},${next.y}`)?.type === "door"
+    })
+    if (doorMoves.length > 0) {
+      return {
+        suggestedAction: doorMoves[0]!,
+        reasoning:
+          "Realm cleared on floor 1; using a doorway to move closer to the entrance room for retreat.",
+        confidence: 0.62,
+      }
+    }
+  }
+
+  return null
 }
 
 type MoveCandidate = {

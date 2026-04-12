@@ -192,6 +192,7 @@ describe("agent-sdk public exports", () => {
 
     expect(prompt).toContain("Scout")
     expect(prompt).toContain("choose_action")
+    expect(prompt).toContain("realm_info.entrance_room_id")
   })
 
   it("exposes wallet factories and adapters from the package entrypoint", async () => {

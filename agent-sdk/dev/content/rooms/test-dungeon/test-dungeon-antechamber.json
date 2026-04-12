@@ -5,7 +5,7 @@
     "width": 7,
     "height": 7
   },
-  "text_first_visit": "An antechamber stands between you and the boss.",
+  "text_first_visit": "An antechamber stands between you and the boss. The stairwell back toward the surface is along the west wall once the way is clear.",
   "text_revisit": "The antechamber bears fresh battle marks.",
   "interactables": [],
   "enemy_slots": [

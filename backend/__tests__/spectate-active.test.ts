@@ -29,6 +29,7 @@ describe("spectate — active session listing", () => {
       realm_info: {
         template_name: "tutorial-cellar",
         current_floor: 1,
+        entrance_room_id: "r0",
         status: "active" as const,
       },
       position: { floor: 1, room_id: "r0" },
@@ -76,6 +77,7 @@ describe("spectate — active session listing", () => {
       realm_info: {
         template_name: "test-realm",
         current_floor: 1,
+        entrance_room_id: "r0",
         status: "active" as const,
       },
       position: { floor: 1, room_id: "r0" },
