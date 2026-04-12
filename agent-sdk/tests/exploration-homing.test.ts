@@ -37,6 +37,7 @@ describe("extraction homing after dungeon clear", () => {
     const rec = mod.analyze(obs, ctx)
     expect(rec.suggestedAction).toEqual({ type: "move", direction: "up" })
     expect(rec.reasoning.toLowerCase()).toContain("stairs")
+    expect(rec.context?.extractionHoming).toBe(true)
   })
 
   it("ExplorationModule prefers a door on deeper floors when stairs_up is not visible (e.g. boss room)", () => {
@@ -64,6 +65,30 @@ describe("extraction homing after dungeon clear", () => {
     const rec = mod.analyze(obs, ctx)
     expect(rec.suggestedAction).toEqual({ type: "move", direction: "left" })
     expect(rec.reasoning.toLowerCase()).toContain("door")
+    expect(rec.context?.extractionHoming).toBe(true)
+  })
+
+  it("ExplorationModule steps along floor toward a non-adjacent visible door on floor 1 after clear", () => {
+    const mod = new ExplorationModule()
+    const ctx = createAgentContext(config)
+    const obs = buildObservation({
+      realm_info: { status: "realm_cleared", entrance_room_id: "ent", current_floor: 1 },
+      position: { floor: 1, room_id: "boss-room", tile: { x: 2, y: 2 } },
+      visible_tiles: [
+        { x: 2, y: 2, type: "floor", entities: [] },
+        { x: 3, y: 2, type: "floor", entities: [] },
+        { x: 4, y: 2, type: "floor", entities: [] },
+        { x: 5, y: 2, type: "door", entities: [] },
+      ],
+      legal_actions: [
+        { type: "move", direction: "left" },
+        { type: "move", direction: "right" },
+        { type: "wait" },
+      ],
+    })
+    const rec = mod.analyze(obs, ctx)
+    expect(rec.suggestedAction).toEqual({ type: "move", direction: "right" })
+    expect(rec.context?.extractionHoming).toBe(true)
   })
 
   it("ExplorationModule retraces breadcrumb on floor 1 when cleared outside entrance_room_id", () => {
@@ -80,7 +105,9 @@ describe("extraction homing after dungeon clear", () => {
         { type: "wait" },
       ],
     })
-    expect(mod.analyze(obs, ctx).suggestedAction).toEqual({ type: "move", direction: "left" })
+    const rec = mod.analyze(obs, ctx)
+    expect(rec.suggestedAction).toEqual({ type: "move", direction: "left" })
+    expect(rec.context?.extractionHoming).toBe(true)
   })
 
   it("PortalModule defers use_portal when cleared, healthy, and not at entrance", () => {

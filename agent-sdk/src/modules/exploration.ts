@@ -165,6 +165,81 @@ function hasPendingLoot(observation: Observation): boolean {
   )
 }
 
+const EXTRACTION_HOMING_CONTEXT = { extractionHoming: true as const }
+
+type HomingTargetType = "door" | "stairs_up"
+
+/**
+ * When the door or stairs are visible but not on an adjacent tile, pick a legal move onto a
+ * known passable tile that strictly reduces Manhattan distance to the nearest target. This avoids
+ * LLM oscillation on interior floor tiles (e.g. wide boss rooms).
+ */
+function chooseMoveTowardsNearestPassableTarget(
+  observation: Observation,
+  context: AgentContext,
+  moveActions: Array<Extract<Action, { type: "move" }>>,
+  tileByCoordinate: Map<string, Observation["visible_tiles"][number]>,
+  current: { x: number; y: number },
+  tileTypes: HomingTargetType[],
+  reasoning: string,
+  confidence: number,
+): ModuleRecommendation | null {
+  const targets = observation.visible_tiles.filter((tile) => tileTypes.includes(tile.type as HomingTargetType))
+  if (targets.length === 0) {
+    return null
+  }
+
+  let bestTarget = targets[0]!
+  let bestDistFromCurrent = manhattanDistance(current, bestTarget)
+  for (const tile of targets.slice(1)) {
+    const d = manhattanDistance(current, tile)
+    if (d < bestDistFromCurrent) {
+      bestDistFromCurrent = d
+      bestTarget = tile
+    }
+  }
+
+  if (bestDistFromCurrent === 0) {
+    return null
+  }
+
+  type Scored = { action: Extract<Action, { type: "move" }>; distAfter: number; stalled: number }
+  const scored: Scored[] = []
+  for (const action of moveActions) {
+    const next = nextPosition(current, action.direction)
+    const nextTile = tileByCoordinate.get(`${next.x},${next.y}`)
+    if (!nextTile || !PASSABLE_TILE_TYPES.has(nextTile.type)) {
+      continue
+    }
+    const distAfter = manhattanDistance(next, bestTarget)
+    if (distAfter >= bestDistFromCurrent) {
+      continue
+    }
+    const stalled =
+      context.mapMemory.stalledMoves.get(stalledMoveKey(observation.position.room_id, action.direction)) ?? 0
+    scored.push({ action, distAfter, stalled })
+  }
+
+  if (scored.length === 0) {
+    return null
+  }
+
+  scored.sort((left, right) => {
+    if (left.distAfter !== right.distAfter) {
+      return left.distAfter - right.distAfter
+    }
+    return left.stalled - right.stalled
+  })
+  const pick = scored[0]!
+
+  return {
+    suggestedAction: pick.action,
+    reasoning,
+    confidence,
+    context: EXTRACTION_HOMING_CONTEXT,
+  }
+}
+
 /**
  * After a boss/realm clear, `retreat` is only legal on floor 1 in `realm_info.entrance_room_id`.
  * Until then, route toward stairs_up (deeper floors) or retrace doors toward that room.
@@ -204,6 +279,7 @@ function chooseHomingTowardsEntrance(
         reasoning:
           "Realm cleared; taking stairs up toward the surface, then the floor-1 entrance for retreat.",
         confidence: 0.72,
+        context: EXTRACTION_HOMING_CONTEXT,
       }
     }
 
@@ -223,7 +299,36 @@ function chooseHomingTowardsEntrance(
         reasoning:
           "Realm cleared on a lower floor; moving through a doorway toward the stairs up, then the floor-1 entrance for retreat.",
         confidence: 0.66,
+        context: EXTRACTION_HOMING_CONTEXT,
       }
+    }
+
+    const towardStairs = chooseMoveTowardsNearestPassableTarget(
+      observation,
+      context,
+      moveActions,
+      tileByCoordinate,
+      current,
+      ["stairs_up"],
+      "Realm cleared; moving toward visible stairs up, then the floor-1 entrance for retreat.",
+      0.64,
+    )
+    if (towardStairs) {
+      return towardStairs
+    }
+
+    const towardDoorDeep = chooseMoveTowardsNearestPassableTarget(
+      observation,
+      context,
+      moveActions,
+      tileByCoordinate,
+      current,
+      ["door"],
+      "Realm cleared; moving toward a visible doorway to reach stairs up and the surface.",
+      0.61,
+    )
+    if (towardDoorDeep) {
+      return towardDoorDeep
     }
   }
 
@@ -239,6 +344,7 @@ function chooseHomingTowardsEntrance(
           reasoning:
             "Realm cleared on floor 1; retracing toward the entrance room (realm_info.entrance_room_id) to retreat.",
           confidence: 0.68,
+          context: EXTRACTION_HOMING_CONTEXT,
         }
       }
     }
@@ -253,7 +359,22 @@ function chooseHomingTowardsEntrance(
         reasoning:
           "Realm cleared on floor 1; using a doorway to move closer to the entrance room for retreat.",
         confidence: 0.62,
+        context: EXTRACTION_HOMING_CONTEXT,
       }
+    }
+
+    const towardDoorF1 = chooseMoveTowardsNearestPassableTarget(
+      observation,
+      context,
+      moveActions,
+      tileByCoordinate,
+      current,
+      ["door"],
+      "Realm cleared on floor 1; moving toward a visible doorway to reach the entrance room for retreat.",
+      0.61,
+    )
+    if (towardDoorF1) {
+      return towardDoorF1
     }
   }
 

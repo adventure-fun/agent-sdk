@@ -63,6 +63,12 @@ export class ActionPlanner {
       return lootDecision
     }
 
+    const homingDecision = this.tryPostClearHomingOverride(observation, recommendations)
+    if (homingDecision) {
+      this.previousObservation = observation
+      return homingDecision
+    }
+
     if (this.config.strategy === "module-only") {
       const decision = this.chooseModuleDecision(observation, recommendations)
       this.previousObservation = observation
@@ -182,6 +188,45 @@ export class ActionPlanner {
     }
 
     return null
+  }
+
+  /**
+   * After a clear, the tactical model often replans every turn (`plan_exhausted`) and can oscillate
+   * on interior tiles instead of committing to doors/stairs. Deterministic exploration homing
+   * (tagged with `context.extractionHoming`) overrides LLM tactical plans in that phase.
+   */
+  private tryPostClearHomingOverride(
+    observation: Observation,
+    recommendations: ModuleRecommendation[],
+  ): PlannerDecision | null {
+    if (!this.previousObservation) {
+      return null
+    }
+    if (!COMPLETED_REALM_STATUSES.has(observation.realm_info.status)) {
+      return null
+    }
+    if (hasPendingLootBeforeExtraction(observation)) {
+      return null
+    }
+
+    const exploration = recommendations.find((rec) => rec.moduleName === "exploration")
+    if (
+      !exploration?.suggestedAction
+      || exploration.context?.extractionHoming !== true
+    ) {
+      return null
+    }
+    if (!this.isActionLegal(exploration.suggestedAction, observation.legal_actions)) {
+      return null
+    }
+
+    this.currentPlan = null
+    return {
+      action: exploration.suggestedAction,
+      reasoning: exploration.reasoning,
+      tier: "module",
+      planDepth: 0,
+    }
   }
 
   private tryLootBeforeExtractionOverride(
