@@ -124,6 +124,31 @@ export function getAccountBySession(session: SessionPayload): Account | null {
   return accountsByCompositeKey.get(key) ?? null
 }
 
+export function updateAccountProfile(
+  session: SessionPayload,
+  input: {
+    handle?: string
+    x_handle?: string
+    github_handle?: string
+  },
+): Account | null {
+  const key = compositeAccountKey(session.wallet_address, session.player_type)
+  const existing = accountsByCompositeKey.get(key)
+  if (!existing) {
+    return null
+  }
+
+  const updated: Account = {
+    ...existing,
+    ...(input.handle !== undefined ? { handle: input.handle } : {}),
+    ...(input.x_handle !== undefined ? { x_handle: input.x_handle } : {}),
+    ...(input.github_handle !== undefined ? { github_handle: input.github_handle } : {}),
+  }
+
+  accountsByCompositeKey.set(key, updated)
+  return updated
+}
+
 export function getCharacterByAccountId(accountId: string): DevCharacter | null {
   return charactersByAccountId.get(accountId) ?? null
 }

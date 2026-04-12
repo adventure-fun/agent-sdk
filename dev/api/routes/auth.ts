@@ -1,6 +1,7 @@
 import { Hono } from "hono"
+import { requireAuth } from "../auth.js"
 import { signSession } from "../auth.js"
-import { upsertAccount } from "../store.js"
+import { updateAccountProfile, upsertAccount } from "../store.js"
 
 const NONCE_TTL_MS = 5 * 60 * 1000
 const nonces = new Map<string, number>()
@@ -44,4 +45,19 @@ authRoutes.post("/connect", async (c) => {
     expires_at: Date.now() + NONCE_TTL_MS,
     account,
   })
+})
+
+authRoutes.patch("/profile", requireAuth, async (c) => {
+  const body = await c.req.json<{
+    handle?: string
+    x_handle?: string
+    github_handle?: string
+  }>()
+  const session = c.get("session")
+  const account = updateAccountProfile(session, body)
+  if (!account) {
+    return c.json({ error: "Account not found" }, 404)
+  }
+
+  return c.json(account)
 })

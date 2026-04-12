@@ -5,6 +5,7 @@ import {
   InventoryModule,
   PortalModule,
   TrapHandlingModule,
+  type WalletNetwork,
   createDefaultConfig,
   type AgentConfig,
   type AgentContext,
@@ -83,7 +84,7 @@ export const strategicConfig: AgentConfig = createDefaultConfig({
   },
   wallet: {
     type: "env",
-    network: (process.env.AGENT_WALLET_NETWORK ?? "base") as "base" | "solana",
+    network: (process.env.AGENT_WALLET_NETWORK ?? "base") as WalletNetwork,
     ...(process.env.AGENT_PRIVATE_KEY ? { privateKey: process.env.AGENT_PRIVATE_KEY } : {}),
   },
   // Example OpenWallet / OWS config:
@@ -96,6 +97,64 @@ export const strategicConfig: AgentConfig = createDefaultConfig({
   //   vaultPath: process.env.OWS_VAULT_PATH,
   //   accountIndex: Number(process.env.OWS_ACCOUNT_INDEX ?? "0"),
   // },
+  ...(process.env.REROLL_MIN_TOTAL || process.env.REROLL_MIN_HP
+    ? {
+        rerollStats: {
+          enabled: true,
+          ...(process.env.REROLL_MIN_TOTAL
+            ? { minTotal: Number(process.env.REROLL_MIN_TOTAL) }
+            : {}),
+          minStats: {
+            ...(process.env.REROLL_MIN_HP ? { hp: Number(process.env.REROLL_MIN_HP) } : {}),
+            ...(process.env.REROLL_MIN_ATTACK
+              ? { attack: Number(process.env.REROLL_MIN_ATTACK) }
+              : {}),
+            ...(process.env.REROLL_MIN_DEFENSE
+              ? { defense: Number(process.env.REROLL_MIN_DEFENSE) }
+              : {}),
+            ...(process.env.REROLL_MIN_ACCURACY
+              ? { accuracy: Number(process.env.REROLL_MIN_ACCURACY) }
+              : {}),
+            ...(process.env.REROLL_MIN_EVASION
+              ? { evasion: Number(process.env.REROLL_MIN_EVASION) }
+              : {}),
+            ...(process.env.REROLL_MIN_SPEED
+              ? { speed: Number(process.env.REROLL_MIN_SPEED) }
+              : {}),
+          },
+        },
+      }
+    : {}),
+  realmProgression: {
+    strategy: (process.env.REALM_STRATEGY ?? "regenerate") as "regenerate" | "new-realm" | "stop",
+    ...(process.env.REALM_TEMPLATE_PRIORITY
+      ? {
+          templatePriority: process.env.REALM_TEMPLATE_PRIORITY
+            .split(",")
+            .map((value) => value.trim())
+            .filter(Boolean),
+        }
+      : {}),
+  },
+  ...(process.env.AGENT_HANDLE || process.env.AGENT_X_HANDLE || process.env.AGENT_GITHUB_HANDLE
+    ? {
+        profile: {
+          ...(process.env.AGENT_HANDLE ? { handle: process.env.AGENT_HANDLE } : {}),
+          ...(process.env.AGENT_X_HANDLE ? { xHandle: process.env.AGENT_X_HANDLE } : {}),
+          ...(process.env.AGENT_GITHUB_HANDLE
+            ? { githubHandle: process.env.AGENT_GITHUB_HANDLE }
+            : {}),
+        },
+      }
+    : {}),
+  skillTree: {
+    autoSpend: process.env.AUTO_SPEND_SKILL_POINTS === "true",
+    preferredNodes: (process.env.PREFERRED_SKILL_NODES ?? "")
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean),
+  },
+  rerollOnDeath: process.env.REROLL_ON_DEATH === "true",
   decision: {
     strategy: "planned",
     tacticalModel: process.env.TACTICAL_LLM_MODEL ?? "anthropic/claude-haiku-4.5",

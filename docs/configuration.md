@@ -22,6 +22,11 @@ Top-level interface that `BaseAgent` accepts.
 | `realmTemplateId` | `string` | no | -- | Realm template to generate (e.g. `"test-tutorial"`) |
 | `characterClass` | `string` | no | -- | Class to roll if no character exists (`"knight"`, `"mage"`, `"rogue"`, `"archer"`) |
 | `characterName` | `string` | no | -- | Name for newly rolled characters |
+| `rerollStats` | `StatRerollConfig` | no | disabled | Conditionally reroll a newly created character if the rolled stats are below your thresholds |
+| `realmProgression` | `RealmProgressionConfig` | no | `{ strategy: "regenerate" }` | What to do when the configured realm is already completed |
+| `profile` | `AgentProfileConfig` | no | -- | Optional account handle, X handle, and GitHub handle to sync during startup |
+| `skillTree` | `SkillTreeConfig` | no | `{ autoSpend: false }` | Optional auto-allocation rules for skill points between runs |
+| `rerollOnDeath` | `boolean` | no | `false` | Roll a new character and continue after permadeath |
 | `llm` | `LLMConfig` | yes | -- | LLM provider configuration |
 | `wallet` | `WalletConfig` | yes | -- | Wallet adapter configuration |
 | `modules` | `ModuleConfig[]` | no | `[]` | Module priority overrides |
@@ -64,7 +69,7 @@ Controls wallet adapter selection and authentication.
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
 | `type` | `"env" \| "open-wallet"` | yes | `"env"` | Wallet adapter type |
-| `network` | `"base" \| "solana"` | no | `"base"` | Blockchain network |
+| `network` | `"base" \| "base-sepolia" \| "solana" \| "solana-devnet"` | no | `"base"` | Blockchain network |
 | `privateKey` | `string` | no | `$AGENT_PRIVATE_KEY` | Private key (env-wallet only) |
 | `walletName` | `string` | no | -- | OWS wallet name or UUID (`type: "open-wallet"` only) |
 | `passphrase` | `string` | no | -- | OWS vault passphrase or `ows_key_...` API token |
@@ -75,6 +80,59 @@ Controls wallet adapter selection and authentication.
 The `"env"` type reads the private key from config or the `AGENT_PRIVATE_KEY` environment variable. EVM keys should be hex-encoded (with or without `0x` prefix). Solana keys should be base58-encoded.
 
 For `type: "open-wallet"`, the SDK loads [`@open-wallet-standard/core`](https://docs.openwallet.sh/doc.html?slug=sdk-node) lazily and signs through the local OWS vault instead of loading private keys into the agent process. `passphrase` can be either the owner passphrase or a scoped `ows_key_...` API token created with OWS policies.
+
+## StatRerollConfig
+
+Stat rerolls are always conditional. The SDK will only call `POST /characters/reroll-stats` when the rolled stats are below your configured thresholds.
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `enabled` | `boolean` | no | `true` when provided | Enables the reroll check |
+| `minStats` | `Partial<CharacterStats>` | no | -- | Reroll if any listed stat is below its minimum |
+| `minTotal` | `number` | no | -- | Reroll if the sum of all stats is below this total |
+
+At least one of `minStats` or `minTotal` must be set. The SDK does not guess what counts as a bad roll.
+
+```typescript
+rerollStats: {
+  enabled: true,
+  minTotal: 44,
+  minStats: {
+    hp: 26,
+    speed: 8,
+  },
+}
+```
+
+## RealmProgressionConfig
+
+Controls how the agent acquires its next playable realm on a later `start()` call after the previous realm has already been completed.
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `strategy` | `"regenerate" \| "new-realm" \| "stop"` | yes | `"regenerate"` | Regenerate the completed realm, advance to another template, or stop |
+| `templatePriority` | `string[]` | no | -- | Ordered realm template list for `strategy: "new-realm"` |
+
+## AgentProfileConfig
+
+These fields are synced through `PATCH /auth/profile` after authentication and before character/realm setup.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `handle` | `string` | no | Public account handle |
+| `xHandle` | `string` | no | X/Twitter handle |
+| `githubHandle` | `string` | no | GitHub handle |
+
+## SkillTreeConfig
+
+Controls optional automatic skill point spending between runs.
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `autoSpend` | `boolean` | no | `true` when provided | Enables the between-run spending pass |
+| `preferredNodes` | `string[]` | no | `[]` | Ordered node IDs to attempt to unlock |
+
+The agent only attempts the node IDs you provide. It skips invalid or not-yet-unlockable nodes and never invents its own build order.
 
 ## DecisionConfig
 
@@ -182,7 +240,7 @@ The example agents read these variables. Custom agents can use any configuration
 | `LLM_API_KEY` | `llm.apiKey` | |
 | `LLM_MODEL` | `llm.model` | |
 | `AGENT_PRIVATE_KEY` | `wallet.privateKey` | Also read by `EvmEnvWalletAdapter` / `SolanaEnvWalletAdapter` |
-| `AGENT_WALLET_NETWORK` | `wallet.network` | `"base"` or `"solana"` |
+| `AGENT_WALLET_NETWORK` | `wallet.network` | `"base"`, `"base-sepolia"`, `"solana"`, or `"solana-devnet"` |
 | `OWS_WALLET_NAME` | `wallet.walletName` | OpenWallet / OWS only |
 | `OWS_PASSPHRASE` | `wallet.passphrase` | Owner passphrase or `ows_key_...` token |
 | `OWS_CHAIN_ID` | `wallet.chainId` | Optional CAIP-2 override |
@@ -191,6 +249,21 @@ The example agents read these variables. Custom agents can use any configuration
 | `CHARACTER_CLASS` | `characterClass` | |
 | `CHARACTER_NAME` | `characterName` | |
 | `REALM_TEMPLATE` | `realmTemplateId` | |
+| `REALM_STRATEGY` | `realmProgression.strategy` | `"regenerate"`, `"new-realm"`, or `"stop"` |
+| `REALM_TEMPLATE_PRIORITY` | `realmProgression.templatePriority` | Comma-separated template list |
+| `REROLL_ON_DEATH` | `rerollOnDeath` | `"true"` to auto-roll a new character after death |
+| `AGENT_HANDLE` | `profile.handle` | |
+| `AGENT_X_HANDLE` | `profile.xHandle` | |
+| `AGENT_GITHUB_HANDLE` | `profile.githubHandle` | |
+| `REROLL_MIN_TOTAL` | `rerollStats.minTotal` | Conditional stat reroll threshold |
+| `REROLL_MIN_HP` | `rerollStats.minStats.hp` | Conditional stat reroll threshold |
+| `REROLL_MIN_ATTACK` | `rerollStats.minStats.attack` | Conditional stat reroll threshold |
+| `REROLL_MIN_DEFENSE` | `rerollStats.minStats.defense` | Conditional stat reroll threshold |
+| `REROLL_MIN_ACCURACY` | `rerollStats.minStats.accuracy` | Conditional stat reroll threshold |
+| `REROLL_MIN_EVASION` | `rerollStats.minStats.evasion` | Conditional stat reroll threshold |
+| `REROLL_MIN_SPEED` | `rerollStats.minStats.speed` | Conditional stat reroll threshold |
+| `AUTO_SPEND_SKILL_POINTS` | `skillTree.autoSpend` | `"true"` to enable between-run skill spending |
+| `PREFERRED_SKILL_NODES` | `skillTree.preferredNodes` | Comma-separated node IDs |
 | `TACTICAL_LLM_MODEL` | `decision.tacticalModel` | Strategic example only |
 
 ## Common Configuration Patterns
@@ -224,7 +297,21 @@ const config = createDefaultConfig({
     maxPlanLength: 12,
     emergencyHpPercent: 0.25,
   },
-  wallet: { type: "env", network: "base" },
+  wallet: { type: "env", network: "base-sepolia" },
+  rerollStats: {
+    enabled: true,
+    minTotal: 44,
+  },
+  realmProgression: {
+    strategy: "regenerate",
+  },
+  profile: {
+    xHandle: "shade_agent",
+  },
+  skillTree: {
+    autoSpend: true,
+    preferredNodes: ["shadowstep", "backstab_mastery"],
+  },
   chat: {
     enabled: true,
     personality: {

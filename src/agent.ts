@@ -11,10 +11,10 @@ import {
 } from "./adapters/wallet/index.js"
 import { authenticate, type SessionToken } from "./auth.js"
 import { BanterEngine, ChatManager } from "./chat/index.js"
-import { GameClient, type GameClientError } from "./client.js"
-import type { AgentConfig, DecisionConfig } from "./config.js"
+import { GameClient } from "./client.js"
+import type { AgentConfig, DecisionConfig, StatRerollConfig } from "./config.js"
 import { ActionPlanner, type PlannerDecision } from "./planner.js"
-import type { Action, CharacterClass, Observation } from "./protocol.js"
+import type { Action, CharacterClass, CharacterStats, Observation } from "./protocol.js"
 import {
   createAgentContext,
   createModuleRegistry,
@@ -39,6 +39,7 @@ const DEFAULT_MODULES: AgentModule[] = [
 ]
 
 const MAX_HISTORY = 50
+
 type ExtractionPayload = {
   loot_summary: Observation["inventory"]
   xp_gained: number
@@ -48,6 +49,7 @@ type ExtractionPayload = {
 }
 
 type DeathPayload = { cause: string; floor: number; room: string; turn: number }
+type RunOutcome = "death" | "extracted" | "stopped"
 
 type AgentClient = Pick<
   GameClient,
@@ -60,6 +62,26 @@ type AgentClient = Pick<
   | "on"
   | "off"
 >
+
+type CharacterRecord = {
+  id: string
+  class: CharacterClass
+  name: string
+  status?: string
+  stat_rerolled?: boolean
+  stats?: CharacterStats
+}
+
+type RealmRecord = {
+  id: string
+  template_id?: string
+  status?: string
+}
+
+type CharacterProgressionResponse = {
+  skill_points: number
+  skill_tree_unlocked: Record<string, boolean>
+}
 
 interface AgentPlanner {
   decideAction(observation: Observation, context: AgentContext): Promise<PlannerDecision>
@@ -116,7 +138,7 @@ export class BaseAgent {
   private clientInstance: AgentClient | null = null
   private runCompletion:
     | {
-        resolve: () => void
+        resolve: (outcome: RunOutcome) => void
         reject: (error: Error) => void
       }
     | null = null
@@ -204,40 +226,19 @@ export class BaseAgent {
       const client = await this.createClient(session)
       this.clientInstance = client
 
-      await this.ensureCharacter(client)
-      const realmId = await this.ensureRealm(client)
+      await this.maybeUpdateProfile(client)
 
-      const completion = new Promise<void>((resolve, reject) => {
-        this.runCompletion = { resolve, reject }
-      })
+      let outcome: RunOutcome = "stopped"
+      do {
+        const character = await this.ensureCharacter(client)
+        await this.maybeRerollStats(client, character)
+        await this.maybeSpendSkillPoints(client)
+        const realmId = await this.ensureRealm(client)
+        outcome = await this.playRealm(client, realmId)
+      } while (this.isRunning && outcome === "death" && this.config.rerollOnDeath)
 
-      await client.connect(realmId, {
-        onObservation: async (observation) => {
-          await this.handleObservation(observation)
-        },
-        onDeath: (payload) => {
-          this.handleDeath(payload)
-          this.finishRun()
-        },
-        onExtracted: async (payload) => {
-          await this.handleExtraction(payload)
-          this.finishRun()
-        },
-        onError: (error) => {
-          this.emit("error", error)
-        },
-        onClose: (event) => {
-          if (!event.intentional && this.isRunning) {
-            this.failRun(new Error(`Game socket closed unexpectedly: ${event.code} ${event.reason}`))
-          }
-        },
-      })
-
-      if (this.config.chat?.enabled) {
-        await this.startChat(client)
-      }
-
-      return completion
+      this.isRunning = false
+      this.clientInstance = null
     } catch (error) {
       this.isRunning = false
       this.clientInstance = null
@@ -303,11 +304,11 @@ export class BaseAgent {
   }
 
   stop(): void {
+    this.isRunning = false
     this.teardownChat()
     this.clientInstance?.disconnect()
     this.clientInstance = null
-    this.isRunning = false
-    this.runCompletion?.resolve()
+    this.runCompletion?.resolve("stopped")
     this.runCompletion = null
     this.emit("disconnected", undefined)
   }
@@ -406,12 +407,33 @@ export class BaseAgent {
     })
   }
 
-  private async ensureCharacter(client: AgentClient): Promise<void> {
-    try {
-      await client.request("/characters/me")
+  private async maybeUpdateProfile(client: AgentClient): Promise<void> {
+    const profile = this.config.profile
+    if (!profile) {
       return
+    }
+
+    const body = {
+      ...(profile.handle !== undefined ? { handle: profile.handle } : {}),
+      ...(profile.xHandle !== undefined ? { x_handle: profile.xHandle } : {}),
+      ...(profile.githubHandle !== undefined ? { github_handle: profile.githubHandle } : {}),
+    }
+
+    if (Object.keys(body).length === 0) {
+      return
+    }
+
+    await client.request("/auth/profile", {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    })
+  }
+
+  private async ensureCharacter(client: AgentClient): Promise<CharacterRecord> {
+    try {
+      return await client.request<CharacterRecord>("/characters/me")
     } catch (error) {
-      if (!isNotFoundError(error)) {
+      if (!isStatusError(error, 404)) {
         throw error
       }
     }
@@ -422,7 +444,7 @@ export class BaseAgent {
       )
     }
 
-    await client.request("/characters/roll", {
+    return client.request<CharacterRecord>("/characters/roll", {
       method: "POST",
       body: JSON.stringify({
         class: this.config.characterClass,
@@ -431,31 +453,189 @@ export class BaseAgent {
     })
   }
 
+  private async maybeRerollStats(
+    client: AgentClient,
+    character: CharacterRecord,
+  ): Promise<CharacterRecord> {
+    const rerollConfig = this.config.rerollStats
+    if (!rerollConfig?.enabled) {
+      return character
+    }
+
+    if (character.stat_rerolled || !character.stats) {
+      return character
+    }
+
+    if (!this.isBadStatRoll(character.stats, rerollConfig)) {
+      return character
+    }
+
+    return client.request<CharacterRecord>("/characters/reroll-stats", {
+      method: "POST",
+      body: JSON.stringify({}),
+    })
+  }
+
+  private isBadStatRoll(stats: CharacterStats, rerollConfig: StatRerollConfig): boolean {
+    const minStats = rerollConfig.minStats ?? {}
+    const hasMinStats = Object.keys(minStats).length > 0
+    const hasMinTotal = rerollConfig.minTotal !== undefined
+
+    if (!hasMinStats && !hasMinTotal) {
+      throw new Error(
+        "rerollStats requires minStats or minTotal so the SDK can determine when a roll is bad",
+      )
+    }
+
+    if (
+      hasMinStats
+      && Object.entries(minStats).some(([key, minimum]) =>
+        minimum !== undefined && stats[key as keyof CharacterStats] < minimum,
+      )
+    ) {
+      return true
+    }
+
+    if (hasMinTotal) {
+      const total = Object.values(stats).reduce((sum, value) => sum + value, 0)
+      return total < (rerollConfig.minTotal ?? 0)
+    }
+
+    return false
+  }
+
+  private async maybeSpendSkillPoints(client: AgentClient): Promise<void> {
+    if (!this.config.skillTree?.autoSpend) {
+      return
+    }
+
+    const preferredNodes = this.config.skillTree.preferredNodes ?? []
+    if (preferredNodes.length === 0) {
+      return
+    }
+
+    const progression = await client.request<CharacterProgressionResponse>("/characters/progression")
+    if (progression.skill_points <= 0) {
+      return
+    }
+
+    let remainingPoints = progression.skill_points
+    const unlocked = new Set(Object.keys(progression.skill_tree_unlocked ?? {}))
+
+    for (const nodeId of preferredNodes) {
+      if (remainingPoints <= 0) {
+        break
+      }
+
+      if (unlocked.has(nodeId)) {
+        continue
+      }
+
+      try {
+        await client.request("/characters/skill", {
+          method: "POST",
+          body: JSON.stringify({ node_id: nodeId }),
+        })
+        unlocked.add(nodeId)
+        remainingPoints -= 1
+      } catch (error) {
+        if (isStatusError(error, 400)) {
+          continue
+        }
+        throw error
+      }
+    }
+  }
+
   private async ensureRealm(client: AgentClient): Promise<string> {
-    const mine = await client.request<{ realms: Array<{ id: string; template_id?: string; status?: string }> }>("/realms/mine")
+    const mine = await client.request<{ realms: RealmRecord[] }>("/realms/mine")
     const realms = mine.realms ?? []
-    const requestedTemplate = this.config.realmTemplateId
+    const candidateTemplates = this.selectRealmTemplateCandidates()
 
     const reusableRealm = realms.find((realm) =>
-      (requestedTemplate ? realm.template_id === requestedTemplate : true) &&
-      realm.status !== "completed" &&
-      realm.status !== "dead",
+      matchesRealmTemplate(realm, candidateTemplates)
+      && realm.status !== "completed"
+      && realm.status !== "dead",
     )
     if (reusableRealm?.id) {
       return reusableRealm.id
     }
 
-    if (!requestedTemplate) {
+    const strategy = this.config.realmProgression?.strategy ?? "regenerate"
+
+    if (strategy === "regenerate") {
+      const completedRealm = realms.find((realm) =>
+        matchesRealmTemplate(realm, candidateTemplates) && realm.status === "completed",
+      )
+      if (completedRealm?.id) {
+        const regenerated = await client.request<RealmRecord>(`/realms/${completedRealm.id}/regenerate`, {
+          method: "POST",
+          body: JSON.stringify({}),
+        })
+        return regenerated.id
+      }
+    }
+
+    if (strategy === "new-realm") {
+      for (const templateId of candidateTemplates) {
+        const activeRealm = realms.find((realm) =>
+          realm.template_id === templateId
+          && realm.status !== "completed"
+          && realm.status !== "dead",
+        )
+        if (activeRealm?.id) {
+          return activeRealm.id
+        }
+
+        const completedRealm = realms.find((realm) =>
+          realm.template_id === templateId && realm.status === "completed",
+        )
+        if (completedRealm) {
+          continue
+        }
+
+        const realm = await client.request<RealmRecord>("/realms/generate", {
+          method: "POST",
+          body: JSON.stringify({ template_id: templateId }),
+        })
+        return realm.id
+      }
+
       throw new Error(
-        "realmTemplateId is required when no reusable realm exists for the agent",
+        "realmProgression.strategy=\"new-realm\" exhausted templatePriority without finding a playable realm",
       )
     }
 
-    const realm = await client.request<{ id: string }>("/realms/generate", {
+    const requestedTemplate = candidateTemplates[0]
+    if (!requestedTemplate) {
+      throw new Error(
+        "realmTemplateId or realmProgression.templatePriority is required when no reusable realm exists for the agent",
+      )
+    }
+
+    const completedRealm = realms.find((realm) =>
+      realm.template_id === requestedTemplate && realm.status === "completed",
+    )
+    if (strategy === "stop" && completedRealm) {
+      throw new Error(
+        `Realm "${requestedTemplate}" is already completed and realmProgression.strategy is "stop"`,
+      )
+    }
+
+    const realm = await client.request<RealmRecord>("/realms/generate", {
       method: "POST",
       body: JSON.stringify({ template_id: requestedTemplate }),
     })
     return realm.id
+  }
+
+  private selectRealmTemplateCandidates(): string[] {
+    const candidates = [
+      ...(this.config.realmProgression?.templatePriority ?? []),
+      ...(this.config.realmTemplateId ? [this.config.realmTemplateId] : []),
+    ].filter((value): value is string => value.length > 0)
+
+    return [...new Set(candidates)]
   }
 
   private async handleObservation(observation: Observation): Promise<void> {
@@ -469,12 +649,44 @@ export class BaseAgent {
     }
   }
 
-  private finishRun(): void {
+  private async playRealm(client: AgentClient, realmId: string): Promise<RunOutcome> {
+    const completion = new Promise<RunOutcome>((resolve, reject) => {
+      this.runCompletion = { resolve, reject }
+    })
+
+    await client.connect(realmId, {
+      onObservation: async (observation) => {
+        await this.handleObservation(observation)
+      },
+      onDeath: (payload) => {
+        this.handleDeath(payload)
+        this.finishRun("death")
+      },
+      onExtracted: async (payload) => {
+        await this.handleExtraction(payload)
+        this.finishRun("extracted")
+      },
+      onError: (error) => {
+        this.emit("error", error)
+      },
+      onClose: (event) => {
+        if (!event.intentional && this.isRunning && this.runCompletion) {
+          this.failRun(new Error(`Game socket closed unexpectedly: ${event.code} ${event.reason}`))
+        }
+      },
+    })
+
+    if (this.config.chat?.enabled) {
+      await this.startChat(client)
+    }
+
+    return completion
+  }
+
+  private finishRun(outcome: RunOutcome): void {
     this.teardownChat()
-    this.isRunning = false
-    this.runCompletion?.resolve()
+    this.runCompletion?.resolve(outcome)
     this.runCompletion = null
-    this.clientInstance = null
   }
 
   private failRun(error: Error): void {
@@ -493,9 +705,17 @@ export class BaseAgent {
   }
 }
 
-function isNotFoundError(error: unknown): boolean {
+function matchesRealmTemplate(realm: RealmRecord, candidateTemplates: string[]): boolean {
+  if (candidateTemplates.length === 0) {
+    return true
+  }
+
+  return realm.template_id !== undefined && candidateTemplates.includes(realm.template_id)
+}
+
+function isStatusError(error: unknown, status: number): boolean {
   if (typeof error === "object" && error !== null && "status" in error) {
-    return (error as { status?: unknown }).status === 404
+    return (error as { status?: unknown }).status === status
   }
 
   return false

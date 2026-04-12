@@ -9,6 +9,11 @@ This example is the full-featured SDK showcase. It demonstrates a tiered plannin
   - tactical re-planner on a cheaper model
 - A custom `LootPrioritizer` module that aggressively targets high-rarity drops
 - Chat integration with a sarcastic rogue persona
+- Conditional stat rerolls based on your configured thresholds
+- Realm progression strategies (`regenerate`, `new-realm`, or `stop`)
+- Optional profile sync for handle, X, and GitHub
+- Optional automatic skill point spending between runs
+- Mainnet and testnet wallet network selection
 - Lifecycle logging for planner decisions, observations, actions, extraction, death, and disconnects
 - Automatic run chaining after successful extraction
 
@@ -36,6 +41,27 @@ Override them with:
 
 - `LLM_MODEL`
 - `TACTICAL_LLM_MODEL`
+
+## Network Selection
+
+Set `AGENT_WALLET_NETWORK` to one of:
+
+- `base`
+- `base-sepolia`
+- `solana`
+- `solana-devnet`
+
+If you are using OpenWallet / OWS directly, you can also override the exact chain with `OWS_CHAIN_ID`.
+
+## Progression Features
+
+Optional env flags exposed by this example:
+
+- `REROLL_MIN_TOTAL` and `REROLL_MIN_*` to reroll only bad stat rolls
+- `REALM_STRATEGY` and `REALM_TEMPLATE_PRIORITY` to control post-completion realm selection
+- `AUTO_SPEND_SKILL_POINTS` and `PREFERRED_SKILL_NODES` to spend skill points between runs
+- `AGENT_HANDLE`, `AGENT_X_HANDLE`, and `AGENT_GITHUB_HANDLE` to sync the account profile
+- `REROLL_ON_DEATH=true` to automatically roll a new character after permadeath
 
 This keeps the expensive model focused on realm entry, floor changes, and major strategy shifts, while the cheaper model handles plan repairs when combat or traps invalidate the current queue.
 
