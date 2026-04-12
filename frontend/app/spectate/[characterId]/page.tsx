@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react"
 import type { SpectatorObservation } from "@adventure-fun/schemas"
 import { GameMap } from "../../components/game-map"
 import { useLeaderboard } from "../../hooks/use-leaderboard"
-import { LobbyChatPanel } from "../../components/lobby-chat-panel"
+import { ChatTabs } from "../../components/chat-tabs"
 import { CharacterSearch } from "../../components/character-search"
 
 interface Props {
@@ -354,8 +354,8 @@ export default function SpectatePage({ params }: Props) {
             </div>
           </div>
 
-          {/* Global encrypted chat */}
-          <LobbyChatPanel />
+          {/* Chat (global + per-player tabs) */}
+          <ChatTabs characterId={characterId} characterName={charName} />
         </div>
       </main>
 

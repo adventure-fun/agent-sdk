@@ -15,6 +15,7 @@ import { db } from "./db/client.js"
 import { getRedis } from "./redis/client.js"
 import { getPubSub } from "./redis/pubsub.js"
 import { getLobbyManager, type LobbySocketLike } from "./game/lobby-live.js"
+import { getSpectateChatManager, type SpectateChatSocketLike } from "./game/spectate-chat.js"
 import { createRateLimiter, getClientIp } from "./middleware/rate-limit.js"
 import {
   resolveCorsOrigin,
@@ -34,7 +35,16 @@ export interface LobbyLiveSessionData {
   role: "lobby"
 }
 
-export type SocketSessionData = GameSessionData | SpectatorSessionData | LobbyLiveSessionData
+export interface SpectateChatSessionData {
+  role: "spectate_chat"
+  characterId: string
+}
+
+export type SocketSessionData =
+  | GameSessionData
+  | SpectatorSessionData
+  | LobbyLiveSessionData
+  | SpectateChatSessionData
 import type { ServerWebSocket } from "bun"
 import { getActiveSession } from "./game/active-sessions.js"
 
@@ -117,6 +127,7 @@ export default {
     const url = new URL(req.url)
     const match = url.pathname.match(/^\/realms\/([^/]+)\/enter$/)
     const spectatorMatch = url.pathname.match(/^\/spectate\/([^/]+)$/)
+    const spectateChatMatch = url.pathname.match(/^\/spectate\/([^/]+)\/chat$/)
 
     if (match?.[1] && req.headers.get("upgrade") === "websocket") {
       const realmId = match[1]
@@ -190,6 +201,14 @@ export default {
       return upgraded ? undefined as unknown as Response : new Response("WS upgrade failed", { status: 500 })
     }
 
+    if (spectateChatMatch?.[1] && req.headers.get("upgrade") === "websocket") {
+      const characterId = spectateChatMatch[1]
+      const upgraded = server.upgrade(req, {
+        data: { role: "spectate_chat", characterId } satisfies SpectateChatSessionData,
+      })
+      return upgraded ? undefined as unknown as Response : new Response("WS upgrade failed", { status: 500 })
+    }
+
     if (spectatorMatch?.[1] && req.headers.get("upgrade") === "websocket") {
       const characterId = spectatorMatch[1]
       const session = getActiveSession(characterId)
@@ -220,6 +239,15 @@ export default {
         return
       }
 
+      if (ws.data.role === "spectate_chat") {
+        getSpectateChatManager().addClient(
+          ws.data.characterId,
+          ws as unknown as SpectateChatSocketLike,
+        )
+        ws.send(JSON.stringify({ type: "connected", channel: "spectate_chat" }))
+        return
+      }
+
       if (ws.data.role === "spectator") {
         const session = getActiveSession(ws.data.characterId)
         if (!session) {
@@ -235,12 +263,24 @@ export default {
       await handleGameOpen(ws as ServerWebSocket<GameSessionData>)
     },
     async message(ws: ServerWebSocket<SocketSessionData>, message: string | Buffer) {
-      if (ws.data.role === "lobby" || ws.data.role === "spectator") return
+      if (
+        ws.data.role === "lobby" ||
+        ws.data.role === "spectator" ||
+        ws.data.role === "spectate_chat"
+      ) return
       await handleGameMessage(ws as ServerWebSocket<GameSessionData>, message)
     },
     async close(ws: ServerWebSocket<SocketSessionData>) {
       if (ws.data.role === "lobby") {
         getLobbyManager().removeClient(ws as unknown as LobbySocketLike)
+        return
+      }
+
+      if (ws.data.role === "spectate_chat") {
+        getSpectateChatManager().removeClient(
+          ws.data.characterId,
+          ws as unknown as SpectateChatSocketLike,
+        )
         return
       }
 
