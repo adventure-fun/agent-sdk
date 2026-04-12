@@ -9,16 +9,23 @@ interface ChatMessage {
   player_type: "human" | "agent"
   message: string
   timestamp: number
+  spectate_context?: {
+    watching_character_name: string
+    realm_name: string
+  }
 }
 
 export interface ChatPanelShellProps {
-  header: ReactNode
+  header?: ReactNode
   messages: ChatMessage[]
   connected: boolean
   send: (message: string, token: string) => Promise<void>
   sendError: string | null
   emptyText?: string
   placeholder?: string
+  hideHeader?: boolean
+  /** When true, show the spectate-context badge on messages that have it. */
+  showContext?: boolean
 }
 
 export function ChatPanelShell({
@@ -29,6 +36,8 @@ export function ChatPanelShell({
   sendError,
   emptyText = "No messages yet...",
   placeholder = "INITIALIZE_MESSAGE...",
+  hideHeader = false,
+  showContext = false,
 }: ChatPanelShellProps) {
   const { token, isAuthenticated } = useAdventureAuth()
   const [input, setInput] = useState("")
@@ -45,26 +54,38 @@ export function ChatPanelShell({
 
   return (
     <div className="border border-white/5 bg-aw-surface-lowest flex flex-col h-full">
-      <div className="px-3 py-2 bg-aw-surface-container border-b border-white/5 flex items-center justify-between shrink-0">
-        {header}
-        <span className="text-[10px] text-aw-outline flex items-center gap-2">
-          <span className={`w-1 h-1 rounded-full ${connected ? "bg-aw-secondary animate-pulse" : "bg-aw-outline"}`} />
-          {connected ? "MEMPOOL_SYNCED" : "CONNECTING..."}
-        </span>
-      </div>
+      {!hideHeader && (
+        <div className="px-3 py-2 bg-aw-surface-container border-b border-white/5 flex items-center justify-between shrink-0">
+          {header}
+          <span className="text-[10px] text-aw-outline flex items-center gap-2">
+            <span className={`w-1 h-1 rounded-full ${connected ? "bg-aw-secondary animate-pulse" : "bg-aw-outline"}`} />
+            {connected ? "MEMPOOL_SYNCED" : "CONNECTING..."}
+          </span>
+        </div>
+      )}
 
       <div className="flex-1 p-3 space-y-2 overflow-y-auto min-h-0">
         {messages.length === 0 ? (
           <p className="text-[10px] text-aw-outline italic">{emptyText}</p>
         ) : (
           messages.map((msg, i) => (
-            <div key={`${msg.timestamp}-${i}`} className="text-xs flex gap-2">
-              <span className={`font-medium shrink-0 ${
-                msg.player_type === "agent" ? "text-aw-tertiary" : "text-aw-secondary"
-              } opacity-80`}>
-                {msg.character_name}:
-              </span>
-              <span className="text-aw-on-surface-variant">{msg.message}</span>
+            <div key={`${msg.timestamp}-${i}`} className="text-xs">
+              {showContext && msg.spectate_context && (
+                <div className="text-[9px] tracking-[0.15em] uppercase text-aw-outline mb-0.5">
+                  <span className="text-aw-primary">◈</span>{" "}
+                  watching <span className="text-aw-secondary">{msg.spectate_context.watching_character_name}</span>
+                  {" · "}
+                  <span className="text-aw-tertiary">{msg.spectate_context.realm_name}</span>
+                </div>
+              )}
+              <div className="flex gap-2">
+                <span className={`font-medium shrink-0 ${
+                  msg.player_type === "agent" ? "text-aw-tertiary" : "text-aw-secondary"
+                } opacity-80`}>
+                  {msg.character_name}:
+                </span>
+                <span className="text-aw-on-surface-variant">{msg.message}</span>
+              </div>
             </div>
           ))
         )}

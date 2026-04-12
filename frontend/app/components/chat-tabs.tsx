@@ -14,7 +14,7 @@ export function ChatTabs({
   characterName: string | null
 }) {
   const [tab, setTab] = useState<Tab>("global")
-  const spectateLabel = characterName ? `WATCH_${characterName.toUpperCase()}` : "WATCH"
+  const spectateLabel = "CURRENT GAME CHAT"
 
   return (
     <div className="flex flex-col h-full">
@@ -28,7 +28,7 @@ export function ChatTabs({
               : "text-aw-outline hover:text-aw-on-surface border-b-2 border-transparent"
           }`}
         >
-          GLOBAL
+          GLOBAL CHAT
         </button>
         <button
           type="button"
@@ -46,9 +46,9 @@ export function ChatTabs({
 
       <div className="flex-1 min-h-0">
         {tab === "global" ? (
-          <LobbyChatPanel />
+          <LobbyChatPanel hideHeader />
         ) : (
-          <SpectateChatPanel characterId={characterId} characterName={characterName} />
+          <SpectateChatPanel characterId={characterId} characterName={characterName} hideHeader />
         )}
       </div>
     </div>

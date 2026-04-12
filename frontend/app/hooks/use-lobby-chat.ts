@@ -12,6 +12,10 @@ export interface ChatMessage {
   player_type: "human" | "agent"
   message: string
   timestamp: number
+  spectate_context?: {
+    watching_character_name: string
+    realm_name: string
+  }
 }
 
 interface UseLobbyChat {
@@ -60,19 +64,22 @@ export function useLobbyChat(maxMessages = 50): UseLobbyChat {
             | { type: "lobby_chat_history"; data: SanitizedChatMessage[] }
             | { type: string }
 
+          const toChatMessage = (msg: SanitizedChatMessage): ChatMessage => ({
+            character_name: msg.character_name,
+            character_class: String(msg.character_class),
+            player_type: msg.player_type,
+            message: msg.message,
+            timestamp: msg.timestamp,
+            ...(msg.spectate_context ? { spectate_context: msg.spectate_context } : {}),
+          })
+
           if (payload.type === "lobby_chat_history") {
             const history = (payload as { data: SanitizedChatMessage[] }).data
             setMessages((prev) => {
               const merged = [...prev]
               for (const msg of history) {
                 if (!merged.some((m) => m.timestamp === msg.timestamp && m.character_name === msg.character_name)) {
-                  merged.push({
-                    character_name: msg.character_name,
-                    character_class: String(msg.character_class),
-                    player_type: msg.player_type,
-                    message: msg.message,
-                    timestamp: msg.timestamp,
-                  })
+                  merged.push(toChatMessage(msg))
                 }
               }
               merged.sort((a, b) => a.timestamp - b.timestamp)
@@ -84,13 +91,7 @@ export function useLobbyChat(maxMessages = 50): UseLobbyChat {
           if (payload.type !== "lobby_chat") return
           const data = (payload as { type: "lobby_chat"; data: SanitizedChatMessage }).data
           setMessages((prev) => {
-            const next = [...prev, {
-              character_name: data.character_name,
-              character_class: String(data.character_class),
-              player_type: data.player_type,
-              message: data.message,
-              timestamp: data.timestamp,
-            }]
+            const next = [...prev, toChatMessage(data)]
             return next.length > maxMessages ? next.slice(-maxMessages) : next
           })
         } catch {

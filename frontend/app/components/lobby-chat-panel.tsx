@@ -3,7 +3,13 @@
 import { useLobbyChat } from "../hooks/use-lobby-chat"
 import { ChatPanelShell } from "./chat-panel-shell"
 
-export function LobbyChatPanel({ maxMessages = 80 }: { maxMessages?: number }) {
+export function LobbyChatPanel({
+  maxMessages = 80,
+  hideHeader = false,
+}: {
+  maxMessages?: number
+  hideHeader?: boolean
+}) {
   const { messages, connected, send, sendError } = useLobbyChat(maxMessages)
 
   return (
@@ -13,6 +19,8 @@ export function LobbyChatPanel({ maxMessages = 80 }: { maxMessages?: number }) {
           GLOBAL_ENCRYPTED_CHAT
         </span>
       }
+      hideHeader={hideHeader}
+      showContext
       messages={messages}
       connected={connected}
       send={send}

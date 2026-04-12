@@ -1,10 +1,12 @@
 import { Hono } from "hono"
 import type { ActiveSpectateListResponse, SanitizedChatMessage } from "@adventure-fun/schemas"
-import { listSpectatableSessions } from "../game/active-sessions.js"
+import { getActiveSession, listSpectatableSessions } from "../game/active-sessions.js"
 import { getSpectateChatManager } from "../game/spectate-chat.js"
+import { getLobbyManager } from "../game/lobby-live.js"
 import { requireAuth } from "../auth/middleware.js"
 import { db } from "../db/client.js"
-import { validateChatMessage } from "../redis/publishers.js"
+import { validateChatMessage, publishChatMessage } from "../redis/publishers.js"
+import { getPubSub } from "../redis/pubsub.js"
 
 const spectate = new Hono()
 
@@ -46,15 +48,41 @@ spectate.post("/:characterId/chat", requireAuth, async (c) => {
     | Record<string, unknown>
     | null
 
+  // Look up the target character's active session to attach watching context.
+  // This powers the badge shown when the message is mirrored to global chat.
+  let spectateContext: SanitizedChatMessage["spectate_context"] | undefined
+  const targetSession = getActiveSession(targetCharacterId)
+  if (targetSession) {
+    try {
+      const obs = targetSession.getSpectatorObservation()
+      spectateContext = {
+        watching_character_name: obs.character.name || "unknown",
+        realm_name: obs.realm_info.template_name,
+      }
+    } catch {
+      // If obs build fails, mirror without context
+    }
+  }
+
   const chatMsg: SanitizedChatMessage = {
     character_name: senderCharacter.name,
     character_class: senderCharacter.class,
     player_type: (account?.player_type as string) ?? "human",
     message: validation.sanitized,
     timestamp: Date.now(),
+    ...(spectateContext ? { spectate_context: spectateContext } : {}),
   }
 
+  // 1) Broadcast to the per-player spectate chat room
   manager.broadcastChat(targetCharacterId, chatMsg)
+
+  // 2) Mirror to the global lobby chat so everyone sees it with context
+  const pubsub = getPubSub()
+  if (pubsub) {
+    await publishChatMessage(pubsub, chatMsg)
+  } else {
+    getLobbyManager().broadcastChat(chatMsg)
+  }
 
   return c.json({ ok: true })
 })

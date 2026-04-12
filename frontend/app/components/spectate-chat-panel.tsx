@@ -7,10 +7,12 @@ export function SpectateChatPanel({
   characterId,
   characterName,
   maxMessages = 80,
+  hideHeader = false,
 }: {
   characterId: string | null
   characterName: string | null
   maxMessages?: number
+  hideHeader?: boolean
 }) {
   const { messages, connected, send, sendError } = useSpectateChat(characterId, maxMessages)
 
@@ -21,6 +23,7 @@ export function SpectateChatPanel({
           WATCHING_{characterName ?? "..."}
         </span>
       }
+      hideHeader={hideHeader}
       messages={messages}
       connected={connected}
       send={send}
