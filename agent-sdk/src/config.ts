@@ -10,6 +10,7 @@ import {
 export type LLMProvider = "openrouter" | "openai" | "anthropic"
 export type WalletProvider = "env" | "open-wallet"
 export type LogLevel = "debug" | "info" | "warn" | "error"
+export type WalletNetwork = "base" | "base-sepolia" | "solana" | "solana-devnet"
 
 export interface LLMConfig {
   provider: LLMProvider
@@ -23,13 +24,42 @@ export interface LLMConfig {
 
 export interface WalletConfig {
   type: WalletProvider
-  network?: "base" | "solana"
+  network?: WalletNetwork
   privateKey?: string
   walletName?: string
   passphrase?: string
   chainId?: string
   vaultPath?: string
   accountIndex?: number
+}
+
+export interface StatRerollConfig {
+  enabled?: boolean
+  minStats?: Partial<{
+    hp: number
+    attack: number
+    defense: number
+    accuracy: number
+    evasion: number
+    speed: number
+  }>
+  minTotal?: number
+}
+
+export interface RealmProgressionConfig {
+  strategy: "regenerate" | "new-realm" | "stop"
+  templatePriority?: string[]
+}
+
+export interface AgentProfileConfig {
+  handle?: string
+  xHandle?: string
+  githubHandle?: string
+}
+
+export interface SkillTreeConfig {
+  autoSpend?: boolean
+  preferredNodes?: string[]
 }
 
 export interface ModuleConfig {
@@ -58,6 +88,11 @@ export interface AgentConfig {
   realmTemplateId?: string
   characterClass?: string
   characterName?: string
+  rerollStats?: StatRerollConfig
+  realmProgression?: RealmProgressionConfig
+  profile?: AgentProfileConfig
+  skillTree?: SkillTreeConfig
+  rerollOnDeath?: boolean
   llm: LLMConfig
   wallet: WalletConfig
   modules?: ModuleConfig[]
@@ -88,6 +123,17 @@ export function createDefaultConfig(
       type: walletOverrides.type ?? "env",
       network: walletOverrides.network ?? "base",
     },
+    rerollStats: {
+      enabled: false,
+    },
+    realmProgression: {
+      strategy: "regenerate",
+    },
+    skillTree: {
+      autoSpend: false,
+      preferredNodes: [],
+    },
+    rerollOnDeath: overrides.rerollOnDeath ?? false,
     modules: overrides.modules ?? [],
     logging: {
       level: loggingOverrides.level ?? "info",
@@ -147,6 +193,42 @@ export function createDefaultConfig(
 
   if (walletOverrides.accountIndex !== undefined) {
     config.wallet.accountIndex = walletOverrides.accountIndex
+  }
+
+  if (overrides.rerollStats !== undefined) {
+    config.rerollStats = {
+      enabled: overrides.rerollStats.enabled ?? true,
+      ...(overrides.rerollStats.minStats ? { minStats: overrides.rerollStats.minStats } : {}),
+      ...(overrides.rerollStats.minTotal !== undefined
+        ? { minTotal: overrides.rerollStats.minTotal }
+        : {}),
+    }
+  }
+
+  if (overrides.realmProgression !== undefined) {
+    config.realmProgression = {
+      strategy: overrides.realmProgression.strategy,
+      ...(overrides.realmProgression.templatePriority
+        ? { templatePriority: [...overrides.realmProgression.templatePriority] }
+        : {}),
+    }
+  }
+
+  if (overrides.profile !== undefined) {
+    config.profile = {
+      ...(overrides.profile.handle !== undefined ? { handle: overrides.profile.handle } : {}),
+      ...(overrides.profile.xHandle !== undefined ? { xHandle: overrides.profile.xHandle } : {}),
+      ...(overrides.profile.githubHandle !== undefined
+        ? { githubHandle: overrides.profile.githubHandle }
+        : {}),
+    }
+  }
+
+  if (overrides.skillTree !== undefined) {
+    config.skillTree = {
+      autoSpend: overrides.skillTree.autoSpend ?? true,
+      preferredNodes: [...(overrides.skillTree.preferredNodes ?? [])],
+    }
   }
 
   if (overrides.chat) {

@@ -3,8 +3,9 @@ import { registerExactEvmScheme } from "@x402/evm/exact/client"
 import type { SvmClientConfig } from "@x402/svm/exact/client"
 import { privateKeyToAccount } from "viem/accounts"
 import type { Hex } from "viem"
-import type { WalletConfig } from "../../config.js"
-import type { TransactionRequest, WalletNetwork, X402CapableWalletAdapter } from "./index.js"
+import type { WalletConfig, WalletNetwork } from "../../config.js"
+import type { TransactionRequest, X402CapableWalletAdapter } from "./index.js"
+import { getNetworkFamily } from "./index.js"
 
 type Base58Codec = {
   encode(bytes: Uint8Array): string
@@ -19,8 +20,9 @@ type SolanaSigner = SvmClientConfig["signer"] & {
 }
 
 function requirePrivateKey(config: WalletConfig, network: WalletNetwork): string {
+  const family = getNetworkFamily(network)
   const envFallback =
-    network === "solana"
+    family === "solana"
       ? process.env["AGENT_PRIVATE_KEY"] ?? process.env["SVM_PRIVATE_KEY"]
       : process.env["AGENT_PRIVATE_KEY"] ?? process.env["EVM_PRIVATE_KEY"]
 
@@ -51,16 +53,23 @@ function toBigInt(value: string | undefined, field: string): bigint | undefined 
 export class EvmEnvWalletAdapter implements X402CapableWalletAdapter {
   readonly account
 
-  private constructor(privateKey: string) {
+  private constructor(
+    privateKey: string,
+    private readonly network: Extract<WalletNetwork, "base" | "base-sepolia">,
+  ) {
     this.account = privateKeyToAccount(normalizeHexPrivateKey(privateKey))
   }
 
   static async fromConfig(config: WalletConfig): Promise<EvmEnvWalletAdapter> {
-    return new EvmEnvWalletAdapter(requirePrivateKey(config, "base"))
+    const network = config.network
+    return new EvmEnvWalletAdapter(
+      requirePrivateKey(config, network ?? "base"),
+      network === "base-sepolia" ? "base-sepolia" : "base",
+    )
   }
 
   getNetwork(): WalletNetwork {
-    return "base"
+    return this.network
   }
 
   async getAddress(): Promise<string> {
@@ -100,12 +109,14 @@ export class EvmEnvWalletAdapter implements X402CapableWalletAdapter {
 export class SolanaEnvWalletAdapter implements X402CapableWalletAdapter {
   private constructor(
     readonly signer: SolanaSigner,
+    private readonly network: Extract<WalletNetwork, "solana" | "solana-devnet">,
     private readonly base58: Base58Codec,
     private readonly signBytes: (privateKey: CryptoKey, bytes: Uint8Array) => Promise<Uint8Array>,
   ) {}
 
   static async fromConfig(config: WalletConfig): Promise<SolanaEnvWalletAdapter> {
-    const privateKey = requirePrivateKey(config, "solana")
+    const network = config.network
+    const privateKey = requirePrivateKey(config, network ?? "solana")
     const [{ base58 }, solana] = await Promise.all([
       import("@scure/base"),
       import("@solana/kit"),
@@ -114,6 +125,7 @@ export class SolanaEnvWalletAdapter implements X402CapableWalletAdapter {
     const signer = await solana.createKeyPairSignerFromBytes(base58.decode(privateKey))
     return new SolanaEnvWalletAdapter(
       signer as SolanaSigner,
+      network === "solana-devnet" ? "solana-devnet" : "solana",
       base58,
       solana.signBytes as (
         privateKey: CryptoKey,
@@ -123,7 +135,7 @@ export class SolanaEnvWalletAdapter implements X402CapableWalletAdapter {
   }
 
   getNetwork(): WalletNetwork {
-    return "solana"
+    return this.network
   }
 
   async getAddress(): Promise<string> {

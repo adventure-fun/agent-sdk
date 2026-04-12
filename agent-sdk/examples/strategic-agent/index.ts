@@ -4,7 +4,9 @@ import { createStrategicModules, strategicConfig } from "./config.js"
 const strategicLLM = createLLMAdapter(strategicConfig.llm)
 const tacticalLLM = createLLMAdapter({
   ...strategicConfig.llm,
-  model: strategicConfig.decision?.tacticalModel ?? strategicConfig.llm.model,
+  ...(strategicConfig.decision?.tacticalModel ?? strategicConfig.llm.model
+    ? { model: strategicConfig.decision?.tacticalModel ?? strategicConfig.llm.model }
+    : {}),
 })
 
 const agent = new BaseAgent(strategicConfig, {
@@ -61,5 +63,5 @@ while (true) {
     break
   }
 
-  console.log("Re-entering the next realm after extraction.")
+  console.log("Re-entering according to the configured realm progression strategy.")
 }

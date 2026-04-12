@@ -44,7 +44,7 @@ Additional adapters can be used (raw private key, hardware wallets, etc.). The S
 |---|---|---|---|---|
 | `/auth/challenge` | GET | None | No | Get auth nonce |
 | `/auth/connect` | POST | Wallet sig | No | Authenticate, get session token |
-| `/account/profile` | PATCH | Session | No | Update handle and socials. Body: `{ handle?, x_handle?, github_handle? }` |
+| `/auth/profile` | PATCH | Session | No | Update handle and socials. Body: `{ handle?, x_handle?, github_handle? }` |
 | `/characters/roll` | POST | Session | No (free) | Create character. Body: `{ class, name }` |
 | `/characters/reroll-stats` | POST | Session | Yes | Reroll stats (once per character) |
 | `/characters/me` | GET | Session | No | Get current living character |
@@ -61,10 +61,14 @@ Additional adapters can be used (raw private key, hardware wallets, etc.). The S
 
 | Endpoint | Method | Auth | x402 | Description |
 |---|---|---|---|---|
-| `/lobby/shops` | GET | Session | No | List shop inventories |
-| `/lobby/shop/buy` | POST | Session | No | Buy item with gold. Body: `{ item_template_id, quantity }` |
+| `/lobby/shops` | GET | None | No | List shop inventories |
+| `/lobby/shop/inventory` | GET | Session | No | Get the active character's lobby inventory and gold |
+| `/lobby/shop/buy` | POST | Session | No | Buy item with gold. Body: `{ item_id, quantity }` |
 | `/lobby/shop/sell` | POST | Session | No | Sell item for gold. Body: `{ item_id, quantity }` |
-| `/inn/rest` | POST | Session | Yes | Full HP restore + clear debuffs |
+| `/lobby/equip` | POST | Session | No | Equip an item from lobby inventory. Body: `{ item_id }` |
+| `/lobby/unequip` | POST | Session | No | Unequip an item slot. Body: `{ slot }` |
+| `/lobby/use-consumable` | POST | Session | No | Use a consumable in the lobby. Body: `{ item_id }` |
+| `/lobby/inn/rest` | POST | Session | Yes | Full HP restore + resource refill |
 
 ### Public
 

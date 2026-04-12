@@ -2,8 +2,9 @@ import { x402Client } from "@x402/core/client"
 import { registerExactEvmScheme } from "@x402/evm/exact/client"
 import { parseSignature, serializeTransaction, type Address, type Hex, type SignableMessage } from "viem"
 import { toAccount } from "viem/accounts"
-import type { WalletConfig } from "../../config.js"
-import type { TransactionRequest, WalletNetwork, X402CapableWalletAdapter } from "./index.js"
+import type { WalletConfig, WalletNetwork } from "../../config.js"
+import type { TransactionRequest, X402CapableWalletAdapter } from "./index.js"
+import { getNetworkFamily } from "./index.js"
 
 interface OpenWalletAccountInfo {
   chainId: string
@@ -54,7 +55,9 @@ interface OpenWalletSdkModule {
 
 const DEFAULT_CHAIN_IDS: Record<WalletNetwork, string> = {
   base: "eip155:8453",
+  "base-sepolia": "eip155:84532",
   solana: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+  "solana-devnet": "solana:devnet",
 }
 
 let openWalletSdkPromise: Promise<OpenWalletSdkModule> | null = null
@@ -248,7 +251,7 @@ export class OpenWalletAdapter implements X402CapableWalletAdapter {
   }
 
   async signTransaction(tx: TransactionRequest): Promise<string> {
-    if (this.network !== "base") {
+    if (getNetworkFamily(this.network) !== "base") {
       throw new Error(
         "Direct Solana transaction signing is not exposed through TransactionRequest yet. OpenWallet supports Solana message signing, but this SDK only exposes EVM transaction serialization here.",
       )
@@ -275,7 +278,7 @@ export class OpenWalletAdapter implements X402CapableWalletAdapter {
   }
 
   async createX402Client(): Promise<x402Client> {
-    if (this.network !== "base") {
+    if (getNetworkFamily(this.network) !== "base") {
       throw new Error(
         "OpenWallet x402 integration currently supports EVM networks only. Use SolanaEnvWalletAdapter for Solana x402 payments.",
       )

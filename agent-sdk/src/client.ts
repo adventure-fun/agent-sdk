@@ -4,7 +4,11 @@ import type { WalletAdapter } from "./adapters/wallet/index.js"
 import type { SessionToken } from "./auth.js"
 import type {
   Action,
+  CharacterClass,
+  CharacterStats,
   ClientMessage,
+  EquipSlot,
+  InventoryItem,
   LobbyEvent,
   Observation,
   PaymentRequired402,
@@ -23,6 +27,104 @@ export type ExtractedHandler = (data: {
 }) => void
 
 export type GameClientErrorKind = "network" | "game" | "payment" | "protocol"
+
+export interface AgentAccountProfile {
+  handle?: string | null
+  x_handle?: string | null
+  github_handle?: string | null
+}
+
+export interface UpdateProfileInput {
+  handle?: string
+  xHandle?: string
+  githubHandle?: string
+}
+
+export interface AgentCharacter {
+  id: string
+  account_id?: string
+  name: string
+  class: CharacterClass
+  level?: number
+  xp?: number
+  gold?: number
+  stats?: CharacterStats
+  hp_current?: number
+  hp_max?: number
+  resource_current?: number
+  resource_max?: number
+  status?: string
+  stat_rerolled?: boolean
+  skill_tree?: Record<string, boolean>
+}
+
+export interface CharacterProgression {
+  level: number
+  xp: number
+  xp_to_next_level: number
+  xp_for_next_level: number
+  skill_points: number
+  skill_tree_template: Record<string, unknown> | null
+  skill_tree_unlocked: Record<string, boolean>
+}
+
+export interface RealmSummary {
+  id: string
+  template_id?: string
+  status?: string
+}
+
+export interface RealmListResponse {
+  realms: RealmSummary[]
+}
+
+export interface ShopCatalogResponse {
+  sections: Array<{
+    id?: string
+    title?: string
+    items: Array<Record<string, unknown>>
+  }>
+  featured: Array<Record<string, unknown>>
+}
+
+export interface LobbyInventoryResponse {
+  gold: number
+  inventory: InventoryItem[]
+}
+
+export interface LobbyBuyResponse {
+  gold: number
+  item: InventoryItem
+  message: string
+}
+
+export interface LobbySellResponse {
+  gold: number
+  sold: {
+    item_id: string
+    template_id: string
+    quantity: number
+    total_gold: number
+  }
+  message: string
+}
+
+export interface LobbyEquipmentResponse {
+  inventory: InventoryItem[]
+  message: string
+}
+
+export interface LobbyConsumableResponse {
+  message: string
+}
+
+export interface InnRestResponse {
+  hp_current: number
+  hp_max: number
+  resource_current: number
+  resource_max: number
+  message: string
+}
 
 export interface GameClientOptions {
   reconnect?: {
@@ -283,6 +385,120 @@ export class GameClient {
     this.intentionalLobbyDisconnect = true
     this.lobbyWs?.close()
     this.lobbyWs = null
+  }
+
+  async getCurrentCharacter(): Promise<AgentCharacter> {
+    return this.request("/characters/me")
+  }
+
+  async rollCharacter(input: { class: string; name: string }): Promise<AgentCharacter> {
+    return this.request("/characters/roll", {
+      method: "POST",
+      body: JSON.stringify(input),
+    })
+  }
+
+  async rerollCharacterStats(): Promise<AgentCharacter> {
+    return this.request("/characters/reroll-stats", {
+      method: "POST",
+      body: JSON.stringify({}),
+    })
+  }
+
+  async getCharacterProgression(): Promise<CharacterProgression> {
+    return this.request("/characters/progression")
+  }
+
+  async unlockCharacterSkill(nodeId: string): Promise<AgentCharacter> {
+    return this.request("/characters/skill", {
+      method: "POST",
+      body: JSON.stringify({ node_id: nodeId }),
+    })
+  }
+
+  async updateProfile(input: UpdateProfileInput): Promise<AgentAccountProfile> {
+    return this.request("/auth/profile", {
+      method: "PATCH",
+      body: JSON.stringify({
+        ...(input.handle !== undefined ? { handle: input.handle } : {}),
+        ...(input.xHandle !== undefined ? { x_handle: input.xHandle } : {}),
+        ...(input.githubHandle !== undefined ? { github_handle: input.githubHandle } : {}),
+      }),
+    })
+  }
+
+  async getMyRealms(): Promise<RealmListResponse> {
+    return this.request("/realms/mine")
+  }
+
+  async generateRealm(templateId: string): Promise<RealmSummary> {
+    return this.request("/realms/generate", {
+      method: "POST",
+      body: JSON.stringify({ template_id: templateId }),
+    })
+  }
+
+  async regenerateRealm(realmId: string): Promise<RealmSummary> {
+    return this.request(`/realms/${realmId}/regenerate`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    })
+  }
+
+  async getLobbyShops(): Promise<ShopCatalogResponse> {
+    return this.request("/lobby/shops")
+  }
+
+  async getLobbyInventory(): Promise<LobbyInventoryResponse> {
+    return this.request("/lobby/shop/inventory")
+  }
+
+  async buyShopItem(input: { itemId: string; quantity?: number }): Promise<LobbyBuyResponse> {
+    return this.request("/lobby/shop/buy", {
+      method: "POST",
+      body: JSON.stringify({
+        item_id: input.itemId,
+        ...(input.quantity !== undefined ? { quantity: input.quantity } : {}),
+      }),
+    })
+  }
+
+  async sellShopItem(input: { itemId: string; quantity?: number }): Promise<LobbySellResponse> {
+    return this.request("/lobby/shop/sell", {
+      method: "POST",
+      body: JSON.stringify({
+        item_id: input.itemId,
+        ...(input.quantity !== undefined ? { quantity: input.quantity } : {}),
+      }),
+    })
+  }
+
+  async equipLobbyItem(itemId: string): Promise<LobbyEquipmentResponse> {
+    return this.request("/lobby/equip", {
+      method: "POST",
+      body: JSON.stringify({ item_id: itemId }),
+    })
+  }
+
+  async unequipLobbySlot(slot: EquipSlot): Promise<LobbyEquipmentResponse> {
+    return this.request("/lobby/unequip", {
+      method: "POST",
+      body: JSON.stringify({ slot }),
+    })
+  }
+
+  async useLobbyConsumable(itemId: string): Promise<LobbyConsumableResponse> {
+    return this.request("/lobby/use-consumable", {
+      method: "POST",
+      body: JSON.stringify({ item_id: itemId }),
+    })
+  }
+
+  async restAtInn(): Promise<InnRestResponse> {
+    return this.request("/lobby/inn/rest", {
+      method: "POST",
+      body: JSON.stringify({}),
+    })
   }
 
   /** REST helper with auth header */
