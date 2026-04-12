@@ -3,8 +3,13 @@ import { SignJWT, jwtVerify } from "jose"
 const DEFAULT_SECRET = "dev-secret-change-in-production-min-32-chars"
 const sessionSecret = process.env["SESSION_SECRET"] ?? DEFAULT_SECRET
 
+// Development and test (CI) are allowed to fall back to the default secret.
+// Production must set SESSION_SECRET to a strong value.
+const isNonProdEnv =
+  process.env["NODE_ENV"] === "development" ||
+  process.env["NODE_ENV"] === "test"
 if (
-  process.env["NODE_ENV"] !== "development"
+  !isNonProdEnv
   && (!process.env["SESSION_SECRET"] || sessionSecret === DEFAULT_SECRET)
 ) {
   throw new Error("SESSION_SECRET must be set to a strong value outside development")
