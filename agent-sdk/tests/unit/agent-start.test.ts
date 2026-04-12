@@ -215,10 +215,11 @@ function createHarness(options: {
   authenticateFn?: (baseUrl: string, wallet: ReturnType<typeof createWallet>) => Promise<SessionToken>
   plannerDecision?: PlannerDecision
   plannerFactory?: BaseAgentOptions["plannerFactory"]
+  llmAdapter?: LLMAdapter
   tacticalLLMAdapter?: LLMAdapter
 } = {}) {
   const config = options.config ?? createConfig()
-  const llmAdapter = createLLM("strategic")
+  const llmAdapter = options.llmAdapter ?? createLLM("strategic")
   const walletAdapter = createWallet()
   const client = new FakeGameClient(
     options.responses ??
@@ -345,6 +346,68 @@ describe("BaseAgent.start", () => {
       "/content/realms",
       "/realms/generate",
     ])
+
+    harness.client.handlers.onDeath?.({
+      cause: "test",
+      floor: 1,
+      room: "room-1",
+      turn: 1,
+    })
+    await startPromise
+  })
+
+  it("rests at the inn before the next realm even when lobby planning uses the LLM", async () => {
+    let rested = false
+    const responses = new Map<string, () => unknown | Promise<unknown>>([
+      ["/characters/me", () => ({
+        id: "char-1",
+        name: "Scout",
+        class: "rogue",
+        hp_current: rested ? 30 : 12,
+        hp_max: 30,
+        resource_current: 10,
+        resource_max: 10,
+      })],
+      ["/lobby/shop/inventory", () => ({ gold: 0, inventory: [] })],
+      ["/lobby/shops", () => ({ sections: [], featured: [] })],
+      ["/content/items", () => ({ items: [] })],
+      ["/lobby/inn/rest", () => {
+        rested = true
+        return {
+          hp_current: 30,
+          hp_max: 30,
+          resource_current: 10,
+          resource_max: 10,
+          message: "Rested.",
+        }
+      }],
+      ["/realms/mine", () => ({ realms: [] })],
+      ["/content/realms", () => ({ templates: [{ id: "test-tutorial", orderIndex: 1, name: "Tutorial" }] })],
+      ["/realms/generate", () => ({ id: "realm-1", template_id: "test-tutorial" })],
+    ])
+    const llmAdapter: LLMAdapter = {
+      ...createLLM("strategic"),
+      async chat() {
+        return '{"actions":[{"action":"done"}]}'
+      },
+    }
+    const harness = createHarness({
+      config: createConfig({
+        lobby: {
+          useLLM: true,
+          innHealThreshold: 1,
+        },
+      }),
+      responses,
+      llmAdapter,
+    })
+
+    const startPromise = harness.agent.start()
+    await flushAsyncWork()
+
+    const requestPaths = harness.client.requests.map((entry) => entry.path)
+    expect(requestPaths).toContain("/lobby/inn/rest")
+    expect(requestPaths.indexOf("/lobby/inn/rest")).toBeLessThan(requestPaths.indexOf("/realms/mine"))
 
     harness.client.handlers.onDeath?.({
       cause: "test",

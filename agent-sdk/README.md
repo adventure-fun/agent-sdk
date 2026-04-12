@@ -118,11 +118,12 @@ The `examples/strategic-agent` example exposes the lifecycle controls through en
 | `CONTINUE_ON_EXTRACTION` | `realmProgression.continueOnExtraction` | `true` keeps chaining after a successful extraction |
 | `REALM_ON_ALL_COMPLETED` | `regenerate-last` or `stop` | What `auto` does after every available template has been completed |
 | `LOBBY_USE_LLM` | Enable LLM-driven lobby planning | If `false`, the SDK uses heuristic lobby behavior only |
-| `INN_HEAL_THRESHOLD` | Lobby heal threshold as HP ratio | `1` means heal whenever not full HP; `0.5` means only below 50% |
+| `INN_HEAL_THRESHOLD` | Lobby heal threshold as HP ratio | `1` means rest at the inn before every non-full run; `0.5` means only rest below 50%, and this check runs before the next realm even when lobby planning is LLM-driven |
 | `AUTO_SELL_JUNK` | Enable metadata-driven lobby cleanup | Sells/discards incompatible or obvious junk items after lobby planning; still keeps potions, portal scrolls, and key items |
 | `AUTO_EQUIP_UPGRADES` | Enable heuristic lobby equipping | Automatically equips better lobby gear in heuristic mode |
 | `BUY_POTION_MINIMUM` | Minimum healing consumables to keep | Buys up to this count if affordable |
 | `BUY_PORTAL_SCROLL` | Keep a portal escape consumable stocked | Buys one if the shop offers it and the agent has none |
+| `EMERGENCY_HP_PERCENT` | In-realm survival threshold | Controls when emergency healing/escape logic should prefer `use_portal` or `retreat` |
 | `MAX_REALMS` | Realm-count cap | Stops starting new realms after this many results |
 | `MAX_RUNTIME_MINUTES` | Runtime cap | Stops starting new realms after the time budget is exceeded |
 | `MAX_SPEND_USD` | x402 budget cap | Caps paid actions like realm generation, regeneration, inn rest, and stat rerolls |

@@ -1,14 +1,14 @@
 import type { Action, Entity, Observation } from "../protocol.js"
 import type { AgentContext, AgentModule, ModuleRecommendation } from "./index.js"
 
-const HP_CRITICAL_RATIO = 0.2
+const DEFAULT_HP_CRITICAL_RATIO = 0.2
 const MANY_ENEMIES_THRESHOLD = 3
 
 export class CombatModule implements AgentModule {
   readonly name = "combat"
   readonly priority = 80
 
-  analyze(observation: Observation, _context: AgentContext): ModuleRecommendation {
+  analyze(observation: Observation, context: AgentContext): ModuleRecommendation {
     const enemies = observation.visible_entities.filter((e) => e.type === "enemy")
     if (enemies.length === 0) {
       return { reasoning: "No enemies visible.", confidence: 0 }
@@ -25,7 +25,8 @@ export class CombatModule implements AgentModule {
     const hpRatio = observation.character.hp.current / observation.character.hp.max
 
     const canRetreat = observation.legal_actions.some((a) => a.type === "retreat")
-    if (hpRatio <= HP_CRITICAL_RATIO && canRetreat) {
+    const retreatThreshold = context.config.decision?.emergencyHpPercent ?? DEFAULT_HP_CRITICAL_RATIO
+    if (hpRatio <= retreatThreshold && canRetreat) {
       return {
         suggestedAction: { type: "retreat" },
         reasoning: `HP critically low (${Math.round(hpRatio * 100)}%), retreating.`,

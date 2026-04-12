@@ -304,6 +304,7 @@ The example agents read these variables. Custom agents can use any configuration
 | `AUTO_EQUIP_UPGRADES` | `lobby.autoEquipUpgrades` | `"false"` disables heuristic lobby equipping |
 | `BUY_POTION_MINIMUM` | `lobby.buyPotionMinimum` | Minimum healing consumables to keep between realms |
 | `BUY_PORTAL_SCROLL` | `lobby.buyPortalScroll` | `"false"` disables portal-scroll restocking |
+| `EMERGENCY_HP_PERCENT` | `decision.emergencyHpPercent` | HP ratio where emergency healing/escape logic starts favoring survival actions |
 | `MAX_REALMS` | `limits.maxRealms` | Stop after this many realm results |
 | `MAX_RUNTIME_MINUTES` | `limits.maxRuntimeMinutes` | Stop after this many runtime minutes |
 | `MAX_SPEND_USD` | `limits.maxSpendUsd` | x402 budget cap |
