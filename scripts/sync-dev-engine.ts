@@ -828,7 +828,16 @@ export function buildDevContent(): Array<{ file: string; value: JsonObject | Jso
     size: { width: 9, height: 9 },
     text_first_visit: "Three foes circle the arena floor around scattered supplies.",
     text_revisit: "The arena floor is scarred from recent fighting.",
-    interactables: [],
+    interactables: [
+      {
+        id: "arena-exit-cache",
+        name: "Arena Exit Cache",
+        text_on_interact: "A hidden cache slides open, revealing a portal scroll for the victor.",
+        conditions: [{ type: "room-cleared" }],
+        effects: [{ type: "grant-item", item_template_id: "portal-scroll" }],
+        lore_entry_id: null,
+      },
+    ],
     enemy_slots: [
       { enemy_template_id: "goblin", position: { x: 5, y: 2 }, count: { min: 1, max: 1 } },
       { enemy_template_id: "goblin", position: { x: 2, y: 5 }, count: { min: 1, max: 1 } },

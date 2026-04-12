@@ -81,8 +81,17 @@ describe("spectate — active session listing", () => {
       position: { floor: 1, room_id: "r0" },
     }
 
+    // Bun's mock.module is global across the test process — a partial mock
+    // here leaks into any subsequent test file that imports active-sessions.js
+    // and tries to call e.g. hasActiveSession, which would then be missing.
+    // Match the full export surface to keep downstream tests green.
     mock.module("../src/game/active-sessions.js", () => ({
       listSpectatableSessions: () => [row],
+      hasActiveSession: () => false,
+      getActiveSession: () => undefined,
+      registerActiveSession: () => {},
+      unregisterActiveSession: () => {},
+      clearActiveSessions: () => {},
     }))
 
     const { spectateRoutes } = await import(`../src/routes/spectate.js?routeTest=${Date.now()}`)

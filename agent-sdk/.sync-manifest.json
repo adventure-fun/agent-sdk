@@ -296,7 +296,7 @@
     {
       "source": "scripts/sync-dev-engine.ts",
       "vendored": "agent-sdk/dev/engine/content.ts",
-      "sourceHash": "0a0c83edb38203f28ad1a135236184305778d873822e37628254774518fba779",
+      "sourceHash": "ae9801e6e3c74ab0426e2ca91fe4695bb47a526c40a678bf6e5edabebadcac62",
       "vendoredHash": "da93a077bfb499cb43f4548b0eea5c6de64292a49d47f4242ac0bbbe530a967f",
       "affectedModules": [
         "dev-stack"
@@ -305,7 +305,7 @@
     {
       "source": "scripts/sync-dev-engine.ts",
       "vendored": "agent-sdk/dev/engine/index.ts",
-      "sourceHash": "0a0c83edb38203f28ad1a135236184305778d873822e37628254774518fba779",
+      "sourceHash": "ae9801e6e3c74ab0426e2ca91fe4695bb47a526c40a678bf6e5edabebadcac62",
       "vendoredHash": "3d2575dc16cc48b9a6df9d3dc9e0cc98c9e13c7c44afedc12ea7e95830775a39",
       "affectedModules": [
         "dev-stack"
