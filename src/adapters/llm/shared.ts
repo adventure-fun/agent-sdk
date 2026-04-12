@@ -98,6 +98,7 @@ export function buildSystemPrompt(config: AgentConfig): string {
     "Choose exactly one action from legal_actions.",
     "Never invent actions, targets, directions, slots, or item ids that are not present in legal_actions.",
     "Prioritize survival, legal play, and progress toward extraction or completion.",
+    "If the room is cleared but loot is still visible or pickup actions remain legal, collect the loot before using a portal unless survival is at immediate risk.",
     "Module recommendations are advisory. They may disagree. Use them alongside the live observation.",
     "Recent history is informative but lower priority than the current observation.",
     "",

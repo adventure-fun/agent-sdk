@@ -893,6 +893,11 @@ export class BaseAgent {
       return
     }
 
+    state = await this.ensureLobbyRecovery(client, state)
+    if (!this.isRunning) {
+      throw new AgentStoppedError()
+    }
+
     if (this.config.lobby?.useLLM !== false && typeof this.llm.chat === "function") {
       const completedWithLlm = await this.runLlmLobbyPhase(client, state)
       if (completedWithLlm) {
@@ -913,6 +918,22 @@ export class BaseAgent {
     }
 
     await this.runHeuristicLobbyPhase(client, state)
+  }
+
+  private async ensureLobbyRecovery(
+    client: AgentClient,
+    state: LobbyState,
+  ): Promise<LobbyState> {
+    const lobbyConfig = this.config.lobby ?? {}
+    if (!shouldHealAtInn(state.character, lobbyConfig)) {
+      return state
+    }
+    if (!(await this.waitForBudgetIfNeeded())) {
+      throw new AgentStoppedError()
+    }
+
+    await client.restAtInn()
+    return (await this.loadLobbyState(client)) ?? state
   }
 
   private async loadLobbyState(client: AgentClient): Promise<LobbyState | null> {

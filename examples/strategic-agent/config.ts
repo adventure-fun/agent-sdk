@@ -186,7 +186,7 @@ export const strategicConfig: AgentConfig = createDefaultConfig({
     tacticalModel: process.env.TACTICAL_LLM_MODEL ?? "anthropic/claude-haiku-4.5",
     maxPlanLength: 12,
     moduleConfidenceThreshold: 0.8,
-    emergencyHpPercent: 0.25,
+    emergencyHpPercent: Number(process.env.EMERGENCY_HP_PERCENT ?? "0.25"),
   },
   modules: [
     { name: "portal", priority: 100 },

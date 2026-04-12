@@ -65,6 +65,7 @@ Optional env flags exposed by this example:
 - `AGENT_HANDLE`, `AGENT_X_HANDLE`, and `AGENT_GITHUB_HANDLE` to sync the account profile
 - `REROLL_ON_DEATH=true` to automatically roll a new character after permadeath
 - `LOBBY_USE_LLM`, `INN_HEAL_THRESHOLD`, `AUTO_SELL_JUNK`, `AUTO_EQUIP_UPGRADES`, `BUY_POTION_MINIMUM`, and `BUY_PORTAL_SCROLL` to tune the lobby phase
+- `EMERGENCY_HP_PERCENT` to control when the agent should use a portal or retreat for survival
 - `MAX_REALMS`, `MAX_RUNTIME_MINUTES`, `MAX_SPEND_USD`, and `SPENDING_WINDOW` to cap run volume and x402 spend
 
 ### What these vars actually do
@@ -77,11 +78,12 @@ Optional env flags exposed by this example:
 | `CONTINUE_ON_EXTRACTION` | If not set to `"false"`, the agent keeps chaining after successful extractions. |
 | `REALM_ON_ALL_COMPLETED` | For `auto`, either regenerate the last completed template or stop after exhausting all templates. |
 | `LOBBY_USE_LLM` | If not set to `"false"`, the lobby phase is planned by the LLM. Otherwise the SDK uses heuristic fallback rules. |
-| `INN_HEAL_THRESHOLD` | Heal when current HP divided by max HP is below this ratio. |
-| `AUTO_SELL_JUNK` | Enables the heuristic junk-selling pass when `LOBBY_USE_LLM=false`. |
+| `INN_HEAL_THRESHOLD` | Before starting the next realm, rest at the inn when current HP divided by max HP is below this ratio. This happens even when `LOBBY_USE_LLM=true`. |
+| `AUTO_SELL_JUNK` | Enables the metadata-driven cleanup pass after lobby planning, including LLM-driven lobby runs. |
 | `AUTO_EQUIP_UPGRADES` | Enables heuristic equipping of better lobby gear. |
 | `BUY_POTION_MINIMUM` | Buys healing consumables until this count is reached, if affordable. |
 | `BUY_PORTAL_SCROLL` | Keeps one portal escape consumable in inventory when possible. |
+| `EMERGENCY_HP_PERCENT` | HP ratio where the runtime starts prioritizing `use_portal` or `retreat` survival actions. |
 | `MAX_REALMS` | Stop starting new realms after this many outcomes. |
 | `MAX_RUNTIME_MINUTES` | Stop starting new realms after this many minutes. |
 | `MAX_SPEND_USD` | Cap x402 spend on paid HTTP actions like realm generation, regeneration, inn rest, and stat rerolls. |

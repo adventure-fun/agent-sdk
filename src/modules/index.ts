@@ -21,6 +21,10 @@ export interface MapMemory {
   knownTiles: Map<string, TileInfo>
   discoveredExits: Map<string, Direction[]>
   stalledMoves: Map<string, number>
+  lastRoomEntry?: {
+    roomId: string
+    cameFromDirection: Direction
+  }
   lastPosition?: {
     floor: number
     roomId: string

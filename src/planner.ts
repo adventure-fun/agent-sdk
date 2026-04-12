@@ -23,6 +23,8 @@ type TacticalTrigger =
   | "plan_exhausted"
   | "action_illegal"
 
+const COMPLETED_REALM_STATUSES = new Set(["boss_cleared", "realm_cleared"])
+
 interface ActivePlan {
   source: "strategic" | "tactical"
   strategy: string
@@ -53,6 +55,12 @@ export class ActionPlanner {
     if (emergencyDecision) {
       this.previousObservation = observation
       return emergencyDecision
+    }
+
+    const lootDecision = this.tryLootBeforeExtractionOverride(observation, recommendations)
+    if (lootDecision) {
+      this.previousObservation = observation
+      return lootDecision
     }
 
     if (this.config.strategy === "module-only") {
@@ -174,6 +182,36 @@ export class ActionPlanner {
     }
 
     return null
+  }
+
+  private tryLootBeforeExtractionOverride(
+    observation: Observation,
+    recommendations: ModuleRecommendation[],
+  ): PlannerDecision | null {
+    if (!hasPendingLootBeforeExtraction(observation)) {
+      return null
+    }
+
+    const recommendation = [...recommendations]
+      .filter(
+        (candidate) =>
+          candidate.suggestedAction
+          && candidate.suggestedAction.type !== "use_portal"
+          && candidate.suggestedAction.type !== "retreat"
+          && this.isActionLegal(candidate.suggestedAction, observation.legal_actions),
+      )
+      .sort((left, right) => right.confidence - left.confidence)[0]
+
+    if (!recommendation?.suggestedAction) {
+      return null
+    }
+
+    return {
+      action: recommendation.suggestedAction,
+      reasoning: recommendation.reasoning,
+      tier: "module",
+      planDepth: this.currentPlan?.actions.length ?? 0,
+    }
   }
 
   private getStrategicTrigger(
@@ -464,6 +502,21 @@ export class ActionPlanner {
         return true
     }
   }
+}
+
+function hasPendingLootBeforeExtraction(observation: Observation): boolean {
+  if (!COMPLETED_REALM_STATUSES.has(observation.realm_info.status)) {
+    return false
+  }
+
+  if (observation.visible_entities.some((entity) => entity.type === "enemy")) {
+    return false
+  }
+
+  return (
+    observation.legal_actions.some((action) => action.type === "pickup")
+    || observation.visible_entities.some((entity) => entity.type === "item")
+  )
 }
 
 function withOptionalTriggerReason(

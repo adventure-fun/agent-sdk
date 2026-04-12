@@ -58,6 +58,27 @@ describe("CombatModule", () => {
     expect(result.confidence).toBeGreaterThanOrEqual(0.8)
   })
 
+  it("uses the configured emergency HP threshold for retreat decisions", () => {
+    const customContext = createAgentContext(createDefaultConfig({
+      llm: { provider: "openrouter", apiKey: "test" },
+      wallet: { type: "env" },
+      decision: {
+        emergencyHpPercent: 0.4,
+      },
+    }))
+    const obs = buildObservation({
+      character: { hp: { current: 10, max: 30 } },
+      visible_entities: [enemy("e1")],
+      legal_actions: [
+        attackAction("e1"),
+        retreatAction(),
+      ],
+    })
+
+    const result = module.analyze(obs, customContext)
+    expect(result.suggestedAction).toEqual({ type: "retreat" })
+  })
+
   it("returns no recommendation when no enemies are visible", () => {
     const obs = buildObservation({
       visible_entities: [],

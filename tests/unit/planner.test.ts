@@ -1,4 +1,55 @@
 import { describe, expect, it } from "bun:test"
+import { ActionPlanner } from "../../src/planner.js"
+import { createDefaultConfig } from "../../src/config.js"
+import { createAgentContext, createModuleRegistry } from "../../src/modules/index.js"
+import { InventoryModule, PortalModule, ExplorationModule } from "../../src/index.js"
+import { MockLLMAdapter } from "../helpers/mock-llm.js"
+import {
+  buildObservation,
+  item,
+  moveAction,
+  portalAction,
+} from "../helpers/mock-observation.js"
+
+describe("ActionPlanner", () => {
+  it("collects remaining loot before extracting from a cleared room", async () => {
+    const config = createDefaultConfig({
+      llm: { provider: "openrouter", apiKey: "test" },
+      wallet: { type: "env" },
+      decision: {
+        strategy: "planned",
+      },
+    })
+    const planner = new ActionPlanner(
+      new MockLLMAdapter(),
+      new MockLLMAdapter(),
+      createModuleRegistry([
+        new PortalModule(),
+        new InventoryModule(),
+        new ExplorationModule(),
+      ]),
+      config.decision!,
+    )
+    const context = createAgentContext(config)
+    const observation = buildObservation({
+      realm_info: {
+        template_name: "test-dungeon",
+        floor_count: 1,
+        current_floor: 1,
+        status: "realm_cleared",
+      },
+      visible_entities: [
+        item("loot-1", { position: { x: 5, y: 3 } }),
+      ],
+      legal_actions: [portalAction(), moveAction("right"), moveAction("left")],
+    })
+
+    const decision = await planner.decideAction(observation, context)
+    expect(decision.action.type).toBe("move")
+    expect(decision.action).not.toEqual({ type: "use_portal" })
+  })
+})
+import { describe, expect, it } from "bun:test"
 import { ActionPlanner, type PlannerDecision } from "../../src/planner.js"
 import {
   createAgentContext,

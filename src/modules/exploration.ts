@@ -31,7 +31,7 @@ export class ExplorationModule implements AgentModule {
 
     if (COMPLETED_STATUSES.has(observation.realm_info.status)) {
       const portalAction = observation.legal_actions.find((a) => a.type === "use_portal")
-      if (portalAction) {
+      if (portalAction && !hasPendingLoot(observation)) {
         return {
           suggestedAction: portalAction,
           reasoning: "Realm completed, extracting via portal.",
@@ -46,8 +46,11 @@ export class ExplorationModule implements AgentModule {
 
     const currentRoom = observation.position.room_id
     const exits = context.mapMemory.discoveredExits.get(currentRoom)
+    const cameFromDirection = context.mapMemory.lastRoomEntry?.roomId === currentRoom
+      ? context.mapMemory.lastRoomEntry.cameFromDirection
+      : null
 
-    const bestMove = chooseExplorationMove(observation, context, moveActions)
+    const bestMove = chooseExplorationMove(observation, context, moveActions, cameFromDirection)
     if (bestMove) {
       return {
         suggestedAction: bestMove.action,
@@ -106,6 +109,20 @@ export class ExplorationModule implements AgentModule {
       context.mapMemory.stalledMoves.delete(key)
     }
 
+    if (
+      previousAction?.type === "move"
+      && previousPosition
+      && previousPosition.floor === currentPosition.floor
+      && previousPosition.roomId !== currentPosition.roomId
+    ) {
+      context.mapMemory.lastRoomEntry = {
+        roomId: currentPosition.roomId,
+        cameFromDirection: reverseDirection(previousAction.direction),
+      }
+    } else if (context.mapMemory.lastRoomEntry?.roomId !== currentPosition.roomId) {
+      delete context.mapMemory.lastRoomEntry
+    }
+
     const roomId = observation.position.room_id
     context.mapMemory.visitedRooms.add(roomId)
     context.mapMemory.visitedTiles.add(tileMemoryKey(currentPosition.floor, currentPosition.x, currentPosition.y))
@@ -129,6 +146,13 @@ export class ExplorationModule implements AgentModule {
   }
 }
 
+function hasPendingLoot(observation: Observation): boolean {
+  return (
+    observation.legal_actions.some((action) => action.type === "pickup")
+    || observation.visible_entities.some((entity) => entity.type === "item")
+  )
+}
+
 type MoveCandidate = {
   action: Extract<Action, { type: "move" }>
   reasoning: string
@@ -140,6 +164,7 @@ function chooseExplorationMove(
   observation: Observation,
   context: AgentContext,
   moveActions: Array<Extract<Action, { type: "move" }>>,
+  cameFromDirection: Direction | null,
 ): MoveCandidate | null {
   if (moveActions.length === 0) {
     return null
@@ -149,6 +174,7 @@ function chooseExplorationMove(
   const tileByCoordinate = new Map(
     observation.visible_tiles.map((tile) => [`${tile.x},${tile.y}`, tile] as const),
   )
+  const target = selectVisibleTarget(observation, context, cameFromDirection)
   const moveCandidates = moveActions.map((action) => {
     const next = nextPosition(current, action.direction)
     const nextTile = tileByCoordinate.get(`${next.x},${next.y}`)
@@ -159,7 +185,6 @@ function chooseExplorationMove(
       tileMemoryKey(observation.position.floor, next.x, next.y),
     )
     const frontier = isFrontierTile(next, tileByCoordinate)
-    const target = selectVisibleTarget(observation, context)
     const distanceGain = target
       ? manhattanDistance(current, target) - manhattanDistance(next, target)
       : 0
@@ -176,6 +201,9 @@ function chooseExplorationMove(
     }
     score += distanceGain
     score -= stalledCount * 4
+    if (cameFromDirection && moveActions.length > 1 && action.direction === cameFromDirection) {
+      score -= 3
+    }
 
     if (nextTile?.type === "door" || nextTile?.type === "stairs" || nextTile?.type === "stairs_up") {
       score += 2
@@ -227,6 +255,7 @@ function chooseExplorationMove(
 function selectVisibleTarget(
   observation: Observation,
   context: AgentContext,
+  cameFromDirection: Direction | null,
 ): { x: number; y: number } | null {
   const current = observation.position.tile
   const visibleEntities = observation.visible_entities
@@ -246,9 +275,13 @@ function selectVisibleTarget(
     return interactable.position
   }
 
-  const traversalTile = observation.visible_tiles
+  const traversalTileCandidates = observation.visible_tiles
     .filter((tile) => tile.type === "door" || tile.type === "stairs" || tile.type === "stairs_up")
+  const preferredTraversalTile = traversalTileCandidates
+    .filter((tile) => !isTileInDirection(current, tile, cameFromDirection))
     .sort((left, right) => manhattanDistance(current, left) - manhattanDistance(current, right))[0]
+  const traversalTile = preferredTraversalTile
+    ?? traversalTileCandidates.sort((left, right) => manhattanDistance(current, left) - manhattanDistance(current, right))[0]
   if (traversalTile) {
     return traversalTile
   }
@@ -301,6 +334,38 @@ function nextPosition(
       return { x: position.x - 1, y: position.y }
     case "right":
       return { x: position.x + 1, y: position.y }
+  }
+}
+
+function reverseDirection(direction: Direction): Direction {
+  switch (direction) {
+    case "up":
+      return "down"
+    case "down":
+      return "up"
+    case "left":
+      return "right"
+    case "right":
+      return "left"
+  }
+}
+
+function isTileInDirection(
+  current: { x: number; y: number },
+  tile: { x: number; y: number },
+  direction: Direction | null,
+): boolean {
+  switch (direction) {
+    case "up":
+      return tile.y < current.y
+    case "down":
+      return tile.y > current.y
+    case "left":
+      return tile.x < current.x
+    case "right":
+      return tile.x > current.x
+    case null:
+      return false
   }
 }
 

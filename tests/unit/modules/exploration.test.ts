@@ -52,6 +52,39 @@ describe("ExplorationModule", () => {
     expect(context.mapMemory.visitedRooms.has("room-1")).toBe(true)
   })
 
+  it("avoids immediately backtracking after entering a new room when another path is available", () => {
+    const context = ctx()
+
+    module.analyze(buildObservation({
+      position: { floor: 1, room_id: "room-1", tile: { x: 2, y: 3 } },
+      visible_tiles: [
+        { x: 2, y: 3, type: "floor" },
+        { x: 3, y: 3, type: "door" },
+      ],
+      legal_actions: [moveAction("right")],
+    }), context)
+
+    context.previousActions.push({
+      turn: 1,
+      action: moveAction("right"),
+      reasoning: "Entered the next room.",
+    })
+
+    const obs = buildObservation({
+      position: { floor: 1, room_id: "room-2", tile: { x: 4, y: 3 } },
+      visible_tiles: [
+        { x: 4, y: 3, type: "floor" },
+        { x: 3, y: 3, type: "door" },
+        { x: 5, y: 3, type: "door" },
+        { x: 4, y: 4, type: "floor" },
+      ],
+      legal_actions: [moveAction("left"), moveAction("right"), moveAction("down")],
+    })
+
+    const result = module.analyze(obs, context)
+    expect(result.suggestedAction).not.toEqual({ type: "move", direction: "left" })
+  })
+
   it("falls back to the first legal move when no tile context is available", () => {
     const obs = buildObservation({
       position: { floor: 1, room_id: "room-1", tile: { x: 3, y: 3 } },
