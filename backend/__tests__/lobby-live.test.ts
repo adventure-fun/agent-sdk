@@ -1,13 +1,23 @@
-import { describe, expect, it, beforeEach } from "bun:test"
+import { describe, expect, it, beforeEach, mock } from "bun:test"
 import type {
   LobbyEvent,
   SanitizedChatMessage,
   LeaderboardDelta,
 } from "@adventure-fun/schemas"
-import {
-  LobbyLiveManager,
-  type LobbySocketLike,
-} from "../src/game/lobby-live.js"
+
+// chat-log imports db/client which throws at import time without env vars.
+// Stub it before we dynamically import lobby-live so the transitive require
+// never touches the real db client. We're testing the in-memory broadcast
+// and rehydrate logic, not the DB round-trip.
+mock.module("../src/game/chat-log.js", () => ({
+  persistChatMessage: async () => ({ ok: true }),
+  loadRecentChat: async () => [],
+}))
+
+const lobbyLiveModule = await import("../src/game/lobby-live.js")
+const { LobbyLiveManager } = lobbyLiveModule
+type LobbySocketLike = import("../src/game/lobby-live.js").LobbySocketLike
+
 import { RedisPubSub, CHANNELS } from "../src/redis/pubsub.js"
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -65,23 +75,23 @@ function createFakePubSub() {
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe("12.1 — Lobby live manager", () => {
-  it("registers and tracks connected clients", () => {
+  it("registers and tracks connected clients", async () => {
     const manager = new LobbyLiveManager()
     const ws = createMockSocket()
 
-    manager.addClient(ws)
+    await manager.addClient(ws)
     expect(manager.clientCount).toBe(1)
 
     manager.removeClient(ws)
     expect(manager.clientCount).toBe(0)
   })
 
-  it("broadcasts activity events to all connected clients", () => {
+  it("broadcasts activity events to all connected clients", async () => {
     const manager = new LobbyLiveManager()
     const ws1 = createMockSocket()
     const ws2 = createMockSocket()
-    manager.addClient(ws1)
-    manager.addClient(ws2)
+    await manager.addClient(ws1)
+    await manager.addClient(ws2)
 
     const event: LobbyEvent = {
       type: "death",
@@ -98,10 +108,10 @@ describe("12.1 — Lobby live manager", () => {
     expect(parsed).toEqual({ type: "lobby_activity", data: event })
   })
 
-  it("broadcasts chat messages to all connected clients", () => {
+  it("broadcasts chat messages to all connected clients", async () => {
     const manager = new LobbyLiveManager()
     const ws = createMockSocket()
-    manager.addClient(ws)
+    await manager.addClient(ws)
 
     const chatMsg: SanitizedChatMessage = {
       character_name: "Mage",
@@ -116,10 +126,10 @@ describe("12.1 — Lobby live manager", () => {
     expect(JSON.parse(ws.sent[0]!)).toEqual({ type: "lobby_chat", data: chatMsg })
   })
 
-  it("broadcasts leaderboard deltas to all connected clients", () => {
+  it("broadcasts leaderboard deltas to all connected clients", async () => {
     const manager = new LobbyLiveManager()
     const ws = createMockSocket()
-    manager.addClient(ws)
+    await manager.addClient(ws)
 
     const delta: LeaderboardDelta = {
       characterId: "char-1",
@@ -133,10 +143,10 @@ describe("12.1 — Lobby live manager", () => {
     expect(JSON.parse(ws.sent[0]!)).toEqual({ type: "leaderboard_update", data: delta })
   })
 
-  it("does not send to removed clients", () => {
+  it("does not send to removed clients", async () => {
     const manager = new LobbyLiveManager()
     const ws = createMockSocket()
-    manager.addClient(ws)
+    await manager.addClient(ws)
     manager.removeClient(ws)
 
     manager.broadcastActivity({
@@ -150,11 +160,11 @@ describe("12.1 — Lobby live manager", () => {
     expect(ws.sent).toHaveLength(0)
   })
 
-  it("connects to Redis pub/sub and relays messages from other instances", () => {
+  it("connects to Redis pub/sub and relays messages from other instances", async () => {
     const { pubsub, subscriptions } = createFakePubSub()
     const manager = new LobbyLiveManager()
     const ws = createMockSocket()
-    manager.addClient(ws)
+    await manager.addClient(ws)
 
     manager.connectPubSub(pubsub)
 

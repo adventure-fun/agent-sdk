@@ -178,7 +178,7 @@
     },
     {
       "file": "backend/src/index.ts",
-      "hash": "5a1ccbf39881ae8b0cf490755d11f5fc49946d9ca2d5c7a9b7fced6e6397bb54",
+      "hash": "fd326f44b36293fcabaadff34f97e7d876a148760e5b74e84c3f08e1a17c8ef0",
       "affectedModules": [
         "dev-stack",
         "chat"
@@ -202,14 +202,14 @@
     },
     {
       "file": "backend/src/routes/lobby.ts",
-      "hash": "8f024ceb7c2504713d3dc783fad1b2616322ba48e4383f9564da7cc98cf22f8f",
+      "hash": "fa479de86097a7242f706e1c0cc5c12478d5ce6df04eab7c86ed6cf9820a68e0",
       "affectedModules": [
         "chat"
       ]
     },
     {
       "file": "backend/src/game/lobby-live.ts",
-      "hash": "fcaa64337b017ed8ab3dae5ddcb5f86aac3b5902153dee7cd0e88277bd26f078",
+      "hash": "6aedcc664d32801f26ef633d723263bf5f179d6ac2da69ddf86879d425cbfe1a",
       "affectedModules": [
         "chat"
       ]

@@ -234,17 +234,20 @@ export default {
   websocket: {
     async open(ws: ServerWebSocket<SocketSessionData>) {
       if (ws.data.role === "lobby") {
-        getLobbyManager().addClient(ws as unknown as LobbySocketLike)
         ws.send(JSON.stringify({ type: "connected", channel: "lobby" }))
+        // addClient is async because it may rehydrate the in-memory chat
+        // buffer from chat_log on the first connect after a backend restart.
+        // It sends lobby_chat_history on the same WS once ready.
+        await getLobbyManager().addClient(ws as unknown as LobbySocketLike)
         return
       }
 
       if (ws.data.role === "spectate_chat") {
-        getSpectateChatManager().addClient(
+        ws.send(JSON.stringify({ type: "connected", channel: "spectate_chat" }))
+        await getSpectateChatManager().addClient(
           ws.data.characterId,
           ws as unknown as SpectateChatSocketLike,
         )
-        ws.send(JSON.stringify({ type: "connected", channel: "spectate_chat" }))
         return
       }
 

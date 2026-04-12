@@ -3,6 +3,7 @@ import type { ActiveSpectateListResponse, SanitizedChatMessage } from "@adventur
 import { getActiveSession, listSpectatableSessions } from "../game/active-sessions.js"
 import { getSpectateChatManager } from "../game/spectate-chat.js"
 import { getLobbyManager } from "../game/lobby-live.js"
+import { persistChatMessage } from "../game/chat-log.js"
 import { requireAuth } from "../auth/middleware.js"
 import { db } from "../db/client.js"
 import { validateChatMessage, publishChatMessage } from "../redis/publishers.js"
@@ -71,6 +72,21 @@ spectate.post("/:characterId/chat", requireAuth, async (c) => {
     message: validation.sanitized,
     timestamp: Date.now(),
     ...(spectateContext ? { spectate_context: spectateContext } : {}),
+  }
+
+  // Persist once per delivery target. The rehydrate query is scoped by
+  // (room_type, room_key), so a spectate message that is ALSO mirrored to
+  // the lobby needs a row in each room or the other will look empty after
+  // a cold start. Storage cost is one extra row per mirrored message.
+  const spectatePersist = await persistChatMessage(
+    account_id, "spectate", targetCharacterId, chatMsg,
+  )
+  if (!spectatePersist.ok) {
+    return c.json({ error: "Failed to store message" }, 500)
+  }
+  const lobbyPersist = await persistChatMessage(account_id, "lobby", null, chatMsg)
+  if (!lobbyPersist.ok) {
+    return c.json({ error: "Failed to store message" }, 500)
   }
 
   // 1) Broadcast to the per-player spectate chat room
