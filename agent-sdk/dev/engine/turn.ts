@@ -2252,8 +2252,7 @@ function applyEffect(
       const itemId = effect.item_id as string
       const idx = s.inventory.findIndex((i) => i.template_id === itemId)
       if (idx >= 0) {
-        const item = s.inventory[idx]
-        if (!item) break
+        const item = s.inventory[idx]!
         if (item.quantity > 1) {
           item.quantity -= 1
         } else {
@@ -2957,11 +2956,12 @@ export function buildObservationFromState(
   }
 }
 
-export function toSpectatorObservation(obs: Observation): SpectatorObservation {
+export function toSpectatorObservation(obs: Observation, characterName?: string): SpectatorObservation {
   return {
     turn: obs.turn,
     character: {
       id: obs.character.id,
+      name: characterName ?? "",
       class: obs.character.class,
       level: obs.character.level,
       hp_percent: obs.character.hp.max > 0

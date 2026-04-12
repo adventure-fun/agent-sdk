@@ -66,7 +66,10 @@ export function LegendPageClient({ characterId }: { characterId: string }) {
     setIsLoading(true)
     setError(null)
     try {
-      const response = await fetch(`${API_URL}/legends/${characterId}`, { signal })
+      const response = await fetch(
+        `${API_URL}/legends/${characterId}`,
+        signal ? { signal } : {},
+      )
       const body = await response.json()
       if (!response.ok) {
         throw new Error(body.error ?? "Failed to load legend")

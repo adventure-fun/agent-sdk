@@ -78,7 +78,7 @@ export function CharacterPanel({
         current={hpCurrent}
         max={hpMax}
         colorClass={hpColor}
-        bonus={hpBonus}
+        {...(hpBonus !== undefined ? { bonus: hpBonus } : {})}
       />
       <StatusMeter
         label={resourceLabel}

@@ -1,12 +1,12 @@
 {
   "version": 1,
-  "lastSync": "2026-04-11",
+  "lastSync": "2026-04-12",
   "sources": [
     {
       "canonical": "shared/schemas/src/index.ts",
       "vendored": "agent-sdk/src/protocol.ts",
-      "canonicalHash": "353f77f67b25cba86cc8bcd26cc5f9c957c5c58a5ae210458877acbf4ac80932",
-      "generatedHash": "5b19d24aa61ec4193b5864f2e9d7defff5b933b085b5002cfac0e3c83a17c6b6",
+      "canonicalHash": "12421359bacad3cd3db93658e9a78177f52542ba04603720d769076fe548571d",
+      "generatedHash": "ca1b9bef5a747ab79bf5ff3302c760d93445d15093359d49c9502d6ad6c3ca97",
       "types": [
         "Stats",
         "CharacterStats",
@@ -69,7 +69,7 @@
         "ClientMessage": "79a054df95ff262378c7651b58be1cfa38b5e8310e7366f2a648373a1a706859",
         "EnemyBehavior": "cdb36c18e411f89c8638985f78893c057fab26de822acbe9d54dc8d847db2f09",
         "LobbyEvent": "57c5369d2f91072c0ef4488a2765ca9c05d036fd612f8878e5fb2a0ff9e31641",
-        "SanitizedChatMessage": "78f8acea0f2b22f5c3a9aa9517c9d90233d0b951d06467746041d0692f903f45",
+        "SanitizedChatMessage": "1d5f1f56abc2a1f72c68d7f0f9cb9c2792ab6c98e7d189e09565f3be2c9b688f",
         "PaymentAcceptOption402": "86a1a8d8da52cf034e8913a64594a113c05ef71ba472ecaee0528b9fb3ab732b",
         "PaymentRequired402": "34adaea55f3c77154aa9b1a1a57761a2b7e68a0d547347907446f102fc4d9a71"
       },
@@ -79,7 +79,7 @@
   "engineWatchlist": [
     {
       "file": "shared/engine/src/turn.ts",
-      "hash": "0212ffe9d74786de02adc323fb0b69f8313d3f20504d6ffc38a340a277bc15aa",
+      "hash": "9cba453dd6ccede4fed7f6f40fb621954b7ae76aab3b46f4b21186a413026127",
       "affectedModules": [
         "combat",
         "exploration",
@@ -138,7 +138,7 @@
     },
     {
       "file": "backend/src/game/session.ts",
-      "hash": "5bd79f710058637726e06e0245286240bf073daf453f9e424bd6e63cdd1d901a",
+      "hash": "81b11c996a11936b9dca848fea67d6f7a512566dd52fd68facf1f731b5b2384d",
       "affectedModules": [
         "agent-lifecycle",
         "chat"
@@ -171,14 +171,14 @@
     },
     {
       "file": "backend/src/routes/content.ts",
-      "hash": "6fd623d9f26c89a6682d5820c783265256fcd968b64b979d0e1caec00da2f444",
+      "hash": "10d46cfefb8f7fb639b2ca99e2abad0b78652769fdc7114f0cb9568b60ff5cf2",
       "affectedModules": [
         "dev-stack"
       ]
     },
     {
       "file": "backend/src/index.ts",
-      "hash": "4ed578e98a88ecd510f99922717ffb9373bda369a2556fb891f13e905cfd8051",
+      "hash": "5a1ccbf39881ae8b0cf490755d11f5fc49946d9ca2d5c7a9b7fced6e6397bb54",
       "affectedModules": [
         "dev-stack",
         "chat"
@@ -202,28 +202,28 @@
     },
     {
       "file": "backend/src/routes/lobby.ts",
-      "hash": "e454e2484cf489f35fac7a46d64417bd0a14a0e2f85b7f3cf1a5b9e97b797079",
+      "hash": "8f024ceb7c2504713d3dc783fad1b2616322ba48e4383f9564da7cc98cf22f8f",
       "affectedModules": [
         "chat"
       ]
     },
     {
       "file": "backend/src/game/lobby-live.ts",
-      "hash": "d9de0c1ae5bc64cf020c6596fd7b1cf5ff4ce623f90bf6eca628af82f6af37a3",
+      "hash": "fcaa64337b017ed8ab3dae5ddcb5f86aac3b5902153dee7cd0e88277bd26f078",
       "affectedModules": [
         "chat"
       ]
     },
     {
       "file": "backend/src/redis/publishers.ts",
-      "hash": "681d9ee8276e484a8bd14e826b5a3a91be60a91e7e1ab9ac9652572aa3957ee3",
+      "hash": "4662dd19a76e85965b9342d364fb87bc39a8830f6035a6452710200491153202",
       "affectedModules": [
         "chat"
       ]
     },
     {
       "file": "agent-sdk/src/adapters/llm/shared.ts",
-      "hash": "522cd49444cd27330f43477b03d76790c64d8d8afb61443d08db67b03daa1828",
+      "hash": "172a2aaad4cc3f9c3200d120c99886880354083c1c53dcd27b90eb71d3e6bc98",
       "affectedModules": [
         "llm-adapters"
       ]
@@ -233,8 +233,8 @@
     {
       "source": "shared/schemas/src/index.ts",
       "vendored": "agent-sdk/dev/engine/types.ts",
-      "sourceHash": "353f77f67b25cba86cc8bcd26cc5f9c957c5c58a5ae210458877acbf4ac80932",
-      "vendoredHash": "184db62aa9b1faa333b99627478b9741f0640b44cd8c878781d4400609fff90e",
+      "sourceHash": "12421359bacad3cd3db93658e9a78177f52542ba04603720d769076fe548571d",
+      "vendoredHash": "3f77ecae6b22bfad2c33bfe96d9f876f34bad0c0efa0226f80e3ac2ba3ed1741",
       "affectedModules": [
         "dev-stack"
       ]
@@ -278,8 +278,8 @@
     {
       "source": "shared/engine/src/turn.ts",
       "vendored": "agent-sdk/dev/engine/turn.ts",
-      "sourceHash": "0212ffe9d74786de02adc323fb0b69f8313d3f20504d6ffc38a340a277bc15aa",
-      "vendoredHash": "d98f0ae6c46592d2ee2e372026a3183e9ceebb0ebce05724c01c4b7e11ac93fb",
+      "sourceHash": "9cba453dd6ccede4fed7f6f40fb621954b7ae76aab3b46f4b21186a413026127",
+      "vendoredHash": "2a4ef402001d3688fda1dbcb9d161224f53168300e89ce2ec959c3bede1055d9",
       "affectedModules": [
         "dev-stack"
       ]

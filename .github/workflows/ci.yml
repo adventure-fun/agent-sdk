@@ -27,7 +27,7 @@ jobs:
 
       - name: Run engine tests
         working-directory: shared/engine
-        run: bun test --reporter=verbose
+        run: bun test --reporter=dots
 
   # ── TypeScript typecheck ───────────────────────────────────────────────────────
   sdk-sync-check:
@@ -91,7 +91,7 @@ jobs:
 
       - name: Run agent-sdk tests
         working-directory: agent-sdk
-        run: bun test --reporter=verbose
+        run: bun test --reporter=dots
 
   # ── Backend tests ──────────────────────────────────────────────────────────────
   backend-tests:
@@ -111,7 +111,7 @@ jobs:
 
       - name: Run backend tests
         working-directory: backend
-        run: bun test --reporter=verbose
+        run: bun test --reporter=dots
 
   # ── Frontend typecheck ─────────────────────────────────────────────────────────
   frontend-typecheck:

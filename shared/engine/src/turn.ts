@@ -2252,7 +2252,7 @@ function applyEffect(
       const itemId = effect.item_id as string
       const idx = s.inventory.findIndex((i) => i.template_id === itemId)
       if (idx >= 0) {
-        const item = s.inventory[idx]
+        const item = s.inventory[idx]!
         if (item.quantity > 1) {
           item.quantity -= 1
         } else {
