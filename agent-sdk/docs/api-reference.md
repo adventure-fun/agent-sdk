@@ -211,7 +211,7 @@ function createDefaultConfig(overrides: Partial<AgentConfig>): AgentConfig
 
 **LLMConfig:** `{ provider, apiKey, model?, baseUrl?, maxRetries?, temperature?, structuredOutput? }`
 
-**WalletConfig:** `{ type, network?, privateKey?, endpoint?, apiKey? }`
+**WalletConfig:** `{ type, network?, privateKey?, walletName?, passphrase?, chainId?, vaultPath?, accountIndex? }`
 
 **DecisionConfig:** `{ strategy, tacticalModel?, maxPlanLength?, moduleConfidenceThreshold?, emergencyHpPercent? }`
 
@@ -360,7 +360,7 @@ class SolanaEnvWalletAdapter implements X402CapableWalletAdapter {
   static async fromConfig(config: WalletConfig): Promise<SolanaEnvWalletAdapter>
 }
 
-class OpenWalletAdapter implements WalletAdapter {
+class OpenWalletAdapter implements X402CapableWalletAdapter {
   static async fromConfig(config: WalletConfig): Promise<OpenWalletAdapter>
 }
 ```

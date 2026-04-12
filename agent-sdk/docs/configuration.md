@@ -66,10 +66,15 @@ Controls wallet adapter selection and authentication.
 | `type` | `"env" \| "open-wallet"` | yes | `"env"` | Wallet adapter type |
 | `network` | `"base" \| "solana"` | no | `"base"` | Blockchain network |
 | `privateKey` | `string` | no | `$AGENT_PRIVATE_KEY` | Private key (env-wallet only) |
-| `endpoint` | `string` | no | -- | OpenWallet HTTP endpoint |
-| `apiKey` | `string` | no | -- | OpenWallet API key |
+| `walletName` | `string` | no | -- | OWS wallet name or UUID (`type: "open-wallet"` only) |
+| `passphrase` | `string` | no | -- | OWS vault passphrase or `ows_key_...` API token |
+| `chainId` | `string` | no | network default | CAIP-2 chain ID override (for example `eip155:8453`) |
+| `vaultPath` | `string` | no | `~/.ows` | Custom OWS vault root |
+| `accountIndex` | `number` | no | `0` | HD account index for OWS signing |
 
 The `"env"` type reads the private key from config or the `AGENT_PRIVATE_KEY` environment variable. EVM keys should be hex-encoded (with or without `0x` prefix). Solana keys should be base58-encoded.
+
+For `type: "open-wallet"`, the SDK loads [`@open-wallet-standard/core`](https://docs.openwallet.sh/doc.html?slug=sdk-node) lazily and signs through the local OWS vault instead of loading private keys into the agent process. `passphrase` can be either the owner passphrase or a scoped `ows_key_...` API token created with OWS policies.
 
 ## DecisionConfig
 
@@ -178,6 +183,11 @@ The example agents read these variables. Custom agents can use any configuration
 | `LLM_MODEL` | `llm.model` | |
 | `AGENT_PRIVATE_KEY` | `wallet.privateKey` | Also read by `EvmEnvWalletAdapter` / `SolanaEnvWalletAdapter` |
 | `AGENT_WALLET_NETWORK` | `wallet.network` | `"base"` or `"solana"` |
+| `OWS_WALLET_NAME` | `wallet.walletName` | OpenWallet / OWS only |
+| `OWS_PASSPHRASE` | `wallet.passphrase` | Owner passphrase or `ows_key_...` token |
+| `OWS_CHAIN_ID` | `wallet.chainId` | Optional CAIP-2 override |
+| `OWS_VAULT_PATH` | `wallet.vaultPath` | Optional custom OWS vault root |
+| `OWS_ACCOUNT_INDEX` | `wallet.accountIndex` | Optional HD account index |
 | `CHARACTER_CLASS` | `characterClass` | |
 | `CHARACTER_NAME` | `characterName` | |
 | `REALM_TEMPLATE` | `realmTemplateId` | |

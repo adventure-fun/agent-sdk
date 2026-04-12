@@ -77,28 +77,54 @@ const wallet = await createWalletAdapter({
 
 Solana dependencies are loaded lazily at construction time, so EVM-only consumers never pay the import cost.
 
-### OpenWalletAdapter (experimental)
+### OpenWalletAdapter (OWS v1.2)
 
-Connects to an [OpenWallet](https://openwallet.com) HTTP endpoint for signing. This adapter is a stub that documents the current integration boundary.
+Connects to a local [Open Wallet Standard](https://docs.openwallet.sh/) vault through the [`@open-wallet-standard/core`](https://docs.openwallet.sh/doc.html?slug=sdk-node) Node.js SDK. The agent never receives raw private key material; OWS decrypts, signs, and zeroizes inside the library.
+
+Install the optional peer dependency first:
+
+```bash
+bun add @open-wallet-standard/core
+```
+
+Then configure the adapter with an OWS wallet name (or UUID) plus either the owner passphrase or a scoped `ows_key_...` API token:
 
 ```typescript
 const wallet = await createWalletAdapter({
   type: "open-wallet",
   network: "base",
-  endpoint: "https://your-openwallet-instance/api",
-  apiKey: "optional-api-key",
+  walletName: "agent-treasury",
+  passphrase: process.env.OWS_PASSPHRASE,
+  chainId: "eip155:8453",
+  vaultPath: process.env.OWS_VAULT_PATH,
+  accountIndex: 0,
 })
 ```
 
-**Expected HTTP contract:**
+**Capabilities:**
 
-| Endpoint | Method | Body | Response |
-|----------|--------|------|----------|
-| `/address` | GET | -- | `{ address: string }` |
-| `/sign/message` | POST | `{ message, network }` | `{ signature: string }` |
-| `/sign/transaction` | POST | `{ transaction, network }` | `{ signature: string }` |
+| Method | Implementation |
+|--------|---------------|
+| `getAddress()` | Reads the matching CAIP-2 account from the local OWS vault |
+| `signMessage(msg)` | Delegates to OWS `signMessage()` |
+| `signTransaction(tx)` | Serializes an EVM transaction, delegates to OWS `signTransaction()`, then reassembles the signed transaction with `viem` |
+| `createX402Client()` | Builds an OWS-backed custom signer and registers `@x402/evm` exact scheme |
 
-The OpenWallet adapter implements `WalletAdapter` but does **not** implement `X402CapableWalletAdapter`. To use x402 payments with OpenWallet, you would need to extend this adapter or use a custom implementation.
+**Current limitations:**
+
+- EVM x402 is fully supported.
+- Solana message signing is supported through OWS, but Solana x402 is not currently exposed because `@x402/svm` expects a direct keypair signer while OWS intentionally abstracts key material away.
+- `TransactionRequest` is still EVM-shaped, so direct Solana transaction signing is intentionally not exposed through this adapter surface.
+
+**Recommended OWS setup flow:**
+
+```bash
+ows wallet create --name "agent-treasury"
+ows policy create --file policy.json
+ows key create --name "my-agent" --wallet agent-treasury --policy agent-limits
+```
+
+Use the resulting `ows_key_...` token as `wallet.passphrase` to give the agent scoped, policy-gated signing instead of owner-mode access.
 
 ## Wallet Factory
 
@@ -141,6 +167,8 @@ sequenceDiagram
 3. The `accepts` array lists payment options (scheme, network, amount, asset, payTo).
 4. The registered scheme client (EVM or SVM) signs a payment proof matching the wallet's network.
 5. The request is retried with the signed payment in the `X-Payment` header.
+
+For `OpenWalletAdapter`, the EVM scheme uses a custom signer that delegates `signTypedData()` (and optional transaction signing) back into OWS, so x402 retries work without exposing the private key to the agent process.
 
 **Setup in BaseAgent:**
 

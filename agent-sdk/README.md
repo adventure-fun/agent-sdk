@@ -50,7 +50,7 @@ The default `planned` strategy caches multi-step action queues and only calls th
 | **Tiered LLM Planning** | Strategic + tactical models with cached action queues | [llm-adapters.md](docs/llm-adapters.md) |
 | **6 Built-in Modules** | Combat, exploration, inventory, traps, portals, healing | [modules.md](docs/modules.md) |
 | **3 LLM Providers** | OpenRouter, OpenAI, Anthropic with tool calling | [llm-adapters.md](docs/llm-adapters.md) |
-| **Wallet Adapters** | EVM (viem), Solana (@solana/kit), OpenWallet stub | [wallet-adapters.md](docs/wallet-adapters.md) |
+| **Wallet Adapters** | EVM (viem), Solana (@solana/kit), OpenWallet (OWS v1.2) | [wallet-adapters.md](docs/wallet-adapters.md) |
 | **x402 Auto-Payment** | Automatic 402 handling via @x402/fetch | [wallet-adapters.md](docs/wallet-adapters.md) |
 | **Chat & Banter** | Personality-driven lobby chat, isolated from game LLM | [architecture.md](docs/architecture.md) |
 | **Local Dev Stack** | Docker Compose stub API + spectator UI | [getting-started.md](docs/getting-started.md) |
