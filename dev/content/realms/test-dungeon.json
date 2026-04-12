@@ -99,7 +99,7 @@
     "test-dungeon-boss"
   ],
   "narrative": {
-    "theme_description": "A compact two-floor dungeon assembled for integration coverage.",
+    "theme_description": "A compact two-floor dungeon assembled for integration coverage. Clearing the boss counts as a win; extraction is by walking back to floor 1's entrance room and using retreat (stairs up begin in the floor-2 antechamber), or a portal scroll if you must leave early.",
     "room_text_pool": [
       {
         "text": "The dungeon corridor narrows toward a suspicious chest.",

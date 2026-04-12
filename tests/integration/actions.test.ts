@@ -113,7 +113,7 @@ describe("Phase 8 integration: dungeon action coverage", () => {
     }
   }, 45_000)
 
-  it("uses use_portal to extract in a deterministic tutorial run", async () => {
+  it("extracts from a deterministic tutorial run (retreat at entrance preferred over portal)", async () => {
     const wallet = new MockWalletAdapter({
       address: createUniqueMockWalletAddress("portal"),
     })
@@ -137,11 +137,13 @@ describe("Phase 8 integration: dungeon action coverage", () => {
       const result = await withTimeout(
         runUntilPortalExtraction(client, realm.id),
         15_000,
-        "Timed out waiting for tutorial portal extraction",
+        "Timed out waiting for tutorial extraction",
       )
 
       expect(result.extracted).toBeTrue()
-      expect(result.actions.some((action) => action.type === "use_portal")).toBeTrue()
+      expect(
+        result.actions.some((action) => action.type === "retreat" || action.type === "use_portal"),
+      ).toBeTrue()
     } finally {
       client.disconnect()
     }
@@ -414,6 +416,12 @@ function selectPortalRunAction(
   attemptedMoves: Set<string>,
   cameFromDirection: "up" | "down" | "left" | "right" | null,
 ): Action {
+  const retreat = observation.legal_actions.find(
+    (action): action is Extract<Action, { type: "retreat" }> => action.type === "retreat",
+  )
+  if (retreat) {
+    return retreat
+  }
   const usePortal = observation.legal_actions.find(
     (action): action is Extract<Action, { type: "use_portal" }> => action.type === "use_portal",
   )

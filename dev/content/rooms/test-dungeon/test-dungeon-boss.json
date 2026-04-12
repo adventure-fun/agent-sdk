@@ -5,8 +5,8 @@
     "width": 9,
     "height": 9
   },
-  "text_first_visit": "The boss troll roars from the far side of the chamber.",
-  "text_revisit": "The boss chamber trembles with lingering force.",
+  "text_first_visit": "The boss troll roars from the far side of the chamber. When it falls, retrace your steps through the antechamber to the stairs up, then all the way back to the surface entrance — you can retreat to town there without spending a portal.",
+  "text_revisit": "The boss chamber trembles with lingering force. The path back to the entrance stairwell is through the antechamber.",
   "interactables": [
     {
       "id": "boss-cache",

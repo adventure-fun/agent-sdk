@@ -72,6 +72,7 @@ export function buildObservation(overrides: DeepPartial<Observation> = {}): Obse
       template_name: "test-dungeon",
       floor_count: 2,
       current_floor: 1,
+      entrance_room_id: "room-1",
       status: "active",
       ...overrides.realm_info,
     },
