@@ -226,6 +226,7 @@ export interface SpectatorObservation {
   turn: number
   character: {
     id: string
+    name: string
     class: CharacterClass
     level: number
     hp_percent: number
