@@ -89,17 +89,8 @@ agent.on("disconnected", () => {
   console.log("[disconnected]")
 })
 
-let runNumber = 0
-while (true) {
-  runNumber += 1
-  terminalState = null
-  previousPosition = null
-  console.log(`\n=== strategic run ${runNumber} ===`)
-  await agent.start()
-
-  if (terminalState !== "extracted") {
-    break
-  }
-
-  console.log("Re-entering according to the configured realm progression strategy.")
-}
+terminalState = null
+previousPosition = null
+console.log("\n=== strategic agent session ===")
+await agent.start()
+console.log(`[session-ended] final_state=${terminalState ?? "unknown"}`)

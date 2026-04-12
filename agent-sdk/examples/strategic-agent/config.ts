@@ -74,7 +74,7 @@ export class LootPrioritizer implements AgentModule {
 export const strategicConfig: AgentConfig = createDefaultConfig({
   apiUrl: process.env.API_URL ?? "http://localhost:3001",
   wsUrl: process.env.WS_URL ?? "ws://localhost:3001",
-  realmTemplateId: process.env.REALM_TEMPLATE ?? "test-dungeon",
+  ...(process.env.REALM_TEMPLATE ? { realmTemplateId: process.env.REALM_TEMPLATE } : {}),
   characterClass: process.env.CHARACTER_CLASS ?? "rogue",
   characterName: process.env.CHARACTER_NAME ?? "Shade",
   llm: {
@@ -126,7 +126,7 @@ export const strategicConfig: AgentConfig = createDefaultConfig({
       }
     : {}),
   realmProgression: {
-    strategy: (process.env.REALM_STRATEGY ?? "regenerate") as "regenerate" | "new-realm" | "stop",
+    strategy: (process.env.REALM_STRATEGY ?? "auto") as "auto" | "regenerate" | "new-realm" | "stop",
     ...(process.env.REALM_TEMPLATE_PRIORITY
       ? {
           templatePriority: process.env.REALM_TEMPLATE_PRIORITY
@@ -135,6 +135,11 @@ export const strategicConfig: AgentConfig = createDefaultConfig({
             .filter(Boolean),
         }
       : {}),
+    continueOnExtraction: process.env.CONTINUE_ON_EXTRACTION !== "false",
+    onAllCompleted:
+      process.env.REALM_ON_ALL_COMPLETED === "stop"
+        ? "stop"
+        : "regenerate-last",
   },
   ...(process.env.AGENT_HANDLE || process.env.AGENT_X_HANDLE || process.env.AGENT_GITHUB_HANDLE
     ? {
@@ -153,6 +158,27 @@ export const strategicConfig: AgentConfig = createDefaultConfig({
       .split(",")
       .map((value) => value.trim())
       .filter(Boolean),
+  },
+  lobby: {
+    innHealThreshold: Number(process.env.INN_HEAL_THRESHOLD ?? "1"),
+    autoSellJunk: process.env.AUTO_SELL_JUNK !== "false",
+    autoEquipUpgrades: process.env.AUTO_EQUIP_UPGRADES !== "false",
+    buyPotionMinimum: Number(process.env.BUY_POTION_MINIMUM ?? "2"),
+    buyPortalScroll: process.env.BUY_PORTAL_SCROLL !== "false",
+    useLLM: process.env.LOBBY_USE_LLM !== "false",
+  },
+  limits: {
+    ...(process.env.MAX_REALMS ? { maxRealms: Number(process.env.MAX_REALMS) } : {}),
+    ...(process.env.MAX_RUNTIME_MINUTES
+      ? { maxRuntimeMinutes: Number(process.env.MAX_RUNTIME_MINUTES) }
+      : {}),
+    ...(process.env.MAX_SPEND_USD ? { maxSpendUsd: Number(process.env.MAX_SPEND_USD) } : {}),
+    spendingWindow:
+      process.env.SPENDING_WINDOW === "hourly"
+      || process.env.SPENDING_WINDOW === "daily"
+      || process.env.SPENDING_WINDOW === "total"
+        ? process.env.SPENDING_WINDOW
+        : "total",
   },
   rerollOnDeath: process.env.REROLL_ON_DEATH === "true",
   decision: {
