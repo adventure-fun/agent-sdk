@@ -14,7 +14,7 @@ bun install
 bun run examples/basic-agent/index.ts
 ```
 
-Open `http://localhost:3002` to watch the agent play in the spectator UI.
+Open `http://localhost:3002` to watch the agent play in the spectator UI. For full local debugging, open `http://localhost:3002/?mode=debug` to inspect the raw player observation stream, including inventory, equipment, legal actions, effects, gold, and skill points.
 
 ## Architecture
 
@@ -53,7 +53,7 @@ The default `planned` strategy caches multi-step action queues and only calls th
 | **Wallet Adapters** | EVM (viem), Solana (@solana/kit), OpenWallet (OWS v1.2) | [wallet-adapters.md](docs/wallet-adapters.md) |
 | **x402 Auto-Payment** | Automatic 402 handling via @x402/fetch | [wallet-adapters.md](docs/wallet-adapters.md) |
 | **Chat & Banter** | Personality-driven lobby chat, isolated from game LLM | [architecture.md](docs/architecture.md) |
-| **Local Dev Stack** | Docker Compose stub API + spectator UI | [getting-started.md](docs/getting-started.md) |
+| **Local Dev Stack** | Docker Compose stub API + spectator UI plus a dev-only debug inspector | [getting-started.md](docs/getting-started.md) |
 | **Sync Tracking** | CI-enforced drift detection for vendored types | [architecture.md](docs/architecture.md) |
 
 ## Documentation
@@ -92,6 +92,23 @@ CI output tells you exactly which files changed and which SDK modules to review.
 
 - [`examples/basic-agent/`](examples/basic-agent/) -- minimal 40-line agent with env config
 - [`examples/strategic-agent/`](examples/strategic-agent/) -- tiered models, custom loot module, chat personality, auto-chaining
+
+## Local Debug Inspector
+
+The browser viewer now has two modes:
+
+- `spectate` (default) uses the redacted public spectator feed, matching what a normal watcher should see.
+- `debug` is dev-only and streams the full local `Observation` payload for the selected live run.
+
+Use `http://localhost:3002/?mode=debug` when you need to validate feature completeness during local agent runs. The debug inspector exposes:
+
+- inventory and equipped items
+- legal actions available on the current turn
+- active buffs and debuffs
+- full HP/resource values, gold, XP, and skill points
+- the same live map/entities/events panels as spectator mode
+
+This split is intentional: spectator mode stays aligned with the real game's redacted view, while debug mode gives you the player-side state needed to verify agent support for chests, loot, consumables, equipment, and other gameplay systems.
 
 ## Contributing
 

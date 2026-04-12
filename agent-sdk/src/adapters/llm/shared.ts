@@ -158,6 +158,7 @@ export function buildDecisionPrompt(
         )
         .join("\n")
     : "none"
+  const spatialContext = summarizeSpatialContext(observation)
 
   return [
     "Current turn context:",
@@ -169,8 +170,11 @@ export function buildDecisionPrompt(
     `Floor: ${observation.realm_info.current_floor}/${observation.realm_info.floor_count}`,
     `Realm status: ${observation.realm_info.status}`,
     `Room: ${observation.position.room_id}`,
+    `Position: (${observation.position.tile.x}, ${observation.position.tile.y})`,
     `Visible entities (${observation.visible_entities.length}): ${visibleEntities}`,
     `Room text: ${observation.room_text ?? "none"}`,
+    "Spatial context:",
+    spatialContext,
     "",
     "Module recommendations:",
     moduleLines,
@@ -220,6 +224,7 @@ export function buildPlanningPrompt(
         .join("\n")
     : "none"
   const mapSummary = JSON.stringify(prompt.observation.known_map)
+  const spatialContext = summarizeSpatialContext(prompt.observation)
 
   return [
     `${prompt.planType === "strategic" ? "Strategic" : "Tactical"} planning request:`,
@@ -231,8 +236,11 @@ export function buildPlanningPrompt(
     `Floor: ${prompt.observation.realm_info.current_floor}/${prompt.observation.realm_info.floor_count}`,
     `Realm status: ${prompt.observation.realm_info.status}`,
     `Room: ${prompt.observation.position.room_id}`,
+    `Position: (${prompt.observation.position.tile.x}, ${prompt.observation.position.tile.y})`,
     `Visible entities (${prompt.observation.visible_entities.length}): ${visibleEntities}`,
     `Room text: ${prompt.observation.room_text ?? "none"}`,
+    "Spatial context:",
+    spatialContext,
     `Known map: ${mapSummary}`,
     prompt.strategicContext ? `Strategic context: ${prompt.strategicContext}` : "Strategic context: none",
     `Maximum planned actions: ${prompt.maxActions}`,
@@ -533,6 +541,40 @@ function buildActionSchemaBranches(): JsonSchemaProperty[] {
   ]
 }
 
+function summarizeSpatialContext(observation: Observation): string {
+  const tileByCoordinate = new Map(
+    observation.visible_tiles.map((tile) => [`${tile.x},${tile.y}`, tile] as const),
+  )
+  const current = observation.position.tile
+  const legalMoveDirections = new Set(
+    observation.legal_actions
+      .filter((action): action is Extract<Action, { type: "move" }> => action.type === "move")
+      .map((action) => action.direction),
+  )
+
+  const neighborSummary = (["up", "down", "left", "right"] as const)
+    .map((direction) => {
+      const next = nextPosition(current, direction)
+      const tile = tileByCoordinate.get(`${next.x},${next.y}`)
+      const visibility = tile ? tile.type : "unseen"
+      const legal = legalMoveDirections.has(direction) ? "legal" : "illegal"
+      return `- ${direction}: ${legal}, destination ${visibility} at (${next.x}, ${next.y})`
+    })
+    .join("\n")
+
+  const pointsOfInterest = observation.visible_tiles
+    .filter((tile) => tile.type === "door" || tile.type === "stairs" || tile.type === "stairs_up" || tile.type === "entrance")
+    .map((tile) => `${tile.type}@(${tile.x},${tile.y})`)
+    .join(", ")
+
+  return [
+    `Current tile: (${current.x}, ${current.y})`,
+    "Adjacent movement:",
+    neighborSummary,
+    `Points of interest: ${pointsOfInterest || "none visible"}`,
+  ].join("\n")
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null
 }
@@ -593,6 +635,22 @@ function normalizeAction(value: Record<string, unknown>): Action | null {
         : null
     default:
       return null
+  }
+}
+
+function nextPosition(
+  position: { x: number; y: number },
+  direction: Extract<Action, { type: "move" }>["direction"],
+): { x: number; y: number } {
+  switch (direction) {
+    case "up":
+      return { x: position.x, y: position.y - 1 }
+    case "down":
+      return { x: position.x, y: position.y + 1 }
+    case "left":
+      return { x: position.x - 1, y: position.y }
+    case "right":
+      return { x: position.x + 1, y: position.y }
   }
 }
 

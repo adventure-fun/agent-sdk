@@ -17,8 +17,16 @@ export interface AgentModule {
 
 export interface MapMemory {
   visitedRooms: Set<string>
+  visitedTiles: Set<string>
   knownTiles: Map<string, TileInfo>
   discoveredExits: Map<string, Direction[]>
+  stalledMoves: Map<string, number>
+  lastPosition?: {
+    floor: number
+    roomId: string
+    x: number
+    y: number
+  }
 }
 
 export interface AgentContext {
@@ -36,8 +44,10 @@ export interface ModuleRegistry {
 export function createMapMemory(): MapMemory {
   return {
     visitedRooms: new Set(),
+    visitedTiles: new Set(),
     knownTiles: new Map(),
     discoveredExits: new Map(),
+    stalledMoves: new Map(),
   }
 }
 
