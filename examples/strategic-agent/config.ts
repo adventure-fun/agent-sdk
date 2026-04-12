@@ -77,18 +77,28 @@ export const strategicConfig: AgentConfig = createDefaultConfig({
   characterClass: process.env.CHARACTER_CLASS ?? "rogue",
   characterName: process.env.CHARACTER_NAME ?? "Shade",
   llm: {
-    provider: "anthropic",
+    provider: "openrouter",
     apiKey: process.env.LLM_API_KEY ?? "",
-    model: process.env.LLM_MODEL ?? "claude-sonnet-4-6",
+    model: process.env.LLM_MODEL ?? "anthropic/claude-sonnet-4.6",
   },
   wallet: {
     type: "env",
     network: (process.env.AGENT_WALLET_NETWORK ?? "base") as "base" | "solana",
     ...(process.env.AGENT_PRIVATE_KEY ? { privateKey: process.env.AGENT_PRIVATE_KEY } : {}),
   },
+  // Example OpenWallet / OWS config:
+  // wallet: {
+  //   type: "open-wallet",
+  //   network: "base",
+  //   walletName: process.env.OWS_WALLET_NAME ?? "agent-treasury",
+  //   passphrase: process.env.OWS_PASSPHRASE,
+  //   chainId: process.env.OWS_CHAIN_ID ?? "eip155:8453",
+  //   vaultPath: process.env.OWS_VAULT_PATH,
+  //   accountIndex: Number(process.env.OWS_ACCOUNT_INDEX ?? "0"),
+  // },
   decision: {
     strategy: "planned",
-    tacticalModel: process.env.TACTICAL_LLM_MODEL ?? "claude-haiku-4-5",
+    tacticalModel: process.env.TACTICAL_LLM_MODEL ?? "anthropic/claude-haiku-4.5",
     maxPlanLength: 12,
     moduleConfidenceThreshold: 0.8,
     emergencyHpPercent: 0.25,

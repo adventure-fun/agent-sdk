@@ -357,6 +357,7 @@ function selectCoverageAction(
       .filter((entity) => entity.type === "enemy")
       .map((entity) => entity.id),
   )
+
   const preferredAttack = observation.legal_actions.find(
     (action): action is Extract<Action, { type: "attack" }> =>
       action.type === "attack"

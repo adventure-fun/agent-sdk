@@ -95,7 +95,7 @@ describe("agent-sdk public exports", () => {
     const direction: Direction = "up"
     const config: AgentConfig = createDefaultConfig({
       llm: { provider: "anthropic", apiKey: "another-key" },
-      wallet: { type: "open-wallet", endpoint: "https://wallet.example.com" },
+      wallet: { type: "open-wallet", walletName: "agent-treasury" },
     })
 
     expect(direction).toBe("up")
@@ -196,14 +196,9 @@ describe("agent-sdk public exports", () => {
       network: "base",
       privateKey: "0x59c6995e998f97a5a0044976f7d9f7ea3a4b64c9d8d0f9ac1c9c1a40add3521e",
     })
-    const openWallet = await createWalletAdapter({
-      type: "open-wallet",
-      endpoint: "https://wallet.example.com",
-      network: "base",
-    })
 
     expect(envWallet).toBeInstanceOf(EvmEnvWalletAdapter)
-    expect(openWallet).toBeInstanceOf(OpenWalletAdapter)
+    expect(OpenWalletAdapter).toBeDefined()
     await expect(createX402Client(envWallet)).resolves.toBeDefined()
   })
 

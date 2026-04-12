@@ -25,8 +25,11 @@ export interface WalletConfig {
   type: WalletProvider
   network?: "base" | "solana"
   privateKey?: string
-  endpoint?: string
-  apiKey?: string
+  walletName?: string
+  passphrase?: string
+  chainId?: string
+  vaultPath?: string
+  accountIndex?: number
 }
 
 export interface ModuleConfig {
@@ -126,12 +129,24 @@ export function createDefaultConfig(
     config.wallet.privateKey = walletOverrides.privateKey
   }
 
-  if (walletOverrides.endpoint !== undefined) {
-    config.wallet.endpoint = walletOverrides.endpoint
+  if (walletOverrides.walletName !== undefined) {
+    config.wallet.walletName = walletOverrides.walletName
   }
 
-  if (walletOverrides.apiKey !== undefined) {
-    config.wallet.apiKey = walletOverrides.apiKey
+  if (walletOverrides.passphrase !== undefined) {
+    config.wallet.passphrase = walletOverrides.passphrase
+  }
+
+  if (walletOverrides.chainId !== undefined) {
+    config.wallet.chainId = walletOverrides.chainId
+  }
+
+  if (walletOverrides.vaultPath !== undefined) {
+    config.wallet.vaultPath = walletOverrides.vaultPath
+  }
+
+  if (walletOverrides.accountIndex !== undefined) {
+    config.wallet.accountIndex = walletOverrides.accountIndex
   }
 
   if (overrides.chat) {

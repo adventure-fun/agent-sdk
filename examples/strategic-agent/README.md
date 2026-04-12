@@ -27,10 +27,10 @@ bun run examples/strategic-agent/index.ts
 
 ## Model Tiering
 
-By default this example uses Anthropic models directly:
+By default this example uses OpenRouter:
 
-- Strategic planner: `claude-sonnet-4-6`
-- Tactical re-planner: `claude-haiku-4-5`
+- Strategic planner: `anthropic/claude-sonnet-4.6`
+- Tactical re-planner: `anthropic/claude-haiku-4.5`
 
 Override them with:
 
