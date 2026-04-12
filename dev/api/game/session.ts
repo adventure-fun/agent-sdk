@@ -1,7 +1,7 @@
 import type { ServerWebSocket } from "bun"
 import { CLASSES, REALMS, SKILL_TREES, SeededRng, applyStatGrowth, buildObservationFromState, buildRoomState, checkLevelUp, computeLegalActions, generateRealm, resolveTurn, toSpectatorObservation, type CharacterStats, type EquipSlot, type GameEvent, type GameState, type GeneratedRealm, type InventoryItem, type InventorySlot, type LobbyEvent, type Observation } from "../../engine/index.js"
 import { isActionLegal, parseAction } from "./action-validator.js"
-import { broadcastLobbyMessage, getActiveSession, getCharacterByAccountId, getRealmById, registerActiveSession, type ActiveSessionHandle, type PlayerSocketData, type SpectatorSocketData, unregisterActiveSession, updateCharacter, updateRealm } from "../store.js"
+import { broadcastLobbyMessage, getActiveSession, getCharacterByAccountId, getRealmById, registerActiveSession, type ActiveSessionHandle, type DebugSocketData, type PlayerSocketData, type SpectatorSocketData, unregisterActiveSession, updateCharacter, updateRealm } from "../store.js"
 
 const TURN_TIMEOUT_MS = Number(process.env["TURN_TIMEOUT_SECONDS"] ?? 30) * 1000
 
@@ -82,6 +82,7 @@ export class LocalGameSession implements ActiveSessionHandle {
   private readonly rng: SeededRng
   private readonly ws: ServerWebSocket<PlayerSocketData>
   private readonly startingItemIds: Set<string>
+  private readonly debuggers = new Set<ServerWebSocket<DebugSocketData>>()
   private readonly spectators = new Set<ServerWebSocket<SpectatorSocketData>>()
   private readonly eventBuffer: GameEvent[] = []
   private gameState: GameState
@@ -201,8 +202,20 @@ export class LocalGameSession implements ActiveSessionHandle {
     return observation
   }
 
+  getDebugObservation(): Observation {
+    return this.getInitialObservation()
+  }
+
   getSpectatorObservation() {
     return toSpectatorObservation(this.getInitialObservation())
+  }
+
+  addDebugger(ws: ServerWebSocket<DebugSocketData>): void {
+    this.debuggers.add(ws)
+  }
+
+  removeDebugger(ws: ServerWebSocket<DebugSocketData>): void {
+    this.debuggers.delete(ws)
   }
 
   addSpectator(ws: ServerWebSocket<SpectatorSocketData>): void {
@@ -245,6 +258,7 @@ export class LocalGameSession implements ActiveSessionHandle {
     }
 
     this.broadcastNotableEvents(result.notableEvents)
+    this.broadcastDebuggers(observation)
     this.broadcastSpectators(observation)
 
     if (this.gameState.character.hp.current <= 0) {
@@ -281,6 +295,13 @@ export class LocalGameSession implements ActiveSessionHandle {
     const payload = JSON.stringify({ type: "observation", data: spectatorObservation })
     for (const spectator of this.spectators) {
       spectator.send(payload)
+    }
+  }
+
+  private broadcastDebuggers(observation: Observation): void {
+    const payload = JSON.stringify({ type: "observation", data: observation })
+    for (const debuggerClient of this.debuggers) {
+      debuggerClient.send(payload)
     }
   }
 
@@ -414,6 +435,11 @@ export class LocalGameSession implements ActiveSessionHandle {
 
   private closeSpectators(reason: "death" | "disconnect" | "extraction"): void {
     const payload = JSON.stringify({ type: "session_ended", reason })
+    for (const debuggerClient of this.debuggers) {
+      debuggerClient.send(payload)
+      debuggerClient.close()
+    }
+    this.debuggers.clear()
     for (const spectator of this.spectators) {
       spectator.send(payload)
       spectator.close()
