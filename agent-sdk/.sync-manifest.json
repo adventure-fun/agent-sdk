@@ -122,7 +122,7 @@
     },
     {
       "file": "backend/src/auth/jwt.ts",
-      "hash": "d66ef1be696582d52c7147e138b63c39d2ad977178623b5949e4b7cc630bd0ab",
+      "hash": "434b7cfd0a6c628c6734d17f6c43863af3f8af3a8b6054cd3414d5319cc1260b",
       "affectedModules": [
         "dev-stack",
         "auth",
