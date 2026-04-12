@@ -10,9 +10,12 @@ export interface LobbySocketLike {
   close(): void
 }
 
+const CHAT_HISTORY_SIZE = 50
+
 export class LobbyLiveManager {
   private clients = new Set<LobbySocketLike>()
   private chatRateLimits = new Map<string, number>()
+  private recentChat: SanitizedChatMessage[] = []
   private pubsub: RedisPubSub | null = null
   private chatHandler: ((msg: string) => void) | null = null
   private activityHandler: ((msg: string) => void) | null = null
@@ -24,6 +27,10 @@ export class LobbyLiveManager {
 
   addClient(ws: LobbySocketLike): void {
     this.clients.add(ws)
+    // Send chat backlog so late-joiners see recent messages
+    if (this.recentChat.length > 0) {
+      ws.send(JSON.stringify({ type: "lobby_chat_history", data: this.recentChat }))
+    }
   }
 
   removeClient(ws: LobbySocketLike): void {
@@ -36,6 +43,10 @@ export class LobbyLiveManager {
   }
 
   broadcastChat(message: SanitizedChatMessage): void {
+    this.recentChat.push(message)
+    if (this.recentChat.length > CHAT_HISTORY_SIZE) {
+      this.recentChat = this.recentChat.slice(-CHAT_HISTORY_SIZE)
+    }
     const payload = JSON.stringify({ type: "lobby_chat", data: message })
     this.broadcast(payload)
   }

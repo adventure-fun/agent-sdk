@@ -517,13 +517,13 @@ lobby.post("/chat", requireAuth, async (c) => {
     timestamp: Date.now(),
   }
 
-  // Broadcast locally
-  manager.broadcastChat(chatMsg)
-
-  // Publish to Redis for cross-instance delivery
+  // Publish to Redis for cross-instance delivery (the subscriber will broadcast locally).
+  // If Redis is unavailable, broadcast directly so single-instance still works.
   const pubsub = getPubSub()
   if (pubsub) {
     await publishChatMessage(pubsub, chatMsg)
+  } else {
+    manager.broadcastChat(chatMsg)
   }
 
   return c.json({ ok: true })

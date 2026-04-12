@@ -10,6 +10,7 @@ interface StatRow {
 }
 
 export function CharacterPanel({
+  characterName,
   classLabel,
   level,
   gold,
@@ -30,6 +31,7 @@ export function CharacterPanel({
   statRows,
   children,
 }: {
+  characterName?: string
   classLabel: string
   level: number
   gold: number
@@ -54,6 +56,9 @@ export function CharacterPanel({
     <div className={`border border-gray-800 rounded p-4 text-sm space-y-3 ${className ?? ""}`}>
       {/* Character header */}
       <div>
+        {characterName && (
+          <div className="text-sm font-bold text-amber-400 uppercase">{characterName}</div>
+        )}
         <div className="text-xs text-gray-500 uppercase mb-1">
           Level {level} {classLabel}
         </div>

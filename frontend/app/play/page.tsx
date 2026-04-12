@@ -1293,6 +1293,7 @@ export default function PlayPage() {
 
             {/* Right column — Player info */}
             <CharacterPanel
+              characterName={character.name}
               classLabel={classMap[character.class]?.name ?? character.class}
               level={character.level}
               gold={displayedGold}

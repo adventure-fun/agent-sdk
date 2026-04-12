@@ -76,6 +76,7 @@ describe("11.5 — spectator helpers", () => {
         turn: 12,
         character: {
           id: "char-1",
+          name: "",
           class: "mage",
           level: 7,
           hp_percent: 70,

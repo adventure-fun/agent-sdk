@@ -4,6 +4,8 @@ import Link from "next/link"
 import { useEffect } from "react"
 import { useActiveSpectateSessions } from "../hooks/use-active-spectate-sessions"
 import { useLeaderboard } from "../hooks/use-leaderboard"
+import { LobbyChatPanel } from "../components/lobby-chat-panel"
+import { CharacterSearch } from "../components/character-search"
 
 export default function SpectateIndexPage() {
   const { sessions, isLoading, error, refetch } = useActiveSpectateSessions({ refreshMs: 12_000 })
@@ -46,6 +48,8 @@ export default function SpectateIndexPage() {
             )}
           </div>
         </div>
+
+        <CharacterSearch />
 
         <div className="mt-auto px-4 pb-5">
           <button
@@ -128,6 +132,11 @@ export default function SpectateIndexPage() {
                 </Link>
               ))
             )}
+          </div>
+
+          {/* Global lobby chat */}
+          <div className="h-72">
+            <LobbyChatPanel />
           </div>
 
           <div className="flex justify-end">

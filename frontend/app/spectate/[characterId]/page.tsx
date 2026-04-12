@@ -5,8 +5,8 @@ import { useEffect, useRef, useState } from "react"
 import type { SpectatorObservation } from "@adventure-fun/schemas"
 import { GameMap } from "../../components/game-map"
 import { useLeaderboard } from "../../hooks/use-leaderboard"
-import { useLobbyChat } from "../../hooks/use-lobby-chat"
-import { useAdventureAuth } from "../../hooks/use-adventure-auth"
+import { LobbyChatPanel } from "../../components/lobby-chat-panel"
+import { CharacterSearch } from "../../components/character-search"
 
 interface Props {
   params: Promise<{ characterId: string }>
@@ -29,20 +29,22 @@ export default function SpectatePage({ params }: Props) {
 
   // Top-5 leaderboard for the left sidebar
   const { entries: topPlayers, fetchLeaderboard } = useLeaderboard()
+  const [charEntry, setCharEntry] = useState<{ character_name: string; class: string } | null>(null)
+
   useEffect(() => {
     void fetchLeaderboard({ type: "xp", limit: 5 })
   }, [fetchLeaderboard])
 
-  // Global lobby chat
-  const { messages: chatMessages, connected: chatConnected, send: sendChat, sendError: chatSendError } = useLobbyChat(80)
-  const { token, isAuthenticated } = useAdventureAuth()
-  const [chatInput, setChatInput] = useState("")
-  const chatEndRef = useRef<HTMLDivElement>(null)
-
-  // Auto-scroll chat to bottom
+  // Fetch character info if not in top-5
+  const API_URL = process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:3001"
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [chatMessages])
+    if (!characterId) return
+    if (topPlayers.some((p) => p.character_id === characterId)) return
+    fetch(`${API_URL}/leaderboard/character/${characterId}`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => { if (d?.entry) setCharEntry(d.entry) })
+      .catch(() => {})
+  }, [characterId, topPlayers, API_URL])
 
   const requestReconnect = () => {
     if (reconnectTimerRef.current !== null) {
@@ -127,9 +129,11 @@ export default function SpectatePage({ params }: Props) {
 
   const obs = observation
   const enemies = obs?.visible_entities.filter((e) => e.type === "enemy") ?? []
+  const leaderboardPlayer = topPlayers.find((p) => p.character_id === characterId)
+  const charName = obs?.character.name ?? leaderboardPlayer?.character_name ?? charEntry?.character_name ?? null
   const classLabel = obs ? obs.character.class.toUpperCase() : "???"
   const shortId = characterId ? characterId.slice(0, 8) : "..."
-  const rank = topPlayers.findIndex((p) => p.character_id === characterId) + 1
+  const rank = leaderboardPlayer ? topPlayers.indexOf(leaderboardPlayer) + 1 : 0
 
   if (!characterId) {
     return (
@@ -187,6 +191,8 @@ export default function SpectatePage({ params }: Props) {
           </div>
         </div>
 
+        <CharacterSearch />
+
         <div className="mt-auto px-4 pb-5 space-y-2">
           <button
             type="button"
@@ -211,7 +217,7 @@ export default function SpectatePage({ params }: Props) {
         <header className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h2 className="aw-headline text-aw-primary aw-amber-glow text-2xl md:text-3xl">
-              NOW SPECTATING: {classLabel}
+              NOW SPECTATING: {charName ?? classLabel}
               {rank > 0 && <span className="text-aw-secondary ml-2 text-lg">(RANK #{rank})</span>}
             </h2>
             <p className="text-aw-secondary text-xs tracking-widest mt-0.5 opacity-70 uppercase">
@@ -349,72 +355,7 @@ export default function SpectatePage({ params }: Props) {
           </div>
 
           {/* Global encrypted chat */}
-          <div className="border border-white/5 bg-aw-surface-lowest flex flex-col">
-            <div className="px-3 py-2 bg-aw-surface-container border-b border-white/5 flex items-center justify-between shrink-0">
-              <span className="text-[10px] tracking-[0.2em] uppercase text-aw-outline flex items-center gap-2">
-                GLOBAL_ENCRYPTED_CHAT
-                <span className={`w-1 h-1 rounded-full ${chatConnected ? "bg-aw-secondary animate-pulse" : "bg-aw-outline"}`} />
-              </span>
-              <span className="text-[10px] text-aw-outline">
-                {chatConnected ? "MEMPOOL_SYNCED" : "CONNECTING..."}
-              </span>
-            </div>
-
-            <div className="p-3 space-y-2 h-36 overflow-y-auto">
-              {chatMessages.length === 0 ? (
-                <p className="text-[10px] text-aw-outline italic">No messages yet...</p>
-              ) : (
-                chatMessages.map((msg, i) => (
-                  <div key={i} className="text-xs flex gap-2">
-                    <span className={`font-medium shrink-0 ${
-                      msg.player_type === "agent" ? "text-aw-tertiary" : "text-aw-secondary"
-                    } opacity-80`}>
-                      {msg.character_name}:
-                    </span>
-                    <span className="text-aw-on-surface-variant">{msg.message}</span>
-                  </div>
-                ))
-              )}
-              <div ref={chatEndRef} />
-            </div>
-
-            <div className="border-t border-white/5 p-2 shrink-0">
-              {isAuthenticated ? (
-                <form
-                  onSubmit={async (e) => {
-                    e.preventDefault()
-                    if (!token || !chatInput.trim()) return
-                    await sendChat(chatInput, token)
-                    setChatInput("")
-                  }}
-                  className="flex gap-2"
-                >
-                  <input
-                    type="text"
-                    value={chatInput}
-                    onChange={(e) => setChatInput(e.target.value)}
-                    maxLength={280}
-                    placeholder="INITIALIZE_MESSAGE..."
-                    className="flex-1 bg-aw-surface-container border-none outline-none text-xs text-aw-secondary placeholder:text-aw-surface-bright px-3 py-2"
-                  />
-                  <button
-                    type="submit"
-                    disabled={!chatInput.trim()}
-                    className="px-3 py-2 text-[10px] text-aw-secondary border border-aw-secondary/30 hover:bg-aw-secondary/10 transition-colors disabled:opacity-40 tracking-widest"
-                  >
-                    SEND
-                  </button>
-                </form>
-              ) : (
-                <p className="text-[10px] text-aw-outline italic text-center py-1">
-                  Sign in to chat
-                </p>
-              )}
-              {chatSendError && (
-                <p className="text-[10px] text-aw-error mt-1">{chatSendError}</p>
-              )}
-            </div>
-          </div>
+          <LobbyChatPanel />
         </div>
       </main>
 
