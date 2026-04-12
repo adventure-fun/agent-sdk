@@ -208,8 +208,8 @@ export function DungeonView({
   }, [moveActions, waitingForResponse, onAction])
 
   return (
-    <main className="min-h-screen flex flex-col p-4 bg-aw-bg aw-label">
-      <div className="max-w-5xl w-full mx-auto flex-1 flex flex-col gap-4">
+    <main className="min-h-screen flex flex-col px-4 pt-2 pb-4 bg-aw-bg aw-label">
+      <div className="max-w-6xl w-full mx-auto flex-1 flex flex-col gap-3">
         {/* Header */}
         <div className="flex items-center justify-between text-xs text-aw-outline">
           <span className="text-aw-primary aw-headline font-bold tracking-widest">{realm_info.template_name}</span>
@@ -242,7 +242,7 @@ export function DungeonView({
         {/* Main area: map + status */}
         <div className="flex flex-col md:flex-row gap-4 flex-1">
           {/* Map */}
-          <div className="md:w-2/3 border border-aw-secondary/20 rounded-sm p-4 bg-black relative"
+          <div className="md:w-2/3 border border-aw-secondary/20 rounded-sm p-3 bg-black relative"
                style={{ boxShadow: "0 0 30px rgba(118,211,244,0.04)" }}>
             {/* Corner brackets */}
             <div className="absolute top-2 left-2 w-4 h-4 border-t-2 border-l-2 border-aw-secondary/30 pointer-events-none" />
