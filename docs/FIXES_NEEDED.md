@@ -58,12 +58,19 @@ Add notes under any item with `> NOTE: your note here` when needed.
   - **Files:** `migrations/001_initial_schema.sql`
   > NOTE: Deleted `migrations/` directory entirely. Authoritative migrations are in `supabase/migrations/`.
 
-- [ ] **1.5 — Document RLS as future requirement**
+- [x] **1.5 — Enable RLS on all tables with defense-in-depth policies**
   - All 14 public tables have `rls_enabled: false` and zero RLS policies (confirmed via live DB query)
   - Backend uses `SUPABASE_SERVICE_ROLE_KEY` which bypasses RLS, so this is safe for now
   - `.env.example` lists `SUPABASE_ANON_KEY` but the code never uses it
-  - **Fix:** No code change needed now. This item documents the future need: before any client-side Supabase usage or exposing the anon key, RLS policies must be created for every table. Consider removing `SUPABASE_ANON_KEY` from `.env.example` to avoid confusion until RLS is implemented
   - **Tables needing RLS (all of them):** `accounts`, `characters`, `realm_instances`, `realm_mutations`, `realm_discovered_map`, `inventory_items`, `corpse_containers`, `run_logs`, `leaderboard_entries`, `lore_discovered`, `payment_log`, `marketplace_listings`, `hall_of_fame`, `chat_log`
+  > NOTE: Enabled RLS on all 14 public tables with 30 policies across three tiers. Migration: `supabase/migrations/20260412000000_enable_rls_all_tables.sql`, applied to live DB via Supabase MCP.
+  >
+  > **Policy model:**
+  > - `service_role` (backend): bypasses RLS entirely — existing backend works unchanged
+  > - `anon`: read-only SELECT on genuinely public tables (`leaderboard_entries`, `hall_of_fame`, `corpse_containers` with `USING (true)`; `marketplace_listings` with `status = 'active'`). All other tables are completely locked out — no policy = no access
+  > - `authenticated`: scoped to own data via `auth.uid()`, ready for future Supabase Auth adoption. Direct ownership (`account_id = auth.uid()`) for `accounts`, `characters`, `payment_log`, `chat_log`. Subquery ownership through character FK chain for `realm_instances`, `realm_mutations`, `realm_discovered_map`, `inventory_items`, `run_logs`, `lore_discovered`. Combined own + active for `marketplace_listings`
+  >
+  > **Performance:** Added 4 supporting indexes on FK columns used in RLS subqueries (`characters.account_id`, `inventory_items.character_id`, `corpse_containers.character_id`, `realm_instances.character_id`)
 
 ---
 
@@ -686,3 +693,4 @@ _Record completed fixes here with date and commit hash._
 | 2026-04-09 | 14.4 | pending | Upgraded spectate UX with loading shells, in-app reconnect controls, richer waiting/error states, and newest-event highlighting |
 | 2026-04-09 | 14.5 | pending | Replaced hardcoded Vercel rewrite placeholder with env-driven `rewrites()` in `frontend/next.config.ts`; added `BACKEND_URL` to `.env.example` |
 | 2026-04-09 | 14.6 | pending | Fixed frontend TS alias from nonexistent `./src/*` to `./app/*` |
+| 2026-04-12 | 1.5 | pending | Enabled RLS on all 14 tables with 30 policies (public/authenticated/service_role tiers) + 4 FK indexes for subquery performance |
