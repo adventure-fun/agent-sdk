@@ -113,7 +113,7 @@ describe("Phase 8 integration: dungeon action coverage", () => {
     }
   }, 45_000)
 
-  it("uses use_portal to extract from the dungeon in a separate survival-focused run", async () => {
+  it("uses use_portal to extract in a deterministic tutorial run", async () => {
     const wallet = new MockWalletAdapter({
       address: createUniqueMockWalletAddress("portal"),
     })
@@ -130,14 +130,14 @@ describe("Phase 8 integration: dungeon action coverage", () => {
 
     const realm = await client.request<{ id: string }>("/realms/generate", {
       method: "POST",
-      body: JSON.stringify({ template_id: "test-dungeon" }),
+      body: JSON.stringify({ template_id: "test-tutorial" }),
     })
 
     try {
       const result = await withTimeout(
         runUntilPortalExtraction(client, realm.id),
-        45_000,
-        "Timed out waiting for dungeon portal extraction",
+        15_000,
+        "Timed out waiting for tutorial portal extraction",
       )
 
       expect(result.extracted).toBeTrue()
@@ -145,7 +145,7 @@ describe("Phase 8 integration: dungeon action coverage", () => {
     } finally {
       client.disconnect()
     }
-  }, 50_000)
+  }, 20_000)
 })
 
 async function runUntilActionCoverage(

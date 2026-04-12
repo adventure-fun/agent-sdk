@@ -46,9 +46,13 @@ export interface StatRerollConfig {
   minTotal?: number
 }
 
+export type RealmProgressionStrategy = "auto" | "regenerate" | "new-realm" | "stop"
+
 export interface RealmProgressionConfig {
-  strategy: "regenerate" | "new-realm" | "stop"
+  strategy: RealmProgressionStrategy
   templatePriority?: string[]
+  continueOnExtraction?: boolean
+  onAllCompleted?: "regenerate-last" | "stop"
 }
 
 export interface AgentProfileConfig {
@@ -60,6 +64,24 @@ export interface AgentProfileConfig {
 export interface SkillTreeConfig {
   autoSpend?: boolean
   preferredNodes?: string[]
+}
+
+export interface LobbyConfig {
+  innHealThreshold?: number
+  autoSellJunk?: boolean
+  autoEquipUpgrades?: boolean
+  buyPotionMinimum?: number
+  buyPortalScroll?: boolean
+  useLLM?: boolean
+}
+
+export type SpendingWindow = "total" | "daily" | "hourly"
+
+export interface AgentLimitsConfig {
+  maxRealms?: number
+  maxRuntimeMinutes?: number
+  maxSpendUsd?: number
+  spendingWindow?: SpendingWindow
 }
 
 export interface ModuleConfig {
@@ -92,6 +114,8 @@ export interface AgentConfig {
   realmProgression?: RealmProgressionConfig
   profile?: AgentProfileConfig
   skillTree?: SkillTreeConfig
+  lobby?: LobbyConfig
+  limits?: AgentLimitsConfig
   rerollOnDeath?: boolean
   llm: LLMConfig
   wallet: WalletConfig
@@ -127,11 +151,24 @@ export function createDefaultConfig(
       enabled: false,
     },
     realmProgression: {
-      strategy: "regenerate",
+      strategy: "auto",
+      continueOnExtraction: true,
+      onAllCompleted: "regenerate-last",
     },
     skillTree: {
       autoSpend: false,
       preferredNodes: [],
+    },
+    lobby: {
+      innHealThreshold: 1,
+      autoSellJunk: true,
+      autoEquipUpgrades: true,
+      buyPotionMinimum: 2,
+      buyPortalScroll: true,
+      useLLM: true,
+    },
+    limits: {
+      spendingWindow: "total",
     },
     rerollOnDeath: overrides.rerollOnDeath ?? false,
     modules: overrides.modules ?? [],
@@ -211,6 +248,8 @@ export function createDefaultConfig(
       ...(overrides.realmProgression.templatePriority
         ? { templatePriority: [...overrides.realmProgression.templatePriority] }
         : {}),
+      continueOnExtraction: overrides.realmProgression.continueOnExtraction ?? true,
+      onAllCompleted: overrides.realmProgression.onAllCompleted ?? "regenerate-last",
     }
   }
 
@@ -228,6 +267,32 @@ export function createDefaultConfig(
     config.skillTree = {
       autoSpend: overrides.skillTree.autoSpend ?? true,
       preferredNodes: [...(overrides.skillTree.preferredNodes ?? [])],
+    }
+  }
+
+  if (overrides.lobby !== undefined) {
+    config.lobby = {
+      innHealThreshold: overrides.lobby.innHealThreshold ?? 1,
+      autoSellJunk: overrides.lobby.autoSellJunk ?? true,
+      autoEquipUpgrades: overrides.lobby.autoEquipUpgrades ?? true,
+      buyPotionMinimum: overrides.lobby.buyPotionMinimum ?? 2,
+      buyPortalScroll: overrides.lobby.buyPortalScroll ?? true,
+      useLLM: overrides.lobby.useLLM ?? true,
+    }
+  }
+
+  if (overrides.limits !== undefined) {
+    config.limits = {
+      ...(overrides.limits.maxRealms !== undefined
+        ? { maxRealms: overrides.limits.maxRealms }
+        : {}),
+      ...(overrides.limits.maxRuntimeMinutes !== undefined
+        ? { maxRuntimeMinutes: overrides.limits.maxRuntimeMinutes }
+        : {}),
+      ...(overrides.limits.maxSpendUsd !== undefined
+        ? { maxSpendUsd: overrides.limits.maxSpendUsd }
+        : {}),
+      spendingWindow: overrides.limits.spendingWindow ?? "total",
     }
   }
 

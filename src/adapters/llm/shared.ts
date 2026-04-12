@@ -2,6 +2,11 @@ import type { AgentConfig } from "../../config.js"
 import type { Action, Observation } from "../../protocol.js"
 import type { ModuleRecommendation } from "../../modules/index.js"
 import type { ActionPlan, HistoryEntry, PlanningPrompt } from "./index.js"
+import type {
+  AgentCharacter,
+  LobbyInventoryResponse,
+  ShopCatalogResponse,
+} from "../../client.js"
 
 export interface JsonSchemaProperty {
   type?: "object" | "string" | "number" | "integer" | "boolean" | "array"
@@ -60,6 +65,26 @@ export interface PlanToolCallResult {
   plan: ActionPlan | null
 }
 
+export interface LobbyActionStep {
+  action: "heal" | "buy" | "sell" | "equip" | "unequip" | "use" | "done"
+  item_id?: string
+  quantity?: number
+  slot?: "weapon" | "armor" | "helm" | "hands" | "accessory"
+  reasoning: string
+}
+
+export interface LobbyActionPlan {
+  strategy: string
+  actions: LobbyActionStep[]
+}
+
+export interface LobbyDecisionPrompt {
+  character: AgentCharacter
+  inventory: LobbyInventoryResponse
+  shops: ShopCatalogResponse
+  innCostDescription?: string
+}
+
 export function buildSystemPrompt(config: AgentConfig): string {
   const lines = [
     "You are an AI agent playing Adventure.fun, a dungeon-crawling RPG.",
@@ -110,6 +135,27 @@ export function buildStrategicSystemPrompt(config: AgentConfig): string {
   ].join("\n")
 }
 
+export function buildLobbySystemPrompt(config: AgentConfig): string {
+  return [
+    "You are managing an Adventure.fun agent between realm runs.",
+    config.characterName
+      ? `Character name: ${config.characterName}.`
+      : "The controlled character may not have a configured name.",
+    config.characterClass
+      ? `Preferred class: ${config.characterClass}.`
+      : "Respect the class reported by the live character record.",
+    "Only choose from these lobby actions: heal, buy, sell, equip, unequip, use, done.",
+    "Use buy/sell/equip/use only with item ids that appear in the provided shop or inventory data.",
+    "Use unequip only with slots weapon, armor, helm, hands, accessory.",
+    "Do not assume the inn price unless it is explicitly provided.",
+    "Prioritize survival, useful upgrades, and sustainable gold usage before the next realm.",
+    'Return JSON with shape {"strategy":"...","actions":[{"action":"...","reasoning":"..."}]}.',
+    'Each action entry may additionally include "item_id", "quantity", or "slot" when needed.',
+    "Always finish the sequence with a done action.",
+    "Keep the plan compact and practical.",
+  ].join("\n")
+}
+
 export function buildTacticalSystemPrompt(strategicContext?: string): string {
   return [
     "You are repairing or refreshing a short tactical plan for Adventure.fun.",
@@ -117,6 +163,63 @@ export function buildTacticalSystemPrompt(strategicContext?: string): string {
     "Prefer preserving the existing high-level strategy when it still makes sense.",
     strategicContext ? `Current strategic context: ${strategicContext}` : "No prior strategy context is available.",
     "Do not invent ids, directions, slots, or item references outside the live observation.",
+  ].join("\n")
+}
+
+export function buildLobbyDecisionPrompt(prompt: LobbyDecisionPrompt): string {
+  const inventoryItems = prompt.inventory.inventory.length
+    ? prompt.inventory.inventory
+        .map((item) =>
+          [
+            `- id: ${item.id}`,
+            `  template_id: ${item.template_id}`,
+            `  name: ${item.name}`,
+            `  quantity: ${item.quantity}`,
+            `  slot: ${item.slot ?? "unequipped"}`,
+            `  modifiers: ${JSON.stringify(item.modifiers)}`,
+          ].join("\n"),
+        )
+        .join("\n")
+    : "none"
+  const equippedItems = prompt.inventory.inventory.filter((item) => item.slot)
+  const equipmentSummary = equippedItems.length
+    ? equippedItems
+        .map((item) => `- ${item.slot}: ${item.name} (${item.id}) ${JSON.stringify(item.modifiers)}`)
+        .join("\n")
+    : "none"
+  const shopSummary = prompt.shops.sections.length
+    ? prompt.shops.sections
+        .map((section) =>
+          [
+            `Section: ${section.label ?? section.title ?? section.id ?? "shop"}`,
+            ...(section.items.length > 0
+              ? section.items.map((item) =>
+                  `- ${item.id}: ${item.name} | type=${item.type ?? "unknown"} | rarity=${item.rarity ?? "unknown"} | buy_price=${item.buy_price ?? "unknown"} | sell_price=${item.sell_price ?? "unknown"} | slot=${item.equip_slot ?? "n/a"} | class_restriction=${item.class_restriction ?? "none"} | stats=${JSON.stringify(item.stats ?? {})} | effects=${JSON.stringify(item.effects ?? [])}`,
+                )
+              : ["- no items"]),
+          ].join("\n"),
+        )
+        .join("\n\n")
+    : "none"
+
+  return [
+    "Lobby state:",
+    `Character id: ${prompt.character.id}`,
+    `Class: ${prompt.character.class}`,
+    `Level: ${prompt.character.level ?? "unknown"}`,
+    `HP: ${prompt.character.hp_current ?? "unknown"}/${prompt.character.hp_max ?? "unknown"}`,
+    `Resource: ${prompt.character.resource_current ?? "unknown"}/${prompt.character.resource_max ?? "unknown"}`,
+    `Gold: ${prompt.inventory.gold}`,
+    `Inn rest: ${prompt.innCostDescription ?? "available, exact x402 price not exposed by the API"}`,
+    "",
+    "Equipped items:",
+    equipmentSummary,
+    "",
+    "Inventory:",
+    inventoryItems,
+    "",
+    "Shop catalog:",
+    shopSummary,
   ].join("\n")
 }
 
@@ -465,6 +568,47 @@ export function parseActionPlanFromText(response: string): ActionPlan | null {
   return null
 }
 
+export function parseLobbyActionPlanFromJSON(value: unknown): LobbyActionPlan | null {
+  if (!isRecord(value)) {
+    return null
+  }
+
+  const strategy = typeof value.strategy === "string" ? value.strategy.trim() : ""
+  if (!strategy || !Array.isArray(value.actions)) {
+    return null
+  }
+
+  const actions = value.actions
+    .map((item) => parseLobbyActionStep(item))
+    .filter((item): item is LobbyActionStep => item !== null)
+
+  if (actions.length === 0) {
+    return null
+  }
+
+  return { strategy, actions }
+}
+
+export function parseLobbyActionPlanFromText(response: string): LobbyActionPlan | null {
+  if (!response.trim()) {
+    return null
+  }
+
+  for (const candidate of extractJsonCandidates(response)) {
+    try {
+      const parsed = JSON.parse(candidate) as unknown
+      const plan = parseLobbyActionPlanFromJSON(parsed)
+      if (plan) {
+        return plan
+      }
+    } catch {
+      continue
+    }
+  }
+
+  return null
+}
+
 export function buildCorrectionMessage(legalActions: Action[]): string {
   return [
     "The previous response did not contain a valid legal action.",
@@ -577,6 +721,49 @@ function summarizeSpatialContext(observation: Observation): string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null
+}
+
+function parseLobbyActionStep(value: unknown): LobbyActionStep | null {
+  if (!isRecord(value) || typeof value.action !== "string" || typeof value.reasoning !== "string") {
+    return null
+  }
+
+  const action = value.action
+  if (
+    action !== "heal"
+    && action !== "buy"
+    && action !== "sell"
+    && action !== "equip"
+    && action !== "unequip"
+    && action !== "use"
+    && action !== "done"
+  ) {
+    return null
+  }
+
+  const reasoning = value.reasoning.trim()
+  if (!reasoning) {
+    return null
+  }
+
+  const step: LobbyActionStep = {
+    action,
+    reasoning,
+  }
+
+  if (typeof value.item_id === "string" && value.item_id.trim()) {
+    step.item_id = value.item_id.trim()
+  }
+
+  if (typeof value.quantity === "number" && Number.isFinite(value.quantity) && value.quantity > 0) {
+    step.quantity = Math.floor(value.quantity)
+  }
+
+  if (isEquipSlot(value.slot)) {
+    step.slot = value.slot
+  }
+
+  return step
 }
 
 function normalizeAction(value: Record<string, unknown>): Action | null {

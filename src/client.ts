@@ -78,13 +78,57 @@ export interface RealmListResponse {
   realms: RealmSummary[]
 }
 
+export interface RealmTemplateSummary {
+  id: string
+  orderIndex: number
+  name: string
+  description?: string
+  theme?: string
+  difficulty_tier?: number
+  floor_count?: number
+  is_tutorial?: boolean
+}
+
+export interface RealmTemplateListResponse {
+  templates: RealmTemplateSummary[]
+}
+
+export interface ShopCatalogItem {
+  id: string
+  name: string
+  description?: string
+  type?: string
+  rarity?: string
+  equip_slot?: EquipSlot | null
+  class_restriction?: string | null
+  stats?: Record<string, number>
+  effects?: Array<Record<string, unknown>>
+  stack_limit?: number
+  sell_price?: number
+  buy_price?: number
+  ammo_type?: string | null
+}
+
+export interface ItemTemplateSummary extends ShopCatalogItem {
+  type: string
+  rarity: string
+  stack_limit: number
+  sell_price: number
+  buy_price: number
+}
+
+export interface ItemTemplateListResponse {
+  items: ItemTemplateSummary[]
+}
+
 export interface ShopCatalogResponse {
   sections: Array<{
     id?: string
     title?: string
-    items: Array<Record<string, unknown>>
+    label?: string
+    items: ShopCatalogItem[]
   }>
-  featured: Array<Record<string, unknown>>
+  featured: ShopCatalogItem[]
 }
 
 export interface LobbyInventoryResponse {
@@ -106,6 +150,10 @@ export interface LobbySellResponse {
     quantity: number
     total_gold: number
   }
+  message: string
+}
+
+export interface LobbyDiscardResponse {
   message: string
 }
 
@@ -431,6 +479,14 @@ export class GameClient {
     return this.request("/realms/mine")
   }
 
+  async getRealmTemplates(): Promise<RealmTemplateListResponse> {
+    return this.request("/content/realms")
+  }
+
+  async getItemTemplates(): Promise<ItemTemplateListResponse> {
+    return this.request("/content/items")
+  }
+
   async generateRealm(templateId: string): Promise<RealmSummary> {
     return this.request("/realms/generate", {
       method: "POST",
@@ -470,6 +526,13 @@ export class GameClient {
         item_id: input.itemId,
         ...(input.quantity !== undefined ? { quantity: input.quantity } : {}),
       }),
+    })
+  }
+
+  async discardLobbyItem(itemId: string): Promise<LobbyDiscardResponse> {
+    return this.request("/lobby/discard", {
+      method: "POST",
+      body: JSON.stringify({ item_id: itemId }),
     })
   }
 

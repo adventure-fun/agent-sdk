@@ -70,6 +70,10 @@ describe("agent-sdk public exports", () => {
     expect(config.wsUrl).toBe("ws://localhost:3001")
     expect(config.llm.provider).toBe("openai")
     expect(config.wallet.type).toBe("env")
+    expect(config.realmProgression?.strategy).toBe("auto")
+    expect(config.realmProgression?.continueOnExtraction).toBe(true)
+    expect(config.lobby?.useLLM).toBe(true)
+    expect(config.limits?.spendingWindow).toBe("total")
   })
 
   it("exposes typed protocol and event APIs", () => {
