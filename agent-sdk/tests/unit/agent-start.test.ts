@@ -34,6 +34,19 @@ class FakeGameClient {
 
   async request<T>(path: string, options?: RequestInit): Promise<T> {
     this.requests.push({ path, options })
+    if (path === "/content/items") {
+      return { items: [] } as T
+    }
+    if (path === "/lobby/shops") {
+      return { sections: [], featured: [] } as T
+    }
+    if (path === "/lobby/shop/inventory") {
+      const responder = this.responses.get(path)
+      if (responder) {
+        return (await responder()) as T
+      }
+      return { gold: 0, inventory: [] } as T
+    }
     const responder = this.responses.get(path)
     if (!responder) {
       throw new Error(`No fake response configured for ${path}`)
@@ -61,6 +74,76 @@ class FakeGameClient {
   off(): void {}
 
   async connectLobby(): Promise<void> {}
+
+  async getCurrentCharacter() {
+    return this.request("/characters/me")
+  }
+
+  async getLobbyInventory() {
+    return this.request("/lobby/shop/inventory")
+  }
+
+  async getLobbyShops() {
+    return this.request("/lobby/shops")
+  }
+
+  async getMyRealms() {
+    return this.request("/realms/mine")
+  }
+
+  async getRealmTemplates() {
+    return this.request("/content/realms")
+  }
+
+  async getItemTemplates() {
+    return this.request("/content/items")
+  }
+
+  async buyShopItem(input: { itemId: string; quantity?: number }) {
+    return this.request("/lobby/shop/buy", {
+      method: "POST",
+      body: JSON.stringify({ item_id: input.itemId, quantity: input.quantity ?? 1 }),
+    })
+  }
+
+  async sellShopItem(input: { itemId: string; quantity?: number }) {
+    return this.request("/lobby/shop/sell", {
+      method: "POST",
+      body: JSON.stringify({ item_id: input.itemId, quantity: input.quantity ?? 1 }),
+    })
+  }
+
+  async discardLobbyItem(itemId: string) {
+    return this.request("/lobby/discard", {
+      method: "POST",
+      body: JSON.stringify({ item_id: itemId }),
+    })
+  }
+
+  async equipLobbyItem(itemId: string) {
+    return this.request("/lobby/equip", {
+      method: "POST",
+      body: JSON.stringify({ item_id: itemId }),
+    })
+  }
+
+  async unequipLobbySlot(slot: string) {
+    return this.request("/lobby/unequip", {
+      method: "POST",
+      body: JSON.stringify({ slot }),
+    })
+  }
+
+  async useLobbyConsumable(itemId: string) {
+    return this.request("/lobby/use-consumable", {
+      method: "POST",
+      body: JSON.stringify({ item_id: itemId }),
+    })
+  }
+
+  async restAtInn() {
+    return this.request("/lobby/inn/rest", { method: "POST" })
+  }
 }
 
 function createConfig(
@@ -71,6 +154,10 @@ function createConfig(
     characterClass: "rogue",
     characterName: "Scout",
     realmTemplateId: "test-tutorial",
+    realmProgression: {
+      strategy: "auto",
+      continueOnExtraction: false,
+    },
     llm: { provider: "openai", apiKey: "test-key", model: "gpt-4o-mini" },
     wallet: { type: "env" },
     ...overrides,
@@ -128,16 +215,21 @@ function createHarness(options: {
   authenticateFn?: (baseUrl: string, wallet: ReturnType<typeof createWallet>) => Promise<SessionToken>
   plannerDecision?: PlannerDecision
   plannerFactory?: BaseAgentOptions["plannerFactory"]
+  llmAdapter?: LLMAdapter
   tacticalLLMAdapter?: LLMAdapter
 } = {}) {
   const config = options.config ?? createConfig()
-  const llmAdapter = createLLM("strategic")
+  const llmAdapter = options.llmAdapter ?? createLLM("strategic")
   const walletAdapter = createWallet()
   const client = new FakeGameClient(
     options.responses ??
       new Map<string, () => unknown | Promise<unknown>>([
         ["/characters/me", () => ({ id: "char-1", name: "Scout" })],
+        ["/lobby/shop/inventory", () => ({ gold: 0, inventory: [] })],
+        ["/lobby/shops", () => ({ sections: [], featured: [] })],
+        ["/content/items", () => ({ items: [] })],
         ["/realms/mine", () => ({ realms: [] })],
+        ["/content/realms", () => ({ templates: [{ id: "test-tutorial", orderIndex: 1, name: "Tutorial" }] })],
         ["/realms/generate", () => ({ id: "realm-1", template_id: "test-tutorial" })],
       ]),
   )
@@ -206,7 +298,10 @@ describe("BaseAgent.start", () => {
         throw error
       }],
       ["/characters/roll", () => ({ id: "char-1", name: "Scout" })],
+      ["/lobby/shop/inventory", () => ({ gold: 0, inventory: [] })],
+      ["/lobby/shops", () => ({ sections: [], featured: [] })],
       ["/realms/mine", () => ({ realms: [] })],
+      ["/content/realms", () => ({ templates: [{ id: "test-tutorial", orderIndex: 1, name: "Tutorial" }] })],
       ["/realms/generate", () => ({ id: "realm-1", template_id: "test-tutorial" })],
     ])
     const harness = createHarness({ responses })
@@ -217,7 +312,12 @@ describe("BaseAgent.start", () => {
     expect(harness.client.requests.map((entry) => entry.path)).toEqual([
       "/characters/me",
       "/characters/roll",
+      "/characters/me",
+      "/lobby/shop/inventory",
+      "/lobby/shops",
+      "/content/items",
       "/realms/mine",
+      "/content/realms",
       "/realms/generate",
     ])
 
@@ -238,9 +338,76 @@ describe("BaseAgent.start", () => {
 
     expect(harness.client.requests.map((entry) => entry.path)).toEqual([
       "/characters/me",
+      "/characters/me",
+      "/lobby/shop/inventory",
+      "/lobby/shops",
+      "/content/items",
       "/realms/mine",
+      "/content/realms",
       "/realms/generate",
     ])
+
+    harness.client.handlers.onDeath?.({
+      cause: "test",
+      floor: 1,
+      room: "room-1",
+      turn: 1,
+    })
+    await startPromise
+  })
+
+  it("rests at the inn before the next realm even when lobby planning uses the LLM", async () => {
+    let rested = false
+    const responses = new Map<string, () => unknown | Promise<unknown>>([
+      ["/characters/me", () => ({
+        id: "char-1",
+        name: "Scout",
+        class: "rogue",
+        hp_current: rested ? 30 : 12,
+        hp_max: 30,
+        resource_current: 10,
+        resource_max: 10,
+      })],
+      ["/lobby/shop/inventory", () => ({ gold: 0, inventory: [] })],
+      ["/lobby/shops", () => ({ sections: [], featured: [] })],
+      ["/content/items", () => ({ items: [] })],
+      ["/lobby/inn/rest", () => {
+        rested = true
+        return {
+          hp_current: 30,
+          hp_max: 30,
+          resource_current: 10,
+          resource_max: 10,
+          message: "Rested.",
+        }
+      }],
+      ["/realms/mine", () => ({ realms: [] })],
+      ["/content/realms", () => ({ templates: [{ id: "test-tutorial", orderIndex: 1, name: "Tutorial" }] })],
+      ["/realms/generate", () => ({ id: "realm-1", template_id: "test-tutorial" })],
+    ])
+    const llmAdapter: LLMAdapter = {
+      ...createLLM("strategic"),
+      async chat() {
+        return '{"actions":[{"action":"done"}]}'
+      },
+    }
+    const harness = createHarness({
+      config: createConfig({
+        lobby: {
+          useLLM: true,
+          innHealThreshold: 1,
+        },
+      }),
+      responses,
+      llmAdapter,
+    })
+
+    const startPromise = harness.agent.start()
+    await flushAsyncWork()
+
+    const requestPaths = harness.client.requests.map((entry) => entry.path)
+    expect(requestPaths).toContain("/lobby/inn/rest")
+    expect(requestPaths.indexOf("/lobby/inn/rest")).toBeLessThan(requestPaths.indexOf("/realms/mine"))
 
     harness.client.handlers.onDeath?.({
       cause: "test",

@@ -22,6 +22,13 @@ Top-level interface that `BaseAgent` accepts.
 | `realmTemplateId` | `string` | no | -- | Realm template to generate (e.g. `"test-tutorial"`) |
 | `characterClass` | `string` | no | -- | Class to roll if no character exists (`"knight"`, `"mage"`, `"rogue"`, `"archer"`) |
 | `characterName` | `string` | no | -- | Name for newly rolled characters |
+| `rerollStats` | `StatRerollConfig` | no | disabled | Conditionally reroll a newly created character if the rolled stats are below your thresholds |
+| `realmProgression` | `RealmProgressionConfig` | no | `{ strategy: "auto" }` | How the agent chooses the next realm and whether it keeps chaining after extraction |
+| `profile` | `AgentProfileConfig` | no | -- | Optional account handle, X handle, and GitHub handle to sync during startup |
+| `skillTree` | `SkillTreeConfig` | no | `{ autoSpend: false }` | Optional auto-allocation rules for skill points between runs |
+| `lobby` | `LobbyConfig` | no | LLM-enabled defaults | Between-run lobby decisions for healing, selling, equipping, and buying |
+| `limits` | `AgentLimitsConfig` | no | unlimited | Runtime, realm-count, and x402 spending guardrails |
+| `rerollOnDeath` | `boolean` | no | `false` | Roll a new character and continue after permadeath |
 | `llm` | `LLMConfig` | yes | -- | LLM provider configuration |
 | `wallet` | `WalletConfig` | yes | -- | Wallet adapter configuration |
 | `modules` | `ModuleConfig[]` | no | `[]` | Module priority overrides |
@@ -64,12 +71,100 @@ Controls wallet adapter selection and authentication.
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
 | `type` | `"env" \| "open-wallet"` | yes | `"env"` | Wallet adapter type |
-| `network` | `"base" \| "solana"` | no | `"base"` | Blockchain network |
+| `network` | `"base" \| "base-sepolia" \| "solana" \| "solana-devnet"` | no | `"base"` | Blockchain network |
 | `privateKey` | `string` | no | `$AGENT_PRIVATE_KEY` | Private key (env-wallet only) |
-| `endpoint` | `string` | no | -- | OpenWallet HTTP endpoint |
-| `apiKey` | `string` | no | -- | OpenWallet API key |
+| `walletName` | `string` | no | -- | OWS wallet name or UUID (`type: "open-wallet"` only) |
+| `passphrase` | `string` | no | -- | OWS vault passphrase or `ows_key_...` API token |
+| `chainId` | `string` | no | network default | CAIP-2 chain ID override (for example `eip155:8453`) |
+| `vaultPath` | `string` | no | `~/.ows` | Custom OWS vault root |
+| `accountIndex` | `number` | no | `0` | HD account index for OWS signing |
 
 The `"env"` type reads the private key from config or the `AGENT_PRIVATE_KEY` environment variable. EVM keys should be hex-encoded (with or without `0x` prefix). Solana keys should be base58-encoded.
+
+For `type: "open-wallet"`, the SDK loads [`@open-wallet-standard/core`](https://docs.openwallet.sh/doc.html?slug=sdk-node) lazily and signs through the local OWS vault instead of loading private keys into the agent process. `passphrase` can be either the owner passphrase or a scoped `ows_key_...` API token created with OWS policies.
+
+## StatRerollConfig
+
+Stat rerolls are always conditional. The SDK will only call `POST /characters/reroll-stats` when the rolled stats are below your configured thresholds.
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `enabled` | `boolean` | no | `true` when provided | Enables the reroll check |
+| `minStats` | `Partial<CharacterStats>` | no | -- | Reroll if any listed stat is below its minimum |
+| `minTotal` | `number` | no | -- | Reroll if the sum of all stats is below this total |
+
+At least one of `minStats` or `minTotal` must be set. The SDK does not guess what counts as a bad roll.
+
+```typescript
+rerollStats: {
+  enabled: true,
+  minTotal: 44,
+  minStats: {
+    hp: 26,
+    speed: 8,
+  },
+}
+```
+
+## RealmProgressionConfig
+
+Controls how the agent acquires its next playable realm and whether it keeps chaining after a successful extraction.
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `strategy` | `"auto" \| "regenerate" \| "new-realm" \| "stop"` | yes | `"auto"` | Auto-progress through templates by `orderIndex`, regenerate one template, create only new realms, or stop |
+| `templatePriority` | `string[]` | no | -- | Optional realm template filter/order override |
+| `continueOnExtraction` | `boolean` | no | `true` | Continue the main lifecycle loop after a successful extraction |
+| `onAllCompleted` | `"regenerate-last" \| "stop"` | no | `"regenerate-last"` | What `strategy: "auto"` does after every available template has been completed |
+
+## AgentProfileConfig
+
+These fields are synced through `PATCH /auth/profile` after authentication and before character/realm setup.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `handle` | `string` | no | Public account handle |
+| `xHandle` | `string` | no | X/Twitter handle |
+| `githubHandle` | `string` | no | GitHub handle |
+
+## SkillTreeConfig
+
+Controls optional automatic skill point spending between runs.
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `autoSpend` | `boolean` | no | `true` when provided | Enables the between-run spending pass |
+| `preferredNodes` | `string[]` | no | `[]` | Ordered node IDs to attempt to unlock |
+
+The agent only attempts the node IDs you provide. It skips invalid or not-yet-unlockable nodes and never invents its own build order.
+
+## LobbyConfig
+
+Controls the between-run lobby phase. This phase happens before the agent generates or enters the next realm.
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `innHealThreshold` | `number` | no | `1` | Heal at the inn when `hp_current / hp_max` falls below this ratio |
+| `autoSellJunk` | `boolean` | no | `true` | Enable the conservative heuristic junk-sell fallback |
+| `autoEquipUpgrades` | `boolean` | no | `true` | Equip better lobby gear before the next realm |
+| `buyPotionMinimum` | `number` | no | `2` | Buy healing consumables until inventory reaches this minimum |
+| `buyPortalScroll` | `boolean` | no | `true` | Keep at least one portal escape consumable when the shop offers it |
+| `useLLM` | `boolean` | no | `true` | Use the LLM for lobby planning before falling back to heuristics |
+
+When `useLLM` is enabled, the SDK sends the current character state, inventory, equipped items, and shop catalog to the chat-capable LLM and executes the returned lobby plan. If the provider cannot produce a valid plan, the SDK falls back to deterministic heuristics.
+
+## AgentLimitsConfig
+
+Controls when the agent pauses or stops itself.
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `maxRealms` | `number` | no | unlimited | Stop starting new realms after this many completed/dead runs |
+| `maxRuntimeMinutes` | `number` | no | unlimited | Stop starting new realms after this runtime budget is exceeded |
+| `maxSpendUsd` | `number` | no | unlimited | x402 spending cap in USD-equivalent USDC units |
+| `spendingWindow` | `"total" \| "daily" \| "hourly"` | no | `"total"` | Whether the spending cap is a hard cap or resets on a time window |
+
+`spendingWindow: "daily"` and `"hourly"` make the agent sleep until the window resets before spending again. `spendingWindow: "total"` makes the agent sleep indefinitely once the cap is exhausted, which acts as a hard cap until the process is stopped or restarted.
 
 ## DecisionConfig
 
@@ -177,10 +272,43 @@ The example agents read these variables. Custom agents can use any configuration
 | `LLM_API_KEY` | `llm.apiKey` | |
 | `LLM_MODEL` | `llm.model` | |
 | `AGENT_PRIVATE_KEY` | `wallet.privateKey` | Also read by `EvmEnvWalletAdapter` / `SolanaEnvWalletAdapter` |
-| `AGENT_WALLET_NETWORK` | `wallet.network` | `"base"` or `"solana"` |
+| `AGENT_WALLET_NETWORK` | `wallet.network` | `"base"`, `"base-sepolia"`, `"solana"`, or `"solana-devnet"` |
+| `OWS_WALLET_NAME` | `wallet.walletName` | OpenWallet / OWS only |
+| `OWS_PASSPHRASE` | `wallet.passphrase` | Owner passphrase or `ows_key_...` token |
+| `OWS_CHAIN_ID` | `wallet.chainId` | Optional CAIP-2 override |
+| `OWS_VAULT_PATH` | `wallet.vaultPath` | Optional custom OWS vault root |
+| `OWS_ACCOUNT_INDEX` | `wallet.accountIndex` | Optional HD account index |
 | `CHARACTER_CLASS` | `characterClass` | |
 | `CHARACTER_NAME` | `characterName` | |
 | `REALM_TEMPLATE` | `realmTemplateId` | |
+| `REALM_STRATEGY` | `realmProgression.strategy` | `"auto"`, `"regenerate"`, `"new-realm"`, or `"stop"` |
+| `REALM_TEMPLATE_PRIORITY` | `realmProgression.templatePriority` | Comma-separated template list |
+| `CONTINUE_ON_EXTRACTION` | `realmProgression.continueOnExtraction` | `"false"` disables automatic chaining after extraction |
+| `REALM_ON_ALL_COMPLETED` | `realmProgression.onAllCompleted` | `"regenerate-last"` or `"stop"` |
+| `REROLL_ON_DEATH` | `rerollOnDeath` | `"true"` to auto-roll a new character after death |
+| `AGENT_HANDLE` | `profile.handle` | |
+| `AGENT_X_HANDLE` | `profile.xHandle` | |
+| `AGENT_GITHUB_HANDLE` | `profile.githubHandle` | |
+| `REROLL_MIN_TOTAL` | `rerollStats.minTotal` | Conditional stat reroll threshold |
+| `REROLL_MIN_HP` | `rerollStats.minStats.hp` | Conditional stat reroll threshold |
+| `REROLL_MIN_ATTACK` | `rerollStats.minStats.attack` | Conditional stat reroll threshold |
+| `REROLL_MIN_DEFENSE` | `rerollStats.minStats.defense` | Conditional stat reroll threshold |
+| `REROLL_MIN_ACCURACY` | `rerollStats.minStats.accuracy` | Conditional stat reroll threshold |
+| `REROLL_MIN_EVASION` | `rerollStats.minStats.evasion` | Conditional stat reroll threshold |
+| `REROLL_MIN_SPEED` | `rerollStats.minStats.speed` | Conditional stat reroll threshold |
+| `AUTO_SPEND_SKILL_POINTS` | `skillTree.autoSpend` | `"true"` to enable between-run skill spending |
+| `PREFERRED_SKILL_NODES` | `skillTree.preferredNodes` | Comma-separated node IDs |
+| `LOBBY_USE_LLM` | `lobby.useLLM` | `"false"` forces heuristic-only lobby behavior |
+| `INN_HEAL_THRESHOLD` | `lobby.innHealThreshold` | Heal when HP ratio drops below this value |
+| `AUTO_SELL_JUNK` | `lobby.autoSellJunk` | `"false"` disables heuristic junk selling |
+| `AUTO_EQUIP_UPGRADES` | `lobby.autoEquipUpgrades` | `"false"` disables heuristic lobby equipping |
+| `BUY_POTION_MINIMUM` | `lobby.buyPotionMinimum` | Minimum healing consumables to keep between realms |
+| `BUY_PORTAL_SCROLL` | `lobby.buyPortalScroll` | `"false"` disables portal-scroll restocking |
+| `EMERGENCY_HP_PERCENT` | `decision.emergencyHpPercent` | HP ratio where emergency healing/escape logic starts favoring survival actions |
+| `MAX_REALMS` | `limits.maxRealms` | Stop after this many realm results |
+| `MAX_RUNTIME_MINUTES` | `limits.maxRuntimeMinutes` | Stop after this many runtime minutes |
+| `MAX_SPEND_USD` | `limits.maxSpendUsd` | x402 budget cap |
+| `SPENDING_WINDOW` | `limits.spendingWindow` | `"total"`, `"daily"`, or `"hourly"` |
 | `TACTICAL_LLM_MODEL` | `decision.tacticalModel` | Strategic example only |
 
 ## Common Configuration Patterns
@@ -214,7 +342,32 @@ const config = createDefaultConfig({
     maxPlanLength: 12,
     emergencyHpPercent: 0.25,
   },
-  wallet: { type: "env", network: "base" },
+  wallet: { type: "env", network: "base-sepolia" },
+  rerollStats: {
+    enabled: true,
+    minTotal: 44,
+  },
+  realmProgression: {
+    strategy: "auto",
+    continueOnExtraction: true,
+  },
+  profile: {
+    xHandle: "shade_agent",
+  },
+  skillTree: {
+    autoSpend: true,
+    preferredNodes: ["shadowstep", "backstab_mastery"],
+  },
+  lobby: {
+    useLLM: true,
+    innHealThreshold: 0.85,
+    buyPotionMinimum: 3,
+  },
+  limits: {
+    maxRealms: 10,
+    maxSpendUsd: 2,
+    spendingWindow: "daily",
+  },
   chat: {
     enabled: true,
     personality: {

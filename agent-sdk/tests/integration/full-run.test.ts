@@ -34,6 +34,10 @@ describe("Phase 8 integration: full tutorial run", () => {
       apiUrl: server.apiUrl,
       wsUrl: server.wsUrl,
       realmTemplateId: "test-tutorial",
+      realmProgression: {
+        strategy: "auto",
+        continueOnExtraction: false,
+      },
       characterClass: "rogue",
       characterName,
       llm: {

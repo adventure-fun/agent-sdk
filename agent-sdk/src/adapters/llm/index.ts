@@ -70,6 +70,9 @@ export interface LLMAdapter {
 export type {
   ActionToolSchema,
   JsonSchemaProperty,
+  LobbyActionPlan,
+  LobbyActionStep,
+  LobbyDecisionPrompt,
   PlanToolSchema,
   ToolCallResult,
 } from "./shared.js"
@@ -77,6 +80,8 @@ export {
   buildActionToolSchema,
   buildCorrectionMessage,
   buildDecisionPrompt,
+  buildLobbyDecisionPrompt,
+  buildLobbySystemPrompt,
   buildPlanningPrompt,
   buildPlanningToolSchema,
   buildStrategicSystemPrompt,
@@ -90,6 +95,8 @@ export {
   parseAnyActionFromJSON,
   parseDecisionResult,
   parseDecisionResultFromText,
+  parseLobbyActionPlanFromJSON,
+  parseLobbyActionPlanFromText,
 } from "./shared.js"
 
 export { AnthropicAdapter } from "./anthropic.js"

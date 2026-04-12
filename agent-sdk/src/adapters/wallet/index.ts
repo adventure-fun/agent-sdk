@@ -1,9 +1,9 @@
-import type { WalletConfig } from "../../config.js"
+import type { WalletConfig, WalletNetwork } from "../../config.js"
 import { EvmEnvWalletAdapter, SolanaEnvWalletAdapter } from "./env-wallet.js"
 import { OpenWalletAdapter } from "./open-wallet.js"
 import type { x402Client as X402Client } from "@x402/core/client"
-
-export type WalletNetwork = "base" | "solana"
+export type { WalletNetwork } from "../../config.js"
+export type WalletNetworkFamily = "base" | "solana"
 
 export interface TransactionRequest {
   to: string
@@ -29,6 +29,10 @@ export interface X402CapableWalletAdapter extends WalletAdapter {
   createX402Client(): Promise<X402Client>
 }
 
+export function getNetworkFamily(network: WalletNetwork): WalletNetworkFamily {
+  return network.startsWith("solana") ? "solana" : "base"
+}
+
 export function isX402CapableWalletAdapter(
   adapter: WalletAdapter,
 ): adapter is X402CapableWalletAdapter {
@@ -38,7 +42,7 @@ export function isX402CapableWalletAdapter(
 export async function createWalletAdapter(config: WalletConfig): Promise<WalletAdapter> {
   switch (config.type) {
     case "env":
-      return config.network === "solana"
+      return getNetworkFamily(config.network ?? "base") === "solana"
         ? SolanaEnvWalletAdapter.fromConfig(config)
         : EvmEnvWalletAdapter.fromConfig(config)
     case "open-wallet":

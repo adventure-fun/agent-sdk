@@ -1,5 +1,5 @@
 import type { ServerWebSocket } from "bun"
-import { CLASSES, REALMS, getItem, type Account, type Character, type CharacterClass, type EquipSlot, type InventoryItem, type PlayerType, type RealmInstance, type SanitizedChatMessage, type SpectatableSessionSummary, type SpectatorObservation } from "../engine/index.js"
+import { CLASSES, REALMS, getItem, type Account, type Character, type CharacterClass, type EquipSlot, type InventoryItem, type Observation, type PlayerType, type RealmInstance, type SanitizedChatMessage, type SpectatableSessionSummary, type SpectatorObservation } from "../engine/index.js"
 
 export interface SessionPayload {
   account_id: string
@@ -16,7 +16,10 @@ export interface DevCharacter extends Omit<Character, "skill_tree"> {
 export interface ActiveSessionHandle {
   characterId: string
   realmId: string
+  getDebugObservation(): Observation
   getSpectatorObservation(): SpectatorObservation
+  addDebugger(ws: ServerWebSocket<DebugSocketData>): void
+  removeDebugger(ws: ServerWebSocket<DebugSocketData>): void
   addSpectator(ws: ServerWebSocket<SpectatorSocketData>): void
   removeSpectator(ws: ServerWebSocket<SpectatorSocketData>): void
   processAction(rawAction: unknown): Promise<void>
@@ -36,11 +39,16 @@ export interface SpectatorSocketData {
   characterId: string
 }
 
+export interface DebugSocketData {
+  role: "debug"
+  characterId: string
+}
+
 export interface LobbySocketData {
   role: "lobby"
 }
 
-export type SocketSessionData = PlayerSocketData | SpectatorSocketData | LobbySocketData
+export type SocketSessionData = PlayerSocketData | SpectatorSocketData | DebugSocketData | LobbySocketData
 
 const accountsByCompositeKey = new Map<string, Account>()
 const charactersByAccountId = new Map<string, DevCharacter>()
@@ -122,6 +130,31 @@ export function upsertAccount(walletAddress: string, playerType: PlayerType): Ac
 export function getAccountBySession(session: SessionPayload): Account | null {
   const key = compositeAccountKey(session.wallet_address, session.player_type)
   return accountsByCompositeKey.get(key) ?? null
+}
+
+export function updateAccountProfile(
+  session: SessionPayload,
+  input: {
+    handle?: string
+    x_handle?: string
+    github_handle?: string
+  },
+): Account | null {
+  const key = compositeAccountKey(session.wallet_address, session.player_type)
+  const existing = accountsByCompositeKey.get(key)
+  if (!existing) {
+    return null
+  }
+
+  const updated: Account = {
+    ...existing,
+    ...(input.handle !== undefined ? { handle: input.handle } : {}),
+    ...(input.x_handle !== undefined ? { x_handle: input.x_handle } : {}),
+    ...(input.github_handle !== undefined ? { github_handle: input.github_handle } : {}),
+  }
+
+  accountsByCompositeKey.set(key, updated)
+  return updated
 }
 
 export function getCharacterByAccountId(accountId: string): DevCharacter | null {
@@ -224,6 +257,23 @@ export function getRealmById(realmId: string): RealmInstance | null {
 
 export function updateRealm(realm: RealmInstance): void {
   realmsById.set(realm.id, realm)
+}
+
+export function regenerateRealm(realmId: string): RealmInstance | null {
+  const realm = realmsById.get(realmId)
+  if (!realm) {
+    return null
+  }
+
+  const updated: RealmInstance = {
+    ...realm,
+    seed: Math.floor(Math.random() * 2_147_483_647),
+    status: "generated",
+    floor_reached: 1,
+  }
+
+  realmsById.set(realmId, updated)
+  return updated
 }
 
 export function updateCharacter(character: DevCharacter): void {

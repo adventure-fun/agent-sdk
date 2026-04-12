@@ -8,7 +8,7 @@ import { realmRoutes } from "./routes/realms.js"
 import { lobbyRoutes } from "./routes/lobby.js"
 import { contentRoutes } from "./routes/content.js"
 import { verifySession } from "./auth.js"
-import { addLobbyClient, broadcastLobbyMessage, getActiveSession, getCharacterByAccountId, getRealmById, listSpectatableSessions, removeLobbyClient, type LobbySocketData, type PlayerSocketData, type SocketSessionData, type SpectatorSocketData } from "./store.js"
+import { addLobbyClient, broadcastLobbyMessage, getActiveSession, getCharacterByAccountId, getRealmById, listSpectatableSessions, removeLobbyClient, type DebugSocketData, type LobbySocketData, type PlayerSocketData, type SocketSessionData, type SpectatorSocketData } from "./store.js"
 import { handleGameClose, handleGameMessage, handleGameOpen } from "./game/session.js"
 
 const app = new Hono()
@@ -18,6 +18,7 @@ app.use("*", cors())
 
 app.get("/health", (c) => c.json({ status: "ok", ts: new Date().toISOString() }))
 app.get("/spectate/active", (c) => c.json({ sessions: listSpectatableSessions() }))
+app.get("/debug/active", (c) => c.json({ sessions: listSpectatableSessions() }))
 
 app.route("/auth", authRoutes)
 app.route("/characters", characterRoutes)
@@ -56,6 +57,7 @@ export default {
     const url = new URL(req.url)
     const match = url.pathname.match(/^\/realms\/([^/]+)\/enter$/)
     const spectatorMatch = url.pathname.match(/^\/spectate\/([^/]+)$/)
+    const debugMatch = url.pathname.match(/^\/debug\/([^/]+)$/)
 
     if (match?.[1] && req.headers.get("upgrade") === "websocket") {
       const token = parseWebSocketToken(req, url)
@@ -116,6 +118,23 @@ export default {
         : new Response("WS upgrade failed", { status: 500 })
     }
 
+    if (debugMatch?.[1] && req.headers.get("upgrade") === "websocket") {
+      const activeSession = getActiveSession(debugMatch[1])
+      if (!activeSession) {
+        return new Response("Character is not currently in a live realm", { status: 404 })
+      }
+
+      const upgraded = server.upgrade(req, {
+        data: {
+          role: "debug",
+          characterId: debugMatch[1],
+        } satisfies DebugSocketData,
+      })
+      return upgraded
+        ? undefined as unknown as Response
+        : new Response("WS upgrade failed", { status: 500 })
+    }
+
     return app.fetch(req)
   },
   websocket: {
@@ -138,6 +157,18 @@ export default {
         return
       }
 
+      if (ws.data.role === "debug") {
+        const session = getActiveSession(ws.data.characterId)
+        if (!session) {
+          ws.send(JSON.stringify({ type: "error", message: "Character is not currently in a live realm" }))
+          ws.close()
+          return
+        }
+        session.addDebugger(ws as ServerWebSocket<DebugSocketData>)
+        ws.send(JSON.stringify({ type: "observation", data: session.getDebugObservation() }))
+        return
+      }
+
       await handleGameOpen(ws as ServerWebSocket<PlayerSocketData>)
       const character = getCharacterByAccountId(ws.data.session.account_id)
       if (character) {
@@ -154,7 +185,7 @@ export default {
       }
     },
     async message(ws: ServerWebSocket<SocketSessionData>, message: string | Buffer) {
-      if (ws.data.role === "lobby" || ws.data.role === "spectator") {
+      if (ws.data.role === "lobby" || ws.data.role === "spectator" || ws.data.role === "debug") {
         return
       }
       await handleGameMessage(ws as ServerWebSocket<PlayerSocketData>, message)
@@ -168,6 +199,12 @@ export default {
       if (ws.data.role === "spectator") {
         const session = getActiveSession(ws.data.characterId)
         session?.removeSpectator(ws as ServerWebSocket<SpectatorSocketData>)
+        return
+      }
+
+      if (ws.data.role === "debug") {
+        const session = getActiveSession(ws.data.characterId)
+        session?.removeDebugger(ws as ServerWebSocket<DebugSocketData>)
         return
       }
 

@@ -2,6 +2,11 @@ import type { AgentConfig } from "../../config.js"
 import type { Action, Observation } from "../../protocol.js"
 import type { ModuleRecommendation } from "../../modules/index.js"
 import type { ActionPlan, HistoryEntry, PlanningPrompt } from "./index.js"
+import type {
+  AgentCharacter,
+  LobbyInventoryResponse,
+  ShopCatalogResponse,
+} from "../../client.js"
 
 export interface JsonSchemaProperty {
   type?: "object" | "string" | "number" | "integer" | "boolean" | "array"
@@ -60,6 +65,26 @@ export interface PlanToolCallResult {
   plan: ActionPlan | null
 }
 
+export interface LobbyActionStep {
+  action: "heal" | "buy" | "sell" | "equip" | "unequip" | "use" | "done"
+  item_id?: string
+  quantity?: number
+  slot?: "weapon" | "armor" | "helm" | "hands" | "accessory"
+  reasoning: string
+}
+
+export interface LobbyActionPlan {
+  strategy: string
+  actions: LobbyActionStep[]
+}
+
+export interface LobbyDecisionPrompt {
+  character: AgentCharacter
+  inventory: LobbyInventoryResponse
+  shops: ShopCatalogResponse
+  innCostDescription?: string
+}
+
 export function buildSystemPrompt(config: AgentConfig): string {
   const lines = [
     "You are an AI agent playing Adventure.fun, a dungeon-crawling RPG.",
@@ -73,6 +98,7 @@ export function buildSystemPrompt(config: AgentConfig): string {
     "Choose exactly one action from legal_actions.",
     "Never invent actions, targets, directions, slots, or item ids that are not present in legal_actions.",
     "Prioritize survival, legal play, and progress toward extraction or completion.",
+    "If the room is cleared but loot is still visible or pickup actions remain legal, collect the loot before using a portal unless survival is at immediate risk.",
     "Module recommendations are advisory. They may disagree. Use them alongside the live observation.",
     "Recent history is informative but lower priority than the current observation.",
     "",
@@ -110,6 +136,27 @@ export function buildStrategicSystemPrompt(config: AgentConfig): string {
   ].join("\n")
 }
 
+export function buildLobbySystemPrompt(config: AgentConfig): string {
+  return [
+    "You are managing an Adventure.fun agent between realm runs.",
+    config.characterName
+      ? `Character name: ${config.characterName}.`
+      : "The controlled character may not have a configured name.",
+    config.characterClass
+      ? `Preferred class: ${config.characterClass}.`
+      : "Respect the class reported by the live character record.",
+    "Only choose from these lobby actions: heal, buy, sell, equip, unequip, use, done.",
+    "Use buy/sell/equip/use only with item ids that appear in the provided shop or inventory data.",
+    "Use unequip only with slots weapon, armor, helm, hands, accessory.",
+    "Do not assume the inn price unless it is explicitly provided.",
+    "Prioritize survival, useful upgrades, and sustainable gold usage before the next realm.",
+    'Return JSON with shape {"strategy":"...","actions":[{"action":"...","reasoning":"..."}]}.',
+    'Each action entry may additionally include "item_id", "quantity", or "slot" when needed.',
+    "Always finish the sequence with a done action.",
+    "Keep the plan compact and practical.",
+  ].join("\n")
+}
+
 export function buildTacticalSystemPrompt(strategicContext?: string): string {
   return [
     "You are repairing or refreshing a short tactical plan for Adventure.fun.",
@@ -117,6 +164,63 @@ export function buildTacticalSystemPrompt(strategicContext?: string): string {
     "Prefer preserving the existing high-level strategy when it still makes sense.",
     strategicContext ? `Current strategic context: ${strategicContext}` : "No prior strategy context is available.",
     "Do not invent ids, directions, slots, or item references outside the live observation.",
+  ].join("\n")
+}
+
+export function buildLobbyDecisionPrompt(prompt: LobbyDecisionPrompt): string {
+  const inventoryItems = prompt.inventory.inventory.length
+    ? prompt.inventory.inventory
+        .map((item) =>
+          [
+            `- id: ${item.id}`,
+            `  template_id: ${item.template_id}`,
+            `  name: ${item.name}`,
+            `  quantity: ${item.quantity}`,
+            `  slot: ${item.slot ?? "unequipped"}`,
+            `  modifiers: ${JSON.stringify(item.modifiers)}`,
+          ].join("\n"),
+        )
+        .join("\n")
+    : "none"
+  const equippedItems = prompt.inventory.inventory.filter((item) => item.slot)
+  const equipmentSummary = equippedItems.length
+    ? equippedItems
+        .map((item) => `- ${item.slot}: ${item.name} (${item.id}) ${JSON.stringify(item.modifiers)}`)
+        .join("\n")
+    : "none"
+  const shopSummary = prompt.shops.sections.length
+    ? prompt.shops.sections
+        .map((section) =>
+          [
+            `Section: ${section.label ?? section.title ?? section.id ?? "shop"}`,
+            ...(section.items.length > 0
+              ? section.items.map((item) =>
+                  `- ${item.id}: ${item.name} | type=${item.type ?? "unknown"} | rarity=${item.rarity ?? "unknown"} | buy_price=${item.buy_price ?? "unknown"} | sell_price=${item.sell_price ?? "unknown"} | slot=${item.equip_slot ?? "n/a"} | class_restriction=${item.class_restriction ?? "none"} | stats=${JSON.stringify(item.stats ?? {})} | effects=${JSON.stringify(item.effects ?? [])}`,
+                )
+              : ["- no items"]),
+          ].join("\n"),
+        )
+        .join("\n\n")
+    : "none"
+
+  return [
+    "Lobby state:",
+    `Character id: ${prompt.character.id}`,
+    `Class: ${prompt.character.class}`,
+    `Level: ${prompt.character.level ?? "unknown"}`,
+    `HP: ${prompt.character.hp_current ?? "unknown"}/${prompt.character.hp_max ?? "unknown"}`,
+    `Resource: ${prompt.character.resource_current ?? "unknown"}/${prompt.character.resource_max ?? "unknown"}`,
+    `Gold: ${prompt.inventory.gold}`,
+    `Inn rest: ${prompt.innCostDescription ?? "available, exact x402 price not exposed by the API"}`,
+    "",
+    "Equipped items:",
+    equipmentSummary,
+    "",
+    "Inventory:",
+    inventoryItems,
+    "",
+    "Shop catalog:",
+    shopSummary,
   ].join("\n")
 }
 
@@ -158,6 +262,7 @@ export function buildDecisionPrompt(
         )
         .join("\n")
     : "none"
+  const spatialContext = summarizeSpatialContext(observation)
 
   return [
     "Current turn context:",
@@ -169,8 +274,11 @@ export function buildDecisionPrompt(
     `Floor: ${observation.realm_info.current_floor}/${observation.realm_info.floor_count}`,
     `Realm status: ${observation.realm_info.status}`,
     `Room: ${observation.position.room_id}`,
+    `Position: (${observation.position.tile.x}, ${observation.position.tile.y})`,
     `Visible entities (${observation.visible_entities.length}): ${visibleEntities}`,
     `Room text: ${observation.room_text ?? "none"}`,
+    "Spatial context:",
+    spatialContext,
     "",
     "Module recommendations:",
     moduleLines,
@@ -220,6 +328,7 @@ export function buildPlanningPrompt(
         .join("\n")
     : "none"
   const mapSummary = JSON.stringify(prompt.observation.known_map)
+  const spatialContext = summarizeSpatialContext(prompt.observation)
 
   return [
     `${prompt.planType === "strategic" ? "Strategic" : "Tactical"} planning request:`,
@@ -231,8 +340,11 @@ export function buildPlanningPrompt(
     `Floor: ${prompt.observation.realm_info.current_floor}/${prompt.observation.realm_info.floor_count}`,
     `Realm status: ${prompt.observation.realm_info.status}`,
     `Room: ${prompt.observation.position.room_id}`,
+    `Position: (${prompt.observation.position.tile.x}, ${prompt.observation.position.tile.y})`,
     `Visible entities (${prompt.observation.visible_entities.length}): ${visibleEntities}`,
     `Room text: ${prompt.observation.room_text ?? "none"}`,
+    "Spatial context:",
+    spatialContext,
     `Known map: ${mapSummary}`,
     prompt.strategicContext ? `Strategic context: ${prompt.strategicContext}` : "Strategic context: none",
     `Maximum planned actions: ${prompt.maxActions}`,
@@ -457,6 +569,47 @@ export function parseActionPlanFromText(response: string): ActionPlan | null {
   return null
 }
 
+export function parseLobbyActionPlanFromJSON(value: unknown): LobbyActionPlan | null {
+  if (!isRecord(value)) {
+    return null
+  }
+
+  const strategy = typeof value.strategy === "string" ? value.strategy.trim() : ""
+  if (!strategy || !Array.isArray(value.actions)) {
+    return null
+  }
+
+  const actions = value.actions
+    .map((item) => parseLobbyActionStep(item))
+    .filter((item): item is LobbyActionStep => item !== null)
+
+  if (actions.length === 0) {
+    return null
+  }
+
+  return { strategy, actions }
+}
+
+export function parseLobbyActionPlanFromText(response: string): LobbyActionPlan | null {
+  if (!response.trim()) {
+    return null
+  }
+
+  for (const candidate of extractJsonCandidates(response)) {
+    try {
+      const parsed = JSON.parse(candidate) as unknown
+      const plan = parseLobbyActionPlanFromJSON(parsed)
+      if (plan) {
+        return plan
+      }
+    } catch {
+      continue
+    }
+  }
+
+  return null
+}
+
 export function buildCorrectionMessage(legalActions: Action[]): string {
   return [
     "The previous response did not contain a valid legal action.",
@@ -533,8 +686,85 @@ function buildActionSchemaBranches(): JsonSchemaProperty[] {
   ]
 }
 
+function summarizeSpatialContext(observation: Observation): string {
+  const tileByCoordinate = new Map(
+    observation.visible_tiles.map((tile) => [`${tile.x},${tile.y}`, tile] as const),
+  )
+  const current = observation.position.tile
+  const legalMoveDirections = new Set(
+    observation.legal_actions
+      .filter((action): action is Extract<Action, { type: "move" }> => action.type === "move")
+      .map((action) => action.direction),
+  )
+
+  const neighborSummary = (["up", "down", "left", "right"] as const)
+    .map((direction) => {
+      const next = nextPosition(current, direction)
+      const tile = tileByCoordinate.get(`${next.x},${next.y}`)
+      const visibility = tile ? tile.type : "unseen"
+      const legal = legalMoveDirections.has(direction) ? "legal" : "illegal"
+      return `- ${direction}: ${legal}, destination ${visibility} at (${next.x}, ${next.y})`
+    })
+    .join("\n")
+
+  const pointsOfInterest = observation.visible_tiles
+    .filter((tile) => tile.type === "door" || tile.type === "stairs" || tile.type === "stairs_up" || tile.type === "entrance")
+    .map((tile) => `${tile.type}@(${tile.x},${tile.y})`)
+    .join(", ")
+
+  return [
+    `Current tile: (${current.x}, ${current.y})`,
+    "Adjacent movement:",
+    neighborSummary,
+    `Points of interest: ${pointsOfInterest || "none visible"}`,
+  ].join("\n")
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null
+}
+
+function parseLobbyActionStep(value: unknown): LobbyActionStep | null {
+  if (!isRecord(value) || typeof value.action !== "string" || typeof value.reasoning !== "string") {
+    return null
+  }
+
+  const action = value.action
+  if (
+    action !== "heal"
+    && action !== "buy"
+    && action !== "sell"
+    && action !== "equip"
+    && action !== "unequip"
+    && action !== "use"
+    && action !== "done"
+  ) {
+    return null
+  }
+
+  const reasoning = value.reasoning.trim()
+  if (!reasoning) {
+    return null
+  }
+
+  const step: LobbyActionStep = {
+    action,
+    reasoning,
+  }
+
+  if (typeof value.item_id === "string" && value.item_id.trim()) {
+    step.item_id = value.item_id.trim()
+  }
+
+  if (typeof value.quantity === "number" && Number.isFinite(value.quantity) && value.quantity > 0) {
+    step.quantity = Math.floor(value.quantity)
+  }
+
+  if (isEquipSlot(value.slot)) {
+    step.slot = value.slot
+  }
+
+  return step
 }
 
 function normalizeAction(value: Record<string, unknown>): Action | null {
@@ -593,6 +823,22 @@ function normalizeAction(value: Record<string, unknown>): Action | null {
         : null
     default:
       return null
+  }
+}
+
+function nextPosition(
+  position: { x: number; y: number },
+  direction: Extract<Action, { type: "move" }>["direction"],
+): { x: number; y: number } {
+  switch (direction) {
+    case "up":
+      return { x: position.x, y: position.y - 1 }
+    case "down":
+      return { x: position.x, y: position.y + 1 }
+    case "left":
+      return { x: position.x - 1, y: position.y }
+    case "right":
+      return { x: position.x + 1, y: position.y }
   }
 }
 

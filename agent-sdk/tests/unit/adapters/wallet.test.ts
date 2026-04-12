@@ -1,11 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test"
 import { privateKeyToAccount } from "viem/accounts"
 import { verifyMessage } from "viem"
-import {
-  EvmEnvWalletAdapter,
-  OpenWalletAdapter,
-  createWalletAdapter,
-} from "../../../src/adapters/wallet/index.js"
+import { EvmEnvWalletAdapter, createWalletAdapter } from "../../../src/adapters/wallet/index.js"
 
 const EVM_PRIVATE_KEY =
   "0x59c6995e998f97a5a0044976f7d9f7ea3a4b64c9d8d0f9ac1c9c1a40add3521e"
@@ -87,39 +83,4 @@ describe("wallet adapters", () => {
     expect(signed.startsWith("0x02")).toBe(true)
   })
 
-  it("delegates OpenWallet requests to the documented HTTP endpoints", async () => {
-    const requests: Array<{ url: string; init?: RequestInit }> = []
-    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-      requests.push({ url: String(input), init })
-
-      if (String(input).endsWith("/address")) {
-        return new Response(JSON.stringify({ address: "0xabc" }), { status: 200 })
-      }
-
-      return new Response(JSON.stringify({ signature: "signed-value" }), { status: 200 })
-    }) as typeof fetch
-
-    const adapter = await OpenWalletAdapter.fromConfig({
-      type: "open-wallet",
-      network: "base",
-      endpoint: "https://wallet.example.com",
-      apiKey: "api-key",
-    })
-
-    expect(await adapter.getAddress()).toBe("0xabc")
-    expect(await adapter.signMessage("hello")).toBe("signed-value")
-    expect(
-      await adapter.signTransaction({
-        to: "0x1111111111111111111111111111111111111111",
-        value: "0",
-      }),
-    ).toBe("signed-value")
-
-    expect(requests.map((request) => request.url)).toEqual([
-      "https://wallet.example.com/address",
-      "https://wallet.example.com/sign/message",
-      "https://wallet.example.com/sign/transaction",
-    ])
-    expect(new Headers(requests[1]?.init?.headers).get("Authorization")).toBe("Bearer api-key")
-  })
 })

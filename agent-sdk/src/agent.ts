@@ -1,8 +1,12 @@
 import {
   createLLMAdapter,
+  buildLobbyDecisionPrompt,
+  buildLobbySystemPrompt,
+  parseLobbyActionPlanFromText,
   type DecisionResult,
   type HistoryEntry,
   type LLMAdapter,
+  type LobbyActionStep,
 } from "./adapters/llm/index.js"
 import {
   createX402Client,
@@ -11,10 +15,29 @@ import {
 } from "./adapters/wallet/index.js"
 import { authenticate, type SessionToken } from "./auth.js"
 import { BanterEngine, ChatManager } from "./chat/index.js"
-import { GameClient, type GameClientError } from "./client.js"
-import type { AgentConfig, DecisionConfig } from "./config.js"
+import {
+  GameClient,
+  type ItemTemplateSummary,
+  type RealmTemplateSummary,
+  type ShopCatalogItem,
+  type ShopCatalogResponse,
+} from "./client.js"
+import type {
+  AgentConfig,
+  DecisionConfig,
+  LobbyConfig,
+  RealmProgressionConfig,
+  StatRerollConfig,
+} from "./config.js"
 import { ActionPlanner, type PlannerDecision } from "./planner.js"
-import type { Action, CharacterClass, Observation } from "./protocol.js"
+import type {
+  Action,
+  CharacterClass,
+  CharacterStats,
+  EquipSlot,
+  InventoryItem,
+  Observation,
+} from "./protocol.js"
 import {
   createAgentContext,
   createModuleRegistry,
@@ -28,6 +51,7 @@ import {
   type AgentModule,
   type ModuleRegistry,
 } from "./modules/index.js"
+import { SpendingTracker } from "./spending-tracker.js"
 
 const DEFAULT_MODULES: AgentModule[] = [
   new CombatModule(),
@@ -39,6 +63,7 @@ const DEFAULT_MODULES: AgentModule[] = [
 ]
 
 const MAX_HISTORY = 50
+
 type ExtractionPayload = {
   loot_summary: Observation["inventory"]
   xp_gained: number
@@ -48,6 +73,7 @@ type ExtractionPayload = {
 }
 
 type DeathPayload = { cause: string; floor: number; room: string; turn: number }
+type RunOutcome = "death" | "extracted" | "stopped"
 
 type AgentClient = Pick<
   GameClient,
@@ -55,11 +81,65 @@ type AgentClient = Pick<
   | "connectLobby"
   | "disconnect"
   | "disconnectLobby"
+  | "getCurrentCharacter"
+  | "getLobbyInventory"
+  | "getLobbyShops"
+  | "getItemTemplates"
+  | "getMyRealms"
+  | "getRealmTemplates"
+  | "buyShopItem"
+  | "discardLobbyItem"
+  | "sellShopItem"
+  | "equipLobbyItem"
+  | "unequipLobbySlot"
+  | "useLobbyConsumable"
+  | "restAtInn"
   | "request"
   | "sendAction"
   | "on"
   | "off"
 >
+
+type CharacterRecord = {
+  id: string
+  class: CharacterClass
+  name: string
+  status?: string
+  level?: number
+  gold?: number
+  hp_current?: number
+  hp_max?: number
+  resource_current?: number
+  resource_max?: number
+  stat_rerolled?: boolean
+  stats?: CharacterStats
+}
+
+type RealmRecord = {
+  id: string
+  template_id?: string
+  status?: string
+}
+
+type CharacterProgressionResponse = {
+  skill_points: number
+  skill_tree_unlocked: Record<string, boolean>
+}
+
+type LobbyState = {
+  character: CharacterRecord
+  inventoryGold: number
+  inventory: InventoryItem[]
+  shops: ShopCatalogResponse
+  itemTemplates: ItemTemplateSummary[]
+}
+
+class AgentStoppedError extends Error {
+  constructor() {
+    super("Agent stopped")
+    this.name = "AgentStoppedError"
+  }
+}
 
 interface AgentPlanner {
   decideAction(observation: Observation, context: AgentContext): Promise<PlannerDecision>
@@ -114,9 +194,10 @@ export class BaseAgent {
   private banterEngine: BanterEngine | null = null
   private listeners = new Map<AgentEventName, Set<(payload: unknown) => void>>()
   private clientInstance: AgentClient | null = null
+  private spendingTracker: SpendingTracker | null = null
   private runCompletion:
     | {
-        resolve: () => void
+        resolve: (outcome: RunOutcome) => void
         reject: (error: Error) => void
       }
     | null = null
@@ -204,43 +285,47 @@ export class BaseAgent {
       const client = await this.createClient(session)
       this.clientInstance = client
 
-      await this.ensureCharacter(client)
-      const realmId = await this.ensureRealm(client)
+      await this.maybeUpdateProfile(client)
 
-      const completion = new Promise<void>((resolve, reject) => {
-        this.runCompletion = { resolve, reject }
-      })
+      const startedAt = Date.now()
+      let realmCount = 0
+      let outcome: RunOutcome = "stopped"
+      do {
+        if (this.hasReachedActivityLimits(startedAt, realmCount)) {
+          break
+        }
 
-      await client.connect(realmId, {
-        onObservation: async (observation) => {
-          await this.handleObservation(observation)
-        },
-        onDeath: (payload) => {
-          this.handleDeath(payload)
-          this.finishRun()
-        },
-        onExtracted: async (payload) => {
-          await this.handleExtraction(payload)
-          this.finishRun()
-        },
-        onError: (error) => {
-          this.emit("error", error)
-        },
-        onClose: (event) => {
-          if (!event.intentional && this.isRunning) {
-            this.failRun(new Error(`Game socket closed unexpectedly: ${event.code} ${event.reason}`))
-          }
-        },
-      })
+        let character = await this.ensureCharacter(client)
+        character = await this.maybeRerollStats(client, character)
+        if (!this.isRunning) {
+          break
+        }
 
-      if (this.config.chat?.enabled) {
-        await this.startChat(client)
-      }
+        await this.maybeSpendSkillPoints(client)
+        if (!this.isRunning) {
+          break
+        }
 
-      return completion
+        await this.lobbyPhase(client)
+        if (!this.isRunning || this.hasReachedActivityLimits(startedAt, realmCount)) {
+          break
+        }
+
+        const realmId = await this.ensureRealm(client)
+        outcome = await this.playRealm(client, realmId)
+        if (outcome !== "stopped") {
+          realmCount += 1
+        }
+      } while (this.isRunning && this.shouldContinue(outcome))
+
+      this.isRunning = false
+      this.clientInstance = null
     } catch (error) {
       this.isRunning = false
       this.clientInstance = null
+      if (error instanceof AgentStoppedError) {
+        return
+      }
       throw error
     }
   }
@@ -303,11 +388,11 @@ export class BaseAgent {
   }
 
   stop(): void {
+    this.isRunning = false
     this.teardownChat()
     this.clientInstance?.disconnect()
     this.clientInstance = null
-    this.isRunning = false
-    this.runCompletion?.resolve()
+    this.runCompletion?.resolve("stopped")
     this.runCompletion = null
     this.emit("disconnected", undefined)
   }
@@ -388,6 +473,11 @@ export class BaseAgent {
 
   private async createClient(session: SessionToken): Promise<AgentClient> {
     if (this.clientFactory) {
+      if (this.config.limits?.maxSpendUsd !== undefined) {
+        throw new Error(
+          "limits.maxSpendUsd is not supported with a custom clientFactory because the SDK cannot attach x402 spending hooks.",
+        )
+      }
       return this.clientFactory({
         baseUrl: this.config.apiUrl,
         wsUrl: this.config.wsUrl,
@@ -399,6 +489,15 @@ export class BaseAgent {
     const x402Client = isX402CapableWalletAdapter(this.wallet)
       ? await createX402Client(this.wallet)
       : undefined
+    this.spendingTracker = new SpendingTracker(this.config.limits)
+    if (this.spendingTracker.isEnabled) {
+      if (!x402Client) {
+        throw new Error(
+          "limits.maxSpendUsd requires an x402-capable wallet adapter so the SDK can track spending.",
+        )
+      }
+      this.spendingTracker.attach(x402Client)
+    }
 
     return new GameClient(this.config.apiUrl, this.config.wsUrl, session, {
       wallet: this.wallet,
@@ -406,12 +505,33 @@ export class BaseAgent {
     })
   }
 
-  private async ensureCharacter(client: AgentClient): Promise<void> {
-    try {
-      await client.request("/characters/me")
+  private async maybeUpdateProfile(client: AgentClient): Promise<void> {
+    const profile = this.config.profile
+    if (!profile) {
       return
+    }
+
+    const body = {
+      ...(profile.handle !== undefined ? { handle: profile.handle } : {}),
+      ...(profile.xHandle !== undefined ? { x_handle: profile.xHandle } : {}),
+      ...(profile.githubHandle !== undefined ? { github_handle: profile.githubHandle } : {}),
+    }
+
+    if (Object.keys(body).length === 0) {
+      return
+    }
+
+    await client.request("/auth/profile", {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    })
+  }
+
+  private async ensureCharacter(client: AgentClient): Promise<CharacterRecord> {
+    try {
+      return await client.request<CharacterRecord>("/characters/me")
     } catch (error) {
-      if (!isNotFoundError(error)) {
+      if (!isStatusError(error, 404)) {
         throw error
       }
     }
@@ -422,7 +542,7 @@ export class BaseAgent {
       )
     }
 
-    await client.request("/characters/roll", {
+    return client.request<CharacterRecord>("/characters/roll", {
       method: "POST",
       body: JSON.stringify({
         class: this.config.characterClass,
@@ -431,31 +551,745 @@ export class BaseAgent {
     })
   }
 
+  private async maybeRerollStats(
+    client: AgentClient,
+    character: CharacterRecord,
+  ): Promise<CharacterRecord> {
+    const rerollConfig = this.config.rerollStats
+    if (!rerollConfig?.enabled) {
+      return character
+    }
+
+    if (character.stat_rerolled || !character.stats) {
+      return character
+    }
+
+    if (!this.isBadStatRoll(character.stats, rerollConfig)) {
+      return character
+    }
+
+    if (!(await this.waitForBudgetIfNeeded())) {
+      return character
+    }
+
+    return client.request<CharacterRecord>("/characters/reroll-stats", {
+      method: "POST",
+      body: JSON.stringify({}),
+    })
+  }
+
+  private isBadStatRoll(stats: CharacterStats, rerollConfig: StatRerollConfig): boolean {
+    const minStats = rerollConfig.minStats ?? {}
+    const hasMinStats = Object.keys(minStats).length > 0
+    const hasMinTotal = rerollConfig.minTotal !== undefined
+
+    if (!hasMinStats && !hasMinTotal) {
+      throw new Error(
+        "rerollStats requires minStats or minTotal so the SDK can determine when a roll is bad",
+      )
+    }
+
+    if (
+      hasMinStats
+      && Object.entries(minStats).some(([key, minimum]) =>
+        minimum !== undefined && stats[key as keyof CharacterStats] < minimum,
+      )
+    ) {
+      return true
+    }
+
+    if (hasMinTotal) {
+      const total = Object.values(stats).reduce((sum, value) => sum + value, 0)
+      return total < (rerollConfig.minTotal ?? 0)
+    }
+
+    return false
+  }
+
+  private async maybeSpendSkillPoints(client: AgentClient): Promise<void> {
+    if (!this.config.skillTree?.autoSpend) {
+      return
+    }
+
+    const preferredNodes = this.config.skillTree.preferredNodes ?? []
+    if (preferredNodes.length === 0) {
+      return
+    }
+
+    const progression = await client.request<CharacterProgressionResponse>("/characters/progression")
+    if (progression.skill_points <= 0) {
+      return
+    }
+
+    let remainingPoints = progression.skill_points
+    const unlocked = new Set(Object.keys(progression.skill_tree_unlocked ?? {}))
+
+    for (const nodeId of preferredNodes) {
+      if (remainingPoints <= 0) {
+        break
+      }
+
+      if (unlocked.has(nodeId)) {
+        continue
+      }
+
+      try {
+        await client.request("/characters/skill", {
+          method: "POST",
+          body: JSON.stringify({ node_id: nodeId }),
+        })
+        unlocked.add(nodeId)
+        remainingPoints -= 1
+      } catch (error) {
+        if (isStatusError(error, 400)) {
+          continue
+        }
+        throw error
+      }
+    }
+  }
+
   private async ensureRealm(client: AgentClient): Promise<string> {
-    const mine = await client.request<{ realms: Array<{ id: string; template_id?: string; status?: string }> }>("/realms/mine")
+    const mine = await this.getMyRealms(client)
     const realms = mine.realms ?? []
-    const requestedTemplate = this.config.realmTemplateId
+    const candidateTemplates = this.selectRealmTemplateCandidates()
 
     const reusableRealm = realms.find((realm) =>
-      (requestedTemplate ? realm.template_id === requestedTemplate : true) &&
-      realm.status !== "completed" &&
-      realm.status !== "dead",
+      matchesRealmTemplate(realm, candidateTemplates)
+      && realm.status !== "completed"
+      && realm.status !== "dead",
     )
     if (reusableRealm?.id) {
       return reusableRealm.id
     }
 
-    if (!requestedTemplate) {
+    const strategy = this.config.realmProgression?.strategy ?? "auto"
+
+    if (strategy === "auto") {
+      return this.ensureAutoRealm(client, realms, candidateTemplates)
+    }
+
+    if (strategy === "regenerate") {
+      const completedRealm = realms.find((realm) =>
+        matchesRealmTemplate(realm, candidateTemplates) && realm.status === "completed",
+      )
+      if (completedRealm?.id) {
+        if (!(await this.waitForBudgetIfNeeded())) {
+          throw new AgentStoppedError()
+        }
+        const regenerated = await client.request<RealmRecord>(
+          `/realms/${completedRealm.id}/regenerate`,
+          {
+            method: "POST",
+            body: JSON.stringify({}),
+          },
+        )
+        return regenerated.id
+      }
+    }
+
+    if (strategy === "new-realm") {
+      for (const templateId of candidateTemplates) {
+        const activeRealm = realms.find((realm) =>
+          realm.template_id === templateId
+          && realm.status !== "completed"
+          && realm.status !== "dead",
+        )
+        if (activeRealm?.id) {
+          return activeRealm.id
+        }
+
+        const completedRealm = realms.find((realm) =>
+          realm.template_id === templateId && realm.status === "completed",
+        )
+        if (completedRealm) {
+          continue
+        }
+
+        if (!(await this.waitForBudgetIfNeeded())) {
+          throw new AgentStoppedError()
+        }
+        const realm = await client.request<RealmRecord>("/realms/generate", {
+          method: "POST",
+          body: JSON.stringify({ template_id: templateId }),
+        })
+        return realm.id
+      }
+
       throw new Error(
-        "realmTemplateId is required when no reusable realm exists for the agent",
+        "realmProgression.strategy=\"new-realm\" exhausted templatePriority without finding a playable realm",
       )
     }
 
-    const realm = await client.request<{ id: string }>("/realms/generate", {
+    const requestedTemplate = candidateTemplates[0]
+    if (!requestedTemplate) {
+      throw new Error(
+        "realmTemplateId or realmProgression.templatePriority is required when no reusable realm exists for the agent",
+      )
+    }
+
+    const completedRealm = realms.find((realm) =>
+      realm.template_id === requestedTemplate && realm.status === "completed",
+    )
+    if (strategy === "stop" && completedRealm) {
+      throw new Error(
+        `Realm "${requestedTemplate}" is already completed and realmProgression.strategy is "stop"`,
+      )
+    }
+
+    if (!(await this.waitForBudgetIfNeeded())) {
+      throw new AgentStoppedError()
+    }
+    const realm = await client.request<RealmRecord>("/realms/generate", {
       method: "POST",
       body: JSON.stringify({ template_id: requestedTemplate }),
     })
     return realm.id
+  }
+
+  private selectRealmTemplateCandidates(): string[] {
+    const candidates = [
+      ...(this.config.realmProgression?.templatePriority ?? []),
+      ...(this.config.realmTemplateId ? [this.config.realmTemplateId] : []),
+    ].filter((value): value is string => value.length > 0)
+
+    return [...new Set(candidates)]
+  }
+
+  private async ensureAutoRealm(
+    client: AgentClient,
+    realms: RealmRecord[],
+    candidateTemplates: string[],
+  ): Promise<string> {
+    const templates = await this.getAutoRealmTemplates(client, candidateTemplates)
+    if (templates.length === 0) {
+      throw new Error("realmProgression.strategy=\"auto\" could not resolve any realm templates")
+    }
+
+    for (const template of templates) {
+      const completedRealm = realms.find((realm) =>
+        realm.template_id === template.id && realm.status === "completed",
+      )
+      if (completedRealm) {
+        continue
+      }
+
+      if (!(await this.waitForBudgetIfNeeded())) {
+        throw new AgentStoppedError()
+      }
+      const generatedRealm = await client.request<RealmRecord>("/realms/generate", {
+        method: "POST",
+        body: JSON.stringify({ template_id: template.id }),
+      })
+      return generatedRealm.id
+    }
+
+    const progression = this.config.realmProgression
+    if (progression?.onAllCompleted === "stop") {
+      throw new Error(
+        "realmProgression.strategy=\"auto\" completed all available realm templates and onAllCompleted is \"stop\"",
+      )
+    }
+
+    const completedRealmByTemplate = new Map(
+      realms
+        .filter((realm): realm is RealmRecord & { template_id: string; id: string } =>
+          realm.template_id !== undefined && realm.id !== undefined && realm.status === "completed",
+        )
+        .map((realm) => [realm.template_id, realm]),
+    )
+    const lastCompletedTemplate = [...templates]
+      .reverse()
+      .find((template) => completedRealmByTemplate.has(template.id))
+    if (!lastCompletedTemplate) {
+      throw new Error(
+        "realmProgression.strategy=\"auto\" could not find a completed realm to regenerate after exhausting templates",
+      )
+    }
+
+    const realmToRegenerate = completedRealmByTemplate.get(lastCompletedTemplate.id)
+    if (!realmToRegenerate?.id) {
+      throw new Error(`Completed realm missing id for template "${lastCompletedTemplate.id}"`)
+    }
+
+    if (!(await this.waitForBudgetIfNeeded())) {
+      throw new AgentStoppedError()
+    }
+    const regenerated = await client.request<RealmRecord>(
+      `/realms/${realmToRegenerate.id}/regenerate`,
+      {
+        method: "POST",
+        body: JSON.stringify({}),
+      },
+    )
+    return regenerated.id
+  }
+
+  private async getAutoRealmTemplates(
+    client: AgentClient,
+    candidateTemplates: string[],
+  ): Promise<RealmTemplateSummary[]> {
+    const response = await this.getRealmTemplates(client)
+    const templates = [...(response.templates ?? [])].sort((left, right) => left.orderIndex - right.orderIndex)
+    if (candidateTemplates.length === 0) {
+      return templates
+    }
+
+    return templates.filter((template) => candidateTemplates.includes(template.id))
+  }
+
+  private shouldContinue(outcome: RunOutcome): boolean {
+    if (!this.isRunning) {
+      return false
+    }
+
+    if (outcome === "death") {
+      return this.config.rerollOnDeath === true
+    }
+
+    if (outcome === "extracted") {
+      return this.config.realmProgression?.continueOnExtraction ?? true
+    }
+
+    return false
+  }
+
+  private hasReachedActivityLimits(startedAt: number, realmCount: number): boolean {
+    const limits = this.config.limits
+    if (!limits) {
+      return false
+    }
+
+    if (limits.maxRealms !== undefined && realmCount >= limits.maxRealms) {
+      return true
+    }
+
+    if (
+      limits.maxRuntimeMinutes !== undefined
+      && Date.now() - startedAt >= limits.maxRuntimeMinutes * 60_000
+    ) {
+      return true
+    }
+
+    return false
+  }
+
+  private async waitForBudgetIfNeeded(): Promise<boolean> {
+    const tracker = this.spendingTracker
+    if (!tracker?.isEnabled || tracker.canSpend()) {
+      return true
+    }
+
+    await tracker.sleepUntilBudgetResets(() => this.isRunning)
+    return this.isRunning && tracker.canSpend()
+  }
+
+  private async lobbyPhase(client: AgentClient): Promise<void> {
+    let state = await this.loadLobbyState(client)
+    if (!state) {
+      return
+    }
+    if (state.character.status && state.character.status !== "alive") {
+      return
+    }
+
+    state = await this.ensureLobbyRecovery(client, state)
+    if (!this.isRunning) {
+      throw new AgentStoppedError()
+    }
+
+    if (this.config.lobby?.useLLM !== false && typeof this.llm.chat === "function") {
+      const completedWithLlm = await this.runLlmLobbyPhase(client, state)
+      if (completedWithLlm) {
+        const refreshedState = await this.loadLobbyState(client)
+        if (!refreshedState) {
+          return
+        }
+        if (this.config.lobby?.autoSellJunk !== false) {
+          await this.runInventoryCleanupPhase(client, refreshedState)
+        }
+        return
+      }
+
+      state = await this.loadLobbyState(client)
+      if (!state) {
+        return
+      }
+    }
+
+    await this.runHeuristicLobbyPhase(client, state)
+  }
+
+  private async ensureLobbyRecovery(
+    client: AgentClient,
+    state: LobbyState,
+  ): Promise<LobbyState> {
+    const lobbyConfig = this.config.lobby ?? {}
+    if (!shouldHealAtInn(state.character, lobbyConfig)) {
+      return state
+    }
+    if (!(await this.waitForBudgetIfNeeded())) {
+      throw new AgentStoppedError()
+    }
+
+    await client.restAtInn()
+    return (await this.loadLobbyState(client)) ?? state
+  }
+
+  private async loadLobbyState(client: AgentClient): Promise<LobbyState | null> {
+    try {
+      const [character, inventory, shops, itemTemplates] = await Promise.all([
+        this.getCurrentCharacter(client),
+        this.getLobbyInventory(client),
+        this.getLobbyShops(client),
+        this.getItemTemplates(client),
+      ])
+
+      return {
+        character: character as CharacterRecord,
+        inventoryGold: inventory.gold,
+        inventory: inventory.inventory,
+        shops,
+        itemTemplates: itemTemplates.items,
+      }
+    } catch (error) {
+      if (isStatusError(error, 404)) {
+        return null
+      }
+      throw error
+    }
+  }
+
+  private async runLlmLobbyPhase(client: AgentClient, initialState: LobbyState): Promise<boolean> {
+    const personality = this.resolveChatPersonality() ?? {
+      name: this.config.characterName ?? initialState.character.name ?? "Agent",
+      traits: ["pragmatic"],
+    }
+
+    try {
+      const response = await this.llm.chat?.({
+        recentMessages: [],
+        personality,
+        trigger: "idle",
+        agentState: {
+          characterName: initialState.character.name ?? personality.name,
+          characterClass: initialState.character.class,
+          currentHP: initialState.character.hp_current ?? 0,
+          maxHP: initialState.character.hp_max ?? 0,
+        },
+        context: buildLobbyDecisionPrompt({
+          character: initialState.character,
+          inventory: {
+            gold: initialState.inventoryGold,
+            inventory: initialState.inventory,
+          },
+          shops: initialState.shops,
+        }),
+        systemPrompt: buildLobbySystemPrompt(this.config),
+      })
+
+      if (!response) {
+        return false
+      }
+
+      const plan = parseLobbyActionPlanFromText(response)
+      if (!plan) {
+        return false
+      }
+
+      let state = initialState
+      for (const step of plan.actions.slice(0, 8)) {
+        if (!this.isRunning) {
+          throw new AgentStoppedError()
+        }
+
+        state = await this.executeLobbyAction(client, state, step)
+        if (step.action === "done") {
+          break
+        }
+      }
+
+      return true
+    } catch (error) {
+      const normalizedError = error instanceof Error ? error : new Error(String(error))
+      if (normalizedError instanceof AgentStoppedError) {
+        throw normalizedError
+      }
+
+      this.emit("error", normalizedError)
+      return false
+    }
+  }
+
+  private async runHeuristicLobbyPhase(client: AgentClient, initialState: LobbyState): Promise<void> {
+    const lobbyConfig = this.config.lobby ?? {}
+    let state = initialState
+
+    if (shouldHealAtInn(state.character, lobbyConfig)) {
+      if (!(await this.waitForBudgetIfNeeded())) {
+        throw new AgentStoppedError()
+      }
+
+      await client.restAtInn()
+      const refreshedState = await this.loadLobbyState(client)
+      if (!refreshedState) {
+        return
+      }
+      state = refreshedState
+    }
+
+    if (lobbyConfig.autoSellJunk !== false) {
+      state = await this.runInventoryCleanupPhase(client, state)
+    }
+
+    if (lobbyConfig.autoEquipUpgrades !== false) {
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        const upgrade = findBestLobbyUpgrade(state.inventory)
+        if (!upgrade) {
+          break
+        }
+
+        await client.equipLobbyItem(upgrade.id)
+        const refreshedState = await this.loadLobbyState(client)
+        if (!refreshedState) {
+          return
+        }
+        state = refreshedState
+      }
+    }
+
+    const healingItems = getHealingShopItems(state.shops)
+    const preferredHealingItem = healingItems[0]
+    const desiredPotions = lobbyConfig.buyPotionMinimum ?? 2
+    if (preferredHealingItem && desiredPotions > 0) {
+      const ownedHealing = countInventoryTemplates(
+        state.inventory,
+        new Set(healingItems.map((item) => item.id)),
+      )
+      if (ownedHealing < desiredPotions && state.inventoryGold >= (preferredHealingItem.buy_price ?? 0)) {
+        const quantity = Math.min(
+          desiredPotions - ownedHealing,
+          preferredHealingItem.stack_limit ?? desiredPotions - ownedHealing,
+        )
+        await client.buyShopItem({
+          itemId: preferredHealingItem.id,
+          quantity,
+        })
+        const refreshedState = await this.loadLobbyState(client)
+        if (!refreshedState) {
+          return
+        }
+        state = refreshedState
+      }
+    }
+
+    if (lobbyConfig.buyPortalScroll !== false) {
+      const portalItem = getPortalShopItem(state.shops)
+      if (portalItem) {
+        const ownedPortals = countInventoryTemplates(state.inventory, new Set([portalItem.id]))
+        if (ownedPortals < 1 && state.inventoryGold >= (portalItem.buy_price ?? 0)) {
+          await client.buyShopItem({ itemId: portalItem.id, quantity: 1 })
+        }
+      }
+    }
+  }
+
+  private async runInventoryCleanupPhase(
+    client: AgentClient,
+    initialState: LobbyState,
+  ): Promise<LobbyState> {
+    let state = initialState
+    for (const action of planInventoryCleanup(state)) {
+      if (action.type === "sell") {
+        await client.sellShopItem({
+          itemId: action.item.id,
+          quantity: action.quantity,
+        })
+      } else {
+        await this.discardLobbyItem(client, action.item.id)
+      }
+
+      const refreshedState = await this.loadLobbyState(client)
+      if (!refreshedState) {
+        return state
+      }
+      state = refreshedState
+    }
+
+    return state
+  }
+
+  private async executeLobbyAction(
+    client: AgentClient,
+    state: LobbyState,
+    step: LobbyActionStep,
+  ): Promise<LobbyState> {
+    try {
+      switch (step.action) {
+        case "heal": {
+          if (!canUseInn(state.character)) {
+            return state
+          }
+          if (!(await this.waitForBudgetIfNeeded())) {
+            throw new AgentStoppedError()
+          }
+          await client.restAtInn()
+          return (await this.loadLobbyState(client)) ?? state
+        }
+        case "buy": {
+          if (!step.item_id) {
+            return state
+          }
+          const shopItem = findShopItem(state.shops, step.item_id)
+          if (!shopItem) {
+            return state
+          }
+          await client.buyShopItem({
+            itemId: shopItem.id,
+            quantity: normalizeQuantity(step.quantity),
+          })
+          return (await this.loadLobbyState(client)) ?? state
+        }
+        case "sell": {
+          if (!step.item_id) {
+            return state
+          }
+          const inventoryItem = state.inventory.find((item) => item.id === step.item_id && !item.slot)
+          if (!inventoryItem) {
+            return state
+          }
+          await client.sellShopItem({
+            itemId: inventoryItem.id,
+            quantity: Math.min(normalizeQuantity(step.quantity), inventoryItem.quantity),
+          })
+          return (await this.loadLobbyState(client)) ?? state
+        }
+        case "equip": {
+          if (!step.item_id) {
+            return state
+          }
+          const inventoryItem = state.inventory.find((item) => item.id === step.item_id && !item.slot)
+          if (!inventoryItem) {
+            return state
+          }
+          await client.equipLobbyItem(inventoryItem.id)
+          return (await this.loadLobbyState(client)) ?? state
+        }
+        case "unequip": {
+          if (!step.slot || !state.inventory.some((item) => item.slot === step.slot)) {
+            return state
+          }
+          await client.unequipLobbySlot(step.slot)
+          return (await this.loadLobbyState(client)) ?? state
+        }
+        case "use": {
+          if (!step.item_id) {
+            return state
+          }
+          const inventoryItem = state.inventory.find((item) => item.id === step.item_id)
+          if (!inventoryItem) {
+            return state
+          }
+          await client.useLobbyConsumable(inventoryItem.id)
+          return (await this.loadLobbyState(client)) ?? state
+        }
+        case "done":
+          return state
+      }
+    } catch (error) {
+      if (isStatusError(error, 400) || isStatusError(error, 404) || isStatusError(error, 409)) {
+        return (await this.loadLobbyState(client)) ?? state
+      }
+      throw error
+    }
+  }
+
+  private async getCurrentCharacter(client: AgentClient): Promise<CharacterRecord> {
+    const maybeTypedClient = client as AgentClient & {
+      getCurrentCharacter?: () => Promise<CharacterRecord>
+    }
+    if (typeof maybeTypedClient.getCurrentCharacter === "function") {
+      return maybeTypedClient.getCurrentCharacter()
+    }
+
+    return client.request<CharacterRecord>("/characters/me")
+  }
+
+  private async getMyRealms(client: AgentClient): Promise<{ realms: RealmRecord[] }> {
+    const maybeTypedClient = client as AgentClient & {
+      getMyRealms?: () => Promise<{ realms: RealmRecord[] }>
+    }
+    if (typeof maybeTypedClient.getMyRealms === "function") {
+      return maybeTypedClient.getMyRealms()
+    }
+
+    return client.request<{ realms: RealmRecord[] }>("/realms/mine")
+  }
+
+  private async getRealmTemplates(
+    client: AgentClient,
+  ): Promise<{ templates: RealmTemplateSummary[] }> {
+    const maybeTypedClient = client as AgentClient & {
+      getRealmTemplates?: () => Promise<{ templates: RealmTemplateSummary[] }>
+    }
+    if (typeof maybeTypedClient.getRealmTemplates === "function") {
+      return maybeTypedClient.getRealmTemplates()
+    }
+
+    return client.request<{ templates: RealmTemplateSummary[] }>("/content/realms")
+  }
+
+  private async getLobbyInventory(client: AgentClient): Promise<{
+    gold: number
+    inventory: InventoryItem[]
+  }> {
+    const maybeTypedClient = client as AgentClient & {
+      getLobbyInventory?: () => Promise<{ gold: number; inventory: InventoryItem[] }>
+    }
+    if (typeof maybeTypedClient.getLobbyInventory === "function") {
+      return maybeTypedClient.getLobbyInventory()
+    }
+
+    return client.request<{ gold: number; inventory: InventoryItem[] }>("/lobby/shop/inventory")
+  }
+
+  private async getLobbyShops(client: AgentClient): Promise<ShopCatalogResponse> {
+    const maybeTypedClient = client as AgentClient & {
+      getLobbyShops?: () => Promise<ShopCatalogResponse>
+    }
+    if (typeof maybeTypedClient.getLobbyShops === "function") {
+      return maybeTypedClient.getLobbyShops()
+    }
+
+    return client.request<ShopCatalogResponse>("/lobby/shops")
+  }
+
+  private async getItemTemplates(
+    client: AgentClient,
+  ): Promise<{ items: ItemTemplateSummary[] }> {
+    const maybeTypedClient = client as AgentClient & {
+      getItemTemplates?: () => Promise<{ items: ItemTemplateSummary[] }>
+    }
+    if (typeof maybeTypedClient.getItemTemplates === "function") {
+      return maybeTypedClient.getItemTemplates()
+    }
+
+    return client.request<{ items: ItemTemplateSummary[] }>("/content/items")
+  }
+
+  private async discardLobbyItem(client: AgentClient, itemId: string): Promise<void> {
+    const maybeTypedClient = client as AgentClient & {
+      discardLobbyItem?: (itemId: string) => Promise<unknown>
+    }
+    if (typeof maybeTypedClient.discardLobbyItem === "function") {
+      await maybeTypedClient.discardLobbyItem(itemId)
+      return
+    }
+
+    await client.request("/lobby/discard", {
+      method: "POST",
+      body: JSON.stringify({ item_id: itemId }),
+    })
   }
 
   private async handleObservation(observation: Observation): Promise<void> {
@@ -469,12 +1303,44 @@ export class BaseAgent {
     }
   }
 
-  private finishRun(): void {
+  private async playRealm(client: AgentClient, realmId: string): Promise<RunOutcome> {
+    const completion = new Promise<RunOutcome>((resolve, reject) => {
+      this.runCompletion = { resolve, reject }
+    })
+
+    await client.connect(realmId, {
+      onObservation: async (observation) => {
+        await this.handleObservation(observation)
+      },
+      onDeath: (payload) => {
+        this.handleDeath(payload)
+        this.finishRun("death")
+      },
+      onExtracted: async (payload) => {
+        await this.handleExtraction(payload)
+        this.finishRun("extracted")
+      },
+      onError: (error) => {
+        this.emit("error", error)
+      },
+      onClose: (event) => {
+        if (!event.intentional && this.isRunning && this.runCompletion) {
+          this.failRun(new Error(`Game socket closed unexpectedly: ${event.code} ${event.reason}`))
+        }
+      },
+    })
+
+    if (this.config.chat?.enabled) {
+      await this.startChat(client)
+    }
+
+    return completion
+  }
+
+  private finishRun(outcome: RunOutcome): void {
     this.teardownChat()
-    this.isRunning = false
-    this.runCompletion?.resolve()
+    this.runCompletion?.resolve(outcome)
     this.runCompletion = null
-    this.clientInstance = null
   }
 
   private failRun(error: Error): void {
@@ -493,9 +1359,17 @@ export class BaseAgent {
   }
 }
 
-function isNotFoundError(error: unknown): boolean {
+function matchesRealmTemplate(realm: RealmRecord, candidateTemplates: string[]): boolean {
+  if (candidateTemplates.length === 0) {
+    return true
+  }
+
+  return realm.template_id !== undefined && candidateTemplates.includes(realm.template_id)
+}
+
+function isStatusError(error: unknown, status: number): boolean {
   if (typeof error === "object" && error !== null && "status" in error) {
-    return (error as { status?: unknown }).status === 404
+    return (error as { status?: unknown }).status === status
   }
 
   return false
@@ -509,4 +1383,240 @@ function summarizeObservation(obs: Observation): string {
     `Entities:${obs.visible_entities.length}`,
   ]
   return parts.join(", ")
+}
+
+function canUseInn(character: CharacterRecord): boolean {
+  return (
+    typeof character.hp_current === "number"
+    && typeof character.hp_max === "number"
+    && character.hp_current < character.hp_max
+  )
+}
+
+function shouldHealAtInn(character: CharacterRecord, lobbyConfig: LobbyConfig): boolean {
+  if (!canUseInn(character)) {
+    return false
+  }
+
+  const threshold = lobbyConfig.innHealThreshold ?? 1
+  return (character.hp_current ?? 0) / Math.max(character.hp_max ?? 1, 1) < threshold
+}
+
+function findBestLobbyUpgrade(inventory: InventoryItem[]): InventoryItem | null {
+  const equippedBySlot = new Map<EquipSlot, InventoryItem>()
+  for (const item of inventory) {
+    if (item.slot) {
+      equippedBySlot.set(item.slot, item)
+    }
+  }
+
+  let bestUpgrade: InventoryItem | null = null
+  let bestDelta = 0
+  for (const item of inventory) {
+    if (item.slot) {
+      continue
+    }
+
+    const guessedSlot = guessLobbySlot(item)
+    if (!guessedSlot) {
+      continue
+    }
+
+    const equipped = equippedBySlot.get(guessedSlot)
+    const delta = itemModifierValue(item.modifiers) - itemModifierValue(equipped?.modifiers ?? {})
+    if (!equipped || delta > bestDelta) {
+      bestUpgrade = item
+      bestDelta = equipped ? delta : itemModifierValue(item.modifiers)
+    }
+  }
+
+  return bestUpgrade
+}
+
+type InventoryCleanupAction = {
+  type: "sell" | "discard"
+  item: InventoryItem
+  quantity: number
+}
+
+function planInventoryCleanup(state: LobbyState): InventoryCleanupAction[] {
+  const templatesById = new Map(state.itemTemplates.map((template) => [template.id, template]))
+  const actions: InventoryCleanupAction[] = []
+
+  for (const item of state.inventory) {
+    if (item.slot) {
+      continue
+    }
+
+    const template = templatesById.get(item.template_id)
+    if (isProtectedLobbyItem(item.template_id, template)) {
+      continue
+    }
+
+    if (isCharacterIncompatibleItem(state.character.class, template)) {
+      actions.push({
+        type: (template?.sell_price ?? 0) > 0 ? "sell" : "discard",
+        item,
+        quantity: item.quantity,
+      })
+      continue
+    }
+
+    if (!isConservativeJunkCandidate(item, template)) {
+      continue
+    }
+
+    actions.push({
+      type: (template?.sell_price ?? 0) > 0 ? "sell" : "discard",
+      item,
+      quantity: item.quantity,
+    })
+  }
+
+  return actions
+}
+
+function isProtectedLobbyItem(
+  templateId: string,
+  template: ItemTemplateSummary | undefined,
+): boolean {
+  if (templateId === "health-potion" || templateId === "portal-scroll") {
+    return true
+  }
+
+  if (!template) {
+    return false
+  }
+
+  if (template.type === "key-item") {
+    return true
+  }
+
+  return Array.isArray(template.effects) && template.effects.some((effect) =>
+    typeof effect === "object"
+    && effect !== null
+    && "type" in effect
+    && (
+      effect.type === "heal-hp"
+      || effect.type === "restore-resource"
+      || effect.type === "portal-escape"
+    ),
+  )
+}
+
+function isCharacterIncompatibleItem(
+  characterClass: string | undefined,
+  template: ItemTemplateSummary | undefined,
+): boolean {
+  if (!template || !characterClass) {
+    return false
+  }
+
+  if (template.class_restriction && template.class_restriction !== characterClass) {
+    return true
+  }
+
+  return Boolean(template.ammo_type) && characterClass !== "archer"
+}
+
+function isConservativeJunkCandidate(
+  item: InventoryItem,
+  template: ItemTemplateSummary | undefined,
+): boolean {
+  const lowerName = item.name.toLowerCase()
+  if (lowerName.includes("junk") || lowerName.includes("scrap") || lowerName.includes("trophy")) {
+    return true
+  }
+
+  if (!template) {
+    return item.quantity > 1 && itemModifierValue(item.modifiers) === 0
+  }
+
+  if (template.type === "loot") {
+    return true
+  }
+
+  return item.quantity > 1
+    && template.type !== "equipment"
+    && template.type !== "consumable"
+    && template.type !== "key-item"
+    && itemModifierValue(item.modifiers) === 0
+}
+
+function getHealingShopItems(shops: ShopCatalogResponse): ShopCatalogItem[] {
+  return shops.sections
+    .flatMap((section) => section.items)
+    .filter((item) => {
+      if (item.id === "health-potion") {
+        return true
+      }
+
+      return Array.isArray(item.effects)
+        && item.effects.some((effect) =>
+          typeof effect === "object"
+          && effect !== null
+          && "type" in effect
+          && effect.type === "heal-hp",
+        )
+    })
+    .sort((left, right) => (left.buy_price ?? Number.POSITIVE_INFINITY) - (right.buy_price ?? Number.POSITIVE_INFINITY))
+}
+
+function getPortalShopItem(shops: ShopCatalogResponse): ShopCatalogItem | null {
+  return shops.sections
+    .flatMap((section) => section.items)
+    .find((item) => {
+      if (item.id === "portal-scroll") {
+        return true
+      }
+
+      return Array.isArray(item.effects)
+        && item.effects.some((effect) =>
+          typeof effect === "object"
+          && effect !== null
+          && "type" in effect
+          && effect.type === "portal-escape",
+        )
+    }) ?? null
+}
+
+function findShopItem(shops: ShopCatalogResponse, itemId: string): ShopCatalogItem | null {
+  return shops.sections.flatMap((section) => section.items).find((item) => item.id === itemId) ?? null
+}
+
+function countInventoryTemplates(inventory: InventoryItem[], templateIds: Set<string>): number {
+  return inventory.reduce((sum, item) => (
+    templateIds.has(item.template_id) ? sum + item.quantity : sum
+  ), 0)
+}
+
+function itemModifierValue(modifiers: Record<string, number>): number {
+  return Object.values(modifiers).reduce((sum, value) => sum + Math.abs(value), 0)
+}
+
+function guessLobbySlot(item: InventoryItem): EquipSlot | null {
+  if (typeof item.modifiers.attack === "number" && item.modifiers.attack > 0) {
+    return "weapon"
+  }
+  if (typeof item.modifiers.defense === "number" && item.modifiers.defense > 0) {
+    return "armor"
+  }
+
+  const lowerName = item.name.toLowerCase()
+  if (lowerName.includes("helm")) return "helm"
+  if (lowerName.includes("glove") || lowerName.includes("hand")) return "hands"
+  if (lowerName.includes("ring") || lowerName.includes("amulet") || lowerName.includes("accessory")) {
+    return "accessory"
+  }
+  if (lowerName.includes("armor")) return "armor"
+
+  return null
+}
+
+function normalizeQuantity(quantity: number | undefined): number {
+  if (typeof quantity !== "number" || !Number.isFinite(quantity) || quantity < 1) {
+    return 1
+  }
+
+  return Math.floor(quantity)
 }

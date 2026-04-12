@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Agent SDK Spectator</title>
+    <title>Agent SDK Viewer</title>
     <style>
       :root {
         color-scheme: dark;
@@ -54,6 +54,13 @@
         justify-content: space-between;
       }
 
+      .topbar-controls {
+        display: flex;
+        gap: 12px;
+        align-items: end;
+        flex-wrap: wrap;
+      }
+
       .status {
         color: var(--muted);
         font-size: 12px;
@@ -88,13 +95,46 @@
       .map {
         white-space: pre;
         line-height: 1.2;
-        color: var(--warning);
         overflow-x: auto;
       }
+
+      .map-row {
+        white-space: nowrap;
+      }
+
+      .map-player { color: #9df17f; font-weight: 700; }
+      .map-enemy { color: #ff8f8f; font-weight: 700; }
+      .map-boss { color: #ff5f5f; font-weight: 700; }
+      .map-item { color: #ffd06e; font-weight: 700; }
+      .map-interactable { color: #8fd3ff; font-weight: 700; }
+      .map-trap { color: #ff9f40; font-weight: 700; }
+      .map-wall { color: #7d8f80; }
+      .map-floor { color: #d7f5cf; }
+      .map-door { color: #c7a86f; font-weight: 700; }
+      .map-stairs { color: #b6a1ff; font-weight: 700; }
+      .map-dim { opacity: 0.45; }
+      .map-fog { color: #395143; }
 
       .feed {
         max-height: 280px;
         overflow: auto;
+      }
+
+      .debug-grid {
+        display: grid;
+        gap: 16px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .stack {
+        display: grid;
+        gap: 16px;
+      }
+
+      .helper {
+        margin-top: 8px;
+        color: var(--muted);
+        font-size: 12px;
       }
 
       .muted { color: var(--muted); }
@@ -111,6 +151,7 @@
       @media (max-width: 960px) {
         .shell { grid-template-columns: 1fr; }
         .meta { grid-template-columns: 1fr 1fr; }
+        .debug-grid { grid-template-columns: 1fr; }
       }
     </style>
   </head>
@@ -118,12 +159,22 @@
     <div class="shell">
       <div class="topbar panel">
         <div>
-          <strong>Agent SDK Spectator</strong>
+          <strong id="viewerTitle">Agent SDK Viewer</strong>
           <div class="status" id="status">Connecting...</div>
+          <div class="helper" id="modeHelp">Spectator mode shows the redacted public view.</div>
         </div>
-        <div>
-          <label for="sessionSelect" class="muted">Active run</label>
+        <div class="topbar-controls">
+          <div>
+            <label for="modeSelect" class="muted">View mode</label>
+            <select id="modeSelect">
+              <option value="spectate">Spectate</option>
+              <option value="debug">Debug Inspector</option>
+            </select>
+          </div>
+          <div>
+            <label for="sessionSelect" class="muted">Active run</label>
           <select id="sessionSelect"></select>
+          </div>
           <button id="refreshButton" type="button">Refresh</button>
         </div>
       </div>
@@ -162,6 +213,8 @@
             <div id="hpMeta">HP: -</div>
             <div id="resourceMeta">Resource: -</div>
             <div id="turnMeta">Turn: -</div>
+            <div id="goldMeta">Gold: -</div>
+            <div id="xpMeta">XP: -</div>
           </div>
         </section>
 
@@ -177,6 +230,39 @@
             <ul id="chatLog" class="chat"></ul>
           </div>
         </section>
+
+        <div id="debugPanels" class="stack" hidden>
+          <section class="panel">
+            <h2>Debug Inspector</h2>
+            <div class="muted">Full player observation from the local dev stack. This is separate from public spectator mode.</div>
+          </section>
+
+          <div class="debug-grid">
+            <section class="panel">
+              <h2>Inventory</h2>
+              <div class="feed">
+                <ul id="inventoryList" class="list"></ul>
+              </div>
+            </section>
+
+            <section class="panel">
+              <h2>Equipment</h2>
+              <ul id="equipmentList" class="list"></ul>
+            </section>
+
+            <section class="panel">
+              <h2>Legal Actions</h2>
+              <div class="feed">
+                <ul id="legalActions" class="list"></ul>
+              </div>
+            </section>
+
+            <section class="panel">
+              <h2>Effects</h2>
+              <ul id="effectsList" class="list"></ul>
+            </section>
+          </div>
+        </div>
       </div>
     </div>
 

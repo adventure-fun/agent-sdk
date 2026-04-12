@@ -51,6 +51,7 @@ content.get("/items", (c) => {
       stack_limit: item.stack_limit,
       sell_price: item.sell_price,
       buy_price: item.buy_price,
+      ammo_type: item.ammo_type ?? null,
       range: "range" in item && typeof item.range === "number" ? item.range : undefined,
     }))
   return c.json({ items })

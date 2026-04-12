@@ -23,6 +23,11 @@ describe("ExplorationModule", () => {
 
   it("recommends moving toward an unexplored direction", () => {
     const obs = buildObservation({
+      visible_tiles: [
+        { x: 3, y: 2, type: "floor" },
+        { x: 3, y: 4, type: "floor" },
+        { x: 2, y: 3, type: "floor" },
+      ],
       legal_actions: [
         moveAction("up"),
         moveAction("down"),
@@ -33,8 +38,7 @@ describe("ExplorationModule", () => {
     const context = ctx()
     const result = module.analyze(obs, context)
     expect(result.suggestedAction?.type).toBe("move")
-    expect(result.confidence).toBeGreaterThanOrEqual(0.4)
-    expect(result.confidence).toBeLessThanOrEqual(0.6)
+    expect(result.confidence).toBe(0.72)
   })
 
   it("updates visited rooms in map memory", () => {
@@ -48,18 +52,47 @@ describe("ExplorationModule", () => {
     expect(context.mapMemory.visitedRooms.has("room-1")).toBe(true)
   })
 
-  it("prefers directions not recently visited", () => {
+  it("avoids immediately backtracking after entering a new room when another path is available", () => {
     const context = ctx()
-    context.mapMemory.visitedRooms.add("room-up")
-    context.mapMemory.discoveredExits.set("room-1", ["up", "down"])
 
+    module.analyze(buildObservation({
+      position: { floor: 1, room_id: "room-1", tile: { x: 2, y: 3 } },
+      visible_tiles: [
+        { x: 2, y: 3, type: "floor" },
+        { x: 3, y: 3, type: "door" },
+      ],
+      legal_actions: [moveAction("right")],
+    }), context)
+
+    context.previousActions.push({
+      turn: 1,
+      action: moveAction("right"),
+      reasoning: "Entered the next room.",
+    })
+
+    const obs = buildObservation({
+      position: { floor: 1, room_id: "room-2", tile: { x: 4, y: 3 } },
+      visible_tiles: [
+        { x: 4, y: 3, type: "floor" },
+        { x: 3, y: 3, type: "door" },
+        { x: 5, y: 3, type: "door" },
+        { x: 4, y: 4, type: "floor" },
+      ],
+      legal_actions: [moveAction("left"), moveAction("right"), moveAction("down")],
+    })
+
+    const result = module.analyze(obs, context)
+    expect(result.suggestedAction).not.toEqual({ type: "move", direction: "left" })
+  })
+
+  it("falls back to the first legal move when no tile context is available", () => {
     const obs = buildObservation({
       position: { floor: 1, room_id: "room-1", tile: { x: 3, y: 3 } },
       legal_actions: [moveAction("up"), moveAction("down")],
     })
 
-    const result = module.analyze(obs, context)
-    expect(result.suggestedAction).toEqual({ type: "move", direction: "down" })
+    const result = module.analyze(obs, ctx())
+    expect(result.suggestedAction).toEqual({ type: "move", direction: "up" })
   })
 
   it("recommends portal when realm status indicates completion", () => {
@@ -78,18 +111,29 @@ describe("ExplorationModule", () => {
     expect(result.confidence).toBeGreaterThanOrEqual(0.6)
   })
 
-  it("returns low confidence recommendation when all directions explored", () => {
+  it("returns medium confidence recommendation when only explored visible tiles remain", () => {
     const context = ctx()
-    context.mapMemory.visitedRooms.add("room-up")
-    context.mapMemory.visitedRooms.add("room-down")
+    context.mapMemory.visitedTiles.add("1:3,2")
+    context.mapMemory.visitedTiles.add("1:3,4")
 
     const obs = buildObservation({
+      visible_tiles: [
+        { x: 3, y: 3, type: "floor" },
+        { x: 3, y: 2, type: "floor" },
+        { x: 3, y: 1, type: "wall" },
+        { x: 2, y: 2, type: "wall" },
+        { x: 4, y: 2, type: "wall" },
+        { x: 3, y: 4, type: "floor" },
+        { x: 3, y: 5, type: "wall" },
+        { x: 2, y: 4, type: "wall" },
+        { x: 4, y: 4, type: "wall" },
+      ],
       legal_actions: [moveAction("up"), moveAction("down")],
     })
 
     const result = module.analyze(obs, context)
     expect(result.suggestedAction?.type).toBe("move")
-    expect(result.confidence).toBeLessThanOrEqual(0.5)
+    expect(result.confidence).toBe(0.45)
   })
 
   it("returns no recommendation when no movement is legal", () => {

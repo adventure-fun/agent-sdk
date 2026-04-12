@@ -10,6 +10,7 @@ import {
 export type LLMProvider = "openrouter" | "openai" | "anthropic"
 export type WalletProvider = "env" | "open-wallet"
 export type LogLevel = "debug" | "info" | "warn" | "error"
+export type WalletNetwork = "base" | "base-sepolia" | "solana" | "solana-devnet"
 
 export interface LLMConfig {
   provider: LLMProvider
@@ -23,10 +24,64 @@ export interface LLMConfig {
 
 export interface WalletConfig {
   type: WalletProvider
-  network?: "base" | "solana"
+  network?: WalletNetwork
   privateKey?: string
-  endpoint?: string
-  apiKey?: string
+  walletName?: string
+  passphrase?: string
+  chainId?: string
+  vaultPath?: string
+  accountIndex?: number
+}
+
+export interface StatRerollConfig {
+  enabled?: boolean
+  minStats?: Partial<{
+    hp: number
+    attack: number
+    defense: number
+    accuracy: number
+    evasion: number
+    speed: number
+  }>
+  minTotal?: number
+}
+
+export type RealmProgressionStrategy = "auto" | "regenerate" | "new-realm" | "stop"
+
+export interface RealmProgressionConfig {
+  strategy: RealmProgressionStrategy
+  templatePriority?: string[]
+  continueOnExtraction?: boolean
+  onAllCompleted?: "regenerate-last" | "stop"
+}
+
+export interface AgentProfileConfig {
+  handle?: string
+  xHandle?: string
+  githubHandle?: string
+}
+
+export interface SkillTreeConfig {
+  autoSpend?: boolean
+  preferredNodes?: string[]
+}
+
+export interface LobbyConfig {
+  innHealThreshold?: number
+  autoSellJunk?: boolean
+  autoEquipUpgrades?: boolean
+  buyPotionMinimum?: number
+  buyPortalScroll?: boolean
+  useLLM?: boolean
+}
+
+export type SpendingWindow = "total" | "daily" | "hourly"
+
+export interface AgentLimitsConfig {
+  maxRealms?: number
+  maxRuntimeMinutes?: number
+  maxSpendUsd?: number
+  spendingWindow?: SpendingWindow
 }
 
 export interface ModuleConfig {
@@ -55,6 +110,13 @@ export interface AgentConfig {
   realmTemplateId?: string
   characterClass?: string
   characterName?: string
+  rerollStats?: StatRerollConfig
+  realmProgression?: RealmProgressionConfig
+  profile?: AgentProfileConfig
+  skillTree?: SkillTreeConfig
+  lobby?: LobbyConfig
+  limits?: AgentLimitsConfig
+  rerollOnDeath?: boolean
   llm: LLMConfig
   wallet: WalletConfig
   modules?: ModuleConfig[]
@@ -85,6 +147,30 @@ export function createDefaultConfig(
       type: walletOverrides.type ?? "env",
       network: walletOverrides.network ?? "base",
     },
+    rerollStats: {
+      enabled: false,
+    },
+    realmProgression: {
+      strategy: "auto",
+      continueOnExtraction: true,
+      onAllCompleted: "regenerate-last",
+    },
+    skillTree: {
+      autoSpend: false,
+      preferredNodes: [],
+    },
+    lobby: {
+      innHealThreshold: 1,
+      autoSellJunk: true,
+      autoEquipUpgrades: true,
+      buyPotionMinimum: 2,
+      buyPortalScroll: true,
+      useLLM: true,
+    },
+    limits: {
+      spendingWindow: "total",
+    },
+    rerollOnDeath: overrides.rerollOnDeath ?? false,
     modules: overrides.modules ?? [],
     logging: {
       level: loggingOverrides.level ?? "info",
@@ -126,12 +212,88 @@ export function createDefaultConfig(
     config.wallet.privateKey = walletOverrides.privateKey
   }
 
-  if (walletOverrides.endpoint !== undefined) {
-    config.wallet.endpoint = walletOverrides.endpoint
+  if (walletOverrides.walletName !== undefined) {
+    config.wallet.walletName = walletOverrides.walletName
   }
 
-  if (walletOverrides.apiKey !== undefined) {
-    config.wallet.apiKey = walletOverrides.apiKey
+  if (walletOverrides.passphrase !== undefined) {
+    config.wallet.passphrase = walletOverrides.passphrase
+  }
+
+  if (walletOverrides.chainId !== undefined) {
+    config.wallet.chainId = walletOverrides.chainId
+  }
+
+  if (walletOverrides.vaultPath !== undefined) {
+    config.wallet.vaultPath = walletOverrides.vaultPath
+  }
+
+  if (walletOverrides.accountIndex !== undefined) {
+    config.wallet.accountIndex = walletOverrides.accountIndex
+  }
+
+  if (overrides.rerollStats !== undefined) {
+    config.rerollStats = {
+      enabled: overrides.rerollStats.enabled ?? true,
+      ...(overrides.rerollStats.minStats ? { minStats: overrides.rerollStats.minStats } : {}),
+      ...(overrides.rerollStats.minTotal !== undefined
+        ? { minTotal: overrides.rerollStats.minTotal }
+        : {}),
+    }
+  }
+
+  if (overrides.realmProgression !== undefined) {
+    config.realmProgression = {
+      strategy: overrides.realmProgression.strategy,
+      ...(overrides.realmProgression.templatePriority
+        ? { templatePriority: [...overrides.realmProgression.templatePriority] }
+        : {}),
+      continueOnExtraction: overrides.realmProgression.continueOnExtraction ?? true,
+      onAllCompleted: overrides.realmProgression.onAllCompleted ?? "regenerate-last",
+    }
+  }
+
+  if (overrides.profile !== undefined) {
+    config.profile = {
+      ...(overrides.profile.handle !== undefined ? { handle: overrides.profile.handle } : {}),
+      ...(overrides.profile.xHandle !== undefined ? { xHandle: overrides.profile.xHandle } : {}),
+      ...(overrides.profile.githubHandle !== undefined
+        ? { githubHandle: overrides.profile.githubHandle }
+        : {}),
+    }
+  }
+
+  if (overrides.skillTree !== undefined) {
+    config.skillTree = {
+      autoSpend: overrides.skillTree.autoSpend ?? true,
+      preferredNodes: [...(overrides.skillTree.preferredNodes ?? [])],
+    }
+  }
+
+  if (overrides.lobby !== undefined) {
+    config.lobby = {
+      innHealThreshold: overrides.lobby.innHealThreshold ?? 1,
+      autoSellJunk: overrides.lobby.autoSellJunk ?? true,
+      autoEquipUpgrades: overrides.lobby.autoEquipUpgrades ?? true,
+      buyPotionMinimum: overrides.lobby.buyPotionMinimum ?? 2,
+      buyPortalScroll: overrides.lobby.buyPortalScroll ?? true,
+      useLLM: overrides.lobby.useLLM ?? true,
+    }
+  }
+
+  if (overrides.limits !== undefined) {
+    config.limits = {
+      ...(overrides.limits.maxRealms !== undefined
+        ? { maxRealms: overrides.limits.maxRealms }
+        : {}),
+      ...(overrides.limits.maxRuntimeMinutes !== undefined
+        ? { maxRuntimeMinutes: overrides.limits.maxRuntimeMinutes }
+        : {}),
+      ...(overrides.limits.maxSpendUsd !== undefined
+        ? { maxSpendUsd: overrides.limits.maxSpendUsd }
+        : {}),
+      spendingWindow: overrides.limits.spendingWindow ?? "total",
+    }
   }
 
   if (overrides.chat) {

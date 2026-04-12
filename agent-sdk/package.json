@@ -55,11 +55,15 @@
     "viem": "^2.47.12"
   },
   "peerDependencies": {
+    "@open-wallet-standard/core": ">=1.2.0",
     "@scure/base": "^2.0.0",
     "@solana/kit": "^6.8.0",
     "@x402/svm": "^2.9.0"
   },
   "peerDependenciesMeta": {
+    "@open-wallet-standard/core": {
+      "optional": true
+    },
     "@scure/base": {
       "optional": true
     },

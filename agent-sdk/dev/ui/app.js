@@ -1,4 +1,7 @@
 const statusEl = document.getElementById("status")
+const viewerTitleEl = document.getElementById("viewerTitle")
+const modeHelpEl = document.getElementById("modeHelp")
+const modeSelectEl = document.getElementById("modeSelect")
 const sessionSelectEl = document.getElementById("sessionSelect")
 const refreshButtonEl = document.getElementById("refreshButton")
 const roomTextEl = document.getElementById("roomText")
@@ -12,12 +15,29 @@ const positionMetaEl = document.getElementById("positionMeta")
 const hpMetaEl = document.getElementById("hpMeta")
 const resourceMetaEl = document.getElementById("resourceMeta")
 const turnMetaEl = document.getElementById("turnMeta")
+const goldMetaEl = document.getElementById("goldMeta")
+const xpMetaEl = document.getElementById("xpMeta")
 const lastActionEl = document.getElementById("lastAction")
 const reasoningEl = document.getElementById("reasoning")
+const debugPanelsEl = document.getElementById("debugPanels")
+const inventoryListEl = document.getElementById("inventoryList")
+const equipmentListEl = document.getElementById("equipmentList")
+const legalActionsEl = document.getElementById("legalActions")
+const effectsListEl = document.getElementById("effectsList")
 
+let currentMode = getRequestedMode()
 let gameSocket = null
 let lobbySocket = null
 let selectedCharacterId = ""
+
+function getRequestedMode() {
+  const raw = new URL(window.location.href).searchParams.get("mode")
+  return raw === "debug" ? "debug" : "spectate"
+}
+
+function isDebugObservation(observation) {
+  return "legal_actions" in observation
+}
 
 function getBaseHttpUrl() {
   const queryValue = new URL(window.location.href).searchParams.get("api")
@@ -28,6 +48,14 @@ function getBaseHttpUrl() {
 function getBaseWsUrl() {
   const httpUrl = getBaseHttpUrl()
   return httpUrl.replace(/^http/, "ws")
+}
+
+function getActiveSessionsPath() {
+  return currentMode === "debug" ? "/debug/active" : "/spectate/active"
+}
+
+function getSessionSocketPath(characterId) {
+  return currentMode === "debug" ? `/debug/${characterId}` : `/spectate/${characterId}`
 }
 
 function setStatus(message) {
@@ -46,61 +74,233 @@ function renderList(target, values) {
   }
 }
 
+function updateModeUi() {
+  if (modeSelectEl) {
+    modeSelectEl.value = currentMode
+  }
+  if (viewerTitleEl) {
+    viewerTitleEl.textContent = currentMode === "debug" ? "Agent SDK Debug Inspector" : "Agent SDK Spectator"
+  }
+  if (modeHelpEl) {
+    modeHelpEl.textContent = currentMode === "debug"
+      ? "Debug mode streams the full local player observation for agent testing."
+      : "Spectator mode shows the redacted public view."
+  }
+  if (debugPanelsEl) {
+    debugPanelsEl.hidden = currentMode !== "debug"
+  }
+}
+
+function syncModeQuery() {
+  const url = new URL(window.location.href)
+  url.searchParams.set("mode", currentMode)
+  window.history.replaceState({}, "", url)
+}
+
+function formatModifiers(modifiers) {
+  if (!modifiers) return ""
+  const entries = Object.entries(modifiers).filter(([, value]) => value !== 0)
+  if (entries.length === 0) return ""
+  return ` (${entries.map(([key, value]) => `${key} ${value > 0 ? "+" : ""}${value}`).join(", ")})`
+}
+
+function describeEntity(entity) {
+  const position = `@ (${entity.position.x}, ${entity.position.y})`
+  if ("health_indicator" in entity && entity.health_indicator) {
+    return `${entity.type}: ${entity.name} ${position} [${entity.health_indicator}]`
+  }
+  const hp = "hp_current" in entity && "hp_max" in entity
+    && typeof entity.hp_current === "number" && typeof entity.hp_max === "number"
+    ? ` [${entity.hp_current}/${entity.hp_max} hp]`
+    : ""
+  const trapped = "trapped" in entity && entity.trapped ? " [trapped]" : ""
+  const boss = entity.is_boss ? " [boss]" : ""
+  return `${entity.type}: ${entity.name} ${position}${hp}${boss}${trapped}`
+}
+
 function renderMap(observation) {
   if (!asciiMapEl) return
-  const points = observation.visible_tiles ?? []
-  if (points.length === 0) {
+  const visibleTiles = observation.visible_tiles ?? []
+  const knownTiles = observation.known_map?.floors?.[observation.position.floor]?.tiles ?? []
+  const allTiles = [...visibleTiles, ...knownTiles]
+  if (allTiles.length === 0) {
     asciiMapEl.textContent = "No visible tiles."
     return
   }
 
-  const xs = points.map((tile) => tile.x)
-  const ys = points.map((tile) => tile.y)
+  const xs = allTiles.map((tile) => tile.x)
+  const ys = allTiles.map((tile) => tile.y)
   const minX = Math.min(...xs)
   const maxX = Math.max(...xs)
   const minY = Math.min(...ys)
   const maxY = Math.max(...ys)
-  const pointMap = new Map(points.map((tile) => [`${tile.x},${tile.y}`, tile]))
+  const visibleMap = new Map(visibleTiles.map((tile) => [`${tile.x},${tile.y}`, tile]))
+  const knownMap = new Map(knownTiles.map((tile) => [`${tile.x},${tile.y}`, tile]))
+  const entityMap = new Map((observation.visible_entities ?? []).map((entity) => [`${entity.position.x},${entity.position.y}`, entity]))
 
-  const rows = []
+  asciiMapEl.innerHTML = ""
   for (let y = minY; y <= maxY; y += 1) {
-    let row = ""
+    const rowEl = document.createElement("div")
+    rowEl.className = "map-row"
     for (let x = minX; x <= maxX; x += 1) {
-      if (observation.position?.tile?.x === x && observation.position?.tile?.y === y) {
-        row += "@"
+      const cellEl = document.createElement("span")
+      if (observation.position.tile.x === x && observation.position.tile.y === y) {
+        cellEl.textContent = "@"
+        cellEl.className = "map-player"
+        rowEl.appendChild(cellEl)
         continue
       }
 
-      const tile = pointMap.get(`${x},${y}`)
-      if (!tile) {
-        row += " "
+      const key = `${x},${y}`
+      const visibleTile = visibleMap.get(key)
+      const knownTile = knownMap.get(key)
+      const entity = entityMap.get(key)
+
+      if (entity && visibleTile) {
+        const rendered = entityToCell(entity)
+        cellEl.textContent = rendered.char
+        cellEl.className = rendered.className
+        rowEl.appendChild(cellEl)
         continue
       }
 
-      switch (tile.type) {
-        case "wall":
-          row += "#"
-          break
-        case "door":
-          row += "+"
-          break
-        case "stairs":
-          row += ">"
-          break
-        case "stairs_up":
-          row += "<"
-          break
-        case "entrance":
-          row += "E"
-          break
-        default:
-          row += "."
+      if (visibleTile) {
+        const rendered = tileToCell(visibleTile, false)
+        cellEl.textContent = rendered.char
+        cellEl.className = rendered.className
+        rowEl.appendChild(cellEl)
+        continue
       }
+
+      if (knownTile) {
+        const rendered = tileToCell(knownTile, true)
+        cellEl.textContent = rendered.char
+        cellEl.className = rendered.className
+        rowEl.appendChild(cellEl)
+        continue
+      }
+
+      cellEl.textContent = " "
+      cellEl.className = "map-fog"
+      rowEl.appendChild(cellEl)
     }
-    rows.push(row)
+    asciiMapEl.appendChild(rowEl)
+  }
+}
+
+function tileToCell(tile, dimmed) {
+  const suffix = dimmed ? " map-dim" : ""
+  switch (tile.type) {
+    case "wall":
+      return { char: "#", className: `map-wall${suffix}` }
+    case "door":
+      return { char: "D", className: `map-door${suffix}` }
+    case "stairs":
+      return { char: ">", className: `map-stairs${suffix}` }
+    case "stairs_up":
+      return { char: "<", className: `map-stairs${suffix}` }
+    case "entrance":
+      return { char: "<", className: `map-stairs${suffix}` }
+    default:
+      return { char: ".", className: `map-floor${suffix}` }
+  }
+}
+
+function entityToCell(entity) {
+  switch (entity.type) {
+    case "enemy":
+      return {
+        char: entity.is_boss || entity.name.toLowerCase().includes("boss") ? "B" : "E",
+        className: entity.is_boss || entity.name.toLowerCase().includes("boss") ? "map-boss" : "map-enemy",
+      }
+    case "item":
+      return { char: "?", className: "map-item" }
+    case "interactable":
+      return { char: "!", className: "map-interactable" }
+    case "trap_visible":
+      return { char: "^", className: "map-trap" }
+    default:
+      return { char: "?", className: "map-item" }
+  }
+}
+
+function formatAction(action) {
+  switch (action.type) {
+    case "move":
+      return `move ${action.direction}`
+    case "attack":
+      return `attack ${action.target_id}${action.ability_id ? ` via ${action.ability_id}` : ""}`
+    case "disarm_trap":
+      return `disarm trap ${action.item_id}`
+    case "use_item":
+      return `use item ${action.item_id}${action.target_id ? ` on ${action.target_id}` : ""}`
+    case "equip":
+      return `equip ${action.item_id}`
+    case "unequip":
+      return `unequip ${action.slot}`
+    case "inspect":
+      return `inspect ${action.target_id}`
+    case "interact":
+      return `interact ${action.target_id}`
+    case "pickup":
+      return `pickup ${action.item_id}`
+    case "drop":
+      return `drop ${action.item_id}`
+    case "use_portal":
+      return "use portal"
+    case "retreat":
+      return "retreat"
+    case "wait":
+      return "wait"
+    default:
+      return JSON.stringify(action)
+  }
+}
+
+function formatInventoryItem(item, isNew = false) {
+  const quantity = item.quantity > 1 ? ` x${item.quantity}` : ""
+  const newTag = isNew ? " [new]" : ""
+  return `${item.name}${quantity}${formatModifiers(item.modifiers)}${newTag}`
+}
+
+function renderDebugPanels(observation) {
+  if (!isDebugObservation(observation)) {
+    renderList(inventoryListEl, ["Available in debug mode only."])
+    renderList(equipmentListEl, ["Available in debug mode only."])
+    renderList(legalActionsEl, ["Available in debug mode only."])
+    renderList(effectsListEl, ["Available in debug mode only."])
+    return
   }
 
-  asciiMapEl.textContent = rows.join("\n")
+  const newItemIds = new Set(observation.new_item_ids ?? [])
+  renderList(
+    inventoryListEl,
+    observation.inventory.length > 0
+      ? observation.inventory.map((item) => formatInventoryItem(item, newItemIds.has(item.item_id)))
+      : ["Inventory empty."],
+  )
+
+  renderList(
+    equipmentListEl,
+    Object.entries(observation.equipment).map(([slot, item]) =>
+      item ? `${slot}: ${formatInventoryItem(item)}` : `${slot}: empty`,
+    ),
+  )
+
+  renderList(
+    legalActionsEl,
+    observation.legal_actions.length > 0
+      ? observation.legal_actions.map(formatAction)
+      : ["No legal actions available."],
+  )
+
+  const buffs = observation.character.buffs.map(
+    (effect) => `buff ${effect.type} (${effect.magnitude}, ${effect.turns_remaining} turns)`,
+  )
+  const debuffs = observation.character.debuffs.map(
+    (effect) => `debuff ${effect.type} (${effect.magnitude}, ${effect.turns_remaining} turns)`,
+  )
+  renderList(effectsListEl, buffs.length + debuffs.length > 0 ? [...buffs, ...debuffs] : ["No active effects."])
 }
 
 function renderObservation(observation) {
@@ -109,21 +309,9 @@ function renderObservation(observation) {
   }
 
   renderMap(observation)
-
-  renderList(
-    entitiesEl,
-    (observation.visible_entities ?? []).map((entity) => {
-      const health = "health_indicator" in entity && entity.health_indicator
-        ? ` [${entity.health_indicator}]`
-        : ""
-      return `${entity.type}: ${entity.name} @ (${entity.position.x}, ${entity.position.y})${health}`
-    }),
-  )
-
-  renderList(
-    eventsEl,
-    (observation.recent_events ?? []).map((event) => `${event.type}: ${event.detail}`),
-  )
+  renderDebugPanels(observation)
+  renderList(entitiesEl, (observation.visible_entities ?? []).map(describeEntity))
+  renderList(eventsEl, (observation.recent_events ?? []).map((event) => `${event.type}: ${event.detail}`))
 
   if (characterMetaEl) {
     characterMetaEl.textContent = `Character: ${observation.character.class} lvl ${observation.character.level}`
@@ -132,22 +320,28 @@ function renderObservation(observation) {
     realmMetaEl.textContent = `Realm: ${observation.realm_info.template_name} [${observation.realm_info.status}]`
   }
   if (positionMetaEl) {
-    positionMetaEl.textContent = `Position: f${observation.position.floor} ${observation.position.room_id}`
+    positionMetaEl.textContent = `Position: f${observation.position.floor} ${observation.position.room_id} (${observation.position.tile.x}, ${observation.position.tile.y})`
   }
   if (hpMetaEl) {
-    const hpValue = "hp_percent" in observation.character
-      ? `${observation.character.hp_percent}%`
-      : `${observation.character.hp.current}/${observation.character.hp.max}`
-    hpMetaEl.textContent = `HP: ${hpValue}`
+    hpMetaEl.textContent = `HP: ${isDebugObservation(observation)
+      ? `${observation.character.hp.current}/${observation.character.hp.max}`
+      : `${observation.character.hp_percent}%`}`
   }
   if (resourceMetaEl) {
-    const resourceValue = "resource_percent" in observation.character
-      ? `${observation.character.resource_percent}%`
-      : `${observation.character.resource.current}/${observation.character.resource.max}`
-    resourceMetaEl.textContent = `Resource: ${resourceValue}`
+    resourceMetaEl.textContent = `Resource: ${isDebugObservation(observation)
+      ? `${observation.character.resource.current}/${observation.character.resource.max} ${observation.character.resource.type}`
+      : `${observation.character.resource_percent}%`}`
   }
   if (turnMetaEl) {
     turnMetaEl.textContent = `Turn: ${observation.turn}`
+  }
+  if (goldMetaEl) {
+    goldMetaEl.textContent = `Gold: ${isDebugObservation(observation) ? observation.gold : "hidden"}`
+  }
+  if (xpMetaEl) {
+    xpMetaEl.textContent = `XP: ${isDebugObservation(observation)
+      ? `${observation.character.xp} (${observation.character.skill_points} skill pts)`
+      : "hidden"}`
   }
 
   const lastEvent = observation.recent_events?.[observation.recent_events.length - 1]
@@ -157,7 +351,9 @@ function renderObservation(observation) {
   if (reasoningEl) {
     reasoningEl.textContent = lastEvent
       ? lastEvent.detail
-      : "Reasoning is inferred from the most recent event in the engine-only dev stack."
+      : currentMode === "debug"
+        ? "Inspecting raw player observation from the local dev stack."
+        : "Reasoning is inferred from the most recent event in the engine-only dev stack."
   }
 }
 
@@ -183,7 +379,7 @@ function connectLobby() {
   }
 }
 
-function connectSpectator(characterId) {
+function connectViewer(characterId) {
   selectedCharacterId = characterId
   if (gameSocket) {
     gameSocket.close()
@@ -194,13 +390,14 @@ function connectSpectator(characterId) {
     return
   }
 
-  setStatus(`Watching ${characterId}...`)
-  gameSocket = new WebSocket(`${getBaseWsUrl()}/spectate/${characterId}`)
+  const verb = currentMode === "debug" ? "Inspecting" : "Watching"
+  setStatus(`${verb} ${characterId}...`)
+  gameSocket = new WebSocket(`${getBaseWsUrl()}${getSessionSocketPath(characterId)}`)
   gameSocket.onmessage = (event) => {
     const message = JSON.parse(String(event.data))
     if (message.type === "observation") {
       renderObservation(message.data)
-      setStatus(`Watching ${characterId}`)
+      setStatus(`${verb} ${characterId}`)
     } else if (message.type === "session_ended") {
       setStatus(`Session ended: ${message.reason}`)
     } else if (message.type === "error") {
@@ -208,12 +405,12 @@ function connectSpectator(characterId) {
     }
   }
   gameSocket.onclose = () => {
-    setStatus("Spectator socket closed.")
+    setStatus(`${currentMode === "debug" ? "Debug" : "Spectator"} socket closed.`)
   }
 }
 
 async function refreshSessions() {
-  const response = await fetch(`${getBaseHttpUrl()}/spectate/active`)
+  const response = await fetch(`${getBaseHttpUrl()}${getActiveSessionsPath()}`)
   const payload = await response.json()
   const sessions = payload.sessions ?? []
 
@@ -231,20 +428,29 @@ async function refreshSessions() {
   const preferredCharacterId = requestedCharacterId || selectedCharacterId || sessions[0]?.character_id || ""
   if (preferredCharacterId) {
     sessionSelectEl.value = preferredCharacterId
-    connectSpectator(preferredCharacterId)
+    connectViewer(preferredCharacterId)
   } else {
     setStatus("No active sessions.")
   }
 }
 
+modeSelectEl?.addEventListener("change", () => {
+  currentMode = modeSelectEl.value === "debug" ? "debug" : "spectate"
+  updateModeUi()
+  syncModeQuery()
+  void refreshSessions()
+})
+
 sessionSelectEl?.addEventListener("change", () => {
-  connectSpectator(sessionSelectEl.value)
+  connectViewer(sessionSelectEl.value)
 })
 
 refreshButtonEl?.addEventListener("click", () => {
   void refreshSessions()
 })
 
+updateModeUi()
+syncModeQuery()
 connectLobby()
 void refreshSessions()
 setInterval(() => {
