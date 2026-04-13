@@ -155,7 +155,7 @@
     },
     {
       "file": "backend/src/routes/characters.ts",
-      "hash": "f1ad6be18c1c0332c00780d1623a74c4d06ca6ce95b5993a16fdfd0866a554e0",
+      "hash": "e78ef18745d753444e57f92552572fa021c06285da4004ac81c03834d77cc030",
       "affectedModules": [
         "dev-stack",
         "agent-lifecycle"
@@ -178,7 +178,7 @@
     },
     {
       "file": "backend/src/index.ts",
-      "hash": "ccbfaf83ad09ffdf1cc7190364aded81b05b759ce445e6322e7fccc3d6390d6b",
+      "hash": "67d1211bca23fb60444f395b07b862b55acd4a04fd02d992f9da6b8f04877ed7",
       "affectedModules": [
         "dev-stack",
         "chat"

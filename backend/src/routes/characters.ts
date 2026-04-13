@@ -215,4 +215,108 @@ characters.post("/skill", requireAuth, async (c) => {
   return c.json(data)
 })
 
+// ── Public character detail ──────────────────────────────────────────────────
+// GET /characters/public/:id
+//
+// Reads one character by ID with owner info, inventory, and current/paused
+// realm (if alive). Powers the /character/[id] route on the frontend. No
+// auth required — this is a public profile.
+//
+// Note the `/public/` prefix: characters also has a param-style `/me` and
+// `/progression` above, and Hono's trie routing would route a bare `/:id`
+// ahead of those. The `/public/` prefix sidesteps the collision without
+// introducing ambiguity for existing callers.
+characters.get("/public/:id", async (c) => {
+  const id = c.req.param("id")
+  if (!id) return c.json({ error: "Character id is required" }, 400)
+
+  const { data: character, error: charErr } = await db
+    .from("characters")
+    .select(`
+      id, name, class, level, xp, gold,
+      hp_current, hp_max, resource_current, resource_max,
+      stats, skill_tree, status, stat_rerolled,
+      created_at, died_at,
+      account_id,
+      accounts (
+        id, wallet_address, handle, player_type, x_handle, github_handle
+      )
+    `)
+    .eq("id", id)
+    .maybeSingle()
+
+  if (charErr) return c.json({ error: charErr.message }, 500)
+  if (!character) return c.json({ error: "Character not found" }, 404)
+
+  // Lore discovered
+  const { data: loreRows } = await db
+    .from("lore_discovered")
+    .select("lore_entry_id, discovered_at_turn")
+    .eq("character_id", id)
+    .order("discovered_at_turn")
+
+  // Inventory (equipped + bag)
+  const { data: inventoryRows } = await db
+    .from("inventory_items")
+    .select("id, template_id, quantity, modifiers, slot")
+    .eq("owner_type", "character")
+    .eq("owner_id", id)
+
+  // Current realm (alive only — latest active or paused)
+  let currentRealm: Record<string, unknown> | null = null
+  if (character.status === "alive") {
+    const { data: realm } = await db
+      .from("realm_instances")
+      .select("id, template_id, status, floor_reached, created_at")
+      .eq("character_id", id)
+      .in("status", ["active", "paused"])
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    currentRealm = realm ?? null
+  }
+
+  // Realms completed total (for stat summary)
+  const { data: completedRealms } = await db
+    .from("realm_instances")
+    .select("id", { count: "exact" })
+    .eq("character_id", id)
+    .eq("status", "completed")
+
+  return c.json({
+    character: {
+      id: character.id,
+      name: character.name,
+      class: character.class,
+      level: character.level,
+      xp: character.xp,
+      gold: character.gold,
+      hp_current: character.hp_current,
+      hp_max: character.hp_max,
+      resource_current: character.resource_current,
+      resource_max: character.resource_max,
+      stats: character.stats,
+      skill_tree: character.skill_tree,
+      status: character.status,
+      stat_rerolled: character.stat_rerolled,
+      created_at: character.created_at,
+      died_at: character.died_at,
+    },
+    owner: character.accounts
+      ? {
+          id: (character.accounts as Record<string, unknown>).id,
+          handle: (character.accounts as Record<string, unknown>).handle,
+          wallet: (character.accounts as Record<string, unknown>).wallet_address,
+          player_type: (character.accounts as Record<string, unknown>).player_type,
+          x_handle: (character.accounts as Record<string, unknown>).x_handle,
+          github_handle: (character.accounts as Record<string, unknown>).github_handle,
+        }
+      : null,
+    inventory: inventoryRows ?? [],
+    lore_discovered: loreRows ?? [],
+    current_realm: currentRealm,
+    realms_completed: completedRealms?.length ?? 0,
+  })
+})
+
 export { characters as characterRoutes }

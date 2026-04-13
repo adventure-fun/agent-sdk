@@ -117,6 +117,18 @@ export function SiteHeader() {
                   </div>
                 ) : null}
 
+                {/* Primary action: view your own profile.
+                    Uses the handle (readable URL) if set, otherwise wallet.
+                    Both are resolved by the backend /users/:id route. */}
+                <Link
+                  href={`/user/${encodeURIComponent(account?.handle ?? evmAddress ?? "")}`}
+                  onClick={() => setOpen(false)}
+                  className="flex items-center gap-2 ob-label text-[10px] uppercase tracking-widest text-ob-primary border border-ob-primary/30 bg-ob-primary/5 hover:bg-ob-primary/10 px-3 py-2 rounded-lg transition-colors"
+                >
+                  <span className="material-symbols-outlined text-sm">person</span>
+                  View Profile
+                </Link>
+
                 <div className="space-y-1">
                   <div className="ob-label text-[10px] uppercase tracking-[0.2em] text-ob-outline">
                     Wallet

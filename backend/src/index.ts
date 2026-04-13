@@ -9,6 +9,7 @@ import { marketplaceRoutes } from "./routes/marketplace.js"
 import { leaderboardRoutes } from "./routes/leaderboard.js"
 import { legendsRoutes } from "./routes/legends.js"
 import { spectateRoutes } from "./routes/spectate.js"
+import { userRoutes } from "./routes/users.js"
 import { contentRoutes } from "./routes/content.js"
 import { verifySession } from "./auth/jwt.js"
 import { db } from "./db/client.js"
@@ -114,6 +115,7 @@ app.route("/marketplace", marketplaceRoutes)
 app.route("/leaderboard", leaderboardRoutes)
 app.route("/legends", legendsRoutes)
 app.route("/spectate", spectateRoutes)
+app.route("/users", userRoutes)
 app.route("/content", contentRoutes)
 
 const port = Number(process.env["PORT"] ?? 3001)

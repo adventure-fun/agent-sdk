@@ -12,8 +12,9 @@ import {
   type LeaderboardSort,
 } from "../hooks/use-leaderboard"
 import { useActiveSpectateSessions } from "../hooks/use-active-spectate-sessions"
-import { hasLegendPage, isLiveOnSpectate } from "../lib/leaderboard-links"
+import { isLiveOnSpectate } from "../lib/leaderboard-links"
 import { listItemReveal, pageEnter, sectionReveal } from "../lib/motion"
+import { characterHref, ownerLabel, ownerProfileHref } from "../lib/character-display"
 
 // ── Filter / sort options ────────────────────────────────────────────────────
 
@@ -202,18 +203,12 @@ export default function LeaderboardPage() {
                       #{featuredRank}
                     </span>
                   </div>
-                  {hasLegendPage(featuredEntry) ? (
-                    <Link
-                      href={`/legends/${featuredEntry.character_id}`}
-                      className="ob-headline not-italic text-ob-primary text-xl uppercase tracking-wider hover:opacity-90 transition-opacity"
-                    >
-                      {featuredEntry.character_name}
-                    </Link>
-                  ) : (
-                    <span className="ob-headline not-italic text-ob-primary text-xl uppercase tracking-wider">
-                      {featuredEntry.character_name}
-                    </span>
-                  )}
+                  <Link
+                    href={characterHref(featuredEntry.character_id)}
+                    className="ob-headline not-italic text-ob-primary text-xl uppercase tracking-wider hover:opacity-90 transition-opacity"
+                  >
+                    {featuredEntry.character_name}
+                  </Link>
                 </div>
 
                 <div className="mt-8 flex justify-between items-end">
@@ -269,8 +264,9 @@ export default function LeaderboardPage() {
                   const actualRank = displayIndex === 1 ? 1 : displayIndex === 0 ? 2 : 3
                   const variant = PODIUM_VARIANTS[displayIndex]!
                   const isChampion = displayIndex === 1
-                  const NameTag = hasLegendPage(entry) ? Link : "div"
-                  const nameProps = hasLegendPage(entry) ? { href: `/legends/${entry.character_id}` } : {}
+                  // Every podium character links to its canonical character page.
+                  const NameTag = Link
+                  const nameProps = { href: characterHref(entry.character_id) }
 
                   return (
                     <motion.article
@@ -312,9 +308,7 @@ export default function LeaderboardPage() {
 
                       <NameTag
                         {...(nameProps as { href: string })}
-                        className={`ob-headline text-ob-on-surface mb-4 ${isChampion ? "text-2xl" : "text-lg"} ${
-                          hasLegendPage(entry) ? "hover:opacity-90 transition-opacity" : ""
-                        }`}
+                        className={`ob-headline text-ob-on-surface mb-4 hover:opacity-90 transition-opacity ${isChampion ? "text-2xl" : "text-lg"}`}
                       >
                         {entry.character_name.toUpperCase()}
                       </NameTag>
@@ -472,8 +466,8 @@ export default function LeaderboardPage() {
                     const isOwnedEntry = normalizeWallet(entry.owner.wallet) === playerWallet
                     const isDead = entry.status !== "alive"
                     const isLive = isLiveOnSpectate(entry, liveCharacterIds)
-                    const NameTag = hasLegendPage(entry) ? Link : "span"
-                    const nameProps = hasLegendPage(entry) ? { href: `/legends/${entry.character_id}` } : {}
+                    const ownerHref = ownerProfileHref(entry.owner)
+                    const ownerText = ownerLabel(entry.owner)
 
                     return (
                       <motion.tr
@@ -500,19 +494,32 @@ export default function LeaderboardPage() {
                               </span>
                             </div>
                             <div className="min-w-0">
-                              <NameTag
-                                {...(nameProps as { href: string })}
-                                className={`ob-headline not-italic font-bold uppercase block truncate ${
+                              {/* Character name always links to /character/[id].
+                                  /legends/[id] is still reachable from the
+                                  character page footer ("View Legend" button)
+                                  for dead characters. */}
+                              <Link
+                                href={characterHref(entry.character_id)}
+                                className={`ob-headline not-italic font-bold uppercase block truncate hover:opacity-90 transition-opacity ${
                                   isOwnedEntry ? "text-ob-primary" : isDead ? "text-ob-on-surface-variant line-through" : "text-ob-on-surface"
-                                } ${hasLegendPage(entry) ? "hover:opacity-90 transition-opacity" : ""}`}
+                                }`}
                               >
                                 {entry.character_name}
-                              </NameTag>
+                              </Link>
                               <div className="flex items-center gap-2 mt-0.5">
-                                {entry.owner.handle ? (
-                                  <span className="text-[10px] text-ob-on-surface-variant truncate">
-                                    by {entry.owner.handle}
-                                  </span>
+                                {ownerText ? (
+                                  ownerHref ? (
+                                    <Link
+                                      href={ownerHref}
+                                      className="text-[10px] text-ob-on-surface-variant hover:text-ob-primary transition-colors truncate"
+                                    >
+                                      by {ownerText}
+                                    </Link>
+                                  ) : (
+                                    <span className="text-[10px] text-ob-on-surface-variant truncate">
+                                      by {ownerText}
+                                    </span>
+                                  )
                                 ) : null}
                                 {isOwnedEntry ? (
                                   <span className="ob-label text-[9px] uppercase tracking-widest text-ob-primary border border-ob-primary/30 bg-ob-primary/10 px-1.5 py-0.5 rounded">
