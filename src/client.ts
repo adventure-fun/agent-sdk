@@ -597,7 +597,7 @@ export class GameClient {
     if (!res.ok) {
       throw new GameClientError(
         "game",
-        `Request failed: ${res.status} ${res.statusText}`,
+        `Request failed: ${options.method ?? "GET"} ${path} → ${res.status} ${res.statusText}`,
         { status: res.status },
       )
     }
