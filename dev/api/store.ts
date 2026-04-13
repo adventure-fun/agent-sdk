@@ -161,7 +161,20 @@ export function getCharacterByAccountId(accountId: string): DevCharacter | null 
   return charactersByAccountId.get(accountId) ?? null
 }
 
-export function createCharacter(accountId: string, characterClass: CharacterClass, name: string): DevCharacter {
+export interface CreateCharacterOptions {
+  /** Optional stat override — any fields provided replace the randomly-rolled
+   *  values. Used by the integration test suite to pin HP / defense to the
+   *  top of the class range so the protocol-coverage test is reproducible
+   *  regardless of the turn-time RNG. */
+  statsOverride?: Partial<Character["stats"]>
+}
+
+export function createCharacter(
+  accountId: string,
+  characterClass: CharacterClass,
+  name: string,
+  options: CreateCharacterOptions = {},
+): DevCharacter {
   const existing = charactersByAccountId.get(accountId)
   if (existing?.status === "alive") {
     throw new Error("You already have a living character. They must die first.")
@@ -171,7 +184,8 @@ export function createCharacter(accountId: string, characterClass: CharacterClas
   if (!classTemplate) {
     throw new Error(`Unknown class: ${characterClass}`)
   }
-  const stats = rollStats(characterClass)
+  const rolled = rollStats(characterClass)
+  const stats = { ...rolled, ...(options.statsOverride ?? {}) }
   const characterId = crypto.randomUUID()
   const equipment = createEmptyEquipment()
   const inventory: InventoryItem[] = []
@@ -225,7 +239,19 @@ export function listRealmsForCharacter(characterId: string): RealmInstance[] {
     .sort((left, right) => right.created_at.localeCompare(left.created_at))
 }
 
-export function createRealm(characterId: string, templateId: string): RealmInstance {
+export interface CreateRealmOptions {
+  /** Pin the realm seed for reproducibility. The engine's turn-time RNG is
+   *  derived entirely from realm.seed (see session.ts line 189 —
+   *  `new SeededRng(realm.seed)`), so fixing this single value makes every
+   *  downstream roll — enemy placement, damage, loot, traps — deterministic. */
+  seedOverride?: number
+}
+
+export function createRealm(
+  characterId: string,
+  templateId: string,
+  options: CreateRealmOptions = {},
+): RealmInstance {
   const template = REALMS[templateId]
   if (!template) {
     throw new Error(`Unknown realm template: ${templateId}`)
@@ -236,7 +262,7 @@ export function createRealm(characterId: string, templateId: string): RealmInsta
     character_id: characterId,
     template_id: template.id,
     template_version: template.version,
-    seed: Math.floor(Math.random() * 2_147_483_647),
+    seed: options.seedOverride ?? Math.floor(Math.random() * 2_147_483_647),
     status: "generated",
     floor_reached: 1,
     is_free: true,

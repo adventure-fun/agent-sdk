@@ -27,7 +27,22 @@ characterRoutes.get("/me", requireAuth, (c) => {
 
 characterRoutes.post("/roll", requireAuth, async (c) => {
   const { account_id } = c.get("session")
-  const body = await c.req.json<{ class?: string; name?: string }>()
+  const body = await c.req.json<{
+    class?: string
+    name?: string
+    // Dev-only test hook: pin any subset of rolled stats to a fixed value.
+    // Used by the protocol-coverage integration test so turn-time RNG is
+    // the only remaining source of variance (which we kill with a seeded
+    // realm in /realms/generate).
+    stats?: Partial<{
+      hp: number
+      attack: number
+      defense: number
+      accuracy: number
+      evasion: number
+      speed: number
+    }>
+  }>()
 
   if (!body.class || !VALID_CLASSES.includes(body.class as CharacterClass)) {
     return c.json({ error: `Invalid class. Choose: ${VALID_CLASSES.join(", ")}` }, 400)
@@ -38,7 +53,12 @@ characterRoutes.post("/roll", requireAuth, async (c) => {
   }
 
   try {
-    const character = createCharacter(account_id, body.class as CharacterClass, body.name)
+    const character = createCharacter(
+      account_id,
+      body.class as CharacterClass,
+      body.name,
+      body.stats ? { statsOverride: body.stats } : {},
+    )
     return c.json(serializeCharacter(character))
   } catch (error) {
     return c.json({ error: error instanceof Error ? error.message : "Failed to create character" }, 409)
