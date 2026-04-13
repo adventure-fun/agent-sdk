@@ -51,9 +51,19 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
-      <body className={`${inter.variable} ${cinzel.variable} ${notoSerif.variable} ${spaceGrotesk.variable} bg-gray-950 text-gray-100 antialiased`}>
-        <div className="min-h-screen font-body">
+    <html lang="en" className="dark">
+      <head>
+        {/* Material Symbols Outlined — used by the OBSIDIAN visual language
+            for nav icons, status indicators, and inline glyphs. CDN-hosted
+            so we don't bloat the bundle, font-display:swap so it never
+            blocks paint. */}
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+        />
+      </head>
+      <body className={`${inter.variable} ${cinzel.variable} ${notoSerif.variable} ${spaceGrotesk.variable} bg-ob-bg text-ob-on-surface antialiased ob-body`}>
+        <div className="min-h-screen">
           <Providers>
             <SiteHeader />
             {children}

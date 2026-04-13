@@ -243,3 +243,127 @@ textarea:focus-visible {
   0%, 100% { opacity: 1; }
   50%       { opacity: 0.4; }
 }
+
+/* ── OBSIDIAN design system ──────────────────────────────────────────────────
+   The next-generation visual language for adventure.fun. Additive — coexists
+   with the older ARCANE_WATCH (`aw-*`) tokens during the rolling redesign.
+   Pages migrate one at a time; once all pages reference `ob-*` the older
+   `aw-*` tokens get retired in a cleanup pass.
+
+   Palette is a Material 3-style dark theme: amber primary on a near-black
+   background, mint secondary, ice-blue tertiary, vermilion error. Surface
+   ladder runs from #000 (`-lowest`) through #292c33 (`-bright`) for clear
+   elevation cues without raising contrast against the body text.
+
+   Typography uses the same three families as ARCANE_WATCH (Noto Serif for
+   italic headlines, Inter for body, Space Grotesk for tracked-out labels)
+   so we don't pay a second font payload during the migration.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+@theme {
+  /* ── Surfaces (low → high elevation) ── */
+  --color-ob-bg:                       #0c0e12;
+  --color-ob-surface:                  #0c0e12;
+  --color-ob-surface-lowest:           #000000;
+  --color-ob-surface-low:              #111318;
+  --color-ob-surface-container:        #171a1f;
+  --color-ob-surface-container-low:    #111318;
+  --color-ob-surface-container-high:   #1d2025;
+  --color-ob-surface-container-highest:#23262c;
+  --color-ob-surface-bright:           #292c33;
+  --color-ob-surface-variant:          #23262c;
+
+  /* ── Primary (amber/gold) ── */
+  --color-ob-primary:                  #ffd16c;
+  --color-ob-primary-dim:              #ecb200;
+  --color-ob-primary-fixed:            #fdc003;
+  --color-ob-primary-container:        #fdc003;
+  --color-ob-on-primary:               #604700;
+  --color-ob-on-primary-container:     #553e00;
+  --color-ob-inverse-primary:          #795a00;
+
+  /* ── Secondary (mint) ── */
+  --color-ob-secondary:                #6bfe9c;
+  --color-ob-secondary-dim:            #5bef90;
+  --color-ob-secondary-container:      #006d37;
+  --color-ob-on-secondary:             #005f2f;
+  --color-ob-on-secondary-container:   #e3ffe4;
+
+  /* ── Tertiary (ice blue) ── */
+  --color-ob-tertiary:                 #7fc5ff;
+  --color-ob-tertiary-dim:             #4caaef;
+  --color-ob-tertiary-container:       #5cb8fd;
+  --color-ob-on-tertiary:              #003e61;
+  --color-ob-on-tertiary-container:    #003351;
+
+  /* ── Error (vermilion) ── */
+  --color-ob-error:                    #ff7351;
+  --color-ob-error-dim:                #d53d18;
+  --color-ob-error-container:          #b92902;
+  --color-ob-on-error:                 #450900;
+  --color-ob-on-error-container:       #ffd2c8;
+
+  /* ── On-surface text ── */
+  --color-ob-on-surface:               #f6f6fc;
+  --color-ob-on-surface-variant:       #aaabb0;
+  --color-ob-outline:                  #74757a;
+  --color-ob-outline-variant:          #46484d;
+  --color-ob-inverse-surface:          #f9f9ff;
+  --color-ob-inverse-on-surface:       #53555a;
+}
+
+/* ── OBSIDIAN utility classes ── */
+
+.ob-headline {
+  font-family: var(--font-noto-serif), "Noto Serif", Georgia, serif;
+  font-style: italic;
+  font-weight: 900;
+  letter-spacing: -0.025em;
+}
+
+.ob-body {
+  font-family: var(--font-inter), system-ui, sans-serif;
+}
+
+.ob-label {
+  font-family: var(--font-space-grotesk), "Space Grotesk", system-ui, sans-serif;
+  letter-spacing: 0.1em;
+}
+
+/* Soft amber glow used for primary CTAs and hero headlines */
+.ob-amber-glow {
+  text-shadow: 0 0 16px rgba(255, 209, 108, 0.25);
+}
+
+.ob-relic-glow {
+  box-shadow: 0 0 40px -10px rgba(255, 209, 108, 0.15);
+}
+
+/* Subtle CRT scanline overlay for game canvases / hero cards */
+.ob-scanline {
+  background: linear-gradient(
+    to bottom,
+    transparent 50%,
+    rgba(255, 209, 108, 0.03) 50%
+  );
+  background-size: 100% 4px;
+  pointer-events: none;
+}
+
+/* Material Symbols Outlined — variation tweak so weight is consistent */
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+/* Hide-scrollbar utility used by horizontally-scrolling tab strips */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Slim global scrollbar — used by chat panels and feeds */
+.ob-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
+.ob-scrollbar::-webkit-scrollbar-track { background: var(--color-ob-bg); }
+.ob-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 209, 108, 0.2);
+  border-radius: 2px;
+}
+.ob-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 209, 108, 0.4); }

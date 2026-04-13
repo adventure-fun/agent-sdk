@@ -7,9 +7,9 @@ import { useAdventureAuth } from "../hooks/use-adventure-auth"
 import { useUsdcBalance } from "../hooks/use-usdc-balance"
 
 const NAV_LINKS = [
-  { href: "/play", label: "Play" },
-  { href: "/leaderboard", label: "Leaderboard" },
-  { href: "/spectate", label: "Spectate" },
+  { href: "/play",        label: "PLAY" },
+  { href: "/leaderboard", label: "LEADERBOARD" },
+  { href: "/spectate",    label: "SPECTATE" },
 ] as const
 
 export function SiteHeader() {
@@ -38,29 +38,27 @@ export function SiteHeader() {
     : null
 
   return (
-    <header className="border-b border-white/5 bg-aw-surface-lowest/95 backdrop-blur-sm sticky top-0 z-50 aw-label">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-
-        {/* Brand */}
+    <header className="sticky top-0 z-50 flex h-20 w-full items-center justify-between px-8 bg-ob-bg/80 backdrop-blur-xl shadow-[0_4px_30px_rgba(0,0,0,0.5)]">
+      {/* ── Brand + nav ─────────────────────────────────────────────────────── */}
+      <div className="flex items-center gap-12">
         <Link
           href="/"
-          className="aw-headline text-lg font-bold tracking-widest text-aw-primary aw-amber-glow hover:opacity-90 transition-opacity"
+          className="ob-headline text-2xl text-ob-primary tracking-tighter hover:opacity-90 transition-opacity"
         >
           ADVENTURE.FUN
         </Link>
 
-        {/* Nav */}
-        <nav className="flex items-center gap-1">
+        <nav className="hidden md:flex items-center gap-8">
           {NAV_LINKS.map(({ href, label }) => {
             const isActive = pathname === href || pathname.startsWith(`${href}/`)
             return (
               <Link
                 key={href}
                 href={href}
-                className={`px-4 py-1.5 text-xs tracking-widest uppercase transition-colors ${
+                className={`ob-label text-sm uppercase transition-colors ${
                   isActive
-                    ? "text-aw-secondary border-b-2 border-aw-secondary"
-                    : "text-aw-outline hover:text-aw-on-surface"
+                    ? "text-ob-primary border-b-2 border-ob-primary pb-1"
+                    : "text-ob-on-surface-variant hover:text-ob-primary"
                 }`}
               >
                 {label}
@@ -68,31 +66,51 @@ export function SiteHeader() {
             )
           })}
         </nav>
+      </div>
 
-        {/* Account */}
+      {/* ── Wallet pill + account menu ──────────────────────────────────────── */}
+      <div className="flex items-center gap-6">
         {isAuthenticated && shortWallet ? (
           <div className="relative" ref={menuRef}>
             <button
               type="button"
               onClick={() => setOpen((v) => !v)}
-              className="flex items-center gap-2 border border-white/10 px-3 py-1.5 text-xs text-aw-on-surface-variant hover:border-aw-secondary/30 hover:text-aw-on-surface transition-colors"
+              className="hidden lg:flex items-center gap-3 px-4 py-2 bg-ob-surface-container rounded-xl border border-ob-outline-variant/15 hover:border-ob-primary/40 transition-colors"
             >
-              <span className="font-semibold text-aw-primary">{account?.handle || shortWallet}</span>
+              <span className="material-symbols-outlined text-ob-primary text-sm">
+                account_balance_wallet
+              </span>
+              <span className="ob-label text-xs tracking-tight text-ob-on-surface">
+                {account?.handle || shortWallet}
+              </span>
               <svg
-                className={`h-3 w-3 text-aw-outline transition-transform ${open ? "rotate-180" : ""}`}
+                className={`h-3 w-3 text-ob-outline transition-transform ${open ? "rotate-180" : ""}`}
                 viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2"
               >
                 <path d="M3 5l3 3 3-3" />
               </svg>
             </button>
 
+            {/* Compact wallet button for narrow viewports */}
+            <button
+              type="button"
+              onClick={() => setOpen((v) => !v)}
+              className="lg:hidden flex items-center gap-2 px-3 py-2 bg-ob-surface-container rounded-xl border border-ob-outline-variant/15 hover:border-ob-primary/40 transition-colors"
+            >
+              <span className="material-symbols-outlined text-ob-primary text-sm">
+                account_balance_wallet
+              </span>
+            </button>
+
             {open ? (
-              <div className="absolute right-0 top-full mt-2 w-64 border border-white/10 bg-aw-surface-lowest shadow-xl shadow-black/60 p-4 space-y-3 text-xs z-50">
+              <div className="absolute right-0 top-full mt-2 w-64 bg-ob-surface-container border border-ob-outline-variant/15 shadow-xl shadow-black/60 rounded-xl p-4 space-y-3 z-50">
                 {account?.handle ? (
                   <div className="flex items-center gap-2">
-                    <span className="font-semibold text-aw-primary">{account.handle}</span>
+                    <span className="ob-headline text-base text-ob-primary not-italic font-bold">
+                      {account.handle}
+                    </span>
                     {isTestnet ? (
-                      <span className="border border-aw-primary/40 px-1.5 py-0.5 text-[10px] uppercase tracking-widest text-aw-primary">
+                      <span className="border border-ob-primary/40 px-1.5 py-0.5 text-[10px] uppercase tracking-widest text-ob-primary rounded">
                         Testnet
                       </span>
                     ) : null}
@@ -100,7 +118,9 @@ export function SiteHeader() {
                 ) : null}
 
                 <div className="space-y-1">
-                  <div className="text-[10px] uppercase tracking-[0.2em] text-aw-outline">Wallet</div>
+                  <div className="ob-label text-[10px] uppercase tracking-[0.2em] text-ob-outline">
+                    Wallet
+                  </div>
                   <button
                     type="button"
                     onClick={() => {
@@ -110,7 +130,7 @@ export function SiteHeader() {
                         setTimeout(() => setCopied(false), 1500)
                       }).catch(() => {})
                     }}
-                    className="text-aw-on-surface-variant hover:text-aw-secondary transition-colors cursor-pointer"
+                    className="text-xs text-ob-on-surface-variant hover:text-ob-primary transition-colors"
                     title="Copy wallet address"
                   >
                     {copied ? "Copied!" : shortWallet}
@@ -118,15 +138,17 @@ export function SiteHeader() {
                 </div>
 
                 <div className="space-y-1">
-                  <div className="text-[10px] uppercase tracking-[0.2em] text-aw-outline">Balance</div>
-                  <div className="text-aw-on-surface">{balanceLabel}</div>
+                  <div className="ob-label text-[10px] uppercase tracking-[0.2em] text-ob-outline">
+                    Balance
+                  </div>
+                  <div className="text-xs text-ob-on-surface">{balanceLabel}</div>
                 </div>
 
-                <div className="border-t border-white/5 pt-3">
+                <div className="border-t border-ob-outline-variant/15 pt-3">
                   <button
                     type="button"
                     onClick={() => { logout(); setOpen(false) }}
-                    className="w-full border border-white/10 px-3 py-1.5 text-aw-outline hover:border-white/20 hover:text-aw-on-surface transition-colors uppercase tracking-widest text-[10px]"
+                    className="w-full ob-label uppercase tracking-widest text-[10px] text-ob-on-surface-variant border border-ob-outline-variant/30 hover:border-ob-primary/40 hover:text-ob-primary py-2 rounded-lg transition-colors"
                   >
                     Logout
                   </button>
@@ -135,7 +157,7 @@ export function SiteHeader() {
             ) : null}
           </div>
         ) : (
-          <div className="w-[100px]" />
+          <div className="hidden lg:block w-[140px]" />
         )}
       </div>
     </header>
