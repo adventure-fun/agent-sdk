@@ -50,6 +50,17 @@ export class ActionPlanner {
     private readonly config: DecisionConfig,
   ) {}
 
+  /**
+   * Drop per-realm planner state. Must be called between realms so that a stale strategic plan
+   * from the previous realm (e.g. leftover actions after an emergency retreat) can't replay into
+   * the new realm's first turns.
+   */
+  reset(): void {
+    this.currentPlan = null
+    this.strategicContext = undefined
+    this.previousObservation = null
+  }
+
   async decideAction(observation: Observation, context: AgentContext): Promise<PlannerDecision> {
     const recommendations = this.registry.analyzeAll(observation, context)
     const emergencyDecision = this.tryEmergencyOverride(observation, recommendations)
@@ -180,8 +191,14 @@ export class ActionPlanner {
         recommendation.confidence >= 0.95,
     )
     if (portal?.suggestedAction) {
+      const action = portal.suggestedAction
+      // retreat/use_portal ends the current realm; any pending plan is about to be stale, so
+      // drop it here rather than replaying it on first tick of the next realm.
+      if (action.type === "retreat" || action.type === "use_portal") {
+        this.currentPlan = null
+      }
       return {
-        action: portal.suggestedAction,
+        action,
         reasoning: portal.reasoning,
         tier: "emergency",
         planDepth: this.currentPlan?.actions.length ?? 0,
