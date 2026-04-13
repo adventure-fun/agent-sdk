@@ -57,20 +57,42 @@ export class ExplorationModule implements AgentModule {
 
     let effectiveMoveActions = moveActions
 
-    if (
-      COMPLETED_STATUSES.has(observation.realm_info.status)
+    // Route toward the floor-1 entrance room when either:
+    //   (a) the realm objective is met (post-clear extraction), or
+    //   (b) HP is critically low and no enemies are visible (low-health retreat).
+    // Both cases use the same deterministic routing so strategic replans aren't needed on
+    // every turn. Low-HP routing is gated on "no visible enemies" so combat/emergency modules
+    // stay in charge during an actual fight.
+    const realmCompleted = COMPLETED_STATUSES.has(observation.realm_info.status)
+    const hpMax = observation.character.hp.max
+    const hpRatio = hpMax > 0 ? observation.character.hp.current / hpMax : 1
+    const emergencyHpPercent = context.config.decision?.emergencyHpPercent ?? 0.2
+    const hpCritical = hpRatio <= emergencyHpPercent
+    const noVisibleEnemies = !observation.visible_entities.some((entity) => entity.type === "enemy")
+    const lowHpRetreat = hpCritical && noVisibleEnemies && !realmCompleted
+    const shouldRouteToEntrance =
+      (realmCompleted || lowHpRetreat)
       && !hasActionableLootBlockingPostClearExtraction(observation)
-    ) {
+
+    if (shouldRouteToEntrance) {
       const retreatAction = observation.legal_actions.find((a) => a.type === "retreat")
       if (retreatAction) {
         return {
           suggestedAction: retreatAction,
-          reasoning: "Realm completed; returning to town via the first-floor entrance.",
+          reasoning: lowHpRetreat
+            ? `HP critically low (${Math.round(hpRatio * 100)}%); retreating via the dungeon entrance.`
+            : "Realm completed; returning to town via the first-floor entrance.",
           confidence: 0.7,
         }
       }
       const homing = chooseHomingTowardsEntrance(observation, context, moveActions)
       if (homing) {
+        if (lowHpRetreat && !realmCompleted) {
+          return {
+            ...homing,
+            reasoning: `HP critically low (${Math.round(hpRatio * 100)}%); ${homing.reasoning}`,
+          }
+        }
         return homing
       }
       if (context.mapMemory.loopEdgeBans?.[observation.position.room_id]) {
@@ -92,14 +114,48 @@ export class ExplorationModule implements AgentModule {
           confidence: 0.9,
         }
       }
+      // Low-HP retreat takes the portal too if one is legal — the agent can't afford to walk
+      // further into the dungeon looking for visible doors.
+      if (portalAction && lowHpRetreat) {
+        return {
+          suggestedAction: portalAction,
+          reasoning: `HP critically low (${Math.round(hpRatio * 100)}%); no walkable route toward the entrance — extracting via portal.`,
+          confidence: 0.9,
+        }
+      }
       const skipAutoPortalForTactical =
         context.config.decision?.extractionPreferLeftBiasExit === true
         && context.mapMemory.extractionFloor1ExitPhase === "reassess"
-      if (portalAction && !skipAutoPortalForTactical) {
+      if (portalAction && !skipAutoPortalForTactical && realmCompleted) {
         return {
           suggestedAction: portalAction,
           reasoning: "Realm completed; no path toward entrance visible — extracting via portal.",
           confidence: 0.65,
+        }
+      }
+      // Low-HP forced fallback: no retreat, no homing, no portal — pick the first non-stalled,
+      // non-backtracking move so we never sit on `wait` waiting for healing that won't come.
+      if (lowHpRetreat) {
+        const prev = context.previousActions.at(-1)?.action
+        const prevDirection = prev?.type === "move" ? prev.direction : null
+        const candidates = effectiveMoveActions.filter((action) => {
+          if (prevDirection && action.direction === reverseDirection(prevDirection)) {
+            return false
+          }
+          const stalled =
+            context.mapMemory.stalledMoves.get(
+              stalledMoveKey(observation.position.room_id, action.direction),
+            ) ?? 0
+          return stalled === 0
+        })
+        const pick = candidates[0] ?? effectiveMoveActions[0]
+        if (pick) {
+          return {
+            suggestedAction: pick,
+            reasoning: `HP critically low (${Math.round(hpRatio * 100)}%); no deterministic retreat route visible — moving ${pick.direction} to escape the current tile (wait does not heal).`,
+            confidence: 0.72,
+            context: EXTRACTION_HOMING_CONTEXT,
+          }
         }
       }
     }

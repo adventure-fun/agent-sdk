@@ -238,9 +238,13 @@ export class ActionPlanner {
   }
 
   /**
-   * After a clear, the tactical model often replans every turn (`plan_exhausted`) and can oscillate
-   * on interior tiles instead of committing to doors/stairs. Deterministic exploration homing
-   * (tagged with `context.extractionHoming`) overrides LLM tactical plans in that phase.
+   * Extraction/retreat homing override. Fires whenever the exploration module returns a
+   * recommendation tagged with `context.extractionHoming === true` — which happens in two
+   * scenarios:
+   *   1) Post-clear extraction (realm objective met), where tactical LLMs often oscillate on
+   *      interior tiles instead of committing to doors/stairs.
+   *   2) Low-HP active-play retreat, where the LLM tends to hallucinate "wait to heal" and needs
+   *      a deterministic push toward the entrance room.
    *
    * After `extractionHomingOverrideMaxStreak` consecutive overrides, one turn is yielded to the
    * tactical LLM so it can re-read the observation and module hints instead of running fully open-loop.
@@ -251,9 +255,6 @@ export class ActionPlanner {
     agentContext: AgentContext,
   ): PlannerDecision | null {
     if (!this.previousObservation) {
-      return null
-    }
-    if (!COMPLETED_REALM_STATUSES.has(observation.realm_info.status)) {
       return null
     }
     if (hasPendingLootBeforeExtraction(observation)) {

@@ -541,6 +541,111 @@ describe("extraction homing after dungeon clear", () => {
     expect(rec.context?.explorationHoming).not.toBe(true)
   })
 
+  it("ExplorationModule routes toward stairs_up on a deep floor when HP is critical and no enemies visible", () => {
+    const mod = new ExplorationModule()
+    const ctx = createAgentContext(config)
+    const obs = buildObservation({
+      realm_info: {
+        status: "active",
+        current_floor: 2,
+        floor_count: 3,
+        entrance_room_id: "ent",
+      },
+      position: { floor: 2, room_id: "deep", tile: { x: 2, y: 2 } },
+      character: { hp: { current: 4, max: 33 } },
+      visible_tiles: [
+        { x: 2, y: 2, type: "floor", entities: [] },
+        { x: 2, y: 1, type: "stairs_up", entities: [] },
+      ],
+      legal_actions: [
+        { type: "move", direction: "up" },
+        { type: "move", direction: "down" },
+        { type: "wait" },
+      ],
+    })
+    const rec = mod.analyze(obs, ctx)
+    expect(rec.suggestedAction).toEqual({ type: "move", direction: "up" })
+    expect(rec.context?.extractionHoming).toBe(true)
+    expect(rec.reasoning.toLowerCase()).toContain("hp critically low")
+  })
+
+  it("ExplorationModule picks a non-wait move at critical HP even when no stairs/doors are visible", () => {
+    const mod = new ExplorationModule()
+    const ctx = createAgentContext(config)
+    const obs = buildObservation({
+      realm_info: {
+        status: "active",
+        current_floor: 2,
+        floor_count: 3,
+        entrance_room_id: "ent",
+      },
+      position: { floor: 2, room_id: "rest-shrine", tile: { x: 1, y: 1 } },
+      character: { hp: { current: 4, max: 33 } },
+      // No stairs, no doors — the shrine-stuck scenario. Deep-floor homing's west-bias
+      // fallback should still find *something* better than `wait`.
+      visible_tiles: [{ x: 1, y: 1, type: "floor", entities: [] }],
+      legal_actions: [
+        { type: "move", direction: "up" },
+        { type: "move", direction: "down" },
+        { type: "move", direction: "left" },
+        { type: "move", direction: "right" },
+        { type: "wait" },
+      ],
+    })
+    const rec = mod.analyze(obs, ctx)
+    expect(rec.suggestedAction?.type).toBe("move")
+    expect(rec.suggestedAction?.type).not.toBe("wait" as never)
+    expect(rec.context?.extractionHoming).toBe(true)
+  })
+
+  it("ExplorationModule last-resort fallback fires when homing returns null and HP is critical", () => {
+    const mod = new ExplorationModule()
+    const ctx = createAgentContext(config)
+    // Stall `left` so west-bias returns null. Only `up` remains legal — homing on deep floor
+    // will return null (no stairs/doors, no usable west). Fallback must pick `up` tagged.
+    ctx.mapMemory.stalledMoves.set("rest-shrine:left", 3)
+    const obs = buildObservation({
+      realm_info: {
+        status: "active",
+        current_floor: 2,
+        floor_count: 3,
+        entrance_room_id: "ent",
+      },
+      position: { floor: 2, room_id: "rest-shrine", tile: { x: 1, y: 1 } },
+      character: { hp: { current: 4, max: 33 } },
+      visible_tiles: [{ x: 1, y: 1, type: "floor", entities: [] }],
+      legal_actions: [
+        { type: "move", direction: "up" },
+        { type: "wait" },
+      ],
+    })
+    const rec = mod.analyze(obs, ctx)
+    expect(rec.suggestedAction).toEqual({ type: "move", direction: "up" })
+    expect(rec.context?.extractionHoming).toBe(true)
+    expect(rec.reasoning.toLowerCase()).toContain("wait does not heal")
+  })
+
+  it("ExplorationModule does NOT route toward entrance at low HP when enemies are visible (combat module's job)", () => {
+    const mod = new ExplorationModule()
+    const ctx = createAgentContext(config)
+    const obs = buildObservation({
+      realm_info: { status: "active", entrance_room_id: "ent", current_floor: 1 },
+      position: { floor: 1, room_id: "side", tile: { x: 2, y: 2 } },
+      character: { hp: { current: 4, max: 33 } },
+      visible_entities: [
+        { id: "wolf", type: "enemy", name: "Wolf", hp_current: 5, hp_max: 5, behavior: "aggressive", position: { x: 3, y: 2 } },
+      ],
+      visible_tiles: [{ x: 2, y: 2, type: "floor", entities: [] }],
+      legal_actions: [
+        { type: "move", direction: "left" },
+        { type: "move", direction: "right" },
+        { type: "wait" },
+      ],
+    })
+    const rec = mod.analyze(obs, ctx)
+    expect(rec.context?.extractionHoming).not.toBe(true)
+  })
+
   it("PortalModule defers use_portal when cleared, healthy, and not at entrance", () => {
     const mod = new PortalModule()
     const ctx = createAgentContext(config)
