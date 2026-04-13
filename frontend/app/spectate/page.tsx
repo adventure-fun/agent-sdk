@@ -36,7 +36,10 @@ export default function SpectateIndexPage() {
   const { entries: topPlayers, fetchLeaderboard } = useLeaderboard()
 
   useEffect(() => {
-    void fetchLeaderboard({ type: "xp", limit: 5 })
+    // Filter the "Active Rankings" sidebar to alive-only (issue #8) —
+    // dead characters at the top of the XP leaderboard aren't useful for
+    // spectators and push real live runs down off the list.
+    void fetchLeaderboard({ type: "xp", limit: 5, aliveOnly: true })
   }, [fetchLeaderboard])
 
   // Render a single ranking row — shared between desktop sidebar and the
