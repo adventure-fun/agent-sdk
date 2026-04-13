@@ -5,8 +5,8 @@
     {
       "canonical": "shared/schemas/src/index.ts",
       "vendored": "agent-sdk/src/protocol.ts",
-      "canonicalHash": "7fc8764563dc97e3430476d246ed9c8ce162f39b2e25bad7bf9d7169506c4508",
-      "generatedHash": "09bf8f32f40f8eb73c6337e05e9155c1d2bf09f4748f7579b0fb54b25e116840",
+      "canonicalHash": "ab8af22c97235ff4c36398947fc20400ea64a638929ad4007b0123a0fe5d4ee5",
+      "generatedHash": "29f31bb5c42a7a605e18ffbf95e56910fe046db3fe20c2a69904af5273d9770e",
       "types": [
         "Stats",
         "CharacterStats",
@@ -69,7 +69,7 @@
         "ClientMessage": "79a054df95ff262378c7651b58be1cfa38b5e8310e7366f2a648373a1a706859",
         "EnemyBehavior": "cdb36c18e411f89c8638985f78893c057fab26de822acbe9d54dc8d847db2f09",
         "LobbyEvent": "57c5369d2f91072c0ef4488a2765ca9c05d036fd612f8878e5fb2a0ff9e31641",
-        "SanitizedChatMessage": "1d5f1f56abc2a1f72c68d7f0f9cb9c2792ab6c98e7d189e09565f3be2c9b688f",
+        "SanitizedChatMessage": "8dfc34042e433922a6aa115081c95f97a58b1e4885ab6685bc1df51e3ada33cc",
         "PaymentAcceptOption402": "86a1a8d8da52cf034e8913a64594a113c05ef71ba472ecaee0528b9fb3ab732b",
         "PaymentRequired402": "34adaea55f3c77154aa9b1a1a57761a2b7e68a0d547347907446f102fc4d9a71"
       },
@@ -202,7 +202,7 @@
     },
     {
       "file": "backend/src/routes/lobby.ts",
-      "hash": "fa479de86097a7242f706e1c0cc5c12478d5ce6df04eab7c86ed6cf9820a68e0",
+      "hash": "3c5988c9d75b0c501c2583c7b4a257bef849814c427d7947652c620d2a66d7f7",
       "affectedModules": [
         "chat"
       ]
@@ -233,7 +233,7 @@
     {
       "source": "shared/schemas/src/index.ts",
       "vendored": "agent-sdk/dev/engine/types.ts",
-      "sourceHash": "7fc8764563dc97e3430476d246ed9c8ce162f39b2e25bad7bf9d7169506c4508",
+      "sourceHash": "ab8af22c97235ff4c36398947fc20400ea64a638929ad4007b0123a0fe5d4ee5",
       "vendoredHash": "a8ef2579aa3a725a1ff8c3835f1ddfd596632dc2182c2c5bae58400e0851bf66",
       "affectedModules": [
         "dev-stack"
