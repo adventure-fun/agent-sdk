@@ -271,28 +271,40 @@ export function DungeonView({
                 ))}
               </div>
             )}
-            {room_text && (
-              <p className="text-aw-on-surface-variant text-xs mt-3 italic border-t border-white/5 pt-2">
-                {room_text}
-              </p>
-            )}
+            {/* Room text — reserves its line-height even when no text so
+                the blocks below (recent events, action buttons) don't
+                jump up when moving between rooms. */}
+            <p className="text-aw-on-surface-variant text-xs mt-3 italic border-t border-white/5 pt-2 min-h-[1.25rem]">
+              {room_text ?? "\u00A0"}
+            </p>
 
-            {/* Recent events — moved inside map column */}
-            {recent_events.length > 0 && (
-              <div className="mt-3 border-t border-white/5 pt-2">
-                <div className="text-[10px] text-aw-outline uppercase tracking-[0.2em] mb-1">RECENT_EVENTS</div>
-                {recent_events.slice(-8).map((e, i) => (
+            {/* Recent events — fixed-height slot so the d-pad below it
+                never shifts. We show the last two events (the most
+                information-dense view given the vertical budget); older
+                events are visible in the dungeon feed side panel. The
+                container is always rendered so the layout is stable
+                regardless of whether events exist yet on turn 0. */}
+            <div className="mt-3 border-t border-white/5 pt-2 min-h-[5.5rem]">
+              <div className="text-[10px] text-aw-outline uppercase tracking-[0.2em] mb-1">RECENT_EVENTS</div>
+              {recent_events.length > 0 ? (
+                recent_events.slice(-2).map((e, i, arr) => (
                   <div
-                    key={i}
+                    key={`${e.turn}-${i}`}
                     className={`text-xs rounded border px-2 py-1 mb-1 ${
-                      getRecentEventPalette(e, i >= recent_events.length - 2)
+                      getRecentEventPalette(e, i === arr.length - 1)
                     }`}
                   >
                     {getRecentEventLead(e)} {e.detail}
                   </div>
-                ))}
-              </div>
-            )}
+                ))
+              ) : (
+                <div className="text-xs text-aw-outline italic">No events yet.</div>
+              )}
+            </div>
+
+            {/* Action error slot — also reserved so the d-pad doesn't
+                shift when a transient error appears/disappears. */}
+            <div className="min-h-[0.5rem]" />
 
             {/* Action error toast — moved inside map column */}
             {actionError && (
