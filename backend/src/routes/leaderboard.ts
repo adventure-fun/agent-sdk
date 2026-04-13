@@ -137,6 +137,24 @@ leaderboard.get("/:type", async (c) => {
   // JS hook.
   const aliveOnly = ["1", "true", "yes"].includes((query.alive_only ?? "").toLowerCase())
 
+  // Leaderboard gating for unconfirmed anon handles. By default we only
+  // show characters whose owner has confirmed their handle — either by
+  // editing it to something custom or by explicitly acknowledging the
+  // auto-assigned anon handle on their profile page. Admins can pass
+  // `?include_unconfirmed=true` to bypass this filter, but there is no
+  // UI path to that flag and it isn't documented externally.
+  //
+  // Implementation: leaderboard_entries is denormalized from characters
+  // and doesn't carry the account's confirmed flag, so we fetch the
+  // set of confirmed account ids first and then filter the character
+  // query by joining through characters.account_id. For the tiny user
+  // counts we have today this is a trivial two-query path; if
+  // leaderboard scale becomes a real concern we can later denormalize
+  // handle_confirmed onto leaderboard_entries and upsert it from the
+  // turn resolver.
+  const includeUnconfirmed = ["1", "true", "yes"]
+    .includes((query.include_unconfirmed ?? "").toLowerCase())
+
   let dbQuery = db.from("leaderboard_entries").select("*")
   if (playerType) {
     dbQuery = dbQuery.eq("player_type", playerType)
@@ -146,6 +164,33 @@ leaderboard.get("/:type", async (c) => {
   }
   if (aliveOnly) {
     dbQuery = dbQuery.eq("status", "alive")
+  }
+
+  // Build an allowlist of character_ids whose owner is confirmed, unless
+  // the caller explicitly opted out. This happens in a second query so
+  // we don't have to declare a PostgREST embedded join on
+  // leaderboard_entries, which requires a foreign-key relationship the
+  // table wasn't originally designed for.
+  if (!includeUnconfirmed) {
+    const { data: confirmedChars, error: confirmedErr } = await db
+      .from("characters")
+      .select("id, accounts!inner(handle_confirmed)")
+      .eq("accounts.handle_confirmed", true)
+    if (confirmedErr) return c.json({ error: confirmedErr.message }, 500)
+    const confirmedIds = (confirmedChars ?? []).map((r) => (r as Record<string, unknown>).id as string)
+    if (confirmedIds.length === 0) {
+      // No confirmed accounts exist yet — short-circuit with an empty
+      // response instead of issuing an `in ()` query that Postgres
+      // would reject.
+      return c.json({
+        entries: [],
+        total: 0,
+        limit,
+        offset,
+        type: typeValue,
+      })
+    }
+    dbQuery = dbQuery.in("character_id", confirmedIds)
   }
 
   const { data, error } = await applyOrdering(dbQuery, typeValue)

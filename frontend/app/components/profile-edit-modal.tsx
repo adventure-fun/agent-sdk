@@ -27,7 +27,13 @@ interface Props {
     github_handle: string | null
   }
   onClose: () => void
-  onSaved: () => void
+  /** Called after a successful save. `newHandle` is the handle the
+   *  user just saved — the parent uses it to router.replace() to the
+   *  new /user/[handle] URL when it changed, because otherwise the
+   *  current URL still contains the OLD handle and subsequent /users/:id
+   *  fetches 404 (the backend resolves the ID segment by handle).
+   *  See the "account not found" bug report that prompted this fix. */
+  onSaved: (newHandle: string) => void
 }
 
 export function ProfileEditModal({ initial, onClose, onSaved }: Props) {
@@ -98,9 +104,12 @@ export function ProfileEditModal({ initial, onClose, onSaved }: Props) {
       // Build PATCH body — send every field (including empty ones) so
       // the user can explicitly clear X / GitHub handles. Handle can
       // never be null (every account must have one), so an empty
-      // string there is a UX error rather than a clear.
+      // string there is a UX error rather than a clear. Handle is
+      // lowercased here to match what the backend stores — avoids a
+      // post-save refetch showing a different case than what the user
+      // typed.
       const body: Record<string, string | null> = {
-        handle: handle.trim(),
+        handle: handle.trim().toLowerCase(),
         x_handle: xHandle.trim() === "" ? null : xHandle.trim().replace(/^@/, ""),
         github_handle: ghHandle.trim() === "" ? null : ghHandle.trim(),
       }
@@ -116,7 +125,13 @@ export function ProfileEditModal({ initial, onClose, onSaved }: Props) {
         const err = await res.json().catch(() => ({}))
         throw new Error((err as { error?: string }).error ?? `HTTP ${res.status}`)
       }
-      onSaved()
+      // Server normalizes the handle to lowercase, so pass along what
+      // we sent (already lowercased client-side via the HANDLE_RE regex
+      // allowing mixed case then .toLowerCase on submit would be ideal
+      // — for now we pass the trimmed value which matches backend
+      // behavior because the regex happens to accept only case-
+      // insensitive chars). Parent uses this to update the route.
+      onSaved(body.handle as string)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save profile")
     } finally {

@@ -215,7 +215,7 @@ auth.patch("/profile", requireAuth, async (c) => {
   }>()
   const session = c.get("session")
 
-  const update: Record<string, string | null> = {}
+  const update: Record<string, string | boolean | null> = {}
 
   if ("handle" in body) {
     const result = validateHandle(body.handle)
@@ -236,6 +236,12 @@ auth.patch("/profile", requireAuth, async (c) => {
   if (Object.keys(update).length === 0) {
     return c.json({ error: "No fields to update" }, 400)
   }
+
+  // Editing any profile field counts as "confirming" the handle — the
+  // user has looked at their profile and made a deliberate choice. This
+  // flips the leaderboard gating flag on their account so their
+  // characters start showing up there.
+  update["handle_confirmed"] = true
 
   const { data, error } = await db
     .from("accounts")
@@ -259,6 +265,26 @@ auth.patch("/profile", requireAuth, async (c) => {
 // the user actually submits it via PATCH /auth/profile.
 auth.get("/profile/suggest-handle", requireAuth, async (c) => {
   return c.json({ handle: generateAnonHandle(), is_anon: true })
+})
+
+// POST /auth/profile/confirm-handle — flip handle_confirmed to true
+// without changing the handle itself.
+//
+// Used by the "Keep this handle" button in the profile nudge UI for
+// users who were auto-assigned an anon handle and want to explicitly
+// accept it rather than edit it. PATCH /auth/profile also flips this
+// flag as a side effect, but that endpoint requires a real field
+// change — this one is a no-op confirmation.
+auth.post("/profile/confirm-handle", requireAuth, async (c) => {
+  const session = c.get("session")
+  const { data, error } = await db
+    .from("accounts")
+    .update({ handle_confirmed: true })
+    .eq("id", session.account_id)
+    .select()
+    .single()
+  if (error) return c.json({ error: error.message }, 500)
+  return c.json(data)
 })
 
 // GET /auth/me — re-read the current session's account row.
