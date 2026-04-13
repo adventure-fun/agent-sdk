@@ -160,8 +160,9 @@ describe("extraction homing after dungeon clear", () => {
   it("ExplorationModule applies learned loop bans so homing stops using the A↔B bridge door", () => {
     const mod = new ExplorationModule()
     const ctx = createAgentContext(config)
-    ctx.mapMemory.extractionRecentRooms = ["room-a", "room-b", "room-a", "room-b"]
-    ctx.mapMemory.extractionDoorCrossings = [
+    ctx.mapMemory.loopTrackTemplate = "test-dungeon"
+    ctx.mapMemory.loopRecentRooms = ["room-b", "room-a", "room-b"]
+    ctx.mapMemory.loopDoorCrossings = [
       { fromRoomId: "room-a", toRoomId: "room-b", direction: "right" },
       { fromRoomId: "room-b", toRoomId: "room-a", direction: "left" },
     ]
@@ -189,7 +190,8 @@ describe("extraction homing after dungeon clear", () => {
   it("ExplorationModule breaks two-room extraction ping-pong instead of retracing cameFrom", () => {
     const mod = new ExplorationModule()
     const ctx = createAgentContext(config)
-    ctx.mapMemory.extractionRecentRooms = ["room-a", "room-b", "room-a", "room-b"]
+    ctx.mapMemory.loopTrackTemplate = "test-dungeon"
+    ctx.mapMemory.loopRecentRooms = ["room-b", "room-a", "room-b"]
     ctx.mapMemory.lastRoomEntry = { roomId: "room-a", cameFromDirection: "right" }
     const obs = buildObservation({
       realm_info: { status: "realm_cleared", entrance_room_id: "entrance", current_floor: 1 },

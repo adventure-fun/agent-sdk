@@ -26,12 +26,19 @@ export class ExplorationModule implements AgentModule {
   analyze(observation: Observation, context: AgentContext): ModuleRecommendation {
     this.updateMapMemory(observation, context)
 
+    const realmTemplate = observation.realm_info.template_name
+    if (context.mapMemory.loopTrackTemplate !== realmTemplate) {
+      delete context.mapMemory.loopRecentRooms
+      delete context.mapMemory.loopDoorCrossings
+      delete context.mapMemory.loopEdgeBans
+      context.mapMemory.loopTrackTemplate = realmTemplate
+    }
+    appendLoopRoomVisit(context, observation.position.room_id)
+    refreshLoopEdgeBans(observation, context)
+
     if (!COMPLETED_STATUSES.has(observation.realm_info.status)) {
-      delete context.mapMemory.extractionRecentRooms
       delete context.mapMemory.extractionHomingOverrideStreak
       delete context.mapMemory.extractionFloor1ExitPhase
-      delete context.mapMemory.extractionDoorCrossings
-      delete context.mapMemory.extractionFloor1LoopBans
     }
 
     const entranceRoomId = observation.realm_info.entrance_room_id
@@ -65,11 +72,8 @@ export class ExplorationModule implements AgentModule {
       if (homing) {
         return homing
       }
-      if (
-        observation.position.floor === 1
-        && context.mapMemory.extractionFloor1LoopBans?.[observation.position.room_id]
-      ) {
-        const loopBan = context.mapMemory.extractionFloor1LoopBans[observation.position.room_id]!
+      if (context.mapMemory.loopEdgeBans?.[observation.position.room_id]) {
+        const loopBan = context.mapMemory.loopEdgeBans[observation.position.room_id]!
         const strippedLoop = moveActions.filter((a) => a.direction !== loopBan)
         if (strippedLoop.length > 0) {
           effectiveMoveActions = strippedLoop
@@ -85,6 +89,14 @@ export class ExplorationModule implements AgentModule {
           reasoning: "Realm completed; no path toward entrance visible — extracting via portal.",
           confidence: 0.65,
         }
+      }
+    }
+
+    const navLoopBan = context.mapMemory.loopEdgeBans?.[observation.position.room_id]
+    if (navLoopBan) {
+      const strippedNav = effectiveMoveActions.filter((a) => a.direction !== navLoopBan)
+      if (strippedNav.length > 0) {
+        effectiveMoveActions = strippedNav
       }
     }
 
@@ -204,15 +216,12 @@ export class ExplorationModule implements AgentModule {
     }
 
     if (
-      COMPLETED_STATUSES.has(observation.realm_info.status)
-      && observation.position.floor === 1
-      && previousAction?.type === "move"
+      previousAction?.type === "move"
       && previousPosition
       && previousPosition.floor === currentPosition.floor
       && previousPosition.roomId !== currentPosition.roomId
     ) {
-      const log =
-        context.mapMemory.extractionDoorCrossings ?? (context.mapMemory.extractionDoorCrossings = [])
+      const log = context.mapMemory.loopDoorCrossings ?? (context.mapMemory.loopDoorCrossings = [])
       log.push({
         fromRoomId: previousPosition.roomId,
         toRoomId: currentPosition.roomId,
@@ -229,7 +238,7 @@ export class ExplorationModule implements AgentModule {
 
 const EXTRACTION_HOMING_CONTEXT = { extractionHoming: true as const }
 
-const EXTRACTION_ROOM_HISTORY_CAP = 12
+const LOOP_ROOM_HISTORY_CAP = 16
 
 function isAlternatingTwoRoomTail(roomIds: string[], tailLen: number): boolean {
   if (roomIds.length < tailLen || tailLen < 4 || tailLen % 2 !== 0) {
@@ -244,29 +253,45 @@ function isAlternatingTwoRoomTail(roomIds: string[], tailLen: number): boolean {
   return tail.every((roomId, index) => roomId === (index % 2 === 0 ? a : b))
 }
 
-function recordExtractionFloor1RoomVisit(context: AgentContext, roomId: string): boolean {
-  const seq = context.mapMemory.extractionRecentRooms ?? (context.mapMemory.extractionRecentRooms = [])
+function appendLoopRoomVisit(context: AgentContext, roomId: string): void {
+  const seq = context.mapMemory.loopRecentRooms ?? (context.mapMemory.loopRecentRooms = [])
   seq.push(roomId)
-  if (seq.length > EXTRACTION_ROOM_HISTORY_CAP) {
+  if (seq.length > LOOP_ROOM_HISTORY_CAP) {
     seq.shift()
   }
-  return isAlternatingTwoRoomTail(seq, 4)
 }
 
-function refreshExtractionFloor1LoopBans(observation: Observation, context: AgentContext): void {
-  if (!COMPLETED_STATUSES.has(observation.realm_info.status) || observation.position.floor !== 1) {
-    delete context.mapMemory.extractionFloor1LoopBans
+function isSurvivalHpLow(observation: Observation, context: AgentContext): boolean {
+  const maxHp = observation.character.hp.max
+  if (maxHp <= 0) {
+    return false
+  }
+  const ratio = observation.character.hp.current / maxHp
+  const threshold = context.config.decision?.emergencyHpPercent ?? 0.2
+  return ratio <= threshold
+}
+
+function shouldLearnTwoRoomLoopBans(observation: Observation, context: AgentContext): boolean {
+  if (isSurvivalHpLow(observation, context)) {
+    return true
+  }
+  return COMPLETED_STATUSES.has(observation.realm_info.status) && observation.position.floor === 1
+}
+
+function refreshLoopEdgeBans(observation: Observation, context: AgentContext): void {
+  if (!shouldLearnTwoRoomLoopBans(observation, context)) {
+    delete context.mapMemory.loopEdgeBans
     return
   }
-  const seq = context.mapMemory.extractionRecentRooms
+  const seq = context.mapMemory.loopRecentRooms
   if (!seq || seq.length < 4 || !isAlternatingTwoRoomTail(seq, 4)) {
-    delete context.mapMemory.extractionFloor1LoopBans
+    delete context.mapMemory.loopEdgeBans
     return
   }
   const tail = seq.slice(-4)
   const a = tail[0]!
   const b = tail[1]!
-  const crossings = context.mapMemory.extractionDoorCrossings ?? []
+  const crossings = context.mapMemory.loopDoorCrossings ?? []
   let dirAtoB: Direction | undefined
   let dirBtoA: Direction | undefined
   for (let i = crossings.length - 1; i >= 0; i--) {
@@ -282,12 +307,12 @@ function refreshExtractionFloor1LoopBans(observation: Observation, context: Agen
     }
   }
   if (dirAtoB !== undefined && dirBtoA !== undefined) {
-    context.mapMemory.extractionFloor1LoopBans = {
+    context.mapMemory.loopEdgeBans = {
       [a]: dirAtoB,
       [b]: dirBtoA,
     }
   } else {
-    delete context.mapMemory.extractionFloor1LoopBans
+    delete context.mapMemory.loopEdgeBans
   }
 }
 
@@ -463,9 +488,13 @@ function chooseHomingTowardsEntrance(
     observation.visible_tiles.map((tile) => [`${tile.x},${tile.y}`, tile] as const),
   )
   const current = observation.position.tile
+  const loopBanAny = context.mapMemory.loopEdgeBans?.[roomId] ?? null
+  const movesAvoidLoop =
+    loopBanAny ? moveActions.filter((a) => a.direction !== loopBanAny) : moveActions
+  const homingMoves = movesAvoidLoop.length > 0 ? movesAvoidLoop : moveActions
 
   if (floor > 1) {
-    const stairUpMoves = moveActions.filter((a) => {
+    const stairUpMoves = homingMoves.filter((a) => {
       const next = nextPosition(current, a.direction)
       return tileByCoordinate.get(`${next.x},${next.y}`)?.type === "stairs_up"
     })
@@ -480,7 +509,7 @@ function chooseHomingTowardsEntrance(
     }
 
     // e.g. test-dungeon: boss room has no stairs_up — it lives in the floor entrance; walk through doors first.
-    const doorMoves = moveActions.filter((a) => {
+    const doorMoves = homingMoves.filter((a) => {
       const next = nextPosition(current, a.direction)
       return tileByCoordinate.get(`${next.x},${next.y}`)?.type === "door"
     })
@@ -502,7 +531,7 @@ function chooseHomingTowardsEntrance(
     const towardStairs = chooseMoveTowardsNearestPassableTarget(
       observation,
       context,
-      moveActions,
+      homingMoves,
       tileByCoordinate,
       current,
       ["stairs_up"],
@@ -516,7 +545,7 @@ function chooseHomingTowardsEntrance(
     const towardDoorDeep = chooseMoveTowardsNearestPassableTarget(
       observation,
       context,
-      moveActions,
+      homingMoves,
       tileByCoordinate,
       current,
       ["door"],
@@ -529,9 +558,8 @@ function chooseHomingTowardsEntrance(
   }
 
   if (floor === 1 && roomId !== entranceId) {
-    const extractionOscillation = recordExtractionFloor1RoomVisit(context, roomId)
-    refreshExtractionFloor1LoopBans(observation, context)
-    const loopBan = context.mapMemory.extractionFloor1LoopBans?.[roomId] ?? null
+    const extractionOscillation = isAlternatingTwoRoomTail(context.mapMemory.loopRecentRooms ?? [], 4)
+    const loopBan = context.mapMemory.loopEdgeBans?.[roomId] ?? null
 
     const preferLeftBias = context.config.decision?.extractionPreferLeftBiasExit === true
     if (preferLeftBias && context.mapMemory.extractionFloor1ExitPhase !== "reassess") {
@@ -540,7 +568,7 @@ function chooseHomingTowardsEntrance(
       // cameFrom. Treat that as the left-bias dead end and hand off to the tactician.
       const immediateBacktrack =
         prev?.type === "move" && prev.direction === reverseDirection("left")
-      const leftMove = moveActions.find((a) => a.direction === "left")
+      const leftMove = homingMoves.find((a) => a.direction === "left")
       const leftStalls = leftMove
         ? context.mapMemory.stalledMoves.get(stalledMoveKey(roomId, "left")) ?? 0
         : 1
@@ -566,7 +594,7 @@ function chooseHomingTowardsEntrance(
       const breakout = chooseFloor1HomingBreakoutMove(
         observation,
         context,
-        moveActions,
+        homingMoves,
         tileByCoordinate,
         current,
         cameFrom,
@@ -585,7 +613,7 @@ function chooseHomingTowardsEntrance(
       // Breadcrumb matches the last door crossing; if that direction repeatedly fails to move
       // (wall, gate, etc.), do not keep recommending it — fall through to other doors / gradient.
       if (cameFromStalls === 0) {
-        const back = moveActions.find((a) => a.direction === cameFrom)
+        const back = homingMoves.find((a) => a.direction === cameFrom)
         if (back) {
           return {
             suggestedAction: back,
@@ -600,7 +628,7 @@ function chooseHomingTowardsEntrance(
 
     const blockReversalDoor = extractionOscillation && cameFrom
 
-    const doorMoves = moveActions.filter((a) => {
+    const doorMoves = homingMoves.filter((a) => {
       if (loopBan !== null && a.direction === loopBan) {
         return false
       }
@@ -620,7 +648,7 @@ function chooseHomingTowardsEntrance(
       }
     }
 
-    let towardDoorMoves = moveActions
+    let towardDoorMoves = homingMoves
     if (loopBan !== null) {
       towardDoorMoves = towardDoorMoves.filter((a) => a.direction !== loopBan)
     }
@@ -662,12 +690,18 @@ function chooseExplorationMove(
     return null
   }
 
+  const loopBan = context.mapMemory.loopEdgeBans?.[observation.position.room_id]
+  let workingMoves = loopBan ? moveActions.filter((a) => a.direction !== loopBan) : moveActions
+  if (workingMoves.length === 0) {
+    workingMoves = moveActions
+  }
+
   const current = observation.position.tile
   const tileByCoordinate = new Map(
     observation.visible_tiles.map((tile) => [`${tile.x},${tile.y}`, tile] as const),
   )
   const target = selectVisibleTarget(observation, context, cameFromDirection)
-  const moveCandidates = moveActions.map((action) => {
+  const moveCandidates = workingMoves.map((action) => {
     const next = nextPosition(current, action.direction)
     const nextTile = tileByCoordinate.get(`${next.x},${next.y}`)
     const stalledCount = context.mapMemory.stalledMoves.get(
@@ -693,7 +727,7 @@ function chooseExplorationMove(
     }
     score += distanceGain
     score -= stalledCount * 4
-    if (cameFromDirection && moveActions.length > 1 && action.direction === cameFromDirection) {
+    if (cameFromDirection && workingMoves.length > 1 && action.direction === cameFromDirection) {
       score -= 3
     }
 
