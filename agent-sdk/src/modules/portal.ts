@@ -18,16 +18,18 @@ export class PortalModule implements AgentModule {
     const pendingLoot = hasActionableLootBlockingPostClearExtraction(observation)
 
     const survivalMode = hpRatio <= extractThreshold
+    const loopStuck = context.mapMemory.loopEdgeBans?.[observation.position.room_id] !== undefined
+    const urgentExit = survivalMode || (loopStuck && hpRatio <= 0.45)
     const completionExtract = realmCompleted && !pendingLoot
 
-    if (!survivalMode && !completionExtract) {
+    if (!urgentExit && !completionExtract) {
       return { reasoning: "No extraction needed.", confidence: 0 }
     }
 
     // Prefer the floor-1 entrance walk-out when legal (matches engine: same extraction outcome,
     // preserves portal scrolls / portal-active state for later).
     if (retreatLegal) {
-      if (survivalMode) {
+      if (urgentExit) {
         return {
           suggestedAction: { type: "retreat" },
           reasoning: `HP critically low (${Math.round(hpRatio * 100)}%); exiting via the dungeon entrance.`,
@@ -44,7 +46,7 @@ export class PortalModule implements AgentModule {
       }
     }
 
-    if (portalLegal && survivalMode) {
+    if (portalLegal && urgentExit) {
       return {
         suggestedAction: { type: "use_portal" },
         reasoning: `HP critically low (${Math.round(hpRatio * 100)}%); extracting via portal (not at entrance).`,

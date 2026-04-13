@@ -31,8 +31,6 @@ export interface MapMemory {
     x: number
     y: number
   }
-  /** Room ids visited while post-clear homing on floor 1 (detect A↔B ping-pong). */
-  extractionRecentRooms?: string[]
   /** Consecutive planner turns that used post-clear homing override (reset to let tactical LLM run). */
   extractionHomingOverrideStreak?: number
   /**
@@ -41,13 +39,18 @@ export interface MapMemory {
    */
   extractionFloor1ExitPhase?: "reassess"
   /**
-   * Recent room-to-room moves while cleared on floor 1 (for learning two-room ping-pong edges).
+   * One `realm_info.template_name` per delve; when it changes, loop buffers reset.
    */
-  extractionDoorCrossings?: Array<{ fromRoomId: string; toRoomId: string; direction: Direction }>
+  loopTrackTemplate?: string
+  /** Recent room ids (one per observation) to detect A↔B↔A↔B ping-pong during play or extraction. */
+  loopRecentRooms?: string[]
+  /** Room-to-room moves via `move` (any floor) to learn which direction bridges the ping-pong pair. */
+  loopDoorCrossings?: Array<{ fromRoomId: string; toRoomId: string; direction: Direction }>
   /**
-   * When stuck in an A↔B room alternation, do not take these move directions (they re-enter the loop).
+   * When stuck in a two-room alternation under survival or floor-1 post-clear, forbid these move
+   * directions (they re-enter the loop).
    */
-  extractionFloor1LoopBans?: Partial<Record<string, Direction>>
+  loopEdgeBans?: Partial<Record<string, Direction>>
 }
 
 export interface AgentContext {

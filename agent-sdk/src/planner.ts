@@ -227,8 +227,7 @@ export class ActionPlanner {
     }
 
     const loopBanActive =
-      observation.position.floor === 1
-      && agentContext.mapMemory.extractionFloor1LoopBans?.[observation.position.room_id] !== undefined
+      agentContext.mapMemory.loopEdgeBans?.[observation.position.room_id] !== undefined
     const maxStreak = loopBanActive
       ? 999
       : (this.config.extractionHomingOverrideMaxStreak ?? 12)

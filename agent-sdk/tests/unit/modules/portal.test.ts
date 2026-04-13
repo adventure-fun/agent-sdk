@@ -28,6 +28,25 @@ describe("PortalModule", () => {
     expect(module.priority).toBe(90)
   })
 
+  it("recommends portal when HP is above the strict threshold but a two-room loop ban is active", () => {
+    const c = createAgentContext(config)
+    c.mapMemory.loopEdgeBans = { "stuck-room": "right" }
+    const obs = buildObservation({
+      realm_info: {
+        template_name: "test-dungeon",
+        floor_count: 2,
+        current_floor: 2,
+        status: "active",
+      },
+      position: { floor: 2, room_id: "stuck-room", tile: { x: 1, y: 1 } },
+      character: { hp: { current: 8, max: 33 } },
+      legal_actions: [portalAction(), moveAction("up")],
+    })
+    const result = module.analyze(obs, c)
+    expect(result.suggestedAction).toEqual({ type: "use_portal" })
+    expect(result.confidence).toBeGreaterThanOrEqual(0.9)
+  })
+
   it("strongly recommends extraction when HP is critically low and portal is legal", () => {
     const obs = buildObservation({
       character: { hp: { current: 5, max: 30 } },
