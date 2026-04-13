@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useEffect, useRef, useState } from "react"
-import type { SpectatorObservation } from "@adventure-fun/schemas"
+import type { SpectatorObservation, CharacterClass } from "@adventure-fun/schemas"
 import { GameMap } from "../../components/game-map"
 import { useLeaderboard } from "../../hooks/use-leaderboard"
 import { ChatTabs } from "../../components/chat-tabs"
@@ -363,6 +363,8 @@ export default function SpectatePage({ params }: Props) {
                   visibleTiles={obs.visible_tiles}
                   playerPosition={obs.position.tile}
                   entities={obs.visible_entities}
+                  realmTemplateId={obs.realm_info.template_id}
+                  playerClass={obs.character.class as CharacterClass}
                 />
               ) : (
                 <div className="ob-label text-xs text-ob-on-surface-variant tracking-widest uppercase animate-pulse">

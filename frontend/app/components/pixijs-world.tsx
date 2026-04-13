@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useEffect, useCallback } from "react"
+import { useRef, useEffect, useCallback, useMemo } from "react"
 import type { Tile, Entity, SpectatorEntity, CharacterClass } from "@adventure-fun/schemas"
 import { Application, AnimatedSprite, Assets, Graphics, Texture, Sprite, Container } from "pixi.js"
 
@@ -218,6 +218,13 @@ export function PixiJSWorld({
   const itemFramesRef = useRef<Record<string, Texture[]>>({})
   const interactableFramesRef = useRef<Record<string, Texture[]>>({})
   const notFoundFramesRef = useRef<Texture[] | null>(null)
+
+  const mapHeight = useMemo(() => {
+    const allTiles = [...visibleTiles, ...knownTiles]
+    if (allTiles.length === 0) return 280
+    const ys = allTiles.map((t) => t.y)
+    return (Math.max(...ys) - Math.min(...ys) + 1) * TILE_SIZE
+  }, [visibleTiles, knownTiles])
 
   const draw = useCallback(
     (app: Application) => {
@@ -588,25 +595,6 @@ export function PixiJSWorld({
           }
         }
 
-        // Load only enemy spritesheets needed for this realm
-        const enemySlugs = realmTemplateId ? (REALM_ENEMIES[realmTemplateId] ?? []) : []
-        const enemyEntries = enemySlugs
-          .map((slug) => {
-            const reg = ENEMY_SPRITE_REGISTRY[slug]
-            return reg ? { slug, ...reg } : null
-          })
-          .filter((e): e is { slug: string; json: string; animKey: string } => e != null)
-
-        const enemySheets = await Promise.all(
-          enemyEntries.map((e) => Assets.load(e.json))
-        )
-        for (let i = 0; i < enemyEntries.length; i++) {
-          const entry = enemyEntries[i]!
-          const sheet = enemySheets[i]
-          if (sheet.animations?.[entry.animKey]) {
-            enemyFramesRef.current[entry.slug] = sheet.animations[entry.animKey]
-          }
-        }
         container.appendChild(app.canvas)
         appRef.current = app
         draw(app)
@@ -622,6 +610,35 @@ export function PixiJSWorld({
     }
   }, [draw])
 
+  // Load enemy spritesheets when realmTemplateId becomes available or changes
+  const loadedRealmRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!realmTemplateId || realmTemplateId === loadedRealmRef.current) return
+    const slugs = REALM_ENEMIES[realmTemplateId] ?? []
+    const entries = slugs
+      .map((slug) => {
+        const reg = ENEMY_SPRITE_REGISTRY[slug]
+        return reg ? { slug, ...reg } : null
+      })
+      .filter((e): e is { slug: string; json: string; animKey: string } => e != null)
+    if (entries.length === 0) return
+
+    loadedRealmRef.current = realmTemplateId
+    ;(async () => {
+      // Wait for init to finish before loading enemy sheets
+      if (initPromiseRef.current) await initPromiseRef.current
+      const sheets = await Promise.all(entries.map((e) => Assets.load(e.json)))
+      for (let i = 0; i < entries.length; i++) {
+        const entry = entries[i]!
+        const sheet = sheets[i]
+        if (sheet.animations?.[entry.animKey]) {
+          enemyFramesRef.current[entry.slug] = sheet.animations[entry.animKey]
+        }
+      }
+      if (appRef.current) draw(appRef.current)
+    })()
+  }, [realmTemplateId, draw])
+
   // Full cleanup on unmount
   useEffect(() => {
     return () => {
@@ -636,7 +653,8 @@ export function PixiJSWorld({
   return (
     <div
       ref={containerRef}
-      className="w-full h-[280px] rounded overflow-hidden"
+      style={{ height: mapHeight }}
+      className="w-full rounded overflow-hidden"
     />
   )
 }

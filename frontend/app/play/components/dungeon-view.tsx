@@ -254,7 +254,7 @@ export function DungeonView({
               knownTiles={knownTiles}
               playerPosition={position.tile}
               entities={visible_entities}
-              realmTemplateId={realm_info.template_name}
+              realmTemplateId={realm_info.template_id}
               playerClass={character.class}
             />
             {visibleInteractables.length > 0 && (

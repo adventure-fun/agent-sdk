@@ -21,7 +21,7 @@ export function GameMap(props: GameMapProps) {
   const [mode, setMode] = useState<"ascii" | "2d">("2d")
 
   return (
-    <div>
+    <div className="w-full">
       <div className="flex items-center gap-2 mb-3">
         <span className="text-[11px] uppercase tracking-wide text-gray-500">Map</span>
         <div className="flex rounded border border-gray-700 overflow-hidden text-[11px]">

@@ -325,6 +325,7 @@ export interface SpectatorEntity {
   id: string
   type: "enemy" | "item" | "interactable"
   name: string
+  template_id?: string
   position: { x: number; y: number }
   health_indicator?: "full" | "high" | "medium" | "low" | "critical"
   behavior?: EnemyBehavior
@@ -379,6 +380,7 @@ export interface Observation {
   recent_events: GameEvent[]
   legal_actions: Action[]
   realm_info: {
+    template_id: string
     template_name: string
     floor_count: number
     current_floor: number
@@ -411,6 +413,7 @@ export interface SpectatorObservation {
   room_text: string | null
   recent_events: GameEvent[]
   realm_info: {
+    template_id: string
     template_name: string
     current_floor: number
     entrance_room_id: string

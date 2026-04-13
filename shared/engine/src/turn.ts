@@ -2949,6 +2949,7 @@ export function buildObservationFromState(
     recent_events: events,
     legal_actions: legalActions,
     realm_info: {
+      template_id: state.realm.template_id,
       template_name: state.realm.template_id,
       floor_count: state.realm.total_floors,
       current_floor: state.position.floor,
@@ -2998,6 +2999,7 @@ function entityToSpectator(entity: Entity): SpectatorEntity {
     id: entity.id,
     type: entity.type === "trap_visible" ? "interactable" : entity.type,
     name: entity.name,
+    ...(entity.template_id ? { template_id: entity.template_id } : {}),
     position: entity.position,
     ...(health_indicator ? { health_indicator } : {}),
     ...(entity.behavior ? { behavior: entity.behavior } : {}),
