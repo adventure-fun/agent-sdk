@@ -271,6 +271,123 @@ describe("ActionPlanner post-clear homing override", () => {
     expect(emergency.planDepth).toBe(0)
   })
 
+  it("combat_start does not re-fire within 5-turn cooldown as same enemy flickers", async () => {
+    const strategic = new MockLLMAdapter({
+      actionPicker: () => ({ type: "wait" }),
+    })
+    const tactical = new MockLLMAdapter({
+      actionPicker: () => ({ type: "wait" }),
+    })
+    const registry = createModuleRegistry([new ExplorationModule()])
+    const planner = new ActionPlanner(strategic, tactical, registry, { strategy: "planned" })
+    const context = createAgentContext(config)
+
+    // Turn 1: room with enemy visible (initial_observation → strategic plan).
+    await planner.decideAction(
+      buildObservation({
+        turn: 1,
+        realm_info: { status: "active", entrance_room_id: "ent" },
+        position: { floor: 1, room_id: "r1", tile: { x: 1, y: 4 } },
+        visible_entities: [
+          { id: "husk", type: "enemy", name: "Husk", hp_current: 5, hp_max: 5, behavior: "aggressive", position: { x: 1, y: 7 } },
+        ],
+        legal_actions: [
+          { type: "move", direction: "left" },
+          { type: "move", direction: "right" },
+          { type: "wait" },
+        ],
+      }),
+      context,
+    )
+    tactical.clearHistory()
+
+    // Turn 2: stepped into r2 (no enemy) — combat_end fires once.
+    await planner.decideAction(
+      buildObservation({
+        turn: 2,
+        realm_info: { status: "active", entrance_room_id: "ent" },
+        position: { floor: 1, room_id: "r2", tile: { x: 1, y: 3 } },
+        visible_entities: [],
+        legal_actions: [
+          { type: "move", direction: "left" },
+          { type: "move", direction: "right" },
+          { type: "wait" },
+        ],
+      }),
+      context,
+    )
+
+    // Turn 3: stepped back into r1, husk visible again. WITHOUT debounce, this would re-fire
+    // combat_start (trigger reason) and wipe the plan. WITH debounce, combat_start is suppressed
+    // — the planner can still fall through to plan_exhausted if the queue is empty, but the
+    // reason won't be combat_start.
+    const decision = await planner.decideAction(
+      buildObservation({
+        turn: 3,
+        realm_info: { status: "active", entrance_room_id: "ent" },
+        position: { floor: 1, room_id: "r1", tile: { x: 1, y: 4 } },
+        visible_entities: [
+          { id: "husk", type: "enemy", name: "Husk", hp_current: 5, hp_max: 5, behavior: "aggressive", position: { x: 1, y: 7 } },
+        ],
+        legal_actions: [
+          { type: "move", direction: "left" },
+          { type: "move", direction: "right" },
+          { type: "wait" },
+        ],
+      }),
+      context,
+    )
+    expect(decision.triggerReason).not.toBe("combat_start")
+  })
+
+  it("exploration override forces east-bias during active play past tactical LLM", async () => {
+    const strategic = new MockLLMAdapter({
+      actionPicker: () => ({ type: "wait" }),
+    })
+    const tactical = new MockLLMAdapter({
+      actionPicker: () => ({ type: "move", direction: "left" }),
+    })
+    const registry = createModuleRegistry([new ExplorationModule()])
+    const planner = new ActionPlanner(strategic, tactical, registry, { strategy: "planned" })
+    const context = createAgentContext(config)
+
+    // Turn 1: initial_observation, strategic plan runs.
+    await planner.decideAction(
+      buildObservation({
+        turn: 1,
+        realm_info: { status: "active", entrance_room_id: "ent" },
+        position: { floor: 1, room_id: "side", tile: { x: 2, y: 2 } },
+        visible_tiles: [{ x: 2, y: 2, type: "floor", entities: [] }],
+        legal_actions: [
+          { type: "move", direction: "left" },
+          { type: "move", direction: "right" },
+          { type: "wait" },
+        ],
+      }),
+      context,
+    )
+
+    // Turn 2: no trigger. Exploration recommends east-bias. Override should force `right`
+    // even though tactical LLM would have picked `left`.
+    const second = await planner.decideAction(
+      buildObservation({
+        turn: 2,
+        realm_info: { status: "active", entrance_room_id: "ent" },
+        position: { floor: 1, room_id: "side", tile: { x: 2, y: 2 } },
+        visible_tiles: [{ x: 2, y: 2, type: "floor", entities: [] }],
+        legal_actions: [
+          { type: "move", direction: "left" },
+          { type: "move", direction: "right" },
+          { type: "wait" },
+        ],
+      }),
+      context,
+    )
+    expect(second.tier).toBe("module")
+    expect(second.action).toEqual({ type: "move", direction: "right" })
+    expect(context.mapMemory.explorationHomingOverrideStreak).toBeGreaterThanOrEqual(1)
+  })
+
   it("does NOT re-trigger strategic resources_critical on every turn while HP stays critical", async () => {
     const strategic = new MockLLMAdapter({
       actionPicker: () => ({ type: "move", direction: "left" }),

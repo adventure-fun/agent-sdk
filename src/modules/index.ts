@@ -33,6 +33,8 @@ export interface MapMemory {
   }
   /** Consecutive planner turns that used post-clear homing override (reset to let tactical LLM run). */
   extractionHomingOverrideStreak?: number
+  /** Consecutive planner turns that used active-play east-bias exploration override. */
+  explorationHomingOverrideStreak?: number
   /**
    * Floor-1 post-clear: after `extractionPreferLeftBiasExit` west steps hit a dead end, set to
    * `reassess` so deterministic homing yields to the tactician (and auto-portal is skipped once).

@@ -117,6 +117,22 @@ export interface DecisionConfig {
    * @default true
    */
   extractionPreferLeftBiasExit?: boolean
+  /**
+   * During active play (realm not cleared, no visible enemies), prefer moving **east** (`right`)
+   * to make forward progress instead of oscillating. Symmetric with `extractionPreferLeftBiasExit`
+   * — the realm spine generally extends east from the entrance, so east-bias is the exploration
+   * equivalent of west-bias retreat. On by default; set `false` for realms whose deeper rooms
+   * live elsewhere.
+   * @default true
+   */
+  explorationPreferRightBias?: boolean
+  /**
+   * During active play, the exploration module's east-bias recommendation can override the
+   * tactical LLM for stability (same pattern as `extractionHomingOverrideMaxStreak`). After this
+   * many consecutive overrides the tactical planner gets one turn to reassess.
+   * @default 12
+   */
+  explorationHomingOverrideMaxStreak?: number
 }
 
 export interface AgentConfig {
@@ -198,6 +214,8 @@ export function createDefaultConfig(
       emergencyHpPercent: decisionOverrides.emergencyHpPercent ?? 0.2,
       extractionHomingOverrideMaxStreak: decisionOverrides.extractionHomingOverrideMaxStreak ?? 12,
       extractionPreferLeftBiasExit: decisionOverrides.extractionPreferLeftBiasExit ?? true,
+      explorationPreferRightBias: decisionOverrides.explorationPreferRightBias ?? true,
+      explorationHomingOverrideMaxStreak: decisionOverrides.explorationHomingOverrideMaxStreak ?? 12,
     },
   }
 

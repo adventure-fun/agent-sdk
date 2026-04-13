@@ -42,6 +42,11 @@ export class ActionPlanner {
   private currentPlan: ActivePlan | null = null
   private strategicContext: string | undefined
   private previousObservation: Observation | null = null
+  /** Most recent turn number on which at least one enemy was visible. Used to suppress
+   *  combat_start re-triggers when the same enemy flickers in/out across a cooldown window. */
+  private lastTurnWithEnemy = -Infinity
+  /** Most recent turn combat_end actually fired (for its own cooldown). */
+  private lastCombatEndTurn = -Infinity
 
   constructor(
     private readonly strategicLLM: LLMAdapter,
@@ -59,9 +64,23 @@ export class ActionPlanner {
     this.currentPlan = null
     this.strategicContext = undefined
     this.previousObservation = null
+    this.lastTurnWithEnemy = -Infinity
+    this.lastCombatEndTurn = -Infinity
   }
 
   async decideAction(observation: Observation, context: AgentContext): Promise<PlannerDecision> {
+    // Advance the enemy-memory cursor: if the PREVIOUS observation (i.e. turn N-1 when we're
+    // now processing turn N) had any enemies visible, record that turn as the most recent
+    // "in combat" tick. Must happen on every decideAction — even when strategic or module
+    // overrides short-circuit the trigger checks — so the combat debounce in getTacticalTrigger
+    // stays accurate across short gaps when the agent flickers past the same enemy.
+    if (
+      this.previousObservation
+      && this.countVisibleEnemies(this.previousObservation) > 0
+      && this.previousObservation.turn > this.lastTurnWithEnemy
+    ) {
+      this.lastTurnWithEnemy = this.previousObservation.turn
+    }
     const recommendations = this.registry.analyzeAll(observation, context)
     const emergencyDecision = this.tryEmergencyOverride(observation, recommendations)
     if (emergencyDecision) {
@@ -79,6 +98,16 @@ export class ActionPlanner {
     if (homingDecision) {
       this.previousObservation = observation
       return homingDecision
+    }
+
+    const explorationOverride = this.tryExplorationHomingOverride(
+      observation,
+      recommendations,
+      context,
+    )
+    if (explorationOverride) {
+      this.previousObservation = observation
+      return explorationOverride
     }
 
     if (this.config.strategy === "module-only") {
@@ -261,6 +290,64 @@ export class ActionPlanner {
     }
   }
 
+  /**
+   * Active-play mirror of `tryPostClearHomingOverride`: when exploration is running the east-bias
+   * recommendation (tagged `context.explorationHoming`) and the realm is still active, force it
+   * past the tactical LLM so a room-cycle can't restart every turn via `combat_start`/`plan_exhausted`
+   * replans. Capped at `explorationHomingOverrideMaxStreak` (default 12) so the LLM still gets
+   * periodic turns to re-orient.
+   */
+  private tryExplorationHomingOverride(
+    observation: Observation,
+    recommendations: ModuleRecommendation[],
+    agentContext: AgentContext,
+  ): PlannerDecision | null {
+    if (!this.previousObservation) {
+      return null
+    }
+    if (COMPLETED_REALM_STATUSES.has(observation.realm_info.status)) {
+      return null
+    }
+
+    // Don't override strategic planning while the character is in a critical resource state —
+    // the agent needs a fresh strategic plan, not a deterministic "walk east" loop.
+    const hpMax = observation.character.hp.max
+    const hpRatio = hpMax > 0 ? observation.character.hp.current / hpMax : 1
+    if (hpRatio <= (this.config.emergencyHpPercent ?? 0.2)) {
+      delete agentContext.mapMemory.explorationHomingOverrideStreak
+      return null
+    }
+
+    const exploration = recommendations.find((rec) => rec.moduleName === "exploration")
+    if (
+      !exploration?.suggestedAction
+      || exploration.context?.explorationHoming !== true
+    ) {
+      delete agentContext.mapMemory.explorationHomingOverrideStreak
+      return null
+    }
+    if (!this.isActionLegal(exploration.suggestedAction, observation.legal_actions)) {
+      return null
+    }
+
+    const maxStreak = this.config.explorationHomingOverrideMaxStreak ?? 12
+    const streak = agentContext.mapMemory.explorationHomingOverrideStreak ?? 0
+    if (streak >= maxStreak) {
+      delete agentContext.mapMemory.explorationHomingOverrideStreak
+      return null
+    }
+
+    agentContext.mapMemory.explorationHomingOverrideStreak = streak + 1
+
+    this.currentPlan = null
+    return {
+      action: exploration.suggestedAction,
+      reasoning: exploration.reasoning,
+      tier: "module",
+      planDepth: 0,
+    }
+  }
+
   private tryLootBeforeExtractionOverride(
     observation: Observation,
     recommendations: ModuleRecommendation[],
@@ -334,12 +421,26 @@ export class ActionPlanner {
     const previousEnemyCount = this.countVisibleEnemies(this.previousObservation)
     const currentEnemyCount = this.countVisibleEnemies(observation)
 
+    // Debounce: the same enemy flickering in/out of sight as the agent crosses room boundaries
+    // used to fire combat_start/combat_end on every single turn, wiping the plan queue and
+    // driving a re-plan storm. We suppress re-triggers inside a short cooldown window.
+    const COMBAT_TRIGGER_COOLDOWN = 5
+
     if (previousEnemyCount === 0 && currentEnemyCount > 0) {
-      return "combat_start"
+      // `lastTurnWithEnemy` reflects the most recent past tick we had enemies in view (updated
+      // at the top of decideAction from the previous observation). If that was more than a
+      // cooldown ago, this is a genuinely new encounter → fire.
+      const gapSinceLastCombat = observation.turn - this.lastTurnWithEnemy
+      if (gapSinceLastCombat >= COMBAT_TRIGGER_COOLDOWN) {
+        return "combat_start"
+      }
     }
 
     if (previousEnemyCount > 0 && currentEnemyCount === 0) {
-      return "combat_end"
+      if (observation.turn - this.lastCombatEndTurn >= COMBAT_TRIGGER_COOLDOWN) {
+        this.lastCombatEndTurn = observation.turn
+        return "combat_end"
+      }
     }
 
     if (
