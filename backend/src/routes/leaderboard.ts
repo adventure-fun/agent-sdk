@@ -131,12 +131,21 @@ leaderboard.get("/:type", async (c) => {
   const limit = clampNumber(query.limit, 50, 1, 100)
   const offset = clampNumber(query.offset, 0, 0, 10_000)
 
+  // Opt-in alive-only filter (issue #8). Clients pass `?alive_only=true`
+  // to hide dead characters from the table. We accept several truthy
+  // strings so the query-string can be built by hand as well as by the
+  // JS hook.
+  const aliveOnly = ["1", "true", "yes"].includes((query.alive_only ?? "").toLowerCase())
+
   let dbQuery = db.from("leaderboard_entries").select("*")
   if (playerType) {
     dbQuery = dbQuery.eq("player_type", playerType)
   }
   if (classFilter) {
     dbQuery = dbQuery.eq("class", classFilter)
+  }
+  if (aliveOnly) {
+    dbQuery = dbQuery.eq("status", "alive")
   }
 
   const { data, error } = await applyOrdering(dbQuery, typeValue)

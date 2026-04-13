@@ -21,6 +21,9 @@ interface FetchLeaderboardOptions {
   type: LeaderboardSort
   playerType?: LeaderboardPlayerFilter
   classFilter?: LeaderboardClassFilter
+  /** When true, hide dead characters (issue #8 opt-in filter). Maps to
+   *  the backend `?alive_only=true` query param. */
+  aliveOnly?: boolean
   limit?: number
   offset?: number
 }
@@ -37,6 +40,7 @@ export function useLeaderboard() {
     type,
     playerType = "all",
     classFilter = "all",
+    aliveOnly = false,
     limit: nextLimit = 25,
     offset: nextOffset = 0,
   }: FetchLeaderboardOptions) => {
@@ -50,6 +54,7 @@ export function useLeaderboard() {
       })
       if (playerType !== "all") params.set("player_type", playerType)
       if (classFilter !== "all") params.set("class", classFilter)
+      if (aliveOnly) params.set("alive_only", "true")
 
       const res = await fetch(`${API_URL}/leaderboard/${type}?${params.toString()}`)
       const body = await res.json()

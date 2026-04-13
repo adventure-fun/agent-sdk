@@ -1,9 +1,25 @@
 "use client"
 
+// Shared chat panel shell used by LobbyChatPanel and SpectateChatPanel.
+//
+// Visual: header (optional, tab bar owns that when the panel lives inside
+// ChatTabs), scrollable message list, persistent input footer. Rewritten
+// onto OBSIDIAN tokens so the chat matches the rest of the site — the
+// previous version was still using `aw-*` legacy tokens.
+//
+// Clickable names (issue #7): each message's `character_name` is wrapped
+// in a Link to /character/[character_id] when the message carries an id.
+// Messages that predate the ticket (historical chat_log rows) render the
+// name as a plain span so nothing breaks in backlog view. Navigation is
+// in-place per the user's direction — standard back-button behavior.
+
+import Link from "next/link"
 import { useEffect, useRef, useState, type ReactNode } from "react"
 import { useAdventureAuth } from "../hooks/use-adventure-auth"
+import { characterHref } from "../lib/character-display"
 
 interface ChatMessage {
+  character_id?: string
   character_name: string
   character_class: string
   player_type: "human" | "agent"
@@ -35,7 +51,7 @@ export function ChatPanelShell({
   send,
   sendError,
   emptyText = "No messages yet...",
-  placeholder = "INITIALIZE_MESSAGE...",
+  placeholder = "Message...",
   hideHeader = false,
   showContext = false,
 }: ChatPanelShellProps) {
@@ -49,50 +65,81 @@ export function ChatPanelShell({
   }, [])
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth" })
+    // Only scroll within the scroll container, not the whole page — the
+    // previous `scrollIntoView` on the sentinel was hijacking page scroll
+    // on mobile when a new message came in. Find the nearest scrollable
+    // ancestor and nudge it instead.
+    const el = endRef.current
+    if (!el) return
+    const scrollParent = el.parentElement
+    if (scrollParent) {
+      scrollParent.scrollTop = scrollParent.scrollHeight
+    }
   }, [messages])
 
   return (
-    <div className="border border-white/5 bg-aw-surface-lowest flex flex-col h-full">
+    <div className="border border-ob-outline-variant/10 bg-ob-surface-container-low flex flex-col h-full rounded-xl overflow-hidden">
       {!hideHeader && (
-        <div className="px-3 py-2 bg-aw-surface-container border-b border-white/5 flex items-center justify-between shrink-0">
+        <div className="px-3 py-2 bg-ob-surface-container border-b border-ob-outline-variant/10 flex items-center justify-between shrink-0">
           {header}
-          <span className="text-[10px] text-aw-outline flex items-center gap-2">
-            <span className={`w-1 h-1 rounded-full ${connected ? "bg-aw-secondary animate-pulse" : "bg-aw-outline"}`} />
-            {connected ? "MEMPOOL_SYNCED" : "CONNECTING..."}
+          <span className="ob-label text-[10px] text-ob-on-surface-variant flex items-center gap-2">
+            <span className={`w-1.5 h-1.5 rounded-full ${connected ? "bg-ob-secondary animate-pulse" : "bg-ob-outline"}`} />
+            {connected ? "LIVE" : "CONNECTING..."}
           </span>
         </div>
       )}
 
-      <div className="flex-1 p-3 space-y-2 overflow-y-auto min-h-0">
+      {/* Message list — takes all available vertical space, scrolls
+          independently of the page. ob-scrollbar gives us the thin amber
+          scrollbar used elsewhere. */}
+      <div className="flex-1 px-3 py-2 space-y-1.5 overflow-y-auto min-h-0 ob-scrollbar">
         {messages.length === 0 ? (
-          <p className="text-[10px] text-aw-outline italic">{emptyText}</p>
+          <p className="text-xs text-ob-on-surface-variant italic opacity-60">{emptyText}</p>
         ) : (
-          messages.map((msg, i) => (
-            <div key={`${msg.timestamp}-${i}`} className="text-xs">
-              {showContext && msg.spectate_context && (
-                <div className="text-[9px] tracking-[0.15em] uppercase text-aw-outline mb-0.5">
-                  <span className="text-aw-primary">◈</span>{" "}
-                  watching <span className="text-aw-secondary">{msg.spectate_context.watching_character_name}</span>
-                  {" · "}
-                  <span className="text-aw-tertiary">{msg.spectate_context.realm_name}</span>
+          messages.map((msg, i) => {
+            // Color the character name by player_type: agents get tertiary
+            // (ice blue), humans get secondary (mint). Keeps the two visually
+            // distinct without needing a separate badge per message.
+            const nameColor = msg.player_type === "agent" ? "text-ob-tertiary" : "text-ob-secondary"
+            return (
+              <div key={`${msg.timestamp}-${i}`} className="text-xs leading-relaxed">
+                {showContext && msg.spectate_context && (
+                  <div className="ob-label text-[9px] tracking-[0.15em] uppercase text-ob-outline mb-0.5 opacity-80">
+                    <span className="text-ob-primary">◈</span>{" "}
+                    watching <span className="text-ob-secondary">{msg.spectate_context.watching_character_name}</span>
+                    {" · "}
+                    <span className="text-ob-tertiary">{msg.spectate_context.realm_name}</span>
+                  </div>
+                )}
+                <div className="flex gap-2 flex-wrap">
+                  {/* Clickable character name — links to /character/[id]
+                      when the message has a character_id. Historical
+                      backlog rows may lack the id, so we fall back to a
+                      plain span in that case (no dead-link fallback). */}
+                  {msg.character_id ? (
+                    <Link
+                      href={characterHref(msg.character_id)}
+                      className={`font-medium shrink-0 ${nameColor} hover:underline hover:brightness-125 transition-all`}
+                    >
+                      {msg.character_name}:
+                    </Link>
+                  ) : (
+                    <span className={`font-medium shrink-0 ${nameColor} opacity-80`}>
+                      {msg.character_name}:
+                    </span>
+                  )}
+                  <span className="text-ob-on-surface-variant break-words">{msg.message}</span>
                 </div>
-              )}
-              <div className="flex gap-2">
-                <span className={`font-medium shrink-0 ${
-                  msg.player_type === "agent" ? "text-aw-tertiary" : "text-aw-secondary"
-                } opacity-80`}>
-                  {msg.character_name}:
-                </span>
-                <span className="text-aw-on-surface-variant">{msg.message}</span>
               </div>
-            </div>
-          ))
+            )
+          })
         )}
         <div ref={endRef} />
       </div>
 
-      <div className="border-t border-white/5 p-2 shrink-0">
+      {/* Input footer — bordered + fixed-height so the message list above
+          has a stable scroll container. */}
+      <div className="border-t border-ob-outline-variant/10 p-2 shrink-0 bg-ob-surface-container-low">
         {mounted && isAuthenticated ? (
           <form
             onSubmit={async (e) => {
@@ -109,23 +156,23 @@ export function ChatPanelShell({
               onChange={(e) => setInput(e.target.value)}
               maxLength={280}
               placeholder={placeholder}
-              className="flex-1 bg-aw-surface-container border-none outline-none text-xs text-aw-secondary placeholder:text-aw-surface-bright px-3 py-2"
+              className="flex-1 bg-ob-surface-container border border-ob-outline-variant/15 rounded-lg outline-none text-xs text-ob-on-surface placeholder:text-ob-outline focus:border-ob-primary/40 px-3 py-2 transition-colors"
             />
             <button
               type="submit"
               disabled={!input.trim()}
-              className="px-3 py-2 text-[10px] text-aw-secondary border border-aw-secondary/30 hover:bg-aw-secondary/10 transition-colors disabled:opacity-40 tracking-widest"
+              className="ob-label px-4 py-2 text-[10px] uppercase tracking-widest bg-ob-primary text-ob-on-primary font-bold rounded-lg hover:brightness-110 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              SEND
+              Send
             </button>
           </form>
         ) : (
-          <p className="text-[10px] text-aw-outline italic text-center py-1">
+          <p className="text-[10px] text-ob-on-surface-variant italic text-center py-1.5">
             Sign in to chat
           </p>
         )}
         {sendError && (
-          <p className="text-[10px] text-aw-error mt-1">{sendError}</p>
+          <p className="text-[10px] text-ob-error mt-1">{sendError}</p>
         )}
       </div>
     </div>

@@ -52,7 +52,10 @@ export default function SpectatePage({ params }: Props) {
   const [charEntry, setCharEntry] = useState<{ character_name: string; class: string } | null>(null)
 
   useEffect(() => {
-    void fetchLeaderboard({ type: "xp", limit: 5 })
+    // Active rankings sidebar — alive-only (issue #8). Dead characters
+    // on the leaderboard can't be spectated so showing them here is just
+    // noise pushing real live runs down.
+    void fetchLeaderboard({ type: "xp", limit: 5, aliveOnly: true })
   }, [fetchLeaderboard])
 
   // Fetch character info if not in top-5
@@ -101,8 +104,51 @@ export default function SpectatePage({ params }: Props) {
       ws.onclose = () => {
         setConnected(false)
         if (cancelled || endedReasonRef.current) return
-        const delay = Math.min(1000 * 2 ** retryCountRef.current, 8000)
+        // Issue #8: after a few consecutive failed attempts, check whether
+        // the character is still in a live realm at all. If they're dead
+        // or idle, the WS will never reconnect — stop retrying and show
+        // a clear "this run has ended" message with a link to the
+        // character page instead of spinning forever.
+        //
+        // We only poll when we haven't yet reached the connected state
+        // OR when the connection was lost after being connected, because
+        // a healthy session that just hiccupped should still reconnect
+        // the normal way (the `ws.onopen` path above).
+        const retryCount = retryCountRef.current
         retryCountRef.current += 1
+        if (retryCount >= 3) {
+          fetch(`${API_URL}/characters/public/${id}`)
+            .then((r) => r.ok ? r.json() : null)
+            .then((body) => {
+              if (cancelled || endedReasonRef.current) return
+              const character = body?.character
+              if (!character) return
+              if (character.status !== "alive") {
+                endedReasonRef.current = "death"
+                setEndedReason("death")
+                setStatusMessage("Character has fallen.")
+                return
+              }
+              if (!body.current_realm) {
+                endedReasonRef.current = "idle"
+                setEndedReason("idle")
+                setStatusMessage("This character isn't in a realm right now.")
+                return
+              }
+              // Character is alive and in a realm — retry normally
+              const delay = Math.min(1000 * 2 ** retryCount, 8000)
+              setStatusMessage("Reconnecting...")
+              reconnectTimerRef.current = window.setTimeout(() => connect(id), delay)
+            })
+            .catch(() => {
+              // Polling itself failed — retry anyway so we don't lock up
+              const delay = Math.min(1000 * 2 ** retryCount, 8000)
+              setStatusMessage("Reconnecting...")
+              reconnectTimerRef.current = window.setTimeout(() => connect(id), delay)
+            })
+          return
+        }
+        const delay = Math.min(1000 * 2 ** retryCount, 8000)
         setStatusMessage("Connection lost. Retrying...")
         reconnectTimerRef.current = window.setTimeout(() => connect(id), delay)
       }
@@ -347,13 +393,29 @@ export default function SpectatePage({ params }: Props) {
           </div>
         )}
 
-        {/* Session ended panel */}
+        {/* Session ended panel (issue #8).
+            Three terminal states the reconnect-poll in the WS effect
+            can detect and stop retrying on:
+              - "death"   — character is dead
+              - "idle"    — character is alive but not in a realm
+              - other     — a session_ended message from the server */}
         {endedReason && (
           <div className="mx-6 mt-4 border border-ob-primary/20 bg-ob-primary/5 p-4 rounded-xl">
             <div className="ob-headline not-italic text-ob-primary text-sm uppercase mb-2 font-bold">
-              RUN_ENDED — {endedReason.toUpperCase()}
+              {endedReason === "idle"
+                ? "NOT IN A REALM"
+                : endedReason === "death"
+                  ? "CHARACTER HAS FALLEN"
+                  : `RUN ENDED — ${endedReason.toUpperCase()}`}
             </div>
-            <div className="flex gap-3 mt-3">
+            <p className="text-xs text-ob-on-surface-variant mb-3">
+              {endedReason === "idle"
+                ? "This character isn't in a dungeon right now. Try again later, or browse their profile."
+                : endedReason === "death"
+                  ? "The spectator feed has closed. Visit their legend page to see how their run ended."
+                  : "The spectator feed closed unexpectedly."}
+            </p>
+            <div className="flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={requestReconnect}
@@ -361,6 +423,14 @@ export default function SpectatePage({ params }: Props) {
               >
                 Retry Connection
               </button>
+              {characterId && (
+                <Link
+                  href={`/character/${characterId}`}
+                  className="px-4 py-2 ob-label text-[10px] uppercase tracking-widest border border-ob-outline-variant/30 text-ob-on-surface-variant hover:border-ob-primary/30 hover:text-ob-primary rounded-lg transition-colors"
+                >
+                  Character Profile
+                </Link>
+              )}
               {endedReason === "death" && characterId && (
                 <Link
                   href={`/legends/${characterId}`}
@@ -369,6 +439,12 @@ export default function SpectatePage({ params }: Props) {
                   View Legend
                 </Link>
               )}
+              <Link
+                href="/spectate"
+                className="px-4 py-2 ob-label text-[10px] uppercase tracking-widest border border-ob-outline-variant/30 text-ob-on-surface-variant hover:border-ob-primary/30 hover:text-ob-primary rounded-lg transition-colors"
+              >
+                All Live Runs
+              </Link>
             </div>
           </div>
         )}

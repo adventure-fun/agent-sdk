@@ -833,6 +833,12 @@ export interface LobbyEvent {
 }
 
 export interface SanitizedChatMessage {
+  /** Stable id of the character who sent the message. Optional because
+   *  historical chat_log rows (pre-issue #7) were written without it, and
+   *  the backend still produces null for those when loading backlog. When
+   *  present, the frontend wraps `character_name` in a link to
+   *  `/character/[character_id]`. */
+  character_id?: string
   character_name: string
   character_class: CharacterClass
   player_type: PlayerType

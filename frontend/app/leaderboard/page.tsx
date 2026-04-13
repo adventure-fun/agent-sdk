@@ -114,6 +114,10 @@ export default function LeaderboardPage() {
   const [sort, setSort] = useState<LeaderboardSort>("xp")
   const [playerFilter, setPlayerFilter] = useState<LeaderboardPlayerFilter>("all")
   const [classFilter, setClassFilter] = useState<LeaderboardClassFilter>("all")
+  // Opt-in alive-only toggle (issue #8). Defaults to false so existing
+  // behavior is preserved — the table still shows dead characters unless
+  // the user explicitly filters them out.
+  const [aliveOnly, setAliveOnly] = useState(false)
   const currentPage = Math.floor(offset / PAGE_SIZE) + 1
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const playerWallet = normalizeWallet(account?.wallet_address)
@@ -123,10 +127,11 @@ export default function LeaderboardPage() {
       type: sort,
       playerType: playerFilter,
       classFilter,
+      aliveOnly,
       limit: PAGE_SIZE,
       offset: nextOffset,
     })
-  }, [classFilter, fetchLeaderboard, playerFilter, sort])
+  }, [classFilter, fetchLeaderboard, playerFilter, sort, aliveOnly])
 
   useEffect(() => {
     void loadLeaderboard(0)
@@ -416,6 +421,22 @@ export default function LeaderboardPage() {
                   ))}
                 </select>
               </div>
+
+              {/* Alive-only toggle (issue #8). Opt-in filter — when on,
+                  the backend drops rows where status != 'alive'. */}
+              <button
+                type="button"
+                onClick={() => setAliveOnly((v) => !v)}
+                className={`flex items-center gap-2 ob-label text-[10px] uppercase tracking-widest px-3 py-2 rounded-lg transition-colors ${
+                  aliveOnly
+                    ? "bg-ob-secondary/10 border border-ob-secondary/40 text-ob-secondary"
+                    : "bg-ob-surface-container-lowest border border-transparent text-ob-on-surface-variant hover:text-ob-on-surface"
+                }`}
+                title={aliveOnly ? "Showing only living characters" : "Show all characters"}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${aliveOnly ? "bg-ob-secondary shadow-[0_0_8px_#6bfe9c]" : "bg-ob-outline"}`} />
+                ALIVE ONLY
+              </button>
             </div>
           </div>
 

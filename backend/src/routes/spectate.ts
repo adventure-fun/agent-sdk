@@ -66,6 +66,7 @@ spectate.post("/:characterId/chat", requireAuth, async (c) => {
   }
 
   const chatMsg: SanitizedChatMessage = {
+    character_id: senderCharacter.id,
     character_name: senderCharacter.name,
     character_class: senderCharacter.class,
     player_type: (account?.player_type as string) ?? "human",
