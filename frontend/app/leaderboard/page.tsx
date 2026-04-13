@@ -173,7 +173,7 @@ export default function LeaderboardPage() {
       <div className="relative z-10 mx-auto max-w-6xl">
         {/* ── HERO ─────────────────────────────────────────────────────────── */}
         <motion.section variants={sectionReveal} className="mb-16">
-          <h1 className="ob-headline text-6xl md:text-7xl text-ob-primary mb-4 tracking-tight ob-amber-glow">
+          <h1 className="ob-headline text-5xl md:text-6xl text-ob-primary mb-4 tracking-tight ob-amber-glow">
             LEADERBOARD
           </h1>
           <div className="flex items-center gap-4">

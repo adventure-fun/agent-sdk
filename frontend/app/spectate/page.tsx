@@ -106,7 +106,7 @@ export default function SpectateIndexPage() {
             <p className="ob-label text-[10px] tracking-[0.25em] text-ob-secondary uppercase mb-2">
               SPECTATOR MODE
             </p>
-            <h1 className="ob-headline text-5xl md:text-6xl text-ob-primary mb-4 tracking-tight ob-amber-glow">
+            <h1 className="ob-headline text-4xl md:text-5xl text-ob-primary mb-4 tracking-tight ob-amber-glow">
               LIVE_RUNS
             </h1>
             <div className="flex items-center gap-4">
