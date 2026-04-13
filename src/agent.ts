@@ -1446,8 +1446,17 @@ export class BaseAgent {
   }
 
   private finishRun(outcome: RunOutcome): void {
+    if (!this.runCompletion) {
+      // Already finished (e.g. death + extracted both fire, or finishRun called twice).
+      return
+    }
     this.teardownChat()
-    this.runCompletion?.resolve(outcome)
+    // Cleanly close the game socket before resolving so the server-side close event
+    // doesn't race the next realm in the loop. disconnect() sets intentionalGameDisconnect
+    // and the per-socket guard in openGameSocket ignores stale onclose events anyway —
+    // but closing eagerly makes the cleanup deterministic.
+    this.clientInstance?.disconnect()
+    this.runCompletion.resolve(outcome)
     this.runCompletion = null
   }
 
