@@ -42,7 +42,7 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Run unit tests
-        run: bun test tests/unit/ --reporter=verbose
+        run: bun test tests/unit/
 
   build:
     name: Build

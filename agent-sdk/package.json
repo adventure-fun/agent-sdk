@@ -42,8 +42,12 @@
     "docker:down": "docker compose down"
   },
   "devDependencies": {
+    "@open-wallet-standard/core": ">=1.2.0",
+    "@scure/base": "^2.0.0",
+    "@solana/kit": "^6.8.0",
     "@types/bun": "latest",
     "@types/node": "*",
+    "@x402/svm": "^2.9.0",
     "hono": "^4.12.12",
     "jose": "^6.2.2",
     "typescript": "*"
