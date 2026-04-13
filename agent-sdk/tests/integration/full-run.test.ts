@@ -157,11 +157,6 @@ function createTutorialActionPicker(): (observation: AgentEvents["observation"])
       (action): action is Extract<AgentEvents["action"]["action"], { type: "retreat" }> =>
         action.type === "retreat",
     )
-    if (observation.legal_actions.some((action) => action.type === "use_portal")) {
-      previousRoomId = observation.position.room_id
-      lastMoveDirection = null
-      return { type: "use_portal" }
-    }
     if (attack) {
       previousRoomId = observation.position.room_id
       lastMoveDirection = null
@@ -181,6 +176,11 @@ function createTutorialActionPicker(): (observation: AgentEvents["observation"])
       previousRoomId = observation.position.room_id
       lastMoveDirection = null
       return retreat
+    }
+    if (observation.legal_actions.some((action) => action.type === "use_portal")) {
+      previousRoomId = observation.position.room_id
+      lastMoveDirection = null
+      return { type: "use_portal" }
     }
 
     const move = chooseTutorialMove(

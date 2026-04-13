@@ -187,6 +187,8 @@ export const strategicConfig: AgentConfig = createDefaultConfig({
     maxPlanLength: 12,
     moduleConfidenceThreshold: 0.8,
     emergencyHpPercent: Number(process.env.EMERGENCY_HP_PERCENT ?? "0.25"),
+    // Dungeon exit spine runs west in our content; after a dead end the tactician re-plans.
+    extractionPreferLeftBiasExit: process.env.EXTRACTION_LEFT_BIAS_EXIT !== "false",
   },
   modules: [
     { name: "portal", priority: 100 },

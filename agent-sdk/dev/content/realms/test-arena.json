@@ -60,7 +60,7 @@
     "test-arena-gauntlet"
   ],
   "narrative": {
-    "theme_description": "An isolated arena used to validate combat and inventory behavior.",
+    "theme_description": "An isolated arena used to validate combat and inventory behavior. When the arena is clear, you are already at the only room (the entrance) — retreat to town is available alongside any portal scroll.",
     "room_text_pool": [
       {
         "text": "The arena floor is littered with weapons and broken shields.",

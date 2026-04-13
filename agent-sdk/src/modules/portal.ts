@@ -1,3 +1,4 @@
+import { hasActionableLootBlockingPostClearExtraction } from "../extraction-loot-gate.js"
 import type { Observation } from "../protocol.js"
 import type { AgentContext, AgentModule, ModuleRecommendation } from "./index.js"
 
@@ -14,45 +15,60 @@ export class PortalModule implements AgentModule {
     const realmCompleted = COMPLETED_STATUSES.has(observation.realm_info.status)
     const portalLegal = observation.legal_actions.some((a) => a.type === "use_portal")
     const retreatLegal = observation.legal_actions.some((a) => a.type === "retreat")
-    const pendingLoot = hasPendingLoot(observation)
+    const pendingLoot = hasActionableLootBlockingPostClearExtraction(observation)
 
-    if (portalLegal && hpRatio <= extractThreshold) {
-      return {
-        suggestedAction: { type: "use_portal" },
-        reasoning: `HP critically low (${Math.round(hpRatio * 100)}%), extracting for survival.`,
-        confidence: 0.95,
-        context: { hpRatio, realmCompleted },
-      }
+    const survivalMode = hpRatio <= extractThreshold
+    const loopStuck = context.mapMemory.loopEdgeBans?.[observation.position.room_id] !== undefined
+    const urgentExit = survivalMode || (loopStuck && hpRatio <= 0.45)
+    const completionExtract = realmCompleted && !pendingLoot
+
+    if (!urgentExit && !completionExtract) {
+      return { reasoning: "No extraction needed.", confidence: 0 }
     }
 
-    if (portalLegal && realmCompleted && !pendingLoot) {
-      return {
-        suggestedAction: { type: "use_portal" },
-        reasoning: "Realm completed, extracting with full rewards.",
-        confidence: 0.95,
-        context: { hpRatio, realmCompleted },
+    // Prefer the floor-1 entrance walk-out when legal (matches engine: same extraction outcome,
+    // preserves portal scrolls / portal-active state for later).
+    if (retreatLegal) {
+      if (urgentExit) {
+        return {
+          suggestedAction: { type: "retreat" },
+          reasoning: `HP critically low (${Math.round(hpRatio * 100)}%); exiting via the dungeon entrance.`,
+          confidence: 0.95,
+          context: { hpRatio, realmCompleted },
+        }
       }
-    }
-
-    if (retreatLegal && hpRatio <= extractThreshold) {
       return {
         suggestedAction: { type: "retreat" },
-        reasoning: `HP critically low (${Math.round(hpRatio * 100)}%) and no portal — retreating.`,
-        confidence: 0.85,
+        reasoning:
+          "Realm objective met; exiting through the first-floor entrance (preferred — no portal resource spent).",
+        confidence: 0.95,
         context: { hpRatio, realmCompleted },
+      }
+    }
+
+    if (portalLegal && urgentExit) {
+      return {
+        suggestedAction: { type: "use_portal" },
+        reasoning: `HP critically low (${Math.round(hpRatio * 100)}%); extracting via portal (not at entrance).`,
+        confidence: 0.95,
+        context: { hpRatio, realmCompleted },
+      }
+    }
+
+    // Boss/realm clear with healthy HP: walk to floor-1 `entrance_room_id` and `retreat` before
+    // spending a portal. ExplorationModule handles routing; we intentionally defer `use_portal`.
+    if (portalLegal && completionExtract) {
+      return {
+        reasoning:
+          "Realm objective met; navigate to the floor-1 entrance room (realm_info.entrance_room_id) and use retreat — avoid portals until you are there unless HP becomes critical.",
+        confidence: 0,
+        context: { hpRatio, realmCompleted, entrance_room_id: observation.realm_info.entrance_room_id },
       }
     }
 
     return {
-      reasoning: "No extraction needed.",
+      reasoning: "Extraction needed but no legal retreat or portal.",
       confidence: 0,
     }
   }
-}
-
-function hasPendingLoot(observation: Observation): boolean {
-  return (
-    observation.legal_actions.some((action) => action.type === "pickup")
-    || observation.visible_entities.some((entity) => entity.type === "item")
-  )
 }

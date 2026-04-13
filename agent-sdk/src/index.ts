@@ -1,5 +1,6 @@
 export * from "./adapter.js"
 export * from "./agent.js"
+export * from "./character-roll-name.js"
 export * from "./auth.js"
 export * from "./client.js"
 export * from "./config.js"

@@ -51,6 +51,7 @@ import {
   type AgentModule,
   type ModuleRegistry,
 } from "./modules/index.js"
+import { computeCharacterRollNameForAttempt } from "./character-roll-name.js"
 import { SpendingTracker } from "./spending-tracker.js"
 
 const DEFAULT_MODULES: AgentModule[] = [
@@ -143,6 +144,7 @@ class AgentStoppedError extends Error {
 
 interface AgentPlanner {
   decideAction(observation: Observation, context: AgentContext): Promise<PlannerDecision>
+  reset?(): void
 }
 
 export interface BaseAgentOptions {
@@ -179,7 +181,7 @@ type AgentEventName = keyof AgentEvents
 type AgentEventHandler<K extends AgentEventName> = (payload: AgentEvents[K]) => void
 
 export class BaseAgent {
-  readonly context: AgentContext
+  context: AgentContext
   private readonly config: AgentConfig
   private readonly llm: LLMAdapter
   private readonly tacticalLLM: LLMAdapter
@@ -528,27 +530,65 @@ export class BaseAgent {
   }
 
   private async ensureCharacter(client: AgentClient): Promise<CharacterRecord> {
+    let character: CharacterRecord | null = null
     try {
-      return await client.request<CharacterRecord>("/characters/me")
+      character = await client.request<CharacterRecord>("/characters/me")
     } catch (error) {
       if (!isStatusError(error, 404)) {
         throw error
       }
     }
 
-    if (!this.config.characterClass || !this.config.characterName) {
+    if (
+      character !== null
+      && character.status !== undefined
+      && character.status !== "alive"
+    ) {
+      character = null
+    }
+
+    if (character !== null) {
+      return character
+    }
+
+    return this.rollNewPlayerCharacter(client)
+  }
+
+  /**
+   * Creates a new living character (e.g. first session or after death when `/characters/me` is
+   * absent or non-alive). Retries `POST /characters/roll` on 409 with incremented / suffixed names.
+   */
+  private async rollNewPlayerCharacter(client: AgentClient): Promise<CharacterRecord> {
+    const characterClass = this.config.characterClass
+    const baseName = this.config.characterName
+    if (!characterClass || !baseName) {
       throw new Error(
         "characterClass and characterName are required to roll a character when none exists",
       )
     }
 
-    return client.request<CharacterRecord>("/characters/roll", {
-      method: "POST",
-      body: JSON.stringify({
-        class: this.config.characterClass,
-        name: this.config.characterName,
-      }),
-    })
+    const maxAttempts = 40
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const name = computeCharacterRollNameForAttempt(baseName, attempt)
+      try {
+        return await client.request<CharacterRecord>("/characters/roll", {
+          method: "POST",
+          body: JSON.stringify({
+            class: characterClass,
+            name,
+          }),
+        })
+      } catch (error) {
+        if (isRetryableCharacterRollConflict(error)) {
+          continue
+        }
+        throw error
+      }
+    }
+
+    throw new Error(
+      `Could not roll a new character after ${maxAttempts} attempts (last name conflict or invalid name).`,
+    )
   }
 
   private async maybeRerollStats(
@@ -932,8 +972,48 @@ export class BaseAgent {
       throw new AgentStoppedError()
     }
 
-    await client.restAtInn()
-    return (await this.loadLobbyState(client)) ?? state
+    // Right after a retreat/extraction the backend can 409 the rest endpoint for two reasons:
+    //   1) "You are already fully rested" — the server finished the post-extract auto-heal
+    //      before our stale `state` snapshot could see it. Re-fetch `/characters/me`; if the
+    //      fresh character no longer needs healing, we're done.
+    //   2) "Leave the dungeon before resting" — session cleanup hasn't finished yet; we wait
+    //      and retry until the session drops off server-side.
+    // Either way we must NOT silently give up and enter the next realm unhealed.
+    const maxAttempts = 5
+    const baseBackoffMs = 500
+    let lastError: unknown
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        await client.restAtInn()
+        const refreshed = await this.loadLobbyState(client)
+        return refreshed ?? state
+      } catch (error) {
+        if (!isStatusError(error, 409)) {
+          throw error
+        }
+        lastError = error
+        // Re-fetch character state. If the server already healed us, accept and proceed.
+        const refreshed = await this.loadLobbyState(client)
+        if (refreshed && !shouldHealAtInn(refreshed.character, lobbyConfig)) {
+          return refreshed
+        }
+        if (!this.isRunning) {
+          throw new AgentStoppedError()
+        }
+        // Still needs healing — back off and retry (session likely still winding down).
+        if (attempt < maxAttempts - 1) {
+          const delayMs = baseBackoffMs * (attempt + 1)
+          await new Promise((resolve) => setTimeout(resolve, delayMs))
+        }
+      }
+    }
+
+    throw new Error(
+      `Inn rest failed after ${maxAttempts} retries; refusing to enter the next realm unhealed. Last error: ${
+        lastError instanceof Error ? lastError.message : String(lastError)
+      }`,
+    )
   }
 
   private async loadLobbyState(client: AgentClient): Promise<LobbyState | null> {
@@ -1304,6 +1384,12 @@ export class BaseAgent {
   }
 
   private async playRealm(client: AgentClient, realmId: string): Promise<RunOutcome> {
+    // Each realm instance gets a fresh planner + context so that leftover strategic plans
+    // (e.g. queued actions after an emergency retreat) and stale map memory from the previous
+    // realm can't bleed into the new run's first turns.
+    this.planner.reset?.()
+    this.context = createAgentContext(this.config)
+
     const completion = new Promise<RunOutcome>((resolve, reject) => {
       this.runCompletion = { resolve, reject }
     })
@@ -1373,6 +1459,23 @@ function isStatusError(error: unknown, status: number): boolean {
   }
 
   return false
+}
+
+/** Name / uniqueness conflicts from `POST /characters/roll` (dev API uses 409). */
+function isRetryableCharacterRollConflict(error: unknown): boolean {
+  if (isStatusError(error, 409)) {
+    return true
+  }
+  if (!isStatusError(error, 400)) {
+    return false
+  }
+  const message = error instanceof Error ? error.message.toLowerCase() : ""
+  return (
+    message.includes("name")
+    || message.includes("unique")
+    || message.includes("taken")
+    || message.includes("exists")
+  )
 }
 
 function summarizeObservation(obs: Observation): string {

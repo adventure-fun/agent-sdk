@@ -2951,6 +2951,7 @@ export function buildObservationFromState(
       template_name: state.realm.template_id,
       floor_count: state.realm.total_floors,
       current_floor: state.position.floor,
+      entrance_room_id: realm.floors[0]?.entrance_room_id ?? "",
       status: state.realmStatus,
     },
   }

@@ -28,6 +28,25 @@ describe("PortalModule", () => {
     expect(module.priority).toBe(90)
   })
 
+  it("recommends portal when HP is above the strict threshold but a two-room loop ban is active", () => {
+    const c = createAgentContext(config)
+    c.mapMemory.loopEdgeBans = { "stuck-room": "right" }
+    const obs = buildObservation({
+      realm_info: {
+        template_name: "test-dungeon",
+        floor_count: 2,
+        current_floor: 2,
+        status: "active",
+      },
+      position: { floor: 2, room_id: "stuck-room", tile: { x: 1, y: 1 } },
+      character: { hp: { current: 8, max: 33 } },
+      legal_actions: [portalAction(), moveAction("up")],
+    })
+    const result = module.analyze(obs, c)
+    expect(result.suggestedAction).toEqual({ type: "use_portal" })
+    expect(result.confidence).toBeGreaterThanOrEqual(0.9)
+  })
+
   it("strongly recommends extraction when HP is critically low and portal is legal", () => {
     const obs = buildObservation({
       character: { hp: { current: 5, max: 30 } },
@@ -36,6 +55,19 @@ describe("PortalModule", () => {
 
     const result = module.analyze(obs, ctx())
     expect(result.suggestedAction).toEqual({ type: "use_portal" })
+    expect(result.confidence).toBeGreaterThanOrEqual(0.9)
+  })
+
+  it("prefers retreat when HP is critical and both retreat and portal are legal", () => {
+    const obs = buildObservation({
+      character: { hp: { current: 5, max: 30 } },
+      position: { floor: 1, room_id: "room-1", tile: { x: 1, y: 1 } },
+      realm_info: { entrance_room_id: "room-1" },
+      legal_actions: [retreatAction(), portalAction(), moveAction("up")],
+    })
+
+    const result = module.analyze(obs, ctx())
+    expect(result.suggestedAction).toEqual({ type: "retreat" })
     expect(result.confidence).toBeGreaterThanOrEqual(0.9)
   })
 
@@ -56,39 +88,44 @@ describe("PortalModule", () => {
     expect(result.suggestedAction).toEqual({ type: "use_portal" })
   })
 
-  it("recommends extraction when realm is cleared and portal available", () => {
+  it("defers portal when realm is cleared away from the floor-1 entrance", () => {
     const obs = buildObservation({
       realm_info: {
         template_name: "test-dungeon",
         floor_count: 2,
         current_floor: 2,
         status: "boss_cleared",
+        entrance_room_id: "entry-room",
       },
+      position: { floor: 2, room_id: "boss-room", tile: { x: 1, y: 1 } },
       legal_actions: [portalAction(), moveAction("up")],
     })
 
     const result = module.analyze(obs, ctx())
-    expect(result.suggestedAction).toEqual({ type: "use_portal" })
-    expect(result.confidence).toBeGreaterThanOrEqual(0.9)
+    expect(result.suggestedAction).toBeUndefined()
+    expect(result.confidence).toBe(0)
+    expect(result.reasoning).toContain("entrance")
   })
 
-  it("also recommends extraction for realm_cleared status", () => {
+  it("recommends retreat at the entrance when realm is cleared (before portal)", () => {
     const obs = buildObservation({
       realm_info: {
         template_name: "test-dungeon",
         floor_count: 1,
         current_floor: 1,
         status: "realm_cleared",
+        entrance_room_id: "room-1",
       },
-      legal_actions: [portalAction()],
+      position: { floor: 1, room_id: "room-1", tile: { x: 1, y: 1 } },
+      legal_actions: [retreatAction(), portalAction()],
     })
 
     const result = module.analyze(obs, ctx())
-    expect(result.suggestedAction).toEqual({ type: "use_portal" })
+    expect(result.suggestedAction).toEqual({ type: "retreat" })
     expect(result.confidence).toBeGreaterThanOrEqual(0.9)
   })
 
-  it("does not recommend extraction when loot is still visible in a cleared room", () => {
+  it("defers portal when realm is cleared with visible-only loot (no pickup / disarm yet legal)", () => {
     const obs = buildObservation({
       realm_info: {
         template_name: "test-dungeon",

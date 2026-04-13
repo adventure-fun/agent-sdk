@@ -444,6 +444,7 @@ describe("BaseAgent lifecycle enhancements", () => {
                 id: "char-1",
                 class: "rogue",
                 name: "Shade",
+                status: "alive",
                 stat_rerolled: false,
                 stats: {
                   hp: 40,
@@ -456,7 +457,22 @@ describe("BaseAgent lifecycle enhancements", () => {
               }
             }
 
-            throw Object.assign(new Error("No living character"), { status: 404 })
+            // Some stacks return 404 for dead; others return 200 with a non-alive status — both must re-roll.
+            return {
+              id: "char-1",
+              class: "rogue",
+              name: "Shade",
+              status: "dead",
+              stat_rerolled: false,
+              stats: {
+                hp: 40,
+                attack: 10,
+                defense: 10,
+                accuracy: 10,
+                evasion: 10,
+                speed: 10,
+              },
+            }
           case "/characters/roll":
             return {
               id: "char-2",

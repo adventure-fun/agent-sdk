@@ -31,6 +31,44 @@ export interface MapMemory {
     x: number
     y: number
   }
+  /** Consecutive planner turns that used post-clear homing override (reset to let tactical LLM run). */
+  extractionHomingOverrideStreak?: number
+  /** Consecutive planner turns that used active-play east-bias exploration override. */
+  explorationHomingOverrideStreak?: number
+  /**
+   * Floor-1 post-clear: after `extractionPreferLeftBiasExit` west steps hit a dead end, set to
+   * `reassess` so deterministic homing yields to the tactician (and auto-portal is skipped once).
+   */
+  extractionFloor1ExitPhase?: "reassess"
+  /**
+   * One `realm_info.template_name` per delve; when it changes, loop buffers reset.
+   */
+  loopTrackTemplate?: string
+  /** Recent room ids (one per observation) to detect A↔B↔A↔B ping-pong during play or extraction. */
+  loopRecentRooms?: string[]
+  /** Room-to-room moves via `move` (any floor) to learn which direction bridges the ping-pong pair. */
+  loopDoorCrossings?: Array<{ fromRoomId: string; toRoomId: string; direction: Direction }>
+  /**
+   * When stuck in a two-room alternation under survival or floor-1 post-clear, forbid these move
+   * directions (they re-enter the loop).
+   */
+  loopEdgeBans?: Partial<Record<string, Direction>>
+  /**
+   * Active "unstuck" mode during post-clear floor-1 extraction. While the current room id matches
+   * and `untilTurn` hasn't been passed, the exploration module forces moves *away* from
+   * `awayFromDirection` (the ping-pong door edge) so the agent leaves the shared-door tile and
+   * can see other exits within the room.
+   */
+  unstuckAwayFromEdge?: {
+    roomId: string
+    awayFromDirection: Direction
+    untilTurn: number
+  }
+  /**
+   * Turns since we last entered a room we hadn't seen this tick (reset on new-room entry). Used by
+   * the post-clear portal safety valve to escape hopeless layouts.
+   */
+  turnsWithoutNewRoom?: number
 }
 
 export interface AgentContext {

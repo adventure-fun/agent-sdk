@@ -495,7 +495,7 @@ export function buildDevContent(): Array<{ file: string; value: JsonObject | Jso
     {
       id: "weak-rat",
       name: "Weak Rat",
-      stats: createCharacterStats(12, 5, 1, 45, 4, 5),
+      stats: createCharacterStats(12, 3, 1, 45, 4, 5),
       abilities: ["rat-bite"],
       behavior: "aggressive",
       loot_table: "tutorial-loot",
@@ -505,7 +505,7 @@ export function buildDevContent(): Array<{ file: string; value: JsonObject | Jso
     {
       id: "goblin",
       name: "Goblin",
-      stats: createCharacterStats(18, 7, 2, 52, 8, 10),
+      stats: createCharacterStats(18, 5, 2, 52, 8, 10),
       abilities: ["basic-attack"],
       behavior: "aggressive",
       loot_table: "arena-loot",
@@ -515,7 +515,7 @@ export function buildDevContent(): Array<{ file: string; value: JsonObject | Jso
     {
       id: "skeleton",
       name: "Skeleton",
-      stats: createCharacterStats(24, 9, 4, 58, 6, 7),
+      stats: createCharacterStats(24, 7, 4, 40, 6, 7),
       abilities: ["basic-attack"],
       behavior: "aggressive",
       loot_table: "arena-loot",
@@ -677,7 +677,7 @@ export function buildDevContent(): Array<{ file: string; value: JsonObject | Jso
       "test-tutorial-exit",
     ],
     narrative: {
-      theme_description: "A compact training realm for SDK smoke tests.",
+      theme_description: "A compact training realm for SDK smoke tests. After the last foe is down, return to the first chamber and retreat to town; the portal scroll is optional.",
       room_text_pool: [
         { text: "The tutorial chamber is quiet.", type: "event" },
         { text: "A weak rat hisses near the exit.", type: "combat" },
@@ -705,7 +705,7 @@ export function buildDevContent(): Array<{ file: string; value: JsonObject | Jso
     trap_types: [],
     room_templates: ["test-arena-gauntlet"],
     narrative: {
-      theme_description: "An isolated arena used to validate combat and inventory behavior.",
+      theme_description: "An isolated arena used to validate combat and inventory behavior. When the arena is clear, you are already at the only room (the entrance) — retreat to town is available alongside any portal scroll.",
       room_text_pool: [{ text: "The arena floor is littered with weapons and broken shields.", type: "combat" }],
       lore_pool: [],
       interactable_pool: [],
@@ -745,7 +745,7 @@ export function buildDevContent(): Array<{ file: string; value: JsonObject | Jso
       "test-dungeon-boss",
     ],
     narrative: {
-      theme_description: "A compact two-floor dungeon assembled for integration coverage.",
+      theme_description: "A compact two-floor dungeon assembled for integration coverage. Clearing the boss counts as a win; extraction is by walking back to floor 1's entrance room and using retreat (stairs up begin in the floor-2 antechamber), or a portal scroll if you must leave early.",
       room_text_pool: [
         { text: "The dungeon corridor narrows toward a suspicious chest.", type: "trap" },
         { text: "A locked gate bars the way to the inner sanctum.", type: "event" },
@@ -770,7 +770,7 @@ export function buildDevContent(): Array<{ file: string; value: JsonObject | Jso
         conditions: [],
         effects: [
           { type: "grant-item", item_template_id: "portal-scroll" },
-          { type: "show-text", text: "Remember: clear the room, then use the portal." },
+          { type: "show-text", text: "After you clear the trial, return to this first chamber when it is safe — you can retreat to town from here without using a portal. Keep the scroll for emergencies or deeper realms." },
         ],
         lore_entry_id: "tutorial-note",
       },
@@ -826,7 +826,7 @@ export function buildDevContent(): Array<{ file: string; value: JsonObject | Jso
     id: "test-arena-gauntlet",
     type: "combat",
     size: { width: 9, height: 9 },
-    text_first_visit: "Three foes circle the arena floor around scattered supplies.",
+    text_first_visit: "Two foes circle the arena floor around scattered supplies.",
     text_revisit: "The arena floor is scarred from recent fighting.",
     interactables: [
       {
@@ -840,7 +840,6 @@ export function buildDevContent(): Array<{ file: string; value: JsonObject | Jso
     ],
     enemy_slots: [
       { enemy_template_id: "goblin", position: { x: 5, y: 2 }, count: { min: 1, max: 1 } },
-      { enemy_template_id: "goblin", position: { x: 2, y: 5 }, count: { min: 1, max: 1 } },
       { enemy_template_id: "skeleton", position: { x: 6, y: 6 }, count: { min: 1, max: 1 } },
     ],
     loot_slots: [
@@ -923,7 +922,7 @@ export function buildDevContent(): Array<{ file: string; value: JsonObject | Jso
     id: "test-dungeon-antechamber",
     type: "combat",
     size: { width: 7, height: 7 },
-    text_first_visit: "An antechamber stands between you and the boss.",
+    text_first_visit: "An antechamber stands between you and the boss. The stairwell back toward the surface is along the west wall once the way is clear.",
     text_revisit: "The antechamber bears fresh battle marks.",
     interactables: [],
     enemy_slots: [
@@ -939,8 +938,8 @@ export function buildDevContent(): Array<{ file: string; value: JsonObject | Jso
     id: "test-dungeon-boss",
     type: "boss",
     size: { width: 9, height: 9 },
-    text_first_visit: "The boss troll roars from the far side of the chamber.",
-    text_revisit: "The boss chamber trembles with lingering force.",
+    text_first_visit: "The boss troll roars from the far side of the chamber. When it falls, retrace your steps through the antechamber to the stairs up, then all the way back to the surface entrance — you can retreat to town there without spending a portal.",
+    text_revisit: "The boss chamber trembles with lingering force. The path back to the entrance stairwell is through the antechamber.",
     interactables: [
       {
         id: "boss-cache",

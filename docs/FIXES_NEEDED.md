@@ -558,27 +558,30 @@ Add notes under any item with `> NOTE: your note here` when needed.
 
 ---
 
-## Group 15: Agent SDK and Player Agent
+## Group 15: Agent SDK
 
-**Scope:** SDK alignment with backend, player agent functionality
+**Scope:** SDK alignment with backend
 
-- [ ] **15.1 — Agent SDK uses WebSocket subprotocol auth, backend doesn't handle it**
+- [x] **15.1 — Agent SDK uses WebSocket subprotocol auth, backend doesn't handle it**
   - `agent-sdk/src/client.ts` connects with `new WebSocket(url, ["Bearer", this.token.token])`
   - Backend `index.ts` reads token from `Authorization` header or `token` query param but doesn't check WebSocket subprotocol
   - **Fix:** Either update backend to read from `Sec-WebSocket-Protocol` header, or update SDK to use query param like the frontend does
   - **Files:** `backend/src/index.ts` or `agent-sdk/src/client.ts`
+  > NOTE: Updated `backend/src/index.ts` to parse `Sec-WebSocket-Protocol: Bearer, <token>` as a third auth method alongside `Authorization` header and `?token=` query param. When the token arrives via subprotocol, the upgrade response echoes back `Sec-WebSocket-Protocol: Bearer` to complete the handshake. All three auth paths (frontend query param, SDK subprotocol, direct `Authorization` header) now work.
 
-- [ ] **15.2 — Content routes don't expose full ability templates**
+- [x] **15.2 — Content routes don't expose full ability templates**
   - `GET /content/classes/:id/abilities` returns starting ability IDs from class template
   - Agents need full `AbilityTemplate` data (damage formulas, ranges, costs, effects) to make informed decisions
   - **Fix:** Return full ability template objects, not just IDs. Add `GET /content/abilities` for the complete ability registry
   - **Files:** `backend/src/routes/content.ts`
+  > NOTE: Added `GET /content/abilities` returning the full engine `ABILITIES` registry (sorted by id). `GET /content/classes/:id/abilities` now returns full `AbilityTemplate` objects (including `damage_formula`, `effects`, `aoe_radius`, `special`, etc.) instead of a trimmed projection. TDD: `backend/__tests__/content-routes.test.ts`.
 
-- [ ] **15.3 — `player-agent` typecheck breaks on workspace source imports**
+- [-] **15.3 — `player-agent` typecheck breaks on workspace source imports**
   - `player-agent/tsconfig.json` uses `rootDir: "./src"` while importing `@adventure-fun/agent-sdk`, which under workspace source resolution can point at `agent-sdk/src/*`
   - That causes `TS6059` "file is not under rootDir" failures once package path mappings are corrected
   - **Fix:** Split build-vs-typecheck configs or relax `rootDir` for package-local typecheck. Alternative: adopt TS project references so workspace packages are typechecked as referenced projects instead of raw source imports
   - **Files:** `player-agent/tsconfig.json`, possibly `agent-sdk/tsconfig.json`, root `tsconfig.json`
+  > NOTE: **Obsolete.** The `player-agent` package no longer exists in this repository (verified 2026-04-12: no `player-agent/` path). No action required unless the package is reintroduced.
 
 ---
 
@@ -694,3 +697,5 @@ _Record completed fixes here with date and commit hash._
 | 2026-04-09 | 14.5 | pending | Replaced hardcoded Vercel rewrite placeholder with env-driven `rewrites()` in `frontend/next.config.ts`; added `BACKEND_URL` to `.env.example` |
 | 2026-04-09 | 14.6 | pending | Fixed frontend TS alias from nonexistent `./src/*` to `./app/*` |
 | 2026-04-12 | 1.5 | pending | Enabled RLS on all 14 tables with 30 policies (public/authenticated/service_role tiers) + 4 FK indexes for subquery performance |
+| 2026-04-12 | 15.2 | pending | Full ability registry at `GET /content/abilities`; class abilities endpoint returns full `AbilityTemplate` objects + `backend/__tests__/content-routes.test.ts` |
+| 2026-04-12 | 15.3 | skipped | Obsolete: `player-agent` removed from repo |

@@ -2,12 +2,13 @@ import { describe, expect, it } from "bun:test"
 import { ActionPlanner } from "../../src/planner.js"
 import { createDefaultConfig } from "../../src/config.js"
 import { createAgentContext, createModuleRegistry } from "../../src/modules/index.js"
-import { InventoryModule, PortalModule, ExplorationModule } from "../../src/index.js"
+import { InventoryModule, PortalModule } from "../../src/index.js"
 import { MockLLMAdapter } from "../helpers/mock-llm.js"
 import {
   buildObservation,
   item,
   moveAction,
+  pickupAction,
   portalAction,
 } from "../helpers/mock-observation.js"
 
@@ -26,7 +27,6 @@ describe("ActionPlanner", () => {
       createModuleRegistry([
         new PortalModule(),
         new InventoryModule(),
-        new ExplorationModule(),
       ]),
       config.decision!,
     )
@@ -39,13 +39,13 @@ describe("ActionPlanner", () => {
         status: "realm_cleared",
       },
       visible_entities: [
-        item("loot-1", { position: { x: 5, y: 3 } }),
+        item("loot-1", { position: { x: 4, y: 3 } }),
       ],
-      legal_actions: [portalAction(), moveAction("right"), moveAction("left")],
+      legal_actions: [portalAction(), pickupAction("loot-1"), moveAction("right"), moveAction("left")],
     })
 
     const decision = await planner.decideAction(observation, context)
-    expect(decision.action.type).toBe("move")
+    expect(decision.action).toEqual({ type: "pickup", item_id: "loot-1" })
     expect(decision.action).not.toEqual({ type: "use_portal" })
   })
 })

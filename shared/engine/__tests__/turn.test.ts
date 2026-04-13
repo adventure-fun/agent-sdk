@@ -2176,12 +2176,14 @@ describe("Group 13 — interactables, inventory, visits, and lore", () => {
 
   it("renders room-wide interactables at the room center", () => {
     const state = makeTutorialState()
-    const observation = buildObservationFromState(state, [], makeTutorialRealm())
+    const realm = makeTutorialRealm()
+    const observation = buildObservationFromState(state, [], realm)
     const interactable = observation.visible_entities.find(
       (entity) => entity.type === "interactable" && entity.id === "tutorial-wall-scratches",
     )
 
     expect(interactable?.position).toEqual({ x: 3, y: 3 })
+    expect(observation.realm_info.entrance_room_id).toBe(realm.floors[0]?.entrance_room_id ?? "")
   })
 
   it("blocks pickups when inventory is full and the item cannot stack", () => {

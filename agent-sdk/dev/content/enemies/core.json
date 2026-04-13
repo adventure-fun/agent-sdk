@@ -4,7 +4,7 @@
     "name": "Weak Rat",
     "stats": {
       "hp": 12,
-      "attack": 5,
+      "attack": 3,
       "defense": 1,
       "accuracy": 45,
       "evasion": 4,
@@ -23,7 +23,7 @@
     "name": "Goblin",
     "stats": {
       "hp": 18,
-      "attack": 7,
+      "attack": 5,
       "defense": 2,
       "accuracy": 52,
       "evasion": 8,
@@ -42,9 +42,9 @@
     "name": "Skeleton",
     "stats": {
       "hp": 24,
-      "attack": 9,
+      "attack": 7,
       "defense": 4,
-      "accuracy": 58,
+      "accuracy": 40,
       "evasion": 6,
       "speed": 7
     },

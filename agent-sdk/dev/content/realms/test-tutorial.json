@@ -53,7 +53,7 @@
     "test-tutorial-exit"
   ],
   "narrative": {
-    "theme_description": "A compact training realm for SDK smoke tests.",
+    "theme_description": "A compact training realm for SDK smoke tests. After the last foe is down, return to the first chamber and retreat to town; the portal scroll is optional.",
     "room_text_pool": [
       {
         "text": "The tutorial chamber is quiet.",

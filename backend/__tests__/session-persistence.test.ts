@@ -163,6 +163,29 @@ describe("8.1 — batchPersistMutations", () => {
 
     expect(getCalls("realm_mutations", "insert")).toHaveLength(0)
   })
+
+  it("persistRealmProgress writes last_turn + position unconditionally (even for wait turns)", async () => {
+    // Regression: a wait-loop used to freeze last_turn at the last mutation-bearing turn, so
+    // an ungraceful disconnect would rewind the resume point by hundreds of turns. This is the
+    // per-turn cursor write that guarantees worst-case regression of 1 turn.
+    const { persistRealmProgress } = await import("../src/game/session-persistence.js")
+    const { db, getCalls } = createMockDb()
+
+    await persistRealmProgress(db as any, "realm-1", 42, {
+      room_id: "f2_r0_sc-rest-shrine",
+      tile: { x: 1, y: 1 },
+      floor: 2,
+    })
+
+    const updates = getCalls("realm_instances", "update")
+    expect(updates).toHaveLength(1)
+    const payload = updates[0]?.payload as Record<string, unknown>
+    expect(payload.last_turn).toBe(42)
+    expect(payload.current_room_id).toBe("f2_r0_sc-rest-shrine")
+    expect(payload.tile_x).toBe(1)
+    expect(payload.tile_y).toBe(1)
+    expect(payload.floor_reached).toBe(2)
+  })
 })
 
 // ── 8.2 — Disconnect recovery (enemy state serialization) ───────────────────

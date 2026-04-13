@@ -20,7 +20,7 @@
         },
         {
           "type": "show-text",
-          "text": "Remember: clear the room, then use the portal."
+          "text": "After you clear the trial, return to this first chamber when it is safe — you can retreat to town from here without using a portal. Keep the scroll for emergencies or deeper realms."
         }
       ],
       "lore_entry_id": "tutorial-note"

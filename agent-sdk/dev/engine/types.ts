@@ -245,6 +245,7 @@ export interface SpectatorObservation {
   realm_info: {
     template_name: string
     current_floor: number
+    entrance_room_id: string
     status: "active" | "boss_floor" | "boss_cleared" | "realm_cleared"
   }
 }

@@ -33,6 +33,7 @@ import { db } from "../db/client.js"
 import type { SessionPayload } from "../auth/jwt.js"
 import {
   batchPersistMutations,
+  persistRealmProgress,
   serializeSessionState,
   applySessionState,
   countCompletedRealms,
@@ -525,12 +526,19 @@ export class GameSession {
     }
 
     // Persist world mutations in a single batch (8.1: was 2 DB writes per mutation)
+    const positionInfo = {
+      room_id: this.gameState.position.room_id,
+      tile: this.gameState.position.tile,
+      floor: this.gameState.position.floor,
+    }
     if (result.worldMutations.length > 0) {
-      await batchPersistMutations(db, this.realmId, this.turn, result.worldMutations, {
-        room_id: this.gameState.position.room_id,
-        tile: this.gameState.position.tile,
-        floor: this.gameState.position.floor,
-      })
+      await batchPersistMutations(db, this.realmId, this.turn, result.worldMutations, positionInfo)
+    } else {
+      // Even without world mutations (e.g. a `wait` action), bump `last_turn` + position so a
+      // silent disconnect never regresses the resume point by more than one turn. Previously a
+      // long wait-loop would leave `last_turn` frozen at the last mutation-bearing turn, and a
+      // dropped disconnect handler could cost hundreds of turns of progress on restart.
+      await persistRealmProgress(db, this.realmId, this.turn, positionInfo)
     }
 
     // Update in-memory state
@@ -559,6 +567,11 @@ export class GameSession {
       const cause =
         result.notableEvents.find((e) => e.type === "death")?.detail ??
         "Unknown"
+      // IMPORTANT: `endSession` must complete BEFORE we notify the client, otherwise the
+      // client's next loop iteration (reroll character + generate new realm) can race the
+      // still-in-flight DB updates and observe the dead character as still "alive" via
+      // /characters/me, leading to a later 404 "No living character" on /realms/generate.
+      await this.endSession("death")
       this.ws.send(
         JSON.stringify({
           type: "death",
@@ -570,7 +583,6 @@ export class GameSession {
           },
         }),
       )
-      await this.endSession("death")
       return
     }
 
@@ -580,13 +592,15 @@ export class GameSession {
         this.gameState,
         this.startingItemIds,
       )
+      // Same ordering as death: finalize DB state first so the client's post-extract lobby +
+      // next-realm flow sees a committed character/realm state.
+      await this.endSession("extraction")
       this.ws.send(
         JSON.stringify({
           type: "extracted",
           data: extractionData,
         }),
       )
-      await this.endSession("extraction")
       return
     }
 
@@ -692,7 +706,15 @@ export class GameSession {
         await this.syncInventory()
       }
     } catch (err) {
-      console.error("endSession error:", err)
+      // Log enough context to diagnose a stale `last_turn` on the next resume. Previously this
+      // catch silently swallowed DB failures, so a dropped persist inside endSession would
+      // look identical to a successful one.
+      console.error(
+        `[session] endSession persist failed realmId=${this.realmId} characterId=${this.characterId} reason=${reason} turn=${this.turn}:`,
+        err,
+      )
+      // Still run the cleanup below (don't rethrow) so the WS close path doesn't leak an in-memory
+      // session registration — but the log + structured fields make the failure observable.
     }
 
     // Clean up
