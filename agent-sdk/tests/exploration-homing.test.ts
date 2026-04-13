@@ -474,6 +474,73 @@ describe("extraction homing after dungeon clear", () => {
     expect(rec.reasoning.toLowerCase()).toContain("west")
   })
 
+  it("ExplorationModule east-bias picks `right` by default during active play", () => {
+    const mod = new ExplorationModule()
+    const ctx = createAgentContext(config)
+    const obs = buildObservation({
+      realm_info: { status: "active", entrance_room_id: "ent", current_floor: 1 },
+      position: { floor: 1, room_id: "room-a", tile: { x: 2, y: 2 } },
+      visible_tiles: [{ x: 2, y: 2, type: "floor", entities: [] }],
+      legal_actions: [
+        { type: "move", direction: "left" },
+        { type: "move", direction: "right" },
+        { type: "move", direction: "up" },
+        { type: "wait" },
+      ],
+    })
+    const rec = mod.analyze(obs, ctx)
+    expect(rec.suggestedAction).toEqual({ type: "move", direction: "right" })
+    expect(rec.context?.explorationHoming).toBe(true)
+    expect(rec.reasoning.toLowerCase()).toContain("east")
+  })
+
+  it("ExplorationModule east-bias skips `right` when prev action was `left` (immediate backtrack)", () => {
+    const mod = new ExplorationModule()
+    const ctx = createAgentContext(config)
+    ctx.previousActions.push({
+      turn: 1,
+      action: { type: "move", direction: "left" },
+      reasoning: "entered from east",
+    })
+    const obs = buildObservation({
+      realm_info: { status: "active", entrance_room_id: "ent", current_floor: 1 },
+      position: { floor: 1, room_id: "room-a", tile: { x: 2, y: 2 } },
+      visible_tiles: [
+        { x: 2, y: 2, type: "floor", entities: [] },
+        { x: 2, y: 1, type: "floor", entities: [] },
+      ],
+      legal_actions: [
+        { type: "move", direction: "left" },
+        { type: "move", direction: "right" },
+        { type: "move", direction: "up" },
+        { type: "wait" },
+      ],
+    })
+    const rec = mod.analyze(obs, ctx)
+    expect(rec.suggestedAction).not.toEqual({ type: "move", direction: "right" })
+    expect(rec.context?.explorationHoming).not.toBe(true)
+  })
+
+  it("ExplorationModule east-bias yields during combat (visible enemies present)", () => {
+    const mod = new ExplorationModule()
+    const ctx = createAgentContext(config)
+    const obs = buildObservation({
+      realm_info: { status: "active", entrance_room_id: "ent", current_floor: 1 },
+      position: { floor: 1, room_id: "room-a", tile: { x: 2, y: 2 } },
+      visible_entities: [
+        { id: "enemy-1", type: "enemy", name: "Husk", hp_current: 5, hp_max: 5, behavior: "aggressive", position: { x: 3, y: 2 } },
+      ],
+      visible_tiles: [{ x: 2, y: 2, type: "floor", entities: [] }],
+      legal_actions: [
+        { type: "move", direction: "left" },
+        { type: "move", direction: "right" },
+        { type: "wait" },
+      ],
+    })
+    const rec = mod.analyze(obs, ctx)
+    expect(rec.context?.explorationHoming).not.toBe(true)
+  })
+
   it("PortalModule defers use_portal when cleared, healthy, and not at entrance", () => {
     const mod = new PortalModule()
     const ctx = createAgentContext(config)

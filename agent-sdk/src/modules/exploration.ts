@@ -135,6 +135,30 @@ export class ExplorationModule implements AgentModule {
       ? context.mapMemory.lastRoomEntry.cameFromDirection
       : null
 
+    // East-bias active exploration: symmetric with post-clear west-bias retreat. Only applies
+    // during active play when there are no visible enemies (combat module handles combat). The
+    // planner has a matching override tier that keeps this recommendation in force across the
+    // tactical LLM's replans.
+    const hasVisibleEnemies = observation.visible_entities.some((entity) => entity.type === "enemy")
+    const activeExploration =
+      !COMPLETED_STATUSES.has(observation.realm_info.status) && !hasVisibleEnemies
+    if (
+      activeExploration
+      && context.config.decision?.explorationPreferRightBias === true
+    ) {
+      const east = chooseEastBiasMove(
+        context,
+        effectiveMoveActions,
+        currentRoom,
+        context.mapMemory.loopEdgeBans?.[currentRoom] ?? null,
+        "Exploring east (right) by default — realm spines generally run east from the entrance, so stepping right is usually forward progress.",
+        0.69,
+      )
+      if (east) {
+        return east
+      }
+    }
+
     const bestMove = chooseExplorationMove(observation, context, effectiveMoveActions, cameFromDirection)
     if (bestMove) {
       return {
@@ -259,6 +283,7 @@ export class ExplorationModule implements AgentModule {
 }
 
 const EXTRACTION_HOMING_CONTEXT = { extractionHoming: true as const }
+const EXPLORATION_HOMING_CONTEXT = { explorationHoming: true as const }
 
 const LOOP_ROOM_HISTORY_CAP = 16
 
@@ -404,6 +429,45 @@ function chooseFloor1HomingBreakoutMove(
   }
 
   return null
+}
+
+/**
+ * Active-play mirror of `chooseWestBiasMove`: during normal exploration, prefer moving east
+ * (`right`) to make forward progress through the realm spine. Returns null if `right` is absent,
+ * stalled, loop-banned, or would immediately undo the agent's previous west step.
+ */
+function chooseEastBiasMove(
+  context: AgentContext,
+  moveActions: Array<Extract<Action, { type: "move" }>>,
+  roomId: string,
+  loopBan: Direction | null,
+  reasoning: string,
+  confidence: number,
+): ModuleRecommendation | null {
+  const prev = context.previousActions.at(-1)?.action
+  const immediateBacktrack =
+    prev?.type === "move" && prev.direction === reverseDirection("right")
+  if (immediateBacktrack) {
+    return null
+  }
+  const rightMove = moveActions.find((a) => a.direction === "right")
+  if (!rightMove) {
+    return null
+  }
+  const rightStalls =
+    context.mapMemory.stalledMoves.get(stalledMoveKey(roomId, "right")) ?? 0
+  if (rightStalls > 0) {
+    return null
+  }
+  if (loopBan === "right") {
+    return null
+  }
+  return {
+    suggestedAction: rightMove,
+    reasoning,
+    confidence,
+    context: EXPLORATION_HOMING_CONTEXT,
+  }
 }
 
 /**
