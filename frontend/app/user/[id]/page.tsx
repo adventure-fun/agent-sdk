@@ -18,6 +18,7 @@ import { use, useEffect, useState } from "react"
 import type { CharacterClass } from "@adventure-fun/schemas"
 import { useAdventureAuth } from "../../hooks/use-adventure-auth"
 import { useUsdcBalance } from "../../hooks/use-usdc-balance"
+import { ProfileEditModal } from "../../components/profile-edit-modal"
 import {
   characterHref,
   ownerLabel,
@@ -85,9 +86,20 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
   const [data, setData] = useState<UserProfile | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [editOpen, setEditOpen] = useState(false)
 
   const { account, evmAddress, isAuthenticated, logout } = useAdventureAuth()
   const { balanceLabel, isTestnet } = useUsdcBalance()
+
+  // Reload the profile after a successful edit so the header and the
+  // socials row pick up the new values. Cheap — just re-fires the same
+  // GET /users/:id request on the same id.
+  const reload = () => {
+    fetch(`${API_URL}/users/${encodeURIComponent(id)}`)
+      .then((res) => res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`)))
+      .then((body) => setData(body as UserProfile))
+      .catch((err) => setError(err instanceof Error ? err.message : "Failed to reload"))
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -199,6 +211,14 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
               </Link>
               <button
                 type="button"
+                onClick={() => setEditOpen(true)}
+                className="ob-label text-[10px] uppercase tracking-widest border border-ob-primary/40 text-ob-primary hover:bg-ob-primary/10 px-4 py-2 rounded-lg transition-colors flex items-center justify-center gap-1"
+              >
+                <span className="material-symbols-outlined text-sm">edit</span>
+                Edit Profile
+              </button>
+              <button
+                type="button"
                 onClick={() => logout()}
                 className="ob-label text-[10px] uppercase tracking-widest border border-ob-outline-variant/30 text-ob-on-surface-variant hover:border-ob-error/40 hover:text-ob-error px-4 py-2 rounded-lg transition-colors"
               >
@@ -207,6 +227,36 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
             </div>
           ) : null}
         </section>
+
+        {/* Socials — show X and GitHub links prominently when set. These
+            come from the PATCH /auth/profile endpoint (issue #5) and are
+            stored as bare usernames, so we construct the URLs here. */}
+        {(data.user.x_handle || data.user.github_handle) && (
+          <section className="flex flex-wrap gap-3">
+            {data.user.x_handle ? (
+              <a
+                href={`https://x.com/${data.user.x_handle}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 bg-ob-surface-container-low border border-ob-outline-variant/15 hover:border-ob-primary/30 px-4 py-2 rounded-lg transition-colors"
+              >
+                <span className="material-symbols-outlined text-sm text-ob-primary">alternate_email</span>
+                <span className="text-xs text-ob-on-surface">@{data.user.x_handle}</span>
+              </a>
+            ) : null}
+            {data.user.github_handle ? (
+              <a
+                href={`https://github.com/${data.user.github_handle}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 bg-ob-surface-container-low border border-ob-outline-variant/15 hover:border-ob-primary/30 px-4 py-2 rounded-lg transition-colors"
+              >
+                <span className="material-symbols-outlined text-sm text-ob-primary">code</span>
+                <span className="text-xs text-ob-on-surface">{data.user.github_handle}</span>
+              </a>
+            ) : null}
+          </section>
+        )}
 
         {/* ── Aggregate stats ─────────────────────────────────────────── */}
         <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -360,6 +410,25 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
           )}
         </section>
       </div>
+
+      {/* Profile edit modal — rendered via portal-less conditional at
+          the end so it sits above the ambient background blobs. Only
+          mounted when you're editing your own profile (the button that
+          opens it is gated on isOwnProfile). */}
+      {editOpen && isOwnProfile ? (
+        <ProfileEditModal
+          initial={{
+            handle: data.user.handle,
+            x_handle: data.user.x_handle,
+            github_handle: data.user.github_handle,
+          }}
+          onClose={() => setEditOpen(false)}
+          onSaved={() => {
+            setEditOpen(false)
+            reload()
+          }}
+        />
+      ) : null}
     </main>
   )
 }
