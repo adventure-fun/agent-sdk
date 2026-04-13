@@ -38,7 +38,9 @@ interface OpenRouterResponse {
       tool_calls?: Array<{
         function?: {
           name?: string
-          arguments?: string
+          // OpenAI/Anthropic models return arguments as a JSON string, but Google Gemini and
+          // some smaller models on OpenRouter return arguments as a parsed object. Accept both.
+          arguments?: string | Record<string, unknown>
         }
       }>
     }
@@ -75,6 +77,7 @@ export class OpenRouterAdapter implements LLMAdapter {
       prompt.observation,
       prompt.moduleRecommendations,
       prompt.recentHistory,
+      prompt.memorySnapshot,
     )
 
     for (let attempt = 0; attempt <= this.maxRetries; attempt += 1) {
@@ -94,16 +97,47 @@ export class OpenRouterAdapter implements LLMAdapter {
     const userPrompt = buildPlanningPrompt(prompt)
 
     for (let attempt = 0; attempt <= this.maxRetries; attempt += 1) {
-      const response = await this.postChatCompletion(
-        this.buildPlanningBody(prompt.systemPrompt, userPrompt, prompt.maxActions, attempt),
-      )
-      const result = this.parsePlanningResponse(response)
-      if (result) {
-        return result
+      try {
+        const response = await this.postChatCompletion(
+          this.buildPlanningBody(prompt.systemPrompt, userPrompt, prompt.maxActions, attempt),
+        )
+        const result = this.parsePlanningResponse(response)
+        if (result) {
+          return result
+        }
+      } catch (error) {
+        // Network / 5xx errors are surfaced; let the caller retry the whole plan request.
+        // Auth / rate-limit errors still throw — they need user intervention.
+        if (
+          error instanceof Error
+          && (error.message.includes("authentication failed")
+            || error.message.includes("rate limit"))
+        ) {
+          throw error
+        }
+        // Otherwise swallow and try the next attempt.
       }
     }
 
-    throw new Error("OpenRouter did not return a valid action plan")
+    // Final fallback: if the plan endpoint won't produce a parseable response after retries,
+    // ask for a single tactical decision instead and wrap it as a 1-action plan. This keeps
+    // the agent moving instead of crashing the whole run on one bad parse.
+    try {
+      const decision = await this.decide({
+        observation: prompt.observation,
+        moduleRecommendations: prompt.moduleRecommendations,
+        legalActions: prompt.legalActions,
+        recentHistory: prompt.recentHistory,
+        systemPrompt: prompt.systemPrompt,
+        ...(prompt.memorySnapshot ? { memorySnapshot: prompt.memorySnapshot } : {}),
+      })
+      return {
+        strategy: "Fallback: model returned an unparseable plan; using single tactical decision.",
+        actions: [{ action: decision.action, reasoning: decision.reasoning }],
+      }
+    } catch {
+      throw new Error("OpenRouter did not return a valid action plan")
+    }
   }
 
   async chat(prompt: ChatPrompt): Promise<string> {
@@ -268,25 +302,26 @@ export class OpenRouterAdapter implements LLMAdapter {
   ): DecisionResult | null {
     const message = response.choices?.[0]?.message
     if (!message) {
+      this.logUnparseableResponse("decision", response, "no message in response")
       return null
     }
 
     for (const toolCall of message.tool_calls ?? []) {
-      if (!toolCall.function?.arguments) {
+      const args = toolCall.function?.arguments
+      if (args === undefined || args === null) {
         continue
       }
 
-      try {
-        const parsed = JSON.parse(toolCall.function.arguments) as unknown
-        const result = parseDecisionResult(parsed, legalActions)
-        if (result.action) {
-          return {
-            action: result.action,
-            reasoning: result.reasoning ?? "Selected by OpenRouter tool call.",
-          }
-        }
-      } catch {
+      const parsed = coerceToolArguments(args)
+      if (parsed === null) {
         continue
+      }
+      const result = parseDecisionResult(parsed, legalActions)
+      if (result.action) {
+        return {
+          action: result.action,
+          reasoning: result.reasoning ?? "Selected by OpenRouter tool call.",
+        }
       }
     }
 
@@ -300,36 +335,67 @@ export class OpenRouterAdapter implements LLMAdapter {
       }
     }
 
+    this.logUnparseableResponse("decision", response, "tool calls and content both unparseable")
     return null
   }
 
   private parsePlanningResponse(response: OpenRouterResponse): ActionPlan | null {
     const message = response.choices?.[0]?.message
     if (!message) {
+      this.logUnparseableResponse("plan", response, "no message in response")
       return null
     }
 
     for (const toolCall of message.tool_calls ?? []) {
-      if (!toolCall.function?.arguments) {
+      const args = toolCall.function?.arguments
+      if (args === undefined || args === null) {
         continue
       }
 
-      try {
-        const parsed = JSON.parse(toolCall.function.arguments) as unknown
-        const plan = parseActionPlanFromJSON(parsed)
-        if (plan) {
-          return plan
-        }
-      } catch {
+      const parsed = coerceToolArguments(args)
+      if (parsed === null) {
         continue
+      }
+      const plan = parseActionPlanFromJSON(parsed)
+      if (plan) {
+        return plan
       }
     }
 
     if (typeof message.content === "string") {
-      return parseActionPlanFromText(message.content)
+      const plan = parseActionPlanFromText(message.content)
+      if (plan) {
+        return plan
+      }
     }
 
+    this.logUnparseableResponse("plan", response, "tool calls and content both unparseable")
     return null
+  }
+
+  private logUnparseableResponse(
+    kind: "plan" | "decision",
+    response: OpenRouterResponse,
+    reason: string,
+  ): void {
+    // Single-line dump so the user can see what the model actually returned. Truncated to
+    // avoid spamming the terminal, and only emitted at the warn level so it stays visible
+    // without overwhelming normal logs.
+    const message = response.choices?.[0]?.message
+    const toolCallShapes = (message?.tool_calls ?? []).map((tc) => ({
+      function_name: tc.function?.name,
+      arguments_type: typeof tc.function?.arguments,
+      arguments_preview:
+        typeof tc.function?.arguments === "string"
+          ? tc.function.arguments.slice(0, 200)
+          : JSON.stringify(tc.function?.arguments).slice(0, 200),
+    }))
+    const contentPreview =
+      typeof message?.content === "string" ? message.content.slice(0, 200) : null
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[openrouter] ${kind} parse failed (${reason}); model=${this.model} tool_calls=${JSON.stringify(toolCallShapes)} content_preview=${JSON.stringify(contentPreview)}`,
+    )
   }
 
   private resolveStructuredOutputMode(): Exclude<StructuredOutputMode, "auto"> {
@@ -337,6 +403,55 @@ export class OpenRouterAdapter implements LLMAdapter {
       return this.structuredOutput
     }
 
-    return this.model.includes("gpt") ? "tool" : "json"
+    // Models known to honor tool/function calling on OpenRouter. JSON-only fallback applies
+    // to everything else (some smaller / open models). Tool mode is preferred whenever it works
+    // because it enforces the response schema — without it, models are free to return JSON in
+    // shapes the parser doesn't recognize, which surfaces as "did not return a valid action plan".
+    const toolCapableModelMarkers = [
+      "gpt",
+      "openai/",
+      "anthropic/",
+      "claude",
+      "google/gemini",
+      "gemini",
+      "mistral",
+      "meta-llama",
+      "qwen",
+    ]
+    const lower = this.model.toLowerCase()
+    if (toolCapableModelMarkers.some((marker) => lower.includes(marker))) {
+      return "tool"
+    }
+    return "json"
+  }
+}
+
+/**
+ * Tool-call argument coercion. OpenAI / Anthropic models on OpenRouter return arguments as a
+ * JSON string. Google Gemini and a number of smaller models return arguments as an already
+ * parsed object. Some models also return arguments wrapped in an extra string layer
+ * (e.g. `"\"{\\\"strategy\\\":...}\""`). Try every shape we've seen in the wild before giving up.
+ */
+function coerceToolArguments(value: unknown): unknown {
+  if (value === null || value === undefined) return null
+  if (typeof value === "object") return value
+  if (typeof value !== "string") return null
+
+  const trimmed = value.trim()
+  if (!trimmed) return null
+
+  try {
+    const first = JSON.parse(trimmed)
+    if (typeof first === "string") {
+      // Double-encoded JSON. Try parsing once more.
+      try {
+        return JSON.parse(first)
+      } catch {
+        return null
+      }
+    }
+    return first
+  } catch {
+    return null
   }
 }

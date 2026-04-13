@@ -114,6 +114,7 @@ function createObservation(): Observation {
       { type: "wait" },
     ],
     realm_info: {
+      template_id: "tutorial",
       template_name: "Tutorial",
       floor_count: 1,
       current_floor: 1,

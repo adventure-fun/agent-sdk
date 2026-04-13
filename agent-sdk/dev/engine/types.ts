@@ -214,6 +214,7 @@ export interface SpectatorEntity {
   id: string
   type: "enemy" | "item" | "interactable"
   name: string
+  template_id?: string
   position: { x: number; y: number }
   health_indicator?: "full" | "high" | "medium" | "low" | "critical"
   behavior?: EnemyBehavior
@@ -221,6 +222,24 @@ export interface SpectatorEntity {
 }
 
 // ---- Game Events --------------------------------------------
+
+/**
+ * Generic game event emitted by the engine. `type` is an open string so new events can be added
+ * without breaking the schema contract, but certain well-known types have a documented `data`
+ * shape that agents / clients can rely on:
+ *
+ *   - `"interact_blocked"`: emitted when an `interact` action fails a condition. `data` fields:
+ *       - `target_id: string` — interactable entity id
+ *       - `reason: "missing-item" | "enemy-not-defeated" | "room-not-cleared" | "missing-flag" | "already-used"`
+ *       - `required_template_id?: string` — only for `reason === "missing-item"`, the item template
+ *         id that satisfies the condition
+ *       - `required_entity_id?: string` — only for `reason === "enemy-not-defeated"`
+ *       - `required_flag?: string` — only for `reason === "missing-flag"`
+ *       - `is_locked_exit?: boolean` — true when the target is the room's locked exit
+ *
+ *   - `"blocked"`: generic "path/action blocked" — existing, unchanged. `data.direction` for
+ *      blocked movement, `data.action` for other blocked action types.
+ */
 
 export interface SpectatorObservation {
   turn: number
@@ -243,6 +262,7 @@ export interface SpectatorObservation {
   room_text: string | null
   recent_events: GameEvent[]
   realm_info: {
+    template_id: string
     template_name: string
     current_floor: number
     entrance_room_id: string

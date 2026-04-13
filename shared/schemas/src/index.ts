@@ -312,6 +312,11 @@ export interface Entity {
   name: string
   position: { x: number; y: number }
   template_id?: string
+  /**
+   * Item template type copied from the underlying content template. Only set for `type === "item"`.
+   * Lets agent SDKs identify key-items without a name heuristic.
+   */
+  template_type?: ItemType
   rarity?: ItemRarity
   hp_current?: number
   hp_max?: number
@@ -319,6 +324,11 @@ export interface Entity {
   behavior?: EnemyBehavior
   is_boss?: boolean
   trapped?: boolean
+  /**
+   * True when this interactable is the room's locked exit. Only set for `type === "interactable"`.
+   * Agents can use this as a structured signal that the entity is a door blocking realm progress.
+   */
+  is_locked_exit?: boolean
 }
 
 export interface SpectatorEntity {
@@ -334,6 +344,23 @@ export interface SpectatorEntity {
 
 // ---- Game Events --------------------------------------------
 
+/**
+ * Generic game event emitted by the engine. `type` is an open string so new events can be added
+ * without breaking the schema contract, but certain well-known types have a documented `data`
+ * shape that agents / clients can rely on:
+ *
+ *   - `"interact_blocked"`: emitted when an `interact` action fails a condition. `data` fields:
+ *       - `target_id: string` — interactable entity id
+ *       - `reason: "missing-item" | "enemy-not-defeated" | "room-not-cleared" | "missing-flag" | "already-used"`
+ *       - `required_template_id?: string` — only for `reason === "missing-item"`, the item template
+ *         id that satisfies the condition
+ *       - `required_entity_id?: string` — only for `reason === "enemy-not-defeated"`
+ *       - `required_flag?: string` — only for `reason === "missing-flag"`
+ *       - `is_locked_exit?: boolean` — true when the target is the room's locked exit
+ *
+ *   - `"blocked"`: generic "path/action blocked" — existing, unchanged. `data.direction` for
+ *      blocked movement, `data.action` for other blocked action types.
+ */
 export interface GameEvent {
   turn: number
   type: string

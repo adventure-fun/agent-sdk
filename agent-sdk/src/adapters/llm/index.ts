@@ -1,6 +1,6 @@
 import type { LLMConfig } from "../../config.js"
 import type { Action, CharacterClass, Observation, SanitizedChatMessage } from "../../protocol.js"
-import type { ModuleRecommendation } from "../../modules/index.js"
+import type { MemorySnapshot, ModuleRecommendation } from "../../modules/index.js"
 import type { ChatPersonality } from "../../chat/personality.js"
 import { AnthropicAdapter } from "./anthropic.js"
 import { OpenAIAdapter } from "./openai.js"
@@ -19,6 +19,7 @@ export interface DecisionPrompt {
   legalActions: Action[]
   recentHistory: HistoryEntry[]
   systemPrompt: string
+  memorySnapshot?: MemorySnapshot
 }
 
 export interface DecisionResult {
@@ -45,6 +46,7 @@ export interface PlanningPrompt {
   strategicContext?: string
   planType: "strategic" | "tactical"
   maxActions: number
+  memorySnapshot?: MemorySnapshot
 }
 
 export interface ChatPrompt {

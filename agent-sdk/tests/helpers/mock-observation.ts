@@ -69,6 +69,7 @@ export function buildObservation(overrides: DeepPartial<Observation> = {}): Obse
     recent_events: (overrides.recent_events ?? []) as GameEvent[],
     legal_actions: (overrides.legal_actions ?? []) as Action[],
     realm_info: {
+      template_id: "test-dungeon",
       template_name: "test-dungeon",
       floor_count: 2,
       current_floor: 1,

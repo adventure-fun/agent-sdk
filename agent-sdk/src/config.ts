@@ -133,6 +133,14 @@ export interface DecisionConfig {
    * @default 12
    */
   explorationHomingOverrideMaxStreak?: number
+  /**
+   * Number of recent action entries from `context.previousActions` that the planner serializes
+   * into the LLM decision/planning prompt. A larger window helps the model recognize
+   * multi-turn patterns (e.g. repeatedly bumping a locked door) and recall earlier observations
+   * when deciding whether to backtrack. Capped by `MAX_HISTORY` in agent.ts.
+   * @default 20
+   */
+  historyWindow?: number
 }
 
 export interface AgentConfig {

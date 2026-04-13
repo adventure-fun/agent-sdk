@@ -3,6 +3,7 @@ import {
   ExplorationModule,
   HealingModule,
   InventoryModule,
+  KeyDoorModule,
   PortalModule,
   TrapHandlingModule,
   type WalletNetwork,
@@ -197,6 +198,7 @@ export const strategicConfig: AgentConfig = createDefaultConfig({
     { name: "trap-handling", priority: 85 },
     { name: "loot-prioritizer", priority: 75 },
     { name: "inventory", priority: 70 },
+    { name: "key-door", priority: 60 },
     { name: "exploration", priority: 40 },
   ],
   chat: {
@@ -225,6 +227,7 @@ export function createStrategicModules(): AgentModule[] {
     new TrapHandlingModule(),
     new LootPrioritizer(),
     new InventoryModule(),
+    new KeyDoorModule(),
     new ExplorationModule(),
   ]
 }

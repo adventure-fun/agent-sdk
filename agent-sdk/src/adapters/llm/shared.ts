@@ -1,6 +1,6 @@
 import type { AgentConfig } from "../../config.js"
-import type { Action, Observation } from "../../protocol.js"
-import type { ModuleRecommendation } from "../../modules/index.js"
+import type { Action, Entity, GameEvent, Observation } from "../../protocol.js"
+import type { MemorySnapshot, ModuleRecommendation } from "../../modules/index.js"
 import type { ActionPlan, HistoryEntry, PlanningPrompt } from "./index.js"
 import type {
   AgentCharacter,
@@ -30,7 +30,6 @@ export interface ActionToolSchema {
     properties: {
       action: JsonSchemaProperty & {
         type: "object"
-        oneOf: JsonSchemaProperty[]
       }
       reasoning: JsonSchemaProperty
     }
@@ -231,13 +230,14 @@ export function buildDecisionPrompt(
   observation: Observation,
   recommendations: ModuleRecommendation[],
   history: HistoryEntry[],
+  memorySnapshot?: MemorySnapshot,
 ): string {
   const formatAction = (action: Action): string => JSON.stringify(action, null, 2)
-  const visibleEntities = observation.visible_entities.length
-    ? observation.visible_entities
-        .map((entity) => `${entity.id}:${entity.type}:${entity.name}`)
-        .join(", ")
-    : "none"
+  const visibleEntities = summarizeVisibleEntities(observation)
+  const nearbyItems = summarizeNearbyItems(observation)
+  const recentEvents = summarizeRecentEvents(observation)
+  const knownMapSummary = summarizeKnownMap(observation, memorySnapshot)
+  const memoryLines = summarizeMemorySnapshot(observation, memorySnapshot)
   const legalActions = observation.legal_actions.length
     ? observation.legal_actions.map((action) => formatAction(action)).join("\n")
     : "none"
@@ -265,7 +265,6 @@ export function buildDecisionPrompt(
         )
         .join("\n")
     : "none"
-  const spatialContext = summarizeSpatialContext(observation)
 
   return [
     "Current turn context:",
@@ -281,7 +280,15 @@ export function buildDecisionPrompt(
     `Visible entities (${observation.visible_entities.length}): ${visibleEntities}`,
     `Room text: ${observation.room_text ?? "none"}`,
     "Spatial context:",
-    spatialContext,
+    summarizeSpatialContext(observation, memorySnapshot),
+    "Nearby items:",
+    nearbyItems,
+    "Recent events:",
+    recentEvents,
+    "Known map summary:",
+    knownMapSummary,
+    "Remembered items (from prior turns, not necessarily visible now):",
+    memoryLines,
     "",
     "Module recommendations:",
     moduleLines,
@@ -298,11 +305,11 @@ export function buildPlanningPrompt(
   prompt: PlanningPrompt,
 ): string {
   const formatAction = (action: Action): string => JSON.stringify(action, null, 2)
-  const visibleEntities = prompt.observation.visible_entities.length
-    ? prompt.observation.visible_entities
-        .map((entity) => `${entity.id}:${entity.type}:${entity.name}`)
-        .join(", ")
-    : "none"
+  const visibleEntities = summarizeVisibleEntities(prompt.observation)
+  const nearbyItems = summarizeNearbyItems(prompt.observation)
+  const recentEvents = summarizeRecentEvents(prompt.observation)
+  const knownMapSummary = summarizeKnownMap(prompt.observation, prompt.memorySnapshot)
+  const memoryLines = summarizeMemorySnapshot(prompt.observation, prompt.memorySnapshot)
   const legalActions = prompt.legalActions.length
     ? prompt.legalActions.map((action) => formatAction(action)).join("\n")
     : "none"
@@ -330,9 +337,6 @@ export function buildPlanningPrompt(
         )
         .join("\n")
     : "none"
-  const mapSummary = JSON.stringify(prompt.observation.known_map)
-  const spatialContext = summarizeSpatialContext(prompt.observation)
-
   return [
     `${prompt.planType === "strategic" ? "Strategic" : "Tactical"} planning request:`,
     `Turn: ${prompt.observation.turn}`,
@@ -347,8 +351,15 @@ export function buildPlanningPrompt(
     `Visible entities (${prompt.observation.visible_entities.length}): ${visibleEntities}`,
     `Room text: ${prompt.observation.room_text ?? "none"}`,
     "Spatial context:",
-    spatialContext,
-    `Known map: ${mapSummary}`,
+    summarizeSpatialContext(prompt.observation, prompt.memorySnapshot),
+    "Nearby items:",
+    nearbyItems,
+    "Recent events:",
+    recentEvents,
+    "Known map summary:",
+    knownMapSummary,
+    "Remembered items (from prior turns, not necessarily visible now):",
+    memoryLines,
     prompt.strategicContext ? `Strategic context: ${prompt.strategicContext}` : "Strategic context: none",
     `Maximum planned actions: ${prompt.maxActions}`,
     "",
@@ -374,10 +385,7 @@ export function buildActionToolSchema(): ActionToolSchema {
     input_schema: {
       type: "object",
       properties: {
-        action: {
-          type: "object",
-          oneOf: buildActionSchemaBranches(),
-        },
+        action: buildActionObjectSchema(),
         reasoning: {
           type: "string",
           description: "Brief explanation for the chosen action.",
@@ -405,10 +413,7 @@ export function buildPlanningToolSchema(maxActions: number): PlanToolSchema {
           items: {
             type: "object",
             properties: {
-              action: {
-                type: "object",
-                oneOf: buildActionSchemaBranches(),
-              },
+              action: buildActionObjectSchema(),
               reasoning: {
                 type: "string",
                 description: "Brief explanation for this planned step.",
@@ -523,23 +528,52 @@ export function parseActionPlanFromJSON(value: unknown): ActionPlan | null {
     return null
   }
 
-  const strategy = typeof value.strategy === "string" ? value.strategy.trim() : ""
-  const actionsValue = value.actions
-  if (!strategy || !Array.isArray(actionsValue)) {
+  // Many models (Gemini, smaller open-source models) ignore the exact field names from the
+  // tool schema and return slightly different shapes. Be lenient: accept common variants,
+  // unwrap one level of nesting (`plan`, `result`, `data`), and fall back to defaults rather
+  // than failing the whole response.
+  const unwrapped = unwrapPlanRoot(value)
+
+  const strategy = pickPlanStrategy(unwrapped)
+  const actionsValue = pickPlanActions(unwrapped)
+  if (!Array.isArray(actionsValue)) {
     return null
   }
 
   const actions = actionsValue
     .map((item): { action: Action; reasoning: string } | null => {
       if (!isRecord(item)) {
+        // Some models skip the wrapper and return action objects directly: `{type:"move",...}`.
+        // Try to parse the item itself as an action.
+        if (item && typeof item === "object") {
+          const directAction = parseAnyActionFromJSON(item)
+          if (directAction) {
+            return { action: directAction, reasoning: "(no reasoning provided)" }
+          }
+        }
         return null
       }
 
-      const action = parseAnyActionFromJSON(item.action)
-      const reasoning = typeof item.reasoning === "string" ? item.reasoning.trim() : ""
-      if (!action || !reasoning) {
+      // Action may live under `action`, `step`, `move`, `command`, or be the item itself.
+      const actionPayload =
+        item.action
+        ?? item.step
+        ?? item.move
+        ?? item.command
+        ?? item
+      const action = parseAnyActionFromJSON(actionPayload)
+      if (!action) {
         return null
       }
+
+      const reasoningRaw =
+        (typeof item.reasoning === "string" && item.reasoning)
+        || (typeof item.reason === "string" && item.reason)
+        || (typeof item.rationale === "string" && item.rationale)
+        || (typeof item.thought === "string" && item.thought)
+        || (typeof item.description === "string" && item.description)
+        || ""
+      const reasoning = reasoningRaw.trim() || "(no reasoning provided)"
 
       return { action, reasoning }
     })
@@ -549,7 +583,39 @@ export function parseActionPlanFromJSON(value: unknown): ActionPlan | null {
     return null
   }
 
-  return { strategy, actions }
+  return { strategy: strategy || "(no strategy provided)", actions }
+}
+
+function unwrapPlanRoot(value: Record<string, unknown>): Record<string, unknown> {
+  // Some adapters nest the structured response inside a wrapper key. Unwrap one level if the
+  // current object only contains a single recognized wrapper.
+  for (const wrapper of ["plan", "plan_actions", "result", "data", "output", "response"]) {
+    const inner = value[wrapper]
+    if (isRecord(inner) && (inner.actions || inner.steps || inner.strategy)) {
+      return inner
+    }
+  }
+  return value
+}
+
+function pickPlanStrategy(value: Record<string, unknown>): string {
+  const candidates = [value.strategy, value.plan_summary, value.summary, value.plan, value.goal]
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim()) {
+      return candidate.trim()
+    }
+  }
+  return ""
+}
+
+function pickPlanActions(value: Record<string, unknown>): unknown {
+  const candidates = [value.actions, value.steps, value.plan_actions, value.moves, value.queue]
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) {
+      return candidate
+    }
+  }
+  return null
 }
 
 export function parseActionPlanFromText(response: string): ActionPlan | null {
@@ -622,74 +688,308 @@ export function buildCorrectionMessage(legalActions: Action[]): string {
   ].join("\n")
 }
 
-function buildActionSchemaBranches(): JsonSchemaProperty[] {
-  const branch = (
-    actionType: Action["type"],
-    extraProperties: Record<string, JsonSchemaProperty> = {},
-    required: string[] = [],
-  ): JsonSchemaProperty => ({
+/**
+ * Flat action object schema (no `oneOf`). The LLM picks `type` from the enum and fills the
+ * other fields based on which type it chose; the parser's `normalizeAction` enforces shape.
+ *
+ * **Why flat?** A discriminated union via `oneOf` + `const` is the schema-correct way to
+ * model this, and OpenAI / Anthropic models handle it fine. But Google Gemini's function-
+ * calling implementation does NOT properly fill out `oneOf` schemas — it generates the
+ * outer wrapper but emits `action: {}` for the inner discriminated branch, dropping all
+ * fields. Flat schemas with an enum discriminator work across every major model.
+ */
+function buildActionObjectSchema(): JsonSchemaProperty & { type: "object" } {
+  return {
     type: "object",
     properties: {
       type: {
         type: "string",
-        const: actionType,
+        enum: [
+          "move",
+          "attack",
+          "disarm_trap",
+          "use_item",
+          "equip",
+          "unequip",
+          "inspect",
+          "interact",
+          "use_portal",
+          "retreat",
+          "wait",
+          "pickup",
+          "drop",
+        ],
+        description:
+          "The action type. Required. Pick exactly one from the enum. Then fill ONLY the fields relevant to that type (see field descriptions below).",
       },
-      ...extraProperties,
+      direction: {
+        type: "string",
+        enum: ["up", "down", "left", "right"],
+        description: "Required when type=move. Omit for all other types.",
+      },
+      target_id: {
+        type: "string",
+        description:
+          "Required when type=attack, inspect, or interact (entity id from visible_entities). Optional when type=use_item (target entity id). Omit otherwise.",
+      },
+      item_id: {
+        type: "string",
+        description:
+          "Required when type=pickup, drop, equip, use_item, or disarm_trap (inventory item id or visible item entity id). Omit otherwise.",
+      },
+      ability_id: {
+        type: "string",
+        description:
+          "Optional when type=attack (specific ability id). Omit for basic attacks and all other types.",
+      },
+      slot: {
+        type: "string",
+        enum: ["weapon", "armor", "helm", "hands", "accessory"],
+        description: "Required when type=unequip. Omit for all other types.",
+      },
     },
-    required: ["type", ...required],
+    required: ["type"],
     additionalProperties: false,
-  })
-
-  return [
-    branch(
-      "move",
-      {
-        direction: {
-          type: "string",
-          enum: ["up", "down", "left", "right"],
-        },
-      },
-      ["direction"],
-    ),
-    branch(
-      "attack",
-      {
-        target_id: { type: "string" },
-        ability_id: { type: "string" },
-      },
-      ["target_id"],
-    ),
-    branch("disarm_trap", { item_id: { type: "string" } }, ["item_id"]),
-    branch(
-      "use_item",
-      {
-        item_id: { type: "string" },
-        target_id: { type: "string" },
-      },
-      ["item_id"],
-    ),
-    branch("equip", { item_id: { type: "string" } }, ["item_id"]),
-    branch(
-      "unequip",
-      {
-        slot: {
-          type: "string",
-          enum: ["weapon", "armor", "helm", "hands", "accessory"],
-        },
-      },
-      ["slot"],
-    ),
-    branch("inspect", { target_id: { type: "string" } }, ["target_id"]),
-    branch("interact", { target_id: { type: "string" } }, ["target_id"]),
-    branch("use_portal"),
-    branch("retreat"),
-    branch("wait"),
-    branch("pickup", { item_id: { type: "string" } }, ["item_id"]),
-    branch("drop", { item_id: { type: "string" } }, ["item_id"]),
-  ]
+  }
 }
 
-function summarizeSpatialContext(observation: Observation): string {
+function summarizeMemorySnapshot(
+  observation: Observation,
+  snapshot: MemorySnapshot | undefined,
+): string {
+  if (!snapshot) return "none"
+  const sections: string[] = []
+
+  // Lead with room connectivity — most actionable signal for the LLM when stuck.
+  if (snapshot.visitedRoomIds.length > 0) {
+    const currentRoomId = observation.position.room_id
+    const visitedSet = new Set(snapshot.visitedRoomIds)
+    const lines: string[] = [
+      `You have visited ${snapshot.visitedRoomCount} room(s): ${snapshot.visitedRoomIds.join(", ")}`,
+    ]
+    // Group connections by source room for readability.
+    const byRoom = new Map<string, Array<{ direction: string; toRoomId: string; visited: boolean }>>()
+    for (const conn of snapshot.roomConnections) {
+      const list = byRoom.get(conn.fromRoomId) ?? []
+      list.push({
+        direction: conn.direction,
+        toRoomId: conn.toRoomId,
+        visited: visitedSet.has(conn.toRoomId),
+      })
+      byRoom.set(conn.fromRoomId, list)
+    }
+    for (const [roomId, conns] of byRoom) {
+      const marker = roomId === currentRoomId ? " (current)" : ""
+      const formatted = conns
+        .map(
+          (c) =>
+            `${c.direction} → ${c.toRoomId}${c.visited ? " (visited)" : " (UNVISITED)"}`,
+        )
+        .join(", ")
+      lines.push(`  - ${roomId}${marker}: ${formatted}`)
+    }
+    // Identify rooms whose only connections are to other visited rooms — that is the "trapped"
+    // signal. It tells the LLM to look for an UNUSED door direction in the current room rather
+    // than re-traversing known edges.
+    const currentRoomConns = byRoom.get(currentRoomId) ?? []
+    const allLeadToVisited =
+      currentRoomConns.length > 0 && currentRoomConns.every((c) => c.visited)
+    if (allLeadToVisited) {
+      lines.push(
+        "  WARNING: every known exit from your current room leads back to an already-visited room. To make progress you must find an UNTRIED exit by walking into untouched tiles in this room until a new door becomes visible.",
+      )
+    }
+    sections.push("Room connectivity:\n" + lines.join("\n"))
+  }
+
+  const seen = snapshot.seenItems ?? []
+  if (seen.length > 0) {
+    // Filter out items that are currently visible (the "Nearby items" section already covers
+    // those). What we want here is the "you saw a key two rooms ago" reminder.
+    const visibleIds = new Set(observation.visible_entities.map((entity) => entity.id))
+    const remembered = seen.filter((item) => !visibleIds.has(item.itemId))
+    if (remembered.length > 0) {
+      // Prioritize keys, then freshness (most recently seen first).
+      const ranked = [...remembered]
+        .sort((left, right) => {
+          if (left.isLikelyKey !== right.isLikelyKey) return left.isLikelyKey ? -1 : 1
+          return right.lastSeenTurn - left.lastSeenTurn
+        })
+        .slice(0, 10)
+      sections.push(
+        "Items remembered from prior turns:\n"
+          + ranked
+              .map((item) => {
+                const rarity = item.rarity ? ` r=${item.rarity}` : ""
+                const key = item.isLikelyKey ? " (likely KEY)" : ""
+                return `  - ${item.itemId} ${item.name}@floor${item.floor}/room:${item.roomId}/(${item.x},${item.y}) last_seen_turn=${item.lastSeenTurn}${rarity}${key}`
+              })
+              .join("\n"),
+      )
+    }
+  }
+
+  const doors = (snapshot.encounteredDoors ?? []).filter((door) => door.isBlocked)
+  if (doors.length > 0) {
+    const heldKeys = new Set(snapshot.knownKeyTemplateIds ?? [])
+    const ranked = [...doors]
+      .sort((left, right) => {
+        // Doors we currently have a key for come first.
+        const leftHasKey = left.requiredKeyTemplateId !== undefined
+          && heldKeys.has(left.requiredKeyTemplateId) ? 0 : 1
+        const rightHasKey = right.requiredKeyTemplateId !== undefined
+          && heldKeys.has(right.requiredKeyTemplateId) ? 0 : 1
+        if (leftHasKey !== rightHasKey) return leftHasKey - rightHasKey
+        return right.firstSeenTurn - left.firstSeenTurn
+      })
+      .slice(0, 8)
+    sections.push(
+      "Locked doors / blocked interactables:\n"
+        + ranked
+            .map((door) => {
+              const requirement = door.requiredKeyTemplateId
+                ? ` requires_template=${door.requiredKeyTemplateId}${heldKeys.has(door.requiredKeyTemplateId) ? " (HELD)" : ""}`
+                : " requires=unknown"
+              const detail = door.lastBlockedDetail ? ` last_detail="${door.lastBlockedDetail}"` : ""
+              return `  - ${door.targetId} ${door.name ?? "door"}@floor${door.floor}/room:${door.roomId}/(${door.x},${door.y})${requirement}${detail}`
+            })
+            .join("\n"),
+    )
+  }
+
+  if (snapshot.knownKeyTemplateIds && snapshot.knownKeyTemplateIds.length > 0) {
+    sections.push(
+      "Held keys matching known locked doors:\n  - "
+        + snapshot.knownKeyTemplateIds.join(", "),
+    )
+  }
+
+  return sections.length > 0 ? sections.join("\n") : "none"
+}
+
+function summarizeVisibleEntities(observation: Observation): string {
+  if (observation.visible_entities.length === 0) {
+    return "none"
+  }
+  return observation.visible_entities
+    .map((entity) => {
+      const { x, y } = entity.position
+      const rarity = entity.rarity ? `,r=${entity.rarity}` : ""
+      const hp =
+        entity.hp_current !== undefined && entity.hp_max !== undefined
+          ? `,hp=${entity.hp_current}/${entity.hp_max}`
+          : ""
+      return `${entity.id}:${entity.type}:${entity.name}@(${x},${y})${rarity}${hp}`
+    })
+    .join(", ")
+}
+
+function manhattanDistance(
+  a: { x: number; y: number },
+  b: { x: number; y: number },
+): number {
+  return Math.abs(a.x - b.x) + Math.abs(a.y - b.y)
+}
+
+function summarizeNearbyItems(observation: Observation): string {
+  const playerTile = observation.position.tile
+  const legalPickupIds = new Set(
+    observation.legal_actions
+      .filter((a): a is Extract<Action, { type: "pickup" }> => a.type === "pickup")
+      .map((a) => a.item_id),
+  )
+  const items = observation.visible_entities.filter(
+    (entity): entity is Entity => entity.type === "item",
+  )
+  if (items.length === 0) {
+    return "none"
+  }
+  const ranked = items
+    .map((item) => ({
+      item,
+      distance: manhattanDistance(item.position, playerTile),
+      pickupLegal: legalPickupIds.has(item.id),
+    }))
+    .sort((left, right) => left.distance - right.distance)
+    .slice(0, 8)
+
+  return ranked
+    .map(({ item, distance, pickupLegal }) => {
+      const rarity = item.rarity ? ` r=${item.rarity}` : ""
+      return `- ${item.id} ${item.name}@(${item.position.x},${item.position.y}) dist=${distance} pickup_legal=${pickupLegal ? "yes" : "no"}${rarity}`
+    })
+    .join("\n")
+}
+
+function summarizeRecentEvents(observation: Observation): string {
+  if (observation.recent_events.length === 0) {
+    return "none"
+  }
+  return observation.recent_events
+    .slice(-5)
+    .map((event: GameEvent) => `- Turn ${event.turn} [${event.type}] ${event.detail}`)
+    .join("\n")
+}
+
+function summarizeKnownMap(
+  observation: Observation,
+  snapshot: MemorySnapshot | undefined,
+): string {
+  const currentFloor = observation.position.floor
+  // observation.known_map.floors[X].tiles all have type="floor" (the engine strips real types
+  // before serializing), so it tells us nothing about doors/stairs. The memory snapshot carries
+  // the SDK-side tile cache populated from visible_tiles each turn, which preserves real types.
+  const snapshotTiles = snapshot?.currentFloorKnownTiles ?? []
+  const floors = observation.known_map.floors ?? {}
+  const roomsVisitedByFloor = new Map<number, number>()
+  for (const [floorKey, floorData] of Object.entries(floors)) {
+    roomsVisitedByFloor.set(Number(floorKey), floorData?.rooms_visited?.length ?? 0)
+  }
+
+  const doorCoords: string[] = []
+  const stairsCoords: string[] = []
+  const entranceCoords: string[] = []
+  for (const tile of snapshotTiles) {
+    if (tile.floor !== currentFloor) continue
+    if (tile.type === "door") {
+      doorCoords.push(`(${tile.x},${tile.y})`)
+    } else if (tile.type === "stairs" || tile.type === "stairs_up") {
+      stairsCoords.push(`${tile.type}(${tile.x},${tile.y})`)
+    } else if (tile.type === "entrance") {
+      entranceCoords.push(`(${tile.x},${tile.y})`)
+    }
+  }
+
+  const lines: string[] = []
+  const currentFloorRooms = roomsVisitedByFloor.get(currentFloor) ?? 0
+  lines.push(
+    `Floor ${currentFloor} (current): ${snapshotTiles.filter((t) => t.floor === currentFloor).length} tiles seen, ${currentFloorRooms} rooms visited`,
+  )
+  if (doorCoords.length > 0) {
+    lines.push(
+      `  doors: ${doorCoords.slice(0, 30).join(", ")}${doorCoords.length > 30 ? ` ... (+${doorCoords.length - 30} more)` : ""}`,
+    )
+  }
+  if (stairsCoords.length > 0) {
+    lines.push(`  stairs: ${stairsCoords.join(", ")}`)
+  }
+  if (entranceCoords.length > 0) {
+    lines.push(`  entrance: ${entranceCoords.join(", ")}`)
+  }
+  // Other floors (just room counts from the observation's known_map, since we only cache the
+  // current floor's tile types in the SDK memory).
+  for (const [floor, roomCount] of roomsVisitedByFloor) {
+    if (floor === currentFloor) continue
+    lines.push(`Floor ${floor}: ${roomCount} rooms visited`)
+  }
+
+  return lines.length > 0 ? lines.join("\n") : "none"
+}
+
+function summarizeSpatialContext(
+  observation: Observation,
+  snapshot?: MemorySnapshot,
+): string {
   const tileByCoordinate = new Map(
     observation.visible_tiles.map((tile) => [`${tile.x},${tile.y}`, tile] as const),
   )
@@ -699,6 +999,7 @@ function summarizeSpatialContext(observation: Observation): string {
       .filter((action): action is Extract<Action, { type: "move" }> => action.type === "move")
       .map((action) => action.direction),
   )
+  const stalls = snapshot?.currentRoomStalls?.stalledByDirection ?? null
 
   const neighborSummary = (["up", "down", "left", "right"] as const)
     .map((direction) => {
@@ -706,7 +1007,9 @@ function summarizeSpatialContext(observation: Observation): string {
       const tile = tileByCoordinate.get(`${next.x},${next.y}`)
       const visibility = tile ? tile.type : "unseen"
       const legal = legalMoveDirections.has(direction) ? "legal" : "illegal"
-      return `- ${direction}: ${legal}, destination ${visibility} at (${next.x}, ${next.y})`
+      const stallCount = stalls?.[direction] ?? 0
+      const stallMark = stallCount > 0 ? ` STALLED x${stallCount} (move attempts did not change position — likely a wall or room boundary)` : ""
+      return `- ${direction}: ${legal}, destination ${visibility} at (${next.x}, ${next.y})${stallMark}`
     })
     .join("\n")
 
