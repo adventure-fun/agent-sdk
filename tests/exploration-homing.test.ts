@@ -12,6 +12,14 @@ describe("extraction homing after dungeon clear", () => {
     llm: { provider: "openai", apiKey: "test" },
     wallet: { type: "env" },
   })
+  // Tests that verify "pathfind to a visible east door" behavior need to opt out of the default
+  // west-bias (which would otherwise pick `left` first). West-bias has its own dedicated tests
+  // further down in the file.
+  const noWestBiasConfig = createDefaultConfig({
+    llm: { provider: "openai", apiKey: "test" },
+    wallet: { type: "env" },
+    decision: { strategy: "planned", extractionPreferLeftBiasExit: false },
+  })
 
   it("ExplorationModule steps onto visible stairs_up when cleared on a deeper floor", () => {
     const mod = new ExplorationModule()
@@ -70,7 +78,7 @@ describe("extraction homing after dungeon clear", () => {
 
   it("ExplorationModule still homes out when a floor item is visible but not yet pickup-legal", () => {
     const mod = new ExplorationModule()
-    const ctx = createAgentContext(config)
+    const ctx = createAgentContext(noWestBiasConfig)
     const obs = buildObservation({
       realm_info: { status: "realm_cleared", entrance_room_id: "ent", current_floor: 1 },
       position: { floor: 1, room_id: "boss-room", tile: { x: 2, y: 2 } },
@@ -94,7 +102,7 @@ describe("extraction homing after dungeon clear", () => {
 
   it("ExplorationModule steps along floor toward a non-adjacent visible door on floor 1 after clear", () => {
     const mod = new ExplorationModule()
-    const ctx = createAgentContext(config)
+    const ctx = createAgentContext(noWestBiasConfig)
     const obs = buildObservation({
       realm_info: { status: "realm_cleared", entrance_room_id: "ent", current_floor: 1 },
       position: { floor: 1, room_id: "boss-room", tile: { x: 2, y: 2 } },
@@ -314,6 +322,156 @@ describe("extraction homing after dungeon clear", () => {
     })
     const rec = mod.analyze(obs, ctx)
     expect(rec.suggestedAction?.type).not.toBe("use_portal")
+  })
+
+  it("ExplorationModule detects two-room oscillation even when same-room moves intersperse the transitions", () => {
+    const mod = new ExplorationModule()
+    const ctx = createAgentContext(noWestBiasConfig)
+    ctx.mapMemory.loopTrackTemplate = "test-dungeon"
+    ctx.mapMemory.loopDoorCrossings = [
+      { fromRoomId: "room-b", toRoomId: "room-a", direction: "left" },
+      { fromRoomId: "room-a", toRoomId: "room-b", direction: "right" },
+      { fromRoomId: "room-b", toRoomId: "room-a", direction: "left" },
+      { fromRoomId: "room-a", toRoomId: "room-b", direction: "right" },
+    ]
+    // Simulate a history shaped like [r-b, r-a, r-a(same-room), r-b, r-a, r-b] — the old detector
+    // would break alternation on the same-room repeat, but the new transition-gated tracker only
+    // records room changes.
+    ctx.mapMemory.loopRecentRooms = ["room-b", "room-a", "room-b", "room-a", "room-b"]
+    ctx.mapMemory.lastPosition = { floor: 1, roomId: "room-b", x: 1, y: 3 }
+    ctx.mapMemory.visitedRooms = new Set(["room-a", "room-b"])
+    ctx.mapMemory.lastRoomEntry = { roomId: "room-a", cameFromDirection: "right" }
+
+    const obs = buildObservation({
+      turn: 50,
+      realm_info: { status: "realm_cleared", entrance_room_id: "ent", current_floor: 1 },
+      position: { floor: 1, room_id: "room-a", tile: { x: 3, y: 2 } },
+      visible_tiles: [
+        { x: 3, y: 2, type: "floor", entities: [] },
+        { x: 4, y: 2, type: "door", entities: [] },
+        { x: 2, y: 2, type: "floor", entities: [] },
+      ],
+      legal_actions: [
+        { type: "move", direction: "up" },
+        { type: "move", direction: "down" },
+        { type: "move", direction: "left" },
+        { type: "move", direction: "right" },
+        { type: "wait" },
+      ],
+    })
+
+    const rec = mod.analyze(obs, ctx)
+    expect(ctx.mapMemory.loopEdgeBans?.["room-a"]).toBe("right")
+    expect(rec.suggestedAction?.type).toBe("move")
+    expect((rec.suggestedAction as { direction: string }).direction).not.toBe("right")
+  })
+
+  it("ExplorationModule unstuck-mode walks away from the ping-pong edge after oscillation detected", () => {
+    const mod = new ExplorationModule()
+    const ctx = createAgentContext(noWestBiasConfig)
+    ctx.mapMemory.loopTrackTemplate = "test-dungeon"
+    ctx.mapMemory.loopRecentRooms = ["room-b", "room-a", "room-b", "room-a"]
+    ctx.mapMemory.loopDoorCrossings = [
+      { fromRoomId: "room-a", toRoomId: "room-b", direction: "right" },
+      { fromRoomId: "room-b", toRoomId: "room-a", direction: "left" },
+      { fromRoomId: "room-a", toRoomId: "room-b", direction: "right" },
+      { fromRoomId: "room-b", toRoomId: "room-a", direction: "left" },
+    ]
+    ctx.mapMemory.lastRoomEntry = { roomId: "room-a", cameFromDirection: "right" }
+    ctx.mapMemory.lastPosition = { floor: 1, roomId: "room-a", x: 3, y: 2 }
+
+    const obs = buildObservation({
+      turn: 100,
+      realm_info: { status: "realm_cleared", entrance_room_id: "ent", current_floor: 1 },
+      position: { floor: 1, room_id: "room-a", tile: { x: 3, y: 2 } },
+      visible_tiles: [
+        { x: 3, y: 2, type: "floor", entities: [] },
+        { x: 2, y: 2, type: "floor", entities: [] },
+        { x: 4, y: 2, type: "door", entities: [] },
+      ],
+      legal_actions: [
+        { type: "move", direction: "left" },
+        { type: "move", direction: "up" },
+        { type: "move", direction: "down" },
+        { type: "move", direction: "right" },
+        { type: "wait" },
+      ],
+    })
+
+    const rec = mod.analyze(obs, ctx)
+    expect(rec.suggestedAction).toEqual({ type: "move", direction: "left" })
+    expect(rec.context?.extractionHoming).toBe(true)
+    expect(ctx.mapMemory.unstuckAwayFromEdge?.roomId).toBe("room-a")
+    expect(ctx.mapMemory.unstuckAwayFromEdge?.awayFromDirection).toBe("right")
+    expect(ctx.mapMemory.unstuckAwayFromEdge?.untilTurn).toBe(106)
+  })
+
+  it("ExplorationModule uses portal as safety valve after 30 stuck turns with no new room", () => {
+    const mod = new ExplorationModule()
+    const ctx = createAgentContext(config)
+    ctx.mapMemory.loopTrackTemplate = "test-dungeon"
+    ctx.mapMemory.turnsWithoutNewRoom = 30
+    ctx.mapMemory.visitedRooms = new Set(["ent", "side"])
+    ctx.mapMemory.lastPosition = { floor: 1, roomId: "side", x: 2, y: 2 }
+    const obs = buildObservation({
+      realm_info: { status: "realm_cleared", entrance_room_id: "ent", current_floor: 1 },
+      position: { floor: 1, room_id: "side", tile: { x: 2, y: 2 } },
+      visible_tiles: [{ x: 2, y: 2, type: "floor", entities: [] }],
+      legal_actions: [
+        { type: "move", direction: "up" },
+        { type: "use_portal" },
+        { type: "wait" },
+      ],
+    })
+    const rec = mod.analyze(obs, ctx)
+    expect(rec.suggestedAction).toEqual({ type: "use_portal" })
+    expect(rec.confidence).toBeGreaterThanOrEqual(0.9)
+  })
+
+  it("ExplorationModule prefers west by default on floor 1 after clear (no explicit config needed)", () => {
+    const mod = new ExplorationModule()
+    const ctx = createAgentContext(config)
+    const obs = buildObservation({
+      realm_info: { status: "realm_cleared", entrance_room_id: "ent", current_floor: 1 },
+      position: { floor: 1, room_id: "side", tile: { x: 5, y: 2 } },
+      visible_tiles: [{ x: 5, y: 2, type: "floor", entities: [] }],
+      legal_actions: [
+        { type: "move", direction: "left" },
+        { type: "move", direction: "right" },
+        { type: "wait" },
+      ],
+    })
+    const rec = mod.analyze(obs, ctx)
+    expect(rec.suggestedAction).toEqual({ type: "move", direction: "left" })
+    expect(rec.context?.extractionHoming).toBe(true)
+  })
+
+  it("ExplorationModule falls back to west on a deeper floor when no stairs or doors are visible", () => {
+    const mod = new ExplorationModule()
+    const ctx = createAgentContext(config)
+    const obs = buildObservation({
+      realm_info: {
+        status: "boss_cleared",
+        current_floor: 2,
+        floor_count: 2,
+        entrance_room_id: "ent",
+      },
+      position: { floor: 2, room_id: "deep-open", tile: { x: 5, y: 3 } },
+      visible_tiles: [
+        { x: 5, y: 3, type: "floor", entities: [] },
+        { x: 4, y: 3, type: "floor", entities: [] },
+        { x: 6, y: 3, type: "floor", entities: [] },
+      ],
+      legal_actions: [
+        { type: "move", direction: "left" },
+        { type: "move", direction: "right" },
+        { type: "wait" },
+      ],
+    })
+    const rec = mod.analyze(obs, ctx)
+    expect(rec.suggestedAction).toEqual({ type: "move", direction: "left" })
+    expect(rec.context?.extractionHoming).toBe(true)
+    expect(rec.reasoning.toLowerCase()).toContain("west")
   })
 
   it("PortalModule defers use_portal when cleared, healthy, and not at entrance", () => {

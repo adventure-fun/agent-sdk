@@ -31,9 +31,10 @@ export class ExplorationModule implements AgentModule {
       delete context.mapMemory.loopRecentRooms
       delete context.mapMemory.loopDoorCrossings
       delete context.mapMemory.loopEdgeBans
+      delete context.mapMemory.unstuckAwayFromEdge
+      context.mapMemory.turnsWithoutNewRoom = 0
       context.mapMemory.loopTrackTemplate = realmTemplate
     }
-    appendLoopRoomVisit(context, observation.position.room_id)
     refreshLoopEdgeBans(observation, context)
 
     if (!COMPLETED_STATUSES.has(observation.realm_info.status)) {
@@ -80,6 +81,17 @@ export class ExplorationModule implements AgentModule {
         }
       }
       const portalAction = observation.legal_actions.find((a) => a.type === "use_portal")
+      const stuckTurns = context.mapMemory.turnsWithoutNewRoom ?? 0
+      // Safety valve: if we've spent 30+ turns without entering a new room after clearing,
+      // the homing layer has fully failed — take the portal cost and get out.
+      if (portalAction && stuckTurns >= 30) {
+        return {
+          suggestedAction: portalAction,
+          reasoning:
+            `Realm completed; stuck ${stuckTurns} turns without reaching a new room — extracting via portal.`,
+          confidence: 0.9,
+        }
+      }
       const skipAutoPortalForTactical =
         context.config.decision?.extractionPreferLeftBiasExit === true
         && context.mapMemory.extractionFloor1ExitPhase === "reassess"
@@ -197,6 +209,16 @@ export class ExplorationModule implements AgentModule {
     }
 
     const roomId = observation.position.room_id
+    const roomChanged = previousPosition?.roomId !== roomId
+    if (roomChanged) {
+      appendLoopRoomVisit(context, roomId)
+    }
+    const isNewRoom = !context.mapMemory.visitedRooms.has(roomId)
+    if (isNewRoom) {
+      context.mapMemory.turnsWithoutNewRoom = 0
+    } else {
+      context.mapMemory.turnsWithoutNewRoom = (context.mapMemory.turnsWithoutNewRoom ?? 0) + 1
+    }
     context.mapMemory.visitedRooms.add(roomId)
     context.mapMemory.visitedTiles.add(tileMemoryKey(currentPosition.floor, currentPosition.x, currentPosition.y))
 
@@ -384,6 +406,130 @@ function chooseFloor1HomingBreakoutMove(
   return null
 }
 
+/**
+ * Pure check: can we return a clean "move west" recommendation right now?
+ * West is a safe default for retreat on most realm layouts (entrance tends to sit west). Only
+ * returns a move if `left` is legal, not stalled, not banned by a known loop edge, and does not
+ * immediately undo the agent's previous east step (which would start a door ping-pong).
+ */
+function chooseWestBiasMove(
+  context: AgentContext,
+  homingMoves: Array<Extract<Action, { type: "move" }>>,
+  roomId: string,
+  loopBan: Direction | null,
+  reasoning: string,
+  confidence: number,
+): ModuleRecommendation | null {
+  const prev = context.previousActions.at(-1)?.action
+  const immediateBacktrack =
+    prev?.type === "move" && prev.direction === reverseDirection("left")
+  if (immediateBacktrack) {
+    return null
+  }
+  const leftMove = homingMoves.find((a) => a.direction === "left")
+  if (!leftMove) {
+    return null
+  }
+  const leftStalls =
+    context.mapMemory.stalledMoves.get(stalledMoveKey(roomId, "left")) ?? 0
+  if (leftStalls > 0) {
+    return null
+  }
+  if (loopBan === "left") {
+    return null
+  }
+  return {
+    suggestedAction: leftMove,
+    reasoning,
+    confidence,
+    context: EXTRACTION_HOMING_CONTEXT,
+  }
+}
+
+/**
+ * When oscillation is detected, the agent usually sits hugging the ping-pong door, so every
+ * "nearest door" homing pick puts it right back through that door. This helper forces a move
+ * *away from that edge* (preferring the opposite direction, then perpendicular directions toward
+ * unvisited / passable tiles) so the agent walks into the room's interior and can see other exits.
+ */
+function chooseAwayFromEdgeMove(
+  observation: Observation,
+  context: AgentContext,
+  moveActions: Array<Extract<Action, { type: "move" }>>,
+  pingPongDirection: Direction,
+  tileByCoordinate: Map<string, Observation["visible_tiles"][number]>,
+  current: { x: number; y: number },
+  loopBan: Direction | null,
+): ModuleRecommendation | null {
+  const oppositeDirection = reverseDirection(pingPongDirection)
+  const cameFromDirection =
+    context.mapMemory.lastRoomEntry?.roomId === observation.position.room_id
+      ? context.mapMemory.lastRoomEntry.cameFromDirection
+      : null
+  const roomId = observation.position.room_id
+
+  const candidates = moveActions.filter((a) => {
+    if (a.direction === pingPongDirection) return false
+    if (cameFromDirection !== null && a.direction === cameFromDirection) return false
+    if (loopBan !== null && a.direction === loopBan) return false
+    return true
+  })
+  if (candidates.length === 0) {
+    return null
+  }
+
+  type Scored = { action: Extract<Action, { type: "move" }>; score: number }
+  const scored: Scored[] = candidates.map((action) => {
+    const next = nextPosition(current, action.direction)
+    const nextTile = tileByCoordinate.get(`${next.x},${next.y}`)
+    const isPassable = nextTile ? PASSABLE_TILE_TYPES.has(nextTile.type) : false
+    const isUnvisited = !context.mapMemory.visitedTiles.has(
+      tileMemoryKey(observation.position.floor, next.x, next.y),
+    )
+    const stalledCount =
+      context.mapMemory.stalledMoves.get(stalledMoveKey(roomId, action.direction)) ?? 0
+    let score = 0
+    if (action.direction === oppositeDirection) score += 5
+    if (isPassable) score += 2
+    if (isUnvisited) score += 3
+    if (nextTile?.type === "door") score += 1
+    score -= stalledCount * 4
+    return { action, score }
+  })
+  scored.sort((left, right) => right.score - left.score)
+  const pick = scored[0]
+  if (!pick || pick.score <= -4) {
+    return null
+  }
+  return {
+    suggestedAction: pick.action,
+    reasoning:
+      `Realm cleared on floor 1; breaking ping-pong loop by walking away from the ${pingPongDirection} edge so a different exit becomes visible.`,
+    confidence: 0.67,
+    context: EXTRACTION_HOMING_CONTEXT,
+  }
+}
+
+/**
+ * Find the direction that keeps sending the agent back through the ping-pong door from the
+ * current room. Uses the most recent outbound door crossing recorded for this room; falls back to
+ * an existing `loopEdgeBans` entry if door-crossing history has rotated out of the buffer.
+ */
+function findPingPongEdgeDirection(
+  context: AgentContext,
+  currentRoomId: string,
+): Direction | null {
+  const crossings = context.mapMemory.loopDoorCrossings ?? []
+  for (let i = crossings.length - 1; i >= 0; i--) {
+    const c = crossings[i]!
+    if (c.fromRoomId === currentRoomId) {
+      return c.direction
+    }
+  }
+  const ban = context.mapMemory.loopEdgeBans?.[currentRoomId]
+  return ban ?? null
+}
+
 type HomingTargetType = "door" | "stairs_up"
 
 /**
@@ -555,35 +701,92 @@ function chooseHomingTowardsEntrance(
     if (towardDoorDeep) {
       return towardDoorDeep
     }
+
+    if (context.config.decision?.extractionPreferLeftBiasExit === true) {
+      const west = chooseWestBiasMove(
+        context,
+        homingMoves,
+        roomId,
+        context.mapMemory.loopEdgeBans?.[roomId] ?? null,
+        "Realm cleared on a lower floor; no visible stairs or doors — defaulting to west (stairs-up normally sit to the west of the room spine).",
+        0.6,
+      )
+      if (west) {
+        return west
+      }
+    }
   }
 
   if (floor === 1 && roomId !== entranceId) {
     const extractionOscillation = isAlternatingTwoRoomTail(context.mapMemory.loopRecentRooms ?? [], 4)
     const loopBan = context.mapMemory.loopEdgeBans?.[roomId] ?? null
 
-    const preferLeftBias = context.config.decision?.extractionPreferLeftBiasExit === true
-    if (preferLeftBias && context.mapMemory.extractionFloor1ExitPhase !== "reassess") {
-      const prev = context.previousActions.at(-1)?.action
-      // After moving east through a door, "west" would immediately walk back — same ping-pong as
-      // cameFrom. Treat that as the left-bias dead end and hand off to the tactician.
-      const immediateBacktrack =
-        prev?.type === "move" && prev.direction === reverseDirection("left")
-      const leftMove = homingMoves.find((a) => a.direction === "left")
-      const leftStalls = leftMove
-        ? context.mapMemory.stalledMoves.get(stalledMoveKey(roomId, "left")) ?? 0
-        : 1
-      if (leftMove && leftStalls === 0 && !immediateBacktrack && loopBan !== "left") {
-        return {
-          suggestedAction: leftMove,
-          reasoning:
-            "Realm cleared on floor 1; moving west until that direction is blocked, then reassess with the tactician if still outside the entrance room.",
-          confidence: 0.69,
-          context: EXTRACTION_HOMING_CONTEXT,
+    // Unstuck mode: once a ping-pong has been detected we commit to walking away from the shared
+    // door for up to 6 turns (or until we enter a new room). This prevents the "nearest visible
+    // door" heuristic from immediately re-picking the same edge door each subsequent turn.
+    const activeUnstuck = context.mapMemory.unstuckAwayFromEdge
+    if (activeUnstuck) {
+      const stale =
+        activeUnstuck.roomId !== roomId || observation.turn > activeUnstuck.untilTurn
+      if (stale) {
+        delete context.mapMemory.unstuckAwayFromEdge
+      } else {
+        const away = chooseAwayFromEdgeMove(
+          observation,
+          context,
+          homingMoves,
+          activeUnstuck.awayFromDirection,
+          tileByCoordinate,
+          current,
+          loopBan,
+        )
+        if (away) {
+          return away
+        }
+        delete context.mapMemory.unstuckAwayFromEdge
+      }
+    }
+
+    if (extractionOscillation) {
+      const pingEdge = findPingPongEdgeDirection(context, roomId)
+      if (pingEdge) {
+        context.mapMemory.unstuckAwayFromEdge = {
+          roomId,
+          awayFromDirection: pingEdge,
+          untilTurn: observation.turn + 6,
+        }
+        const away = chooseAwayFromEdgeMove(
+          observation,
+          context,
+          homingMoves,
+          pingEdge,
+          tileByCoordinate,
+          current,
+          loopBan,
+        )
+        if (away) {
+          return away
         }
       }
-      if (!leftMove || leftStalls > 0 || immediateBacktrack) {
-        context.mapMemory.extractionFloor1ExitPhase = "reassess"
+    }
+
+    const preferLeftBias = context.config.decision?.extractionPreferLeftBiasExit === true
+    if (preferLeftBias && context.mapMemory.extractionFloor1ExitPhase !== "reassess") {
+      const west = chooseWestBiasMove(
+        context,
+        homingMoves,
+        roomId,
+        loopBan,
+        "Realm cleared on floor 1; moving west until that direction is blocked, then reassess with the tactician if still outside the entrance room.",
+        0.69,
+      )
+      if (west) {
+        return west
       }
+      // Couldn't commit west cleanly — flip to reassess so the tactician takes over. This preserves
+      // the historical "don't restart a ping-pong" guard when the only west move would undo the
+      // last east step.
+      context.mapMemory.extractionFloor1ExitPhase = "reassess"
     }
 
     const cameFrom = context.mapMemory.lastRoomEntry?.roomId === roomId

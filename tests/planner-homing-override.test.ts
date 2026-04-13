@@ -9,6 +9,9 @@ describe("ActionPlanner post-clear homing override", () => {
   const config = createDefaultConfig({
     llm: { provider: "openai", apiKey: "test" },
     wallet: { type: "env" },
+    // Disable west-bias so these tests can verify "homing picks east-door under default rules"
+    // independently of the left-bias behavior, which has its own dedicated tests.
+    decision: { strategy: "planned", extractionPreferLeftBiasExit: false },
   })
 
   it("skips tactical LLM when exploration tags extraction homing after the first observation", async () => {
@@ -106,5 +109,49 @@ describe("ActionPlanner post-clear homing override", () => {
 
     await planner.decideAction(clearedObs(), context)
     expect(tactical.getHistory().filter((h) => h.kind === "plan")).toHaveLength(1)
+  })
+
+  it("still yields to tactical LLM at max streak even when a loop edge ban is active", async () => {
+    const strategic = new MockLLMAdapter({
+      actionPicker: () => ({ type: "wait" }),
+    })
+    const tactical = new MockLLMAdapter({
+      actionPicker: () => ({ type: "move", direction: "up" }),
+    })
+    const registry = createModuleRegistry([new ExplorationModule()])
+    const planner = new ActionPlanner(strategic, tactical, registry, {
+      strategy: "planned",
+      extractionHomingOverrideMaxStreak: 2,
+    })
+    const context = createAgentContext(config)
+    // Pre-seed a loop ban as if the agent had already detected oscillation. Under the old
+    // `999` special case this would cause the planner to skip tactical effectively forever.
+    context.mapMemory.loopEdgeBans = { boss: "right" }
+
+    const clearedObs = () =>
+      buildObservation({
+        realm_info: { status: "realm_cleared", entrance_room_id: "ent" },
+        position: { floor: 1, room_id: "boss", tile: { x: 2, y: 2 } },
+        visible_tiles: [
+          { x: 2, y: 2, type: "floor", entities: [] },
+          { x: 3, y: 2, type: "floor", entities: [] },
+          { x: 4, y: 2, type: "floor", entities: [] },
+          { x: 5, y: 2, type: "door", entities: [] },
+        ],
+        legal_actions: [
+          { type: "move", direction: "left" },
+          { type: "move", direction: "right" },
+          { type: "wait" },
+        ],
+      })
+
+    await planner.decideAction(clearedObs(), context)
+    tactical.clearHistory()
+    await planner.decideAction(clearedObs(), context)
+    await planner.decideAction(clearedObs(), context)
+    // After hitting maxStreak=2 the tactical LLM MUST be consulted at least once even with a
+    // loop ban in place.
+    await planner.decideAction(clearedObs(), context)
+    expect(tactical.getHistory().filter((h) => h.kind === "plan").length).toBeGreaterThanOrEqual(1)
   })
 })

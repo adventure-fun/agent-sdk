@@ -226,11 +226,7 @@ export class ActionPlanner {
       return null
     }
 
-    const loopBanActive =
-      agentContext.mapMemory.loopEdgeBans?.[observation.position.room_id] !== undefined
-    const maxStreak = loopBanActive
-      ? 999
-      : (this.config.extractionHomingOverrideMaxStreak ?? 12)
+    const maxStreak = this.config.extractionHomingOverrideMaxStreak ?? 12
     const streak = agentContext.mapMemory.extractionHomingOverrideStreak ?? 0
     if (streak >= maxStreak) {
       delete agentContext.mapMemory.extractionHomingOverrideStreak

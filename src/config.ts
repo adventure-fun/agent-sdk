@@ -111,9 +111,10 @@ export interface DecisionConfig {
   /**
    * On floor 1 after a clear (not at `entrance_room_id`), prefer moving **west** until `left` is
    * blocked or stalled, then enter a one-shot `reassess` phase: no deterministic homing and no
-   * automatic `use_portal` fallback so the tactical LLM can choose the next move. Intended for
-   * layouts where the exit spine runs west. Off by default for generic test realms.
-   * @default false
+   * automatic `use_portal` fallback so the tactical LLM can choose the next move. Most realms lay
+   * their exit spine roughly west, so this is on by default; set `false` for realms where the
+   * entrance is elsewhere.
+   * @default true
    */
   extractionPreferLeftBiasExit?: boolean
 }
@@ -196,7 +197,7 @@ export function createDefaultConfig(
       moduleConfidenceThreshold: decisionOverrides.moduleConfidenceThreshold ?? 0.75,
       emergencyHpPercent: decisionOverrides.emergencyHpPercent ?? 0.2,
       extractionHomingOverrideMaxStreak: decisionOverrides.extractionHomingOverrideMaxStreak ?? 12,
-      extractionPreferLeftBiasExit: decisionOverrides.extractionPreferLeftBiasExit ?? false,
+      extractionPreferLeftBiasExit: decisionOverrides.extractionPreferLeftBiasExit ?? true,
     },
   }
 
