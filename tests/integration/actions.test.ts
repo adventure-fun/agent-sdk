@@ -39,10 +39,23 @@ describe("Phase 8 integration: dungeon action coverage", () => {
     server.stop()
   })
 
+  // Fully deterministic inputs for the protocol-coverage test. See the long
+  // comment at the top of this test for why every input is pinned: the
+  // previous incarnation used a random wallet, random stat roll, and
+  // random realm seed, and a level-1 rogue with 16 HP would die to enemy
+  // crits ~50% of the time in CI (observed 2 consecutive failures on
+  // 2026-04-12 to "Goblin hit for 9 with Basic Attack"). The test's job is
+  // to verify the SDK can produce every action type when given legal
+  // opportunities — it is NOT a combat-tactics test — so we pin every
+  // source of randomness and pick a seed that lands all required action
+  // surfaces within the timeout. The dev API gained optional `stats` and
+  // `seed` hooks specifically to support this.
+  const COVERAGE_WALLET = "0xc0ffee00000000000000000000000000000000a1"
+  const COVERAGE_CHARACTER = "Coverage"
+  const COVERAGE_REALM_SEED = 1_337_4200
+
   it("covers the non-portal dungeon action surface against the dev stack", async () => {
-    const wallet = new MockWalletAdapter({
-      address: createUniqueMockWalletAddress("actions"),
-    })
+    const wallet = new MockWalletAdapter({ address: COVERAGE_WALLET })
     const session = await authenticate(server.apiUrl, wallet)
     const client = new GameClient(server.apiUrl, server.wsUrl, session)
 
@@ -50,13 +63,29 @@ describe("Phase 8 integration: dungeon action coverage", () => {
       method: "POST",
       body: JSON.stringify({
         class: "rogue",
-        name: `Cov${Date.now().toString().slice(-8)}`,
+        name: COVERAGE_CHARACTER,
+        // Pin every defensive stat at the top of the rogue's roll range so
+        // the agent has a fighting chance against early-floor enemies with
+        // whatever the pinned realm seed produces. Offensive stats are
+        // left at mid-range values — we're testing the SDK's ability to
+        // choose attack actions, not its DPS.
+        stats: {
+          hp: 28,        // rogue hp range [16, 28] — pinned at max
+          defense: 7,    // rogue defense range [3, 7] — pinned at max
+          evasion: 18,   // rogue evasion range [10, 18] — pinned at max
+          attack: 10,    // rogue attack range [7, 13] — mid
+          accuracy: 13,  // rogue accuracy range [10, 16] — mid (matches base)
+          speed: 16,     // rogue speed range [12, 20] — mid (matches base)
+        },
       }),
     })
 
     const realm = await client.request<{ id: string }>("/realms/generate", {
       method: "POST",
-      body: JSON.stringify({ template_id: "test-dungeon" }),
+      body: JSON.stringify({
+        template_id: "test-dungeon",
+        seed: COVERAGE_REALM_SEED,
+      }),
     })
 
     try {

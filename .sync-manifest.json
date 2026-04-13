@@ -69,7 +69,7 @@
         "ClientMessage": "79a054df95ff262378c7651b58be1cfa38b5e8310e7366f2a648373a1a706859",
         "EnemyBehavior": "cdb36c18e411f89c8638985f78893c057fab26de822acbe9d54dc8d847db2f09",
         "LobbyEvent": "57c5369d2f91072c0ef4488a2765ca9c05d036fd612f8878e5fb2a0ff9e31641",
-        "SanitizedChatMessage": "78f8acea0f2b22f5c3a9aa9517c9d90233d0b951d06467746041d0692f903f45",
+        "SanitizedChatMessage": "1d5f1f56abc2a1f72c68d7f0f9cb9c2792ab6c98e7d189e09565f3be2c9b688f",
         "PaymentAcceptOption402": "86a1a8d8da52cf034e8913a64594a113c05ef71ba472ecaee0528b9fb3ab732b",
         "PaymentRequired402": "34adaea55f3c77154aa9b1a1a57761a2b7e68a0d547347907446f102fc4d9a71"
       },
@@ -122,7 +122,7 @@
     },
     {
       "file": "backend/src/auth/jwt.ts",
-      "hash": "d66ef1be696582d52c7147e138b63c39d2ad977178623b5949e4b7cc630bd0ab",
+      "hash": "434b7cfd0a6c628c6734d17f6c43863af3f8af3a8b6054cd3414d5319cc1260b",
       "affectedModules": [
         "dev-stack",
         "auth",
@@ -202,21 +202,21 @@
     },
     {
       "file": "backend/src/routes/lobby.ts",
-      "hash": "e454e2484cf489f35fac7a46d64417bd0a14a0e2f85b7f3cf1a5b9e97b797079",
+      "hash": "fa479de86097a7242f706e1c0cc5c12478d5ce6df04eab7c86ed6cf9820a68e0",
       "affectedModules": [
         "chat"
       ]
     },
     {
       "file": "backend/src/game/lobby-live.ts",
-      "hash": "d9de0c1ae5bc64cf020c6596fd7b1cf5ff4ce623f90bf6eca628af82f6af37a3",
+      "hash": "6aedcc664d32801f26ef633d723263bf5f179d6ac2da69ddf86879d425cbfe1a",
       "affectedModules": [
         "chat"
       ]
     },
     {
       "file": "backend/src/redis/publishers.ts",
-      "hash": "681d9ee8276e484a8bd14e826b5a3a91be60a91e7e1ab9ac9652572aa3957ee3",
+      "hash": "4662dd19a76e85965b9342d364fb87bc39a8830f6035a6452710200491153202",
       "affectedModules": [
         "chat"
       ]
