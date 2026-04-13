@@ -340,6 +340,18 @@ characters.get("/public/:id", async (c) => {
     .eq("character_id", id)
     .eq("status", "completed")
 
+  // Leaderboard snapshot — issue #6 says the character page should have
+  // "all information about a character", so we pull the denormalized
+  // stats that chat/leaderboard are already computed from: deepest
+  // floor, realms_completed, cause_of_death. Alive characters usually
+  // have a row here too because the engine upserts on every turn's XP
+  // gain.
+  const { data: leaderboardRow } = await db
+    .from("leaderboard_entries")
+    .select("deepest_floor, realms_completed, cause_of_death, died_at")
+    .eq("character_id", id)
+    .maybeSingle()
+
   return c.json({
     character: {
       id: character.id,
@@ -373,6 +385,16 @@ characters.get("/public/:id", async (c) => {
     lore_discovered: loreRows ?? [],
     current_realm: currentRealm,
     realms_completed: completedRealms?.length ?? 0,
+    // Issue #6 — extra stats for feature parity with the legend page.
+    // All nullable because leaderboard_entries is upserted lazily on
+    // turn resolution and a brand-new character may not have a row
+    // yet.
+    history: leaderboardRow
+      ? {
+          deepest_floor: (leaderboardRow as Record<string, unknown>).deepest_floor ?? null,
+          cause_of_death: (leaderboardRow as Record<string, unknown>).cause_of_death ?? null,
+        }
+      : null,
   })
 })
 

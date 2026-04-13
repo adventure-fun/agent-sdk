@@ -88,6 +88,10 @@ interface CharacterDetail {
     created_at: string
   } | null
   realms_completed: number
+  history: {
+    deepest_floor: number | null
+    cause_of_death: string | null
+  } | null
 }
 
 export default function CharacterPage({ params }: { params: Promise<{ id: string }> }) {
@@ -234,8 +238,8 @@ export default function CharacterPage({ params }: { params: Promise<{ id: string
           </div>
         </section>
 
-        {/* ── Key stats bento ─────────────────────────────────────────── */}
-        <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {/* ── Key stats bento (issue #6 — feature parity with legend) ── */}
+        <section className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <div className="bg-ob-surface-container-low border border-ob-outline-variant/10 rounded-xl p-4">
             <div className="ob-label text-[9px] uppercase tracking-widest text-ob-on-surface-variant mb-1">TOTAL XP</div>
             <div className="ob-headline not-italic text-2xl text-ob-tertiary">{character.xp.toLocaleString()}</div>
@@ -243,6 +247,12 @@ export default function CharacterPage({ params }: { params: Promise<{ id: string
           <div className="bg-ob-surface-container-low border border-ob-outline-variant/10 rounded-xl p-4">
             <div className="ob-label text-[9px] uppercase tracking-widest text-ob-on-surface-variant mb-1">GOLD</div>
             <div className="ob-headline not-italic text-2xl text-ob-primary">{character.gold.toLocaleString()}</div>
+          </div>
+          <div className="bg-ob-surface-container-low border border-ob-outline-variant/10 rounded-xl p-4">
+            <div className="ob-label text-[9px] uppercase tracking-widest text-ob-on-surface-variant mb-1">DEEPEST FLOOR</div>
+            <div className="ob-headline not-italic text-2xl text-ob-primary">
+              {data.history?.deepest_floor ?? "—"}
+            </div>
           </div>
           <div className="bg-ob-surface-container-low border border-ob-outline-variant/10 rounded-xl p-4">
             <div className="ob-label text-[9px] uppercase tracking-widest text-ob-on-surface-variant mb-1">REALMS CLEARED</div>
@@ -297,11 +307,20 @@ export default function CharacterPage({ params }: { params: Promise<{ id: string
             ) : null}
 
             {!isAlive && character.died_at ? (
-              <div className="pt-4 border-t border-ob-outline-variant/10">
-                <div className="ob-label text-[10px] uppercase tracking-widest text-ob-error mb-1">FALLEN</div>
+              <div className="pt-4 border-t border-ob-outline-variant/10 space-y-1">
+                <div className="ob-label text-[10px] uppercase tracking-widest text-ob-error">FALLEN</div>
                 <div className="text-xs text-ob-on-surface-variant">
                   {new Date(character.died_at).toLocaleString()}
                 </div>
+                {/* Cause of death pulled from leaderboard_entries via the
+                    /characters/public/:id endpoint. Keeps this page
+                    feature-parity with the legend page so a viewer
+                    doesn't have to hop over to see what killed them. */}
+                {data.history?.cause_of_death ? (
+                  <div className="text-xs text-ob-error/80 italic mt-1">
+                    &quot;{data.history.cause_of_death}&quot;
+                  </div>
+                ) : null}
               </div>
             ) : null}
           </div>
