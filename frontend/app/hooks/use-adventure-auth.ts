@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useState, useCallback } from "react"
+import { createContext, useContext, useState, useCallback, useEffect } from "react"
 import { useEvmAddress, useSignEvmMessage } from "@coinbase/cdp-hooks"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001"
@@ -9,7 +9,9 @@ interface Account {
   id: string
   wallet_address: string
   player_type: "human" | "agent"
-  handle?: string
+  handle?: string | null
+  x_handle?: string | null
+  github_handle?: string | null
   free_realm_used: boolean
 }
 
@@ -97,6 +99,49 @@ export function useAdventureAuthProvider() {
     setAuth({ token: null, account: null })
     localStorage.removeItem("adventure_auth")
   }, [])
+
+  // Refresh the cached account row from the server. Called on mount
+  // whenever we have a token, so changes that happened server-side since
+  // the last login (anon-handle backfill, a handle update from another
+  // device, a free_realm_used flip from a payment) are picked up without
+  // forcing the user to re-sign the wallet challenge.
+  //
+  // We re-use the existing token — /auth/me is `requireAuth` gated. If
+  // the token has expired server-side we get a 401 back and we clear
+  // the cache so the app falls back to the normal connect flow.
+  useEffect(() => {
+    if (!auth.token) return
+    let cancelled = false
+    fetch(`${API_URL}/auth/me`, {
+      headers: { Authorization: `Bearer ${auth.token}` },
+    })
+      .then(async (res) => {
+        if (res.status === 401) {
+          if (cancelled) return
+          setAuth({ token: null, account: null })
+          localStorage.removeItem("adventure_auth")
+          return null
+        }
+        if (!res.ok) return null
+        return res.json() as Promise<Account>
+      })
+      .then((fresh) => {
+        if (cancelled || !fresh) return
+        setAuth((prev) => {
+          const next = { token: prev.token, account: fresh }
+          localStorage.setItem("adventure_auth", JSON.stringify(next))
+          return next
+        })
+      })
+      .catch(() => {
+        // Network error — keep the stale cached state, don't log out.
+      })
+    return () => { cancelled = true }
+    // Intentionally depend only on the token. We don't want this effect
+    // re-running every time the account object changes (it would loop
+    // since we setAuth inside it).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth.token])
 
   return {
     evmAddress,

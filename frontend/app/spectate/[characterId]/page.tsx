@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react"
 import type { SpectatorObservation, CharacterClass } from "@adventure-fun/schemas"
 import { GameMap } from "../../components/game-map"
 import { useLeaderboard } from "../../hooks/use-leaderboard"
+import { useActiveSpectateSessions } from "../../hooks/use-active-spectate-sessions"
 import { ChatTabs } from "../../components/chat-tabs"
 import { CharacterSearch } from "../../components/character-search"
 
@@ -47,16 +48,31 @@ export default function SpectatePage({ params }: Props) {
   const retryCountRef = useRef(0)
   const endedReasonRef = useRef<string | null>(null)
 
-  // Top-5 leaderboard for the left sidebar (same as before)
+  // Active live runs for the left sidebar. Was previously sourced from
+  // the top-5 XP leaderboard (filtered alive-only) but that was still
+  // showing characters you couldn't actually click to spectate. Now
+  // sourced from /spectate/active so every row in the sidebar is a
+  // watchable live run.
+  const { sessions: liveSessions } = useActiveSpectateSessions({ refreshMs: 12_000 })
+  // Kept around for the character-name fallback below — if the character
+  // being watched isn't currently live but we have their leaderboard row,
+  // we can still show their name. Not used for the sidebar anymore.
   const { entries: topPlayers, fetchLeaderboard } = useLeaderboard()
   const [charEntry, setCharEntry] = useState<{ character_name: string; class: string } | null>(null)
 
   useEffect(() => {
-    // Active rankings sidebar — alive-only (issue #8). Dead characters
-    // on the leaderboard can't be spectated so showing them here is just
-    // noise pushing real live runs down.
     void fetchLeaderboard({ type: "xp", limit: 5, aliveOnly: true })
   }, [fetchLeaderboard])
+
+  // Sort live sessions by deepest floor then highest turn — same rule
+  // as the spectate index sidebar.
+  const liveRows = [...liveSessions]
+    .sort((a, b) => {
+      const floorDiff = b.realm_info.current_floor - a.realm_info.current_floor
+      if (floorDiff !== 0) return floorDiff
+      return b.turn - a.turn
+    })
+    .slice(0, 10)
 
   // Fetch character info if not in top-5
   const API_URL = process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:3001"
@@ -225,34 +241,40 @@ export default function SpectatePage({ params }: Props) {
       <div className="md:hidden bg-ob-surface-container-low border-b border-ob-outline-variant/15">
         <CharacterSearch />
         <div className="px-4 pb-3">
-          <h3 className="ob-label text-[9px] tracking-[0.2em] text-ob-primary uppercase mb-2">
-            TOP RANKINGS
+          <h3 className="ob-label text-[9px] tracking-[0.2em] text-ob-primary uppercase mb-2 flex items-center gap-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-ob-secondary animate-pulse" />
+            LIVE RUNS
           </h3>
-          {topPlayers.length === 0 ? (
-            <div className="ob-label text-[10px] text-ob-on-surface-variant italic">Loading...</div>
+          {liveRows.length === 0 ? (
+            <div className="ob-label text-[10px] text-ob-on-surface-variant italic">
+              No other live runs right now.
+            </div>
           ) : (
             <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-4 px-4">
-              {topPlayers.map((player, i) => {
-                const isWatching = player.character_id === characterId
+              {liveRows.map((session) => {
+                const isWatching = session.character_id === characterId
+                const cls = session.character.class
                 return (
                   <Link
-                    key={player.character_id}
-                    href={`/spectate/${player.character_id}`}
-                    className={`shrink-0 flex items-center gap-2 rounded-xl px-3 py-2 min-w-[150px] border transition-colors ${
+                    key={session.character_id}
+                    href={`/spectate/${session.character_id}`}
+                    className={`shrink-0 flex items-center gap-2 rounded-xl px-3 py-2 min-w-[170px] border transition-colors ${
                       isWatching
                         ? "bg-ob-primary/10 border-ob-primary/40"
                         : "bg-ob-surface-container-high border-ob-outline-variant/10 hover:border-ob-primary/30"
                     }`}
                   >
-                    <span className={`ob-label text-xs ${isWatching ? "text-ob-primary" : "text-ob-on-surface-variant"}`}>
-                      {String(i + 1).padStart(2, "0")}
-                    </span>
+                    <div className="w-8 h-8 rounded-lg bg-ob-surface-container-lowest border border-ob-outline-variant/15 flex items-center justify-center shrink-0">
+                      <span className={`material-symbols-outlined text-base ${CLASS_COLOR[cls] ?? "text-ob-primary"}`}>
+                        {CLASS_ICON[cls] ?? "person"}
+                      </span>
+                    </div>
                     <div className="flex flex-col min-w-0">
                       <span className="text-xs font-bold truncate text-ob-on-surface">
-                        {player.character_name.toUpperCase()}
+                        {session.character.name.toUpperCase()}
                       </span>
                       <span className="text-[9px] ob-label text-ob-on-surface-variant uppercase">
-                        LVL {player.level}
+                        F{session.realm_info.current_floor} · T{session.turn}
                       </span>
                     </div>
                   </Link>
@@ -263,47 +285,61 @@ export default function SpectatePage({ params }: Props) {
         </div>
       </div>
 
-      {/* ── DESKTOP LEFT SIDEBAR: Active Rankings + Search ────────────────── */}
+      {/* ── DESKTOP LEFT SIDEBAR: Live runs + Search ──────────────────────── */}
       <aside className="hidden md:flex flex-col w-72 bg-ob-surface-container-low border-r border-ob-outline-variant/15 overflow-y-auto shrink-0">
         <div className="p-6 space-y-6">
           <div>
-            <h3 className="ob-label text-[10px] tracking-[0.2em] text-ob-primary uppercase mb-4">
-              ACTIVE RANKINGS
+            <h3 className="ob-label text-[10px] tracking-[0.2em] text-ob-primary uppercase mb-4 flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-ob-secondary animate-pulse" />
+              LIVE RUNS
             </h3>
             <div className="space-y-2">
-              {topPlayers.length === 0 ? (
-                <div className="ob-label text-[10px] text-ob-on-surface-variant italic px-2">Loading...</div>
+              {liveRows.length === 0 ? (
+                <div className="px-2 py-3 space-y-2">
+                  <div className="ob-label text-[10px] text-ob-on-surface-variant italic">
+                    No other live runs right now.
+                  </div>
+                  <Link
+                    href="/leaderboard"
+                    className="ob-label text-[10px] tracking-widest uppercase text-ob-primary hover:underline inline-flex items-center gap-1"
+                  >
+                    Browse leaderboard →
+                  </Link>
+                </div>
               ) : (
-                topPlayers.map((player, i) => {
-                  const isWatching = player.character_id === characterId
+                liveRows.map((session) => {
+                  const isWatching = session.character_id === characterId
+                  const cls = session.character.class
                   return (
                     <Link
-                      key={player.character_id}
-                      href={`/spectate/${player.character_id}`}
+                      key={session.character_id}
+                      href={`/spectate/${session.character_id}`}
                       className={`flex items-center justify-between p-3 rounded-lg transition-all ${
                         isWatching
-                          ? "bg-white/5 border-l-2 border-ob-primary"
+                          ? "bg-ob-primary/10 border-l-2 border-ob-primary"
                           : "hover:bg-white/5 border-l-2 border-transparent"
                       }`}
                     >
                       <div className="flex items-center gap-3 min-w-0">
-                        <span className={`ob-label text-xs ${isWatching ? "text-ob-primary" : "text-ob-on-surface-variant"}`}>
-                          {String(i + 1).padStart(2, "0")}
-                        </span>
+                        <div className="w-8 h-8 rounded-lg bg-ob-surface-container-lowest border border-ob-outline-variant/15 flex items-center justify-center shrink-0">
+                          <span className={`material-symbols-outlined text-base ${CLASS_COLOR[cls] ?? "text-ob-primary"}`}>
+                            {CLASS_ICON[cls] ?? "person"}
+                          </span>
+                        </div>
                         <div className="flex flex-col min-w-0">
                           <span className={`text-xs font-bold truncate ${
                             isWatching ? "text-ob-on-surface" : "text-ob-on-surface-variant"
                           }`}>
-                            {player.character_name.toUpperCase()}
+                            {session.character.name.toUpperCase()}
                           </span>
                           <span className="text-[9px] ob-label text-ob-on-surface-variant uppercase tracking-tighter">
-                            LVL {player.level} {player.class.toUpperCase()}
+                            LVL {session.character.level} {cls.toUpperCase()} · F{session.realm_info.current_floor}
                           </span>
                         </div>
                       </div>
-                      <span className="ob-label text-[10px] text-ob-on-surface-variant whitespace-nowrap ml-2">
-                        {player.xp >= 1000 ? `${(player.xp / 1000).toFixed(1)}k` : player.xp}
-                      </span>
+                      <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-ob-secondary animate-pulse shadow-[0_0_6px_#6bfe9c]" />
+                      </div>
                     </Link>
                   )
                 })

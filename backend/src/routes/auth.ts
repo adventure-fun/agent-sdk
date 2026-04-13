@@ -261,6 +261,26 @@ auth.get("/profile/suggest-handle", requireAuth, async (c) => {
   return c.json({ handle: generateAnonHandle(), is_anon: true })
 })
 
+// GET /auth/me — re-read the current session's account row.
+//
+// The frontend caches the auth state in localStorage at login time. That
+// cache goes stale whenever a server-side change edits the row (e.g. the
+// anon-handle backfill, or the user updating their handle/X/GitHub via
+// PATCH /auth/profile on a different device). This endpoint lets the
+// frontend re-hydrate its copy on page load without forcing a full wallet
+// re-sign.
+auth.get("/me", requireAuth, async (c) => {
+  const session = c.get("session")
+  const { data, error } = await db
+    .from("accounts")
+    .select("*")
+    .eq("id", session.account_id)
+    .maybeSingle()
+  if (error) return c.json({ error: error.message }, 500)
+  if (!data) return c.json({ error: "Account not found" }, 404)
+  return c.json(data)
+})
+
 // Re-export isAnonHandle so the /users/:id response can flag anon users
 // in the profile UI if we want to (currently not used but cheap to have).
 export { isAnonHandle }
