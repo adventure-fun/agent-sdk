@@ -147,11 +147,18 @@ New `special` values require engine code changes. Don't add them lightly.
 
 ---
 
-## 4. How Skill Trees Work
+## 4. How Progression Works — Dual Track
 
-### Structure
+Progression is split into two independent streams that unlock together on level-up:
 
-Each class has one skill tree with 3 tiers. Each tier has 2-3 mutually exclusive choices. Picking one locks out the others in that tier permanently. No respec in v1.
+1. **Class Path (major tier choices)** — class-defining, mutually-exclusive picks that happen at levels 3, 6, and 10. These are *milestone rewards*, not point-gated.
+2. **Perks (minor passive stacks)** — every level-up earns 1 perk point which can be spent on any perk from the shared pool, stacked up to each perk's cap.
+
+This keeps class identity meaningful (you commit to a path) while ensuring every single level-up has something to spend and feel.
+
+### Class Path — Tier Choices
+
+Each class has one skill tree with 3 tiers. Each tier has 2-3 mutually-exclusive choices. Picking one locks out the others in that tier permanently. No respec in v1.
 
 ```
 Tier 1 (unlocks at Level 3):   Choice A  |  Choice B
@@ -159,20 +166,28 @@ Tier 2 (unlocks at Level 6):   Choice A  |  Choice B
 Tier 3 (unlocks at Level 10):  Choice A  |  Choice B
 ```
 
-### Skill Point Economy
+- **Not point-gated.** Hit the tier level → one pick becomes available for free. The UI shows `tier_choices_available` to cue the player.
+- **Permanent.** Once picked, the other choices in that tier stay locked.
+- **Validation**: level gate + no-duplicate + prerequisites + mutual exclusion (see `backend/src/game/skill-tree.ts:validateSkillAllocation`).
 
-- 1 skill point per level-up
-- Each node costs 1 skill point (v1 — keep it simple)
-- Players will have more skill points than tier unlocks, but tier gates (level requirement) prevent rushing
-- Extra skill points beyond tier choices are banked (future use: sub-nodes, passive upgrades)
+### Perks — Shared Passive Pool
 
-### Node Effect Types
+- **Income**: every level-up grants 1 perk point. Total over a full run is `level - 1` (so max 19 at level 20).
+- **Spend**: each point buys one stack of any perk. Perks are `PerkTemplate` entries in `shared/engine/content/perks/shared-perks.json`. Each has a `max_stacks` cap.
+- **Effects**: stackable passive stat bonuses (`stat`, `value_per_stack`). v1 covers hp, attack, defense, accuracy, evasion, speed.
+- **Storage**: `characters.perks JSONB` — `Record<perk_id, stack_count>`, default `{}`.
+- **Validation**: `validatePerkAllocation` in `backend/src/game/skill-tree.ts` checks point budget + stack cap.
+- **Application**: `applyPerkPassives` adds bonuses to `effective_stats` on session load, same path as tree passives. HP bonuses flow through to `hp.max` with symmetric strip-on-save in `session.ts:saveCharacterState`.
+
+Suggested additions in future content passes: `perk-resourceful` (+resource_max), `perk-determination` (cooldown reduction), `perk-lifesteal` (regen on kill). Adding new perks is a content-only change — no engine updates needed for stat buffs.
+
+### Node Effect Types (skill tree)
 
 | Effect Type | What It Does | Example |
 |---|---|---|
-| `grant_ability` | Unlocks a new ability the character can use in combat | "Learn Cleave" |
-| `passive_stat` | Permanently increases a stat | "+5 max HP" |
-| `passive_effect` | Adds a permanent mechanic | "10% chance to dodge attacks" |
+| `grant-ability` | Unlocks a new ability the character can use in combat | "Learn Cleave" |
+| `passive-stat` | Permanently increases a stat | "+4 defense" |
+| `passive-effect` | Adds a permanent mechanic | "10% chance to dodge attacks" |
 
 ### Prerequisites
 
@@ -180,21 +195,41 @@ Tier 2 nodes can require a specific Tier 1 choice. Tier 3 nodes can require a sp
 
 Example: Knight Tier 3 "Fortress" requires Tier 1 "Shield Wall" (defensive path). Knight Tier 3 "Berserker Rage" requires Tier 1 "Cleave" (offensive path).
 
-### Where Skill Tree State Is Stored
+### Where State Is Stored
 
 On the character record in the database:
 ```json
 {
   "skill_tree": {
-    "tier_1": "knight-shield-wall",
-    "tier_2": "knight-iron-skin",
-    "tier_3": null
+    "knight-t1-shield-wall": true,
+    "knight-t2-iron-skin": true
   },
-  "skill_points": 2
+  "perks": {
+    "perk-toughness": 4,
+    "perk-vigor": 2
+  }
 }
 ```
 
-The engine checks this when determining available abilities: starting abilities + any abilities granted by selected skill nodes.
+The engine checks `skill_tree` to determine available abilities (starting abilities + any granted by selected nodes) and applies both tree and perk passives to compute `effective_stats`.
+
+### Observation Fields
+
+Each turn the agent/UI sees:
+- `skill_points`: perk points remaining (does NOT count toward tier choices)
+- `tier_choices_available`: number of unclaimed tier levels
+- `skill_tree`: unlocked tree node IDs
+- `perks`: current perk stack counts
+
+### Agent Configuration
+
+Agents declare both tracks in `AgentConfig`:
+```ts
+skillTree: { autoSpend: true, preferredNodes: ["knight-t1-cleave", "knight-t2-iron-skin"] }
+perks:     { autoSpend: true, preferredPerks: ["perk-toughness", "perk-sharpness"] }
+```
+
+The agent walks `preferredNodes` once per startup for tier picks and loops over `preferredPerks` one stack at a time until points are exhausted. Capped perks are silently skipped.
 
 ---
 

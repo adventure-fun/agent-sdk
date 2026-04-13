@@ -48,7 +48,7 @@ import {
   mergeDiscoveredTiles,
   type Position,
 } from "./visibility.js"
-import { getAbility, getEnemy, getEnemySafe, getItem, CLASSES, ROOMS, REALMS } from "./content.js"
+import { getAbility, getEnemy, getEnemySafe, getItem, CLASSES, ROOMS, REALMS, SKILL_TREES } from "./content.js"
 import { SeededRng, deriveSeed } from "./rng.js"
 import { applyStatGrowth, checkLevelUp, xpToNextLevel } from "./leveling.js"
 
@@ -89,6 +89,46 @@ const CHARACTER_STAT_KEYS: Array<keyof CharacterStats> = [
 
 function isCharacterStatKey(key: string): key is keyof CharacterStats {
   return CHARACTER_STAT_KEYS.includes(key as keyof CharacterStats)
+}
+
+/**
+ * Perk points remaining = `(level - 1) - sum(perk stacks spent)`. Every level-up
+ * earns exactly 1 perk point; tier choices from the skill tree are milestone
+ * rewards and do NOT consume this pool.
+ */
+export function computePerkPointsRemaining(character: {
+  level: number
+  perks?: Record<string, number>
+}): number {
+  const spent = Object.values(character.perks ?? {}).reduce((sum, n) => sum + (n ?? 0), 0)
+  return Math.max(0, (character.level - 1) - spent)
+}
+
+/**
+ * Count of unclaimed tier choices: tiers whose `unlock_level <= character.level`
+ * where no node from that tier has been picked yet.
+ */
+export function computeTierChoicesAvailable(character: {
+  level: number
+  class: GameState["character"]["class"]
+  skill_tree?: Record<string, boolean>
+}): number {
+  const classTemplate = CLASSES[character.class]
+  if (!classTemplate) return 0
+  const treeId =
+    "skill_tree_id" in classTemplate && typeof (classTemplate as { skill_tree_id?: unknown }).skill_tree_id === "string"
+      ? ((classTemplate as { skill_tree_id: string }).skill_tree_id)
+      : undefined
+  const tree = treeId ? SKILL_TREES[treeId] : classTemplate.skill_tree
+  if (!tree) return 0
+  const unlocked = character.skill_tree ?? {}
+  let available = 0
+  for (const tier of tree.tiers) {
+    if (character.level < tier.unlock_level) continue
+    const picked = tier.choices.some((choice) => unlocked[choice.id] === true)
+    if (!picked) available += 1
+  }
+  return available
 }
 
 function hasEffect(
@@ -2985,7 +3025,8 @@ export function buildObservationFromState(
       level: state.character.level,
       xp: state.character.xp,
       xp_to_next_level: xpToNextLevel(state.character.xp, state.character.level),
-      skill_points: Math.max(0, (state.character.level - 1) - Object.keys(state.character.skill_tree ?? {}).length),
+      skill_points: computePerkPointsRemaining(state.character),
+      tier_choices_available: computeTierChoicesAvailable(state.character),
       hp: { ...state.character.hp },
       resource: { ...state.character.resource },
       buffs: [...state.character.buffs],
@@ -2995,6 +3036,7 @@ export function buildObservationFromState(
       base_stats: state.character.stats,
       effective_stats: state.character.effective_stats,
       skill_tree: { ...(state.character.skill_tree ?? {}) },
+      perks: { ...(state.character.perks ?? {}) },
     },
     inventory: inventorySlots,
     new_item_ids: newItemIds,

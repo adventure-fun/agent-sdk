@@ -140,6 +140,7 @@ export interface Character {
   stats: CharacterStats
   effective_stats: CharacterStats // after equipment + buffs
   skill_tree: Record<string, string>
+  perks: Record<string, number>
   status: CharacterStatus
   stat_rerolled: boolean
   lore_discovered?: LoreDiscovery[]
@@ -205,6 +206,7 @@ export interface GameState {
     abilities: string[]
     cooldowns: Record<string, number>
     skill_tree: Record<string, boolean>
+    perks: Record<string, number>
   }
   position: {
     floor: number
@@ -378,7 +380,13 @@ export interface Observation {
     level: number
     xp: number
     xp_to_next_level: number
+    /**
+     * Perk points remaining: `(level - 1) - sum(perk stacks spent)`. Tier choices
+     * from the skill tree are milestone rewards and do NOT consume this pool.
+     */
     skill_points: number
+    /** Number of unclaimed tier levels (tier.unlock_level <= level with no choice picked). */
+    tier_choices_available: number
     hp: { current: number; max: number }
     resource: { type: ResourceType; current: number; max: number }
     buffs: ActiveEffect[]
@@ -388,6 +396,7 @@ export interface Observation {
     base_stats: CharacterStats
     effective_stats: CharacterStats
     skill_tree: Record<string, boolean>
+    perks: Record<string, number>
   }
   inventory: InventorySlot[]
   new_item_ids?: string[]
@@ -531,6 +540,21 @@ export interface SkillNodeTemplate {
     value?: number
     description?: string
   }
+}
+
+/**
+ * A stackable passive buff from the shared perk pool. Players earn 1 perk point
+ * per level-up and spend it to buy a stack of any perk they like. Stacks cap at
+ * `max_stacks` per perk. Applied to `effective_stats` server-side, same path as
+ * the skill-tree passive-stat effects.
+ */
+export interface PerkTemplate {
+  id: string
+  name: string
+  description: string
+  stat: "hp" | "attack" | "defense" | "accuracy" | "evasion" | "speed"
+  value_per_stack: number
+  max_stacks: number
 }
 
 export interface SkillTier {

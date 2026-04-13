@@ -127,6 +127,9 @@ type RealmRecord = {
 type CharacterProgressionResponse = {
   skill_points: number
   skill_tree_unlocked: Record<string, boolean>
+  tier_choices_available?: number
+  perks_unlocked?: Record<string, number>
+  perks_template?: Array<{ id: string; max_stacks: number }>
 }
 
 type LobbyState = {
@@ -306,6 +309,11 @@ export class BaseAgent {
         }
 
         await this.maybeSpendSkillPoints(client)
+        if (!this.isRunning) {
+          break
+        }
+
+        await this.maybeSpendPerks(client)
         if (!this.isRunning) {
           break
         }
@@ -689,6 +697,58 @@ export class BaseAgent {
           continue
         }
         throw error
+      }
+    }
+  }
+
+  private async maybeSpendPerks(client: AgentClient): Promise<void> {
+    if (!this.config.perks?.autoSpend) {
+      return
+    }
+
+    const preferredPerks = this.config.perks.preferredPerks ?? []
+    if (preferredPerks.length === 0) {
+      return
+    }
+
+    const progression = await client.request<CharacterProgressionResponse>("/characters/progression")
+    if (progression.skill_points <= 0) {
+      return
+    }
+
+    let remainingPoints = progression.skill_points
+    const stacks: Record<string, number> = { ...(progression.perks_unlocked ?? {}) }
+    const maxStacksById = new Map<string, number>()
+    for (const perk of progression.perks_template ?? []) {
+      maxStacksById.set(perk.id, perk.max_stacks)
+    }
+
+    // Walk the preferred list repeatedly, buying one stack at a time. This lets
+    // the agent spread stacks across multiple perks (as opposed to dumping all
+    // points into the first one) while still respecting user preference order.
+    let madeProgress = true
+    while (remainingPoints > 0 && madeProgress) {
+      madeProgress = false
+      for (const perkId of preferredPerks) {
+        if (remainingPoints <= 0) break
+        const cap = maxStacksById.get(perkId) ?? Infinity
+        if ((stacks[perkId] ?? 0) >= cap) continue
+
+        try {
+          await client.request("/characters/perk", {
+            method: "POST",
+            body: JSON.stringify({ perk_id: perkId }),
+          })
+          stacks[perkId] = (stacks[perkId] ?? 0) + 1
+          remainingPoints -= 1
+          madeProgress = true
+        } catch (error) {
+          if (isStatusError(error, 400)) {
+            // cap hit or other validation failure — skip this perk
+            continue
+          }
+          throw error
+        }
       }
     }
   }

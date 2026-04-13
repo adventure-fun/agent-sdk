@@ -9,6 +9,7 @@ import type {
   AbilityTemplate,
   EnemyTemplate,
   ItemTemplate,
+  PerkTemplate,
   RealmTemplate,
   RoomTemplate,
 } from "@adventure-fun/schemas"
@@ -31,6 +32,8 @@ import knightTreeJson from "../content/skill-trees/knight-tree.json" with { type
 import mageTreeJson from "../content/skill-trees/mage-tree.json" with { type: "json" }
 import rogueTreeJson from "../content/skill-trees/rogue-tree.json" with { type: "json" }
 import archerTreeJson from "../content/skill-trees/archer-tree.json" with { type: "json" }
+
+import sharedPerksJson from "../content/perks/shared-perks.json" with { type: "json" }
 
 import undeadJson from "../content/enemies/undead.json" with { type: "json" }
 import hollowJson from "../content/enemies/hollow.json" with { type: "json" }
@@ -218,6 +221,16 @@ const allSkillTrees = [
 export const SKILL_TREES: Record<string, typeof knightTreeJson> = Object.fromEntries(
   allSkillTrees.map((t) => [t.id, t])
 )
+
+// ---- Perks --------------------------------------------------
+
+const allPerks = sharedPerksJson.perks as PerkTemplate[]
+
+export const PERKS: Record<string, PerkTemplate> = Object.fromEntries(
+  allPerks.map((p) => [p.id, p])
+)
+
+export const PERK_LIST: PerkTemplate[] = [...allPerks]
 
 // ---- Accessor helpers ---------------------------------------
 

@@ -1,0 +1,52 @@
+{
+  "perks": [
+    {
+      "id": "perk-toughness",
+      "name": "Toughness",
+      "description": "+3 max HP per stack.",
+      "stat": "hp",
+      "value_per_stack": 3,
+      "max_stacks": 10
+    },
+    {
+      "id": "perk-sharpness",
+      "name": "Sharpness",
+      "description": "+1 attack per stack.",
+      "stat": "attack",
+      "value_per_stack": 1,
+      "max_stacks": 10
+    },
+    {
+      "id": "perk-vigor",
+      "name": "Vigor",
+      "description": "+1 defense per stack.",
+      "stat": "defense",
+      "value_per_stack": 1,
+      "max_stacks": 8
+    },
+    {
+      "id": "perk-keen-eye",
+      "name": "Keen Eye",
+      "description": "+1 accuracy per stack.",
+      "stat": "accuracy",
+      "value_per_stack": 1,
+      "max_stacks": 6
+    },
+    {
+      "id": "perk-nimble",
+      "name": "Nimble",
+      "description": "+1 evasion per stack.",
+      "stat": "evasion",
+      "value_per_stack": 1,
+      "max_stacks": 6
+    },
+    {
+      "id": "perk-swiftness",
+      "name": "Swiftness",
+      "description": "+1 speed per stack.",
+      "stat": "speed",
+      "value_per_stack": 1,
+      "max_stacks": 5
+    }
+  ]
+}

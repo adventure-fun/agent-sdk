@@ -1,5 +1,10 @@
 import { describe, it, expect } from "bun:test"
-import { validateSkillAllocation, applySkillTreePassives } from "../src/game/skill-tree.js"
+import {
+  applyPerkPassives,
+  applySkillTreePassives,
+  validatePerkAllocation,
+  validateSkillAllocation,
+} from "../src/game/skill-tree.js"
 import type { CharacterStats } from "@adventure-fun/schemas"
 
 describe("validateSkillAllocation", () => {
@@ -14,18 +19,6 @@ describe("validateSkillAllocation", () => {
     const result = validateSkillAllocation("knight", 2, {}, "knight-t1-shield-wall")
     expect(result.ok).toBe(false)
     expect(result.error).toContain("level")
-  })
-
-  it("rejects unlocking when no skill points are available", () => {
-    // Level 2 gives 1 point, already spent on another node
-    const result = validateSkillAllocation(
-      "knight",
-      3,
-      { "knight-t1-cleave": true, "some-other": true },
-      "knight-t1-shield-wall",
-    )
-    expect(result.ok).toBe(false)
-    expect(result.error).toContain("skill points")
   })
 
   it("rejects re-unlocking an already unlocked skill", () => {
@@ -152,5 +145,84 @@ describe("applySkillTreePassives", () => {
     }
     applySkillTreePassives("knight", base, { "knight-t2-iron-skin": true })
     expect(base.defense).toBe(12)
+  })
+})
+
+describe("validatePerkAllocation", () => {
+  it("allows buying a perk when points are available", () => {
+    const result = validatePerkAllocation(5, {}, "perk-toughness")
+    expect(result.ok).toBe(true)
+    expect(result.perk?.id).toBe("perk-toughness")
+  })
+
+  it("rejects at level 1 (no points yet)", () => {
+    const result = validatePerkAllocation(1, {}, "perk-toughness")
+    expect(result.ok).toBe(false)
+    expect(result.error).toContain("perk points")
+  })
+
+  it("rejects when a perk is already at max stacks", () => {
+    const result = validatePerkAllocation(20, { "perk-swiftness": 5 }, "perk-swiftness")
+    expect(result.ok).toBe(false)
+    expect(result.error).toContain("max stacks")
+  })
+
+  it("rejects unknown perk id", () => {
+    const result = validatePerkAllocation(5, {}, "perk-nonexistent")
+    expect(result.ok).toBe(false)
+    expect(result.error).toContain("Unknown")
+  })
+
+  it("allows stacking up to but not beyond the cap", () => {
+    // perk-swiftness has max_stacks = 5
+    const atFour = validatePerkAllocation(20, { "perk-swiftness": 4 }, "perk-swiftness")
+    expect(atFour.ok).toBe(true)
+
+    const atFive = validatePerkAllocation(20, { "perk-swiftness": 5 }, "perk-swiftness")
+    expect(atFive.ok).toBe(false)
+  })
+
+  it("counts all perk stacks when computing available points", () => {
+    // level 5 → 4 points. Spent 3 across two perks → 1 left. Buying one more is OK.
+    const ok = validatePerkAllocation(5, { "perk-toughness": 2, "perk-sharpness": 1 }, "perk-vigor")
+    expect(ok.ok).toBe(true)
+
+    // Spent 4 out of 4 → not enough for one more
+    const over = validatePerkAllocation(5, { "perk-toughness": 2, "perk-sharpness": 2 }, "perk-vigor")
+    expect(over.ok).toBe(false)
+    expect(over.error).toContain("perk points")
+  })
+})
+
+describe("applyPerkPassives", () => {
+  const base: CharacterStats = {
+    hp: 100,
+    attack: 17,
+    defense: 12,
+    accuracy: 67,
+    evasion: 14,
+    speed: 10,
+  }
+
+  it("applies +3 HP × 2 stacks of Toughness", () => {
+    const result = applyPerkPassives(base, { "perk-toughness": 2 })
+    expect(result.hp).toBe(106)
+    expect(result.attack).toBe(17) // unchanged
+  })
+
+  it("ignores unknown perks", () => {
+    const result = applyPerkPassives(base, { "perk-bogus": 5 })
+    expect(result).toEqual(base)
+  })
+
+  it("does not mutate the original stats object", () => {
+    applyPerkPassives(base, { "perk-vigor": 3 })
+    expect(base.defense).toBe(12)
+  })
+
+  it("composes with tree passives (knight iron-skin + perk-vigor ×3 = +7 defense)", () => {
+    const afterTree = applySkillTreePassives("knight", base, { "knight-t2-iron-skin": true })
+    const afterPerks = applyPerkPassives(afterTree, { "perk-vigor": 3 })
+    expect(afterPerks.defense).toBe(base.defense + 4 + 3)
   })
 })

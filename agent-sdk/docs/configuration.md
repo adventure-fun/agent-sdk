@@ -25,7 +25,8 @@ Top-level interface that `BaseAgent` accepts.
 | `rerollStats` | `StatRerollConfig` | no | disabled | Conditionally reroll a newly created character if the rolled stats are below your thresholds |
 | `realmProgression` | `RealmProgressionConfig` | no | `{ strategy: "auto" }` | How the agent chooses the next realm and whether it keeps chaining after extraction |
 | `profile` | `AgentProfileConfig` | no | -- | Optional account handle, X handle, and GitHub handle to sync during startup |
-| `skillTree` | `SkillTreeConfig` | no | `{ autoSpend: false }` | Optional auto-allocation rules for skill points between runs |
+| `skillTree` | `SkillTreeConfig` | no | `{ autoSpend: false }` | Optional auto-allocation rules for tier-choice skill nodes between runs |
+| `perks` | `PerksConfig` | no | `{ autoSpend: false }` | Optional auto-allocation rules for per-level perk points between runs |
 | `lobby` | `LobbyConfig` | no | LLM-enabled defaults | Between-run lobby decisions for healing, selling, equipping, and buying |
 | `limits` | `AgentLimitsConfig` | no | unlimited | Runtime, realm-count, and x402 spending guardrails |
 | `rerollOnDeath` | `boolean` | no | `false` | Roll a new character and continue after permadeath |
@@ -129,14 +130,37 @@ These fields are synced through `PATCH /auth/profile` after authentication and b
 
 ## SkillTreeConfig
 
-Controls optional automatic skill point spending between runs.
+Controls optional automatic spending of tier-choice skill nodes between runs.
+
+Tier choices are the class-defining picks at levels 3, 6, and 10 (one mutually-exclusive choice per tier). They are milestone rewards — they do not cost skill points, they simply unlock when the character reaches the tier level.
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
 | `autoSpend` | `boolean` | no | `true` when provided | Enables the between-run spending pass |
 | `preferredNodes` | `string[]` | no | `[]` | Ordered node IDs to attempt to unlock |
 
-The agent only attempts the node IDs you provide. It skips invalid or not-yet-unlockable nodes and never invents its own build order.
+**The agent does not reason about tier choices via the LLM.** It only attempts the node IDs you list in `preferredNodes`, walked once top-to-bottom. Invalid, already-picked, or not-yet-unlocked nodes are skipped silently. If you want your agent to claim tier picks, **you must provide a build order here** — an unconfigured agent will accumulate unclaimed tier slots forever.
+
+Use the observation field `tier_choices_available` in your own module logic if you want to surface the unclaimed-pick count to the LLM or to a custom planner.
+
+## PerksConfig
+
+Controls optional automatic spending of per-level perk points between runs.
+
+Perks are a shared pool of stackable passive stat buffs (HP, attack, defense, etc.) earned at a rate of 1 point per level-up. They are independent of tier choices — every level grants a perk point regardless of whether a tier milestone was reached on that level. Each perk has a `max_stacks` cap defined by the server.
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `autoSpend` | `boolean` | no | `true` when provided | Enables the between-run perk-spending pass |
+| `preferredPerks` | `string[]` | no | `[]` | Ordered perk IDs to attempt to buy |
+
+**The agent does not reason about perk choices via the LLM.** As with `skillTree`, spending is driven entirely by the deterministic list you provide. Leave `preferredPerks` empty and the agent will silently skip the spending pass even with `autoSpend: true`.
+
+The agent discovers the active perk pool and each perk's `max_stacks` at runtime by reading the `perks_template` field on `GET /characters/progression`, so you do not need to re-release the SDK when new perks are added server-side — your existing `preferredPerks` list continues to work as long as the IDs stay valid.
+
+**Round-robin spend loop.** Unlike `preferredNodes` (which is walked once top-to-bottom because only one node per tier is possible anyway), the perk list is walked repeatedly, one stack per pass. If you set `preferredPerks: ["perk-sharpness", "perk-toughness"]` and have 10 points to spend, the agent alternates purchases — 5 stacks of each — rather than dumping all 10 into the first perk before moving on. Perks that hit their `max_stacks` cap are skipped on subsequent passes.
+
+If you want LLM-driven perk choices instead of a fixed priority list, implement your own module that reads `observation.character.skill_points`, `observation.character.perks`, and the progression endpoint, then issues `POST /characters/perk` directly. The built-in `maybeSpendPerks` loop is intentionally simple to keep the contract predictable.
 
 ## LobbyConfig
 
@@ -296,8 +320,10 @@ The example agents read these variables. Custom agents can use any configuration
 | `REROLL_MIN_ACCURACY` | `rerollStats.minStats.accuracy` | Conditional stat reroll threshold |
 | `REROLL_MIN_EVASION` | `rerollStats.minStats.evasion` | Conditional stat reroll threshold |
 | `REROLL_MIN_SPEED` | `rerollStats.minStats.speed` | Conditional stat reroll threshold |
-| `AUTO_SPEND_SKILL_POINTS` | `skillTree.autoSpend` | `"true"` to enable between-run skill spending |
-| `PREFERRED_SKILL_NODES` | `skillTree.preferredNodes` | Comma-separated node IDs |
+| `AUTO_SPEND_SKILL_POINTS` | `skillTree.autoSpend` | `"true"` to enable between-run tier-choice spending |
+| `PREFERRED_SKILL_NODES` | `skillTree.preferredNodes` | Comma-separated tier node IDs (walked top-to-bottom once) |
+| `AUTO_SPEND_PERKS` | `perks.autoSpend` | `"true"` to enable between-run perk spending |
+| `PREFERRED_PERKS` | `perks.preferredPerks` | Comma-separated perk IDs (walked round-robin one stack per pass) |
 | `LOBBY_USE_LLM` | `lobby.useLLM` | `"false"` forces heuristic-only lobby behavior |
 | `INN_HEAL_THRESHOLD` | `lobby.innHealThreshold` | Heal when HP ratio drops below this value |
 | `AUTO_SELL_JUNK` | `lobby.autoSellJunk` | `"false"` disables heuristic junk selling |
@@ -356,7 +382,11 @@ const config = createDefaultConfig({
   },
   skillTree: {
     autoSpend: true,
-    preferredNodes: ["shadowstep", "backstab_mastery"],
+    preferredNodes: ["rogue-t1-disarm-trap", "rogue-t2-envenom", "rogue-t3-death-mark"],
+  },
+  perks: {
+    autoSpend: true,
+    preferredPerks: ["perk-sharpness", "perk-toughness", "perk-swiftness"],
   },
   lobby: {
     useLLM: true,

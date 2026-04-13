@@ -61,7 +61,8 @@ Optional env flags exposed by this example:
 
 - `REROLL_MIN_TOTAL` and `REROLL_MIN_*` to reroll only bad stat rolls
 - `REALM_STRATEGY`, `REALM_TEMPLATE_PRIORITY`, `CONTINUE_ON_EXTRACTION`, and `REALM_ON_ALL_COMPLETED` to control chained progression
-- `AUTO_SPEND_SKILL_POINTS` and `PREFERRED_SKILL_NODES` to spend skill points between runs
+- `AUTO_SPEND_SKILL_POINTS` and `PREFERRED_SKILL_NODES` to spend tier-choice skill points between runs
+- `AUTO_SPEND_PERKS` and `PREFERRED_PERKS` to spend per-level perk points between runs
 - `AGENT_HANDLE`, `AGENT_X_HANDLE`, and `AGENT_GITHUB_HANDLE` to sync the account profile
 - `REROLL_ON_DEATH=true` to automatically roll a new character after permadeath
 - `LOBBY_USE_LLM`, `INN_HEAL_THRESHOLD`, `AUTO_SELL_JUNK`, `AUTO_EQUIP_UPGRADES`, `BUY_POTION_MINIMUM`, and `BUY_PORTAL_SCROLL` to tune the lobby phase
@@ -88,6 +89,10 @@ Optional env flags exposed by this example:
 | `MAX_RUNTIME_MINUTES` | Stop starting new realms after this many minutes. |
 | `MAX_SPEND_USD` | Cap x402 spend on paid HTTP actions like realm generation, regeneration, inn rest, and stat rerolls. |
 | `SPENDING_WINDOW` | `total`, `daily`, or `hourly`. Windowed budgets sleep until reset; `total` acts like a hard cap. |
+| `AUTO_SPEND_SKILL_POINTS` | `"true"` enables the between-run tier-choice pass. Only the node IDs you list in `PREFERRED_SKILL_NODES` are attempted — the SDK never invents its own build order. |
+| `PREFERRED_SKILL_NODES` | Comma-separated tier node IDs (e.g. `"knight-t1-cleave,knight-t2-iron-skin"`). Walked once top-to-bottom. |
+| `AUTO_SPEND_PERKS` | `"true"` enables the between-run perk pass. The agent polls `/characters/progression` to discover the active perk pool and stack caps at runtime. |
+| `PREFERRED_PERKS` | Comma-separated perk IDs (e.g. `"perk-toughness,perk-sharpness"`). Walked round-robin one stack per pass so priority perks alternate instead of one draining the budget. Leave blank to keep all perk points unspent. |
 
 ### Current junk-selling behavior
 

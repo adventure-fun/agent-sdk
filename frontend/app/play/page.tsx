@@ -76,6 +76,7 @@ export default function PlayPage() {
     progression,
     fetchProgression,
     unlockSkill,
+    buyPerk,
     error: progressionError,
   } = useProgression()
 
@@ -853,14 +854,27 @@ export default function PlayPage() {
 
   // ── Character hub ────────────────────────────────────────────────────────────
   if (step === "hub" && character) {
-    // Compute effective HP max (base + equipment bonuses)
+    // Compute effective HP max (base + equipment + perks)
     let equipHpBonus = 0
     for (const item of shopInventory) {
       if (!item.slot) continue
       const tmpl = itemTemplateMap[item.template_id]
       if (tmpl?.stats?.hp && typeof tmpl.stats.hp === "number") equipHpBonus += tmpl.stats.hp
     }
-    const effectiveHpMax = character.hp_max + equipHpBonus
+    // Aggregate all stat bonuses from purchased perks (uses the perks template
+    // fetched via /characters/progression). Falls back to empty when progression
+    // isn't loaded yet — the first render after a buy will refresh automatically.
+    const perkBonus = { hp: 0, attack: 0, defense: 0, accuracy: 0, evasion: 0, speed: 0 }
+    if (progression?.perks_template && progression.perks_unlocked) {
+      for (const perk of progression.perks_template) {
+        const stacks = progression.perks_unlocked[perk.id] ?? 0
+        if (stacks <= 0) continue
+        if (perk.stat in perkBonus) {
+          perkBonus[perk.stat as keyof typeof perkBonus] += perk.value_per_stack * stacks
+        }
+      }
+    }
+    const effectiveHpMax = character.hp_max + equipHpBonus + perkBonus.hp
     const hubHpPct = effectiveHpMax > 0 ? (character.hp_current / effectiveHpMax) * 100 : 0
     const hubHpColor = hubHpPct > 50 ? "bg-green-500" : hubHpPct > 25 ? "bg-ob-primary-dim" : "bg-ob-error"
     const resourceLabel = classMap[character.class]?.resource_type ?? "resource"
@@ -1241,17 +1255,21 @@ export default function PlayPage() {
                     onDiscard={handleDiscardItem}
                   />
                 ) : hubTab === HubTab.Skills ? (
-                  progression?.skill_tree_template ? (
+                  progression ? (
                     <SkillTreePanel
                       progression={progression}
                       onUnlock={async (nodeId) => {
                         await unlockSkill(nodeId)
                         await fetchCharacter()
                       }}
+                      onBuyPerk={async (perkId) => {
+                        await buyPerk(perkId)
+                        await fetchCharacter()
+                      }}
                       error={progressionError}
                     />
                   ) : (
-                    <p className="text-sm text-ob-outline">No skill tree available yet.</p>
+                    <p className="text-sm text-ob-outline">No progression data yet.</p>
                   )
                 ) : hubTab === HubTab.Lore ? (
                   <div className="rounded border border-ob-outline-variant/15 bg-ob-surface-container-low p-4 space-y-3">
@@ -1311,23 +1329,33 @@ export default function PlayPage() {
               resourceColor="bg-blue-500"
               statRows={(() => {
                 const base = character.stats
-                const bonus = { attack: 0, defense: 0, accuracy: 0, evasion: 0, speed: 0, hp: 0 }
+                // Perks are baked into the "base" number — they're permanent
+                // and shouldn't clutter the (+N) diff. Only equipment shows
+                // as a visible diff, matching how HP (+N) annotation works.
+                const perkBase = {
+                  attack: base.attack + perkBonus.attack,
+                  defense: base.defense + perkBonus.defense,
+                  accuracy: base.accuracy + perkBonus.accuracy,
+                  evasion: base.evasion + perkBonus.evasion,
+                  speed: base.speed + perkBonus.speed,
+                }
+                const equipBonus = { attack: 0, defense: 0, accuracy: 0, evasion: 0, speed: 0, hp: 0 }
                 for (const item of shopInventory) {
                   if (!item.slot) continue
                   const tmpl = itemTemplateMap[item.template_id]
                   if (!tmpl?.stats) continue
                   for (const [stat, val] of Object.entries(tmpl.stats)) {
-                    if (stat in bonus && typeof val === "number") {
-                      bonus[stat as keyof typeof bonus] += val
+                    if (stat in equipBonus && typeof val === "number") {
+                      equipBonus[stat as keyof typeof equipBonus] += val
                     }
                   }
                 }
                 return [
-                  { label: "ATK", base: base.attack, effective: base.attack + bonus.attack },
-                  { label: "DEF", base: base.defense, effective: base.defense + bonus.defense },
-                  { label: "ACC", base: base.accuracy, effective: base.accuracy + bonus.accuracy },
-                  { label: "EVA", base: base.evasion, effective: base.evasion + bonus.evasion },
-                  { label: "SPD", base: base.speed, effective: base.speed + bonus.speed },
+                  { label: "ATK", base: perkBase.attack, effective: perkBase.attack + equipBonus.attack },
+                  { label: "DEF", base: perkBase.defense, effective: perkBase.defense + equipBonus.defense },
+                  { label: "ACC", base: perkBase.accuracy, effective: perkBase.accuracy + equipBonus.accuracy },
+                  { label: "EVA", base: perkBase.evasion, effective: perkBase.evasion + equipBonus.evasion },
+                  { label: "SPD", base: perkBase.speed, effective: perkBase.speed + equipBonus.speed },
                 ]
               })()}
             >
@@ -1345,12 +1373,14 @@ export default function PlayPage() {
                 resourceMax={character.resource_max}
               />
 
-              {progression && progression.skill_points > 0 && (
+              {progression && (progression.skill_points > 0 || progression.tier_choices_available > 0) && (
                 <button
                   onClick={() => store.getState().setHubTab(HubTab.Skills)}
                   className="w-full text-xs text-center py-1.5 rounded border border-ob-primary/30 bg-ob-primary/10 text-ob-primary hover:bg-ob-primary/15 transition-colors"
                 >
-                  {progression.skill_points} skill point{progression.skill_points !== 1 ? "s" : ""} available — View Skill Tree
+                  {progression.tier_choices_available > 0
+                    ? `New class path unlocked${progression.skill_points > 0 ? ` + ${progression.skill_points} perk point${progression.skill_points !== 1 ? "s" : ""}` : ""} — View`
+                    : `${progression.skill_points} perk point${progression.skill_points !== 1 ? "s" : ""} available — View`}
                 </button>
               )}
             </CharacterPanel>

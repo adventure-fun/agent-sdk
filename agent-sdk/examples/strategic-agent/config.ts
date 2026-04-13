@@ -160,6 +160,13 @@ export const strategicConfig: AgentConfig = createDefaultConfig({
       .map((value) => value.trim())
       .filter(Boolean),
   },
+  perks: {
+    autoSpend: process.env.AUTO_SPEND_PERKS === "true",
+    preferredPerks: (process.env.PREFERRED_PERKS ?? "")
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean),
+  },
   lobby: {
     innHealThreshold: Number(process.env.INN_HEAL_THRESHOLD ?? "1"),
     autoSellJunk: process.env.AUTO_SELL_JUNK !== "false",

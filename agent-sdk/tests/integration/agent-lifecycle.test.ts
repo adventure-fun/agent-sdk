@@ -782,4 +782,89 @@ describe("BaseAgent lifecycle enhancements", () => {
     expect(gold).toBe(19)
     expect(client.connectedRealmIds).toEqual(["realm-1"])
   })
+
+  it("spends perk points on preferred perks and skips capped ones", async () => {
+    const requestCounts = new Map<string, number>()
+    const perkBody: Array<{ perk_id: string }> = []
+    const progressionResponses = [
+      {
+        skill_points: 3,
+        skill_tree_unlocked: {},
+        perks_unlocked: { "perk-sharpness": 10 }, // at cap
+        perks_template: [
+          { id: "perk-sharpness", max_stacks: 10 },
+          { id: "perk-toughness", max_stacks: 10 },
+        ],
+      },
+    ]
+
+    const client = new StubClient({
+      connectPlan: [{ outcome: "extracted" }],
+      requestHandler: async (path, options) => {
+        requestCounts.set(path, (requestCounts.get(path) ?? 0) + 1)
+        switch (path) {
+          case "/characters/me":
+            return {
+              id: "char-1",
+              class: "rogue",
+              name: "Shade",
+              stat_rerolled: true,
+              stats: { hp: 30, attack: 10, defense: 10, accuracy: 10, evasion: 10, speed: 10 },
+            }
+          case "/characters/progression": {
+            return progressionResponses[0]
+          }
+          case "/characters/perk": {
+            const body = JSON.parse(String(options.body ?? "{}")) as { perk_id: string }
+            perkBody.push(body)
+            return { ok: true }
+          }
+          case "/realms/mine":
+            return { realms: [{ id: "realm-1", template_id: "test-tutorial", status: "completed" }] }
+          case "/realms/realm-1/regenerate":
+            return { id: "realm-1", template_id: "test-tutorial", status: "generated" }
+          default:
+            throw new Error(`Unexpected request path: ${path}`)
+        }
+      },
+    })
+
+    const agent = new BaseAgent(
+      createDefaultConfig({
+        apiUrl: "https://example.com",
+        wsUrl: "wss://example.com",
+        realmTemplateId: "test-tutorial",
+        characterClass: "rogue",
+        characterName: "Shade",
+        realmProgression: { strategy: "regenerate", continueOnExtraction: false },
+        perks: {
+          autoSpend: true,
+          preferredPerks: ["perk-sharpness", "perk-toughness"],
+        },
+        llm: { provider: "openai", apiKey: "test-key" },
+        wallet: { type: "env" },
+      }),
+      {
+        llmAdapter: new MockLLMAdapter(),
+        walletAdapter: new MockWalletAdapter(),
+        authenticateFn: async (): Promise<SessionToken> => ({
+          token: "session-token",
+          expires_at: Date.now() + 60_000,
+        }),
+        clientFactory: async () => client,
+      },
+    )
+
+    await agent.start()
+
+    // Agent should have tried progression once and spent all 3 points on perk-toughness
+    // (perk-sharpness is already at cap and gets skipped locally).
+    expect(requestCounts.get("/characters/progression")).toBe(1)
+    expect(requestCounts.get("/characters/perk")).toBe(3)
+    expect(perkBody.map((b) => b.perk_id)).toEqual([
+      "perk-toughness",
+      "perk-toughness",
+      "perk-toughness",
+    ])
+  })
 })
