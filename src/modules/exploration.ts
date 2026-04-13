@@ -1,6 +1,12 @@
 import { hasActionableLootBlockingPostClearExtraction } from "../extraction-loot-gate.js"
 import type { Action, Direction, Observation } from "../protocol.js"
-import type { AgentContext, AgentModule, ModuleRecommendation } from "./index.js"
+import type {
+  AgentContext,
+  AgentModule,
+  EncounteredDoor,
+  ModuleRecommendation,
+  SeenItem,
+} from "./index.js"
 
 const COMPLETED_STATUSES = new Set(["boss_cleared", "realm_cleared"])
 const DIRECTIONS: Direction[] = ["up", "down", "left", "right"]
@@ -35,6 +41,22 @@ export class ExplorationModule implements AgentModule {
       context.mapMemory.turnsWithoutNewRoom = 0
       context.mapMemory.loopTrackTemplate = realmTemplate
     }
+    // Realm-status transition reset: when the realm flips from active to cleared (or any
+    // other transition), wipe ping-pong tracking. Stale loopRecentRooms tails from the
+    // pre-clear ping-pong otherwise keep firing the post-clear extraction loop-recovery
+    // path inside the boss / exit room, where there is no actual loop.
+    const currentStatus = observation.realm_info.status
+    if (
+      context.mapMemory.lastRealmStatus !== undefined
+      && context.mapMemory.lastRealmStatus !== currentStatus
+    ) {
+      delete context.mapMemory.loopRecentRooms
+      delete context.mapMemory.loopDoorCrossings
+      delete context.mapMemory.loopEdgeBans
+      delete context.mapMemory.unstuckAwayFromEdge
+      context.mapMemory.turnsWithoutNewRoom = 0
+    }
+    context.mapMemory.lastRealmStatus = currentStatus
     refreshLoopEdgeBans(observation, context)
 
     if (!COMPLETED_STATUSES.has(observation.realm_info.status)) {
@@ -292,12 +314,26 @@ export class ExplorationModule implements AgentModule {
     const roomChanged = previousPosition?.roomId !== roomId
     if (roomChanged) {
       appendLoopRoomVisit(context, roomId)
+      context.mapMemory.lastRoomChangeTurn = observation.turn
     }
     const isNewRoom = !context.mapMemory.visitedRooms.has(roomId)
     if (isNewRoom) {
       context.mapMemory.turnsWithoutNewRoom = 0
     } else {
       context.mapMemory.turnsWithoutNewRoom = (context.mapMemory.turnsWithoutNewRoom ?? 0) + 1
+    }
+
+    const positionChanged =
+      !previousPosition
+      || previousPosition.floor !== currentPosition.floor
+      || previousPosition.roomId !== currentPosition.roomId
+      || previousPosition.x !== currentPosition.x
+      || previousPosition.y !== currentPosition.y
+    if (positionChanged) {
+      context.mapMemory.turnsWithoutPositionChange = 0
+    } else {
+      context.mapMemory.turnsWithoutPositionChange =
+        (context.mapMemory.turnsWithoutPositionChange ?? 0) + 1
     }
     context.mapMemory.visitedRooms.add(roomId)
     context.mapMemory.visitedTiles.add(tileMemoryKey(currentPosition.floor, currentPosition.x, currentPosition.y))
@@ -306,6 +342,9 @@ export class ExplorationModule implements AgentModule {
       const key = `${observation.position.floor}:${tile.x},${tile.y}`
       context.mapMemory.knownTiles.set(key, tile)
     }
+
+    updateSeenItems(observation, context)
+    updateEncounteredDoors(observation, context)
 
     const moveDirections = observation.legal_actions
       .filter((a): a is Extract<Action, { type: "move" }> => a.type === "move")
@@ -343,6 +382,159 @@ const EXPLORATION_HOMING_CONTEXT = { explorationHoming: true as const }
 
 const LOOP_ROOM_HISTORY_CAP = 16
 
+const KEY_ITEM_NAME_PATTERN = /\bkey\b/i
+
+function isLikelyKey(entity: { name: string; template_type?: string }): boolean {
+  if (entity.template_type === "key-item") return true
+  return KEY_ITEM_NAME_PATTERN.test(entity.name)
+}
+
+/**
+ * Record every visible item in `mapMemory.seenItems` so downstream modules (key/door routing,
+ * stuck recovery) can backtrack to uncollected loot. Entries live until the item is picked up,
+ * at which point we prune the last-action target so revisit logic can't loop.
+ */
+function updateSeenItems(observation: Observation, context: AgentContext): void {
+  const seen = context.mapMemory.seenItems ?? (context.mapMemory.seenItems = new Map<string, SeenItem>())
+
+  for (const entity of observation.visible_entities) {
+    if (entity.type !== "item") continue
+    const existing = seen.get(entity.id)
+    const next: SeenItem = {
+      itemId: entity.id,
+      floor: observation.position.floor,
+      roomId: observation.position.room_id,
+      x: entity.position.x,
+      y: entity.position.y,
+      name: entity.name,
+      ...(entity.rarity !== undefined ? { rarity: entity.rarity } : {}),
+      isLikelyKey: isLikelyKey(entity),
+      lastSeenTurn: observation.turn,
+    }
+    if (!existing || existing.lastSeenTurn < next.lastSeenTurn) {
+      seen.set(entity.id, next)
+    }
+  }
+
+  // Prune pickups. Two complementary signals because neither is perfectly reliable:
+  //  (1) `observation.new_item_ids` — entity ids that entered inventory this turn.
+  //  (2) Last action was `pickup` AND the target is no longer visible — covers servers that
+  //      don't populate new_item_ids or that reassign ids when stacking into inventory.
+  for (const id of observation.new_item_ids ?? []) {
+    seen.delete(id)
+  }
+  const lastAction = context.previousActions.at(-1)?.action
+  if (lastAction?.type === "pickup") {
+    const stillVisible = observation.visible_entities.some((e) => e.id === lastAction.item_id)
+    if (!stillVisible) {
+      seen.delete(lastAction.item_id)
+    }
+  }
+}
+
+/**
+ * Maintain `mapMemory.encounteredDoors` from two signals:
+ *   1. Interactables with `is_locked_exit === true` in `visible_entities` (door is still there).
+ *   2. `interact_blocked` events in `recent_events` (door condition failed — remember the door
+ *      and the required key template id so the KeyDoorModule can route back).
+ * Also clears a door when a previous `interact` action succeeds (target no longer visible).
+ */
+function updateEncounteredDoors(observation: Observation, context: AgentContext): void {
+  const doors =
+    context.mapMemory.encounteredDoors
+    ?? (context.mapMemory.encounteredDoors = new Map<string, EncounteredDoor>())
+
+  // Signal 1: visible locked-exit interactables.
+  for (const entity of observation.visible_entities) {
+    if (entity.type !== "interactable" || entity.is_locked_exit !== true) continue
+    const existing = doors.get(entity.id)
+    if (existing) {
+      existing.x = entity.position.x
+      existing.y = entity.position.y
+      existing.floor = observation.position.floor
+      existing.roomId = observation.position.room_id
+      existing.name = entity.name
+      continue
+    }
+    doors.set(entity.id, {
+      targetId: entity.id,
+      floor: observation.position.floor,
+      roomId: observation.position.room_id,
+      x: entity.position.x,
+      y: entity.position.y,
+      name: entity.name,
+      interactedTurns: [],
+      firstSeenTurn: observation.turn,
+      isBlocked: true,
+    })
+  }
+
+  // Signal 2: structured `interact_blocked` events.
+  for (const event of observation.recent_events) {
+    if (event.type !== "interact_blocked") continue
+    const data = event.data ?? {}
+    const targetId = typeof data.target_id === "string" ? data.target_id : null
+    if (!targetId) continue
+    const reason = typeof data.reason === "string" ? data.reason : "unknown"
+    const requiredTemplateId =
+      typeof data.required_template_id === "string" ? data.required_template_id : undefined
+    const isLockedExit = data.is_locked_exit === true
+
+    const existing = doors.get(targetId)
+    if (existing) {
+      if (!existing.interactedTurns.includes(event.turn)) {
+        existing.interactedTurns.push(event.turn)
+      }
+      existing.lastBlockedDetail = event.detail
+      if (requiredTemplateId && reason === "missing-item") {
+        existing.requiredKeyTemplateId = requiredTemplateId
+      }
+      existing.isBlocked = true
+      continue
+    }
+    // First time seeing this target — we don't have a position for it unless it's also in
+    // visible_entities this turn (handled above). Store what we have; position will get filled
+    // in on a future turn when the interactable is in view.
+    const visible = observation.visible_entities.find((entity) => entity.id === targetId)
+    doors.set(targetId, {
+      targetId,
+      floor: observation.position.floor,
+      roomId: observation.position.room_id,
+      x: visible?.position.x ?? observation.position.tile.x,
+      y: visible?.position.y ?? observation.position.tile.y,
+      ...(visible?.name ? { name: visible.name } : {}),
+      ...(requiredTemplateId && reason === "missing-item"
+        ? { requiredKeyTemplateId: requiredTemplateId }
+        : {}),
+      interactedTurns: [event.turn],
+      firstSeenTurn: event.turn,
+      lastBlockedDetail: event.detail,
+      isBlocked: true,
+      ...(isLockedExit ? {} : {}),
+    })
+  }
+
+  // Clear a door when our last action was a successful `interact` on it. Successful interact =
+  // target_id no longer appears in visible_entities AND no new interact_blocked event for it.
+  const lastAction = context.previousActions.at(-1)?.action
+  if (lastAction?.type === "interact") {
+    const targetId = lastAction.target_id
+    const stillVisible = observation.visible_entities.some((entity) => entity.id === targetId)
+    const blockedAgain = observation.recent_events.some(
+      (event) =>
+        event.type === "interact_blocked"
+        && typeof event.data?.target_id === "string"
+        && event.data.target_id === targetId,
+    )
+    if (!stillVisible && !blockedAgain) {
+      const existing = doors.get(targetId)
+      if (existing) {
+        existing.isBlocked = false
+      }
+    }
+  }
+}
+
 function isAlternatingTwoRoomTail(roomIds: string[], tailLen: number): boolean {
   if (roomIds.length < tailLen || tailLen < 4 || tailLen % 2 !== 0) {
     return false
@@ -354,6 +546,33 @@ function isAlternatingTwoRoomTail(roomIds: string[], tailLen: number): boolean {
     return false
   }
   return tail.every((roomId, index) => roomId === (index % 2 === 0 ? a : b))
+}
+
+const SETTLED_IN_ROOM_TURN_THRESHOLD = 4
+
+/**
+ * Conservative oscillation check: confirms the alternating-tail pattern AND requires the
+ * current room to actually be one of the two looping rooms AND requires the agent to have
+ * transitioned rooms recently. Without these guards, stale loopRecentRooms data from before
+ * a realm-clear (or from many turns ago) keeps reporting "you're ping-ponging" while the
+ * agent has long since settled into one room and is just exploring its interior.
+ */
+function isCurrentRoomOscillating(
+  context: AgentContext,
+  currentRoomId: string,
+  currentTurn: number,
+): boolean {
+  const seq = context.mapMemory.loopRecentRooms ?? []
+  if (!isAlternatingTwoRoomTail(seq, 4)) return false
+  const tail = seq.slice(-4)
+  if (tail[0] !== currentRoomId && tail[1] !== currentRoomId) return false
+  // If the agent hasn't switched rooms in many turns, the ABAB tail is ancient history.
+  // The agent is now wandering inside one room, not actually ping-ponging.
+  const lastChange = context.mapMemory.lastRoomChangeTurn
+  if (lastChange !== undefined && currentTurn - lastChange > SETTLED_IN_ROOM_TURN_THRESHOLD) {
+    return false
+  }
+  return true
 }
 
 function appendLoopRoomVisit(context: AgentContext, roomId: string): void {
@@ -378,7 +597,15 @@ function shouldLearnTwoRoomLoopBans(observation: Observation, context: AgentCont
   if (isSurvivalHpLow(observation, context)) {
     return true
   }
-  return COMPLETED_STATUSES.has(observation.realm_info.status) && observation.position.floor === 1
+  if (COMPLETED_STATUSES.has(observation.realm_info.status) && observation.position.floor === 1) {
+    return true
+  }
+  // Active-play stall: if we've spent 6+ turns without entering a new room, treat that as a
+  // ping-pong signal so the loop-edge ban learner can kick in. Without this, the east-bias
+  // override happily flings the agent back through the same door it just came out of when
+  // the realm spine actually runs west (e.g. backtracking to find a key).
+  const stuckTurns = context.mapMemory.turnsWithoutNewRoom ?? 0
+  return stuckTurns >= 6
 }
 
 function refreshLoopEdgeBans(observation: Observation, context: AgentContext): void {
@@ -391,7 +618,15 @@ function refreshLoopEdgeBans(observation: Observation, context: AgentContext): v
     delete context.mapMemory.loopEdgeBans
     return
   }
+  // Stale-loop guard: if the agent's current room is NOT part of the alternating pair, the
+  // ABAB tail is ancient history (e.g. left over from before a realm clear or after a room
+  // breakthrough). Don't apply bans to the current room — it's not actually in the loop.
+  const currentRoomId = observation.position.room_id
   const tail = seq.slice(-4)
+  if (tail[0] !== currentRoomId && tail[1] !== currentRoomId) {
+    delete context.mapMemory.loopEdgeBans
+    return
+  }
   const a = tail[0]!
   const b = tail[1]!
   const crossings = context.mapMemory.loopDoorCrossings ?? []
@@ -838,16 +1073,22 @@ function chooseHomingTowardsEntrance(
   }
 
   if (floor === 1 && roomId !== entranceId) {
-    const extractionOscillation = isAlternatingTwoRoomTail(context.mapMemory.loopRecentRooms ?? [], 4)
+    const extractionOscillation = isCurrentRoomOscillating(context, roomId, observation.turn)
     const loopBan = context.mapMemory.loopEdgeBans?.[roomId] ?? null
 
     // Unstuck mode: once a ping-pong has been detected we commit to walking away from the shared
     // door for up to 6 turns (or until we enter a new room). This prevents the "nearest visible
     // door" heuristic from immediately re-picking the same edge door each subsequent turn.
+    // ALSO: if the agent has been settled in this room for more than a few turns, the
+    // recovery state is stale and should not fire — fall through to normal exploration.
+    const lastChange = context.mapMemory.lastRoomChangeTurn
+    const settledInRoom =
+      lastChange !== undefined
+      && observation.turn - lastChange > SETTLED_IN_ROOM_TURN_THRESHOLD
     const activeUnstuck = context.mapMemory.unstuckAwayFromEdge
     if (activeUnstuck) {
       const stale =
-        activeUnstuck.roomId !== roomId || observation.turn > activeUnstuck.untilTurn
+        activeUnstuck.roomId !== roomId || observation.turn > activeUnstuck.untilTurn || settledInRoom
       if (stale) {
         delete context.mapMemory.unstuckAwayFromEdge
       } else {

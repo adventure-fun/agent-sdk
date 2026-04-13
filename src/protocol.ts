@@ -112,6 +112,12 @@ export interface Entity {
   type: EntityType
   name: string
   position: { x: number; y: number }
+  template_id?: string
+  /**
+   * Item template type copied from the underlying content template. Only set for `type === "item"`.
+   * Lets agent SDKs identify key-items without a name heuristic.
+   */
+  template_type?: ItemType
   rarity?: ItemRarity
   hp_current?: number
   hp_max?: number
@@ -119,6 +125,11 @@ export interface Entity {
   behavior?: EnemyBehavior
   is_boss?: boolean
   trapped?: boolean
+  /**
+   * True when this interactable is the room's locked exit. Only set for `type === "interactable"`.
+   * Agents can use this as a structured signal that the entity is a door blocking realm progress.
+   */
+  is_locked_exit?: boolean
 }
 
 export interface GameEvent {
@@ -167,6 +178,7 @@ export interface Observation {
   recent_events: GameEvent[]
   legal_actions: Action[]
   realm_info: {
+    template_id: string
     template_name: string
     floor_count: number
     current_floor: number

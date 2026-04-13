@@ -89,8 +89,15 @@ describe("LLM adapter shared helpers", () => {
 
     const actionSchema = schema.input_schema.properties.action
     expect(actionSchema.type).toBe("object")
-    expect(actionSchema.oneOf).toBeArray()
-    expect(actionSchema.oneOf).toHaveLength(13)
+    // Flat schema: type is an enum of all action types, other fields are optional and
+    // conditionally relevant based on the chosen type. This shape works across OpenAI,
+    // Anthropic, and Google Gemini function-calling implementations — Gemini struggles
+    // with `oneOf` discriminated unions.
+    expect(actionSchema.properties).toBeDefined()
+    expect(actionSchema.properties?.type).toBeDefined()
+    expect(actionSchema.properties?.type?.enum).toBeArray()
+    expect(actionSchema.properties?.type?.enum).toHaveLength(13)
+    expect(actionSchema.required).toContain("type")
   })
 
   it("parses valid JSON actions and rejects invalid ones", () => {

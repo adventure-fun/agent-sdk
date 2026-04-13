@@ -13,10 +13,24 @@ import {
 import type { DecisionConfig } from "./config.js"
 import { hasActionableLootBlockingPostClearExtraction } from "./extraction-loot-gate.js"
 import type { Action, Observation } from "./protocol.js"
-import type { AgentContext, ModuleRecommendation, ModuleRegistry } from "./modules/index.js"
+import type {
+  AgentContext,
+  KnownFloorTile,
+  MemorySnapshot,
+  ModuleRecommendation,
+  ModuleRegistry,
+  RoomConnection,
+  RoomStallRecord,
+} from "./modules/index.js"
+import type { Direction } from "./protocol.js"
 
 type PlannerTier = "strategic" | "tactical" | "module" | "emergency" | "per-turn"
-type StrategicTrigger = "initial_observation" | "floor_change" | "realm_status_change" | "resources_critical"
+type StrategicTrigger =
+  | "initial_observation"
+  | "floor_change"
+  | "realm_status_change"
+  | "resources_critical"
+  | "stuck_in_place"
 type TacticalTrigger =
   | "combat_start"
   | "combat_end"
@@ -38,6 +52,9 @@ export interface PlannerDecision extends DecisionResult {
   triggerReason?: StrategicTrigger | TacticalTrigger
 }
 
+const STUCK_TURNS_WITHOUT_NEW_ROOM_THRESHOLD = 20
+const STUCK_TRIGGER_COOLDOWN = 10
+
 export class ActionPlanner {
   private currentPlan: ActivePlan | null = null
   private strategicContext: string | undefined
@@ -47,6 +64,8 @@ export class ActionPlanner {
   private lastTurnWithEnemy = -Infinity
   /** Most recent turn combat_end actually fired (for its own cooldown). */
   private lastCombatEndTurn = -Infinity
+  /** Most recent turn stuck_in_place fired. Debounced so we don't spam replans each turn. */
+  private lastStuckTriggerTurn = -Infinity
 
   constructor(
     private readonly strategicLLM: LLMAdapter,
@@ -66,6 +85,7 @@ export class ActionPlanner {
     this.previousObservation = null
     this.lastTurnWithEnemy = -Infinity
     this.lastCombatEndTurn = -Infinity
+    this.lastStuckTriggerTurn = -Infinity
   }
 
   async decideAction(observation: Observation, context: AgentContext): Promise<PlannerDecision> {
@@ -100,6 +120,12 @@ export class ActionPlanner {
       return homingDecision
     }
 
+    const activeLootDecision = this.tryActivePlayLootOverride(observation, recommendations)
+    if (activeLootDecision) {
+      this.previousObservation = observation
+      return activeLootDecision
+    }
+
     const explorationOverride = this.tryExplorationHomingOverride(
       observation,
       recommendations,
@@ -123,6 +149,7 @@ export class ActionPlanner {
         legalActions: observation.legal_actions,
         recentHistory: this.buildHistory(context),
         systemPrompt: buildSystemPrompt(context.config),
+        memorySnapshot: this.buildMemorySnapshot(context, observation),
       })
       this.previousObservation = observation
       return {
@@ -132,7 +159,7 @@ export class ActionPlanner {
       }
     }
 
-    const strategicTrigger = this.getStrategicTrigger(observation, recommendations)
+    const strategicTrigger = this.getStrategicTrigger(observation, recommendations, context)
     if (strategicTrigger) {
       const decision = await this.planAndSelect(
         "strategic",
@@ -282,12 +309,14 @@ export class ActionPlanner {
 
     agentContext.mapMemory.extractionHomingOverrideStreak = streak + 1
 
-    this.currentPlan = null
+    // Do NOT wipe `currentPlan` here. Wiping on every override fire caused plan_exhausted to
+    // trigger on the very next turn, forcing an LLM replan per turn. consumeCurrentPlan's
+    // legality check will drop any action that went stale because of the override.
     return {
       action: exploration.suggestedAction,
       reasoning: exploration.reasoning,
       tier: "module",
-      planDepth: 0,
+      planDepth: this.currentPlan?.actions.length ?? 0,
     }
   }
 
@@ -340,12 +369,13 @@ export class ActionPlanner {
 
     agentContext.mapMemory.explorationHomingOverrideStreak = streak + 1
 
-    this.currentPlan = null
+    // Same rationale as `tryPostClearHomingOverride`: preserve the current plan so multi-action
+    // plans aren't wiped every time the east-bias override fires.
     return {
       action: exploration.suggestedAction,
       reasoning: exploration.reasoning,
       tier: "module",
-      planDepth: 0,
+      planDepth: this.currentPlan?.actions.length ?? 0,
     }
   }
 
@@ -379,9 +409,73 @@ export class ActionPlanner {
     }
   }
 
+  /**
+   * Active-play loot override. The inventory module returns pickup recommendations with
+   * confidence 0.75+ (key items 0.95). Without this override the exploration east-bias
+   * (confidence 0.69 but routed through a dedicated override tier) fires *before* any
+   * module-based loot decision reaches the LLM — so the agent walks past legal pickups
+   * without collecting them. This override grabs an adjacent, legal pickup whenever:
+   *   - the realm is still active (post-clear is handled by `tryLootBeforeExtractionOverride`)
+   *   - no enemies are visible (combat module stays in charge during fights)
+   *   - HP is above emergency threshold (healing/retreat stay in charge when critical)
+   * The actual item choice is delegated to the inventory module so key items and high-rarity
+   * loot are selected via `rankPickupsByRarity` rather than re-implementing the ranker here.
+   */
+  private tryActivePlayLootOverride(
+    observation: Observation,
+    recommendations: ModuleRecommendation[],
+  ): PlannerDecision | null {
+    if (COMPLETED_REALM_STATUSES.has(observation.realm_info.status)) {
+      return null
+    }
+
+    const hasVisibleEnemies = observation.visible_entities.some(
+      (entity) => entity.type === "enemy",
+    )
+    if (hasVisibleEnemies) {
+      return null
+    }
+
+    const hpMax = observation.character.hp.max
+    const hpRatio = hpMax > 0 ? observation.character.hp.current / hpMax : 1
+    if (hpRatio <= (this.config.emergencyHpPercent ?? 0.2)) {
+      return null
+    }
+
+    const hasLegalPickup = observation.legal_actions.some((action) => action.type === "pickup")
+    if (!hasLegalPickup) {
+      return null
+    }
+
+    // Accept a pickup recommendation from ANY module — example configurations register
+    // custom loot modules (e.g. LootPrioritizer) that produce pickup recommendations outside
+    // of the built-in InventoryModule. Pick the highest-confidence legal pickup.
+    const pickupRecommendation = [...recommendations]
+      .filter(
+        (rec) =>
+          rec.suggestedAction?.type === "pickup"
+          && this.isActionLegal(rec.suggestedAction, observation.legal_actions),
+      )
+      .sort((left, right) => right.confidence - left.confidence)[0]
+    if (!pickupRecommendation?.suggestedAction) {
+      return null
+    }
+
+    // Don't wipe `currentPlan`. A plan that queued moves is almost always still valid after
+    // a pickup — the agent is in the same tile, just with one more item. Rely on legality
+    // checks in `consumeCurrentPlan` to drop anything that actually went stale.
+    return {
+      action: pickupRecommendation.suggestedAction,
+      reasoning: pickupRecommendation.reasoning,
+      tier: "module",
+      planDepth: this.currentPlan?.actions.length ?? 0,
+    }
+  }
+
   private getStrategicTrigger(
     observation: Observation,
     recommendations: ModuleRecommendation[],
+    context: AgentContext,
   ): StrategicTrigger | null {
     if (!this.previousObservation) {
       return "initial_observation"
@@ -411,7 +505,38 @@ export class ActionPlanner {
       }
     }
 
+    if (this.shouldTriggerStuckReplan(observation, context)) {
+      this.lastStuckTriggerTurn = observation.turn
+      return "stuck_in_place"
+    }
+
     return null
+  }
+
+  /**
+   * Active-play stuck detector. Fires a strategic replan when the agent has spent
+   * `STUCK_TURNS_WITHOUT_NEW_ROOM_THRESHOLD` turns without entering a new room, the realm is
+   * still active, no enemies are visible, and HP is comfortable. Gated by a cooldown so we
+   * don't spam replans while the LLM works through a multi-turn backtrack plan.
+   */
+  private shouldTriggerStuckReplan(
+    observation: Observation,
+    context: AgentContext,
+  ): boolean {
+    if (COMPLETED_REALM_STATUSES.has(observation.realm_info.status)) return false
+    if (observation.turn - this.lastStuckTriggerTurn < STUCK_TRIGGER_COOLDOWN) return false
+
+    const stuckTurns = context.mapMemory.turnsWithoutNewRoom ?? 0
+    if (stuckTurns < STUCK_TURNS_WITHOUT_NEW_ROOM_THRESHOLD) return false
+
+    const hasEnemies = observation.visible_entities.some((entity) => entity.type === "enemy")
+    if (hasEnemies) return false
+
+    const hpMax = observation.character.hp.max
+    const hpRatio = hpMax > 0 ? observation.character.hp.current / hpMax : 1
+    if (hpRatio <= 0.5) return false
+
+    return true
   }
 
   private getTacticalTrigger(observation: Observation): TacticalTrigger | null {
@@ -468,27 +593,49 @@ export class ActionPlanner {
     const systemPrompt = tier === "strategic"
       ? buildStrategicSystemPrompt(context.config)
       : buildTacticalSystemPrompt(this.strategicContext)
-    const plan = await this.requestPlan(
-      llm,
-      tier,
-      observation,
-      recommendations,
-      context,
-      systemPrompt,
-    )
-
-    this.currentPlan = {
-      source: tier,
-      strategy: plan.strategy,
-      actions: [...plan.actions],
+    let plan: ActionPlan | null = null
+    try {
+      plan = await this.requestPlan(
+        llm,
+        tier,
+        observation,
+        recommendations,
+        context,
+        systemPrompt,
+        triggerReason,
+      )
+    } catch (error) {
+      // Adapter-level retries already failed AND the single-decision fallback also failed.
+      // Don't crash the run — fall through to module / default decision below.
+      const message = error instanceof Error ? error.message : String(error)
+      // Bubble up authentication / rate-limit failures since they need user intervention.
+      if (
+        message.includes("authentication failed")
+        || message.includes("rate limit")
+      ) {
+        throw error
+      }
+      // Otherwise log and use a deterministic fallback so the agent stays alive.
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[planner] LLM ${tier} plan failed (${message}); falling back to module recommendation.`,
+      )
     }
-    if (tier === "strategic") {
-      this.strategicContext = plan.strategy
-    }
 
-    const planned = this.consumeCurrentPlan(observation, recommendations, triggerReason)
-    if (planned) {
-      return planned
+    if (plan) {
+      this.currentPlan = {
+        source: tier,
+        strategy: plan.strategy,
+        actions: [...plan.actions],
+      }
+      if (tier === "strategic") {
+        this.strategicContext = plan.strategy
+      }
+
+      const planned = this.consumeCurrentPlan(observation, recommendations, triggerReason)
+      if (planned) {
+        return planned
+      }
     }
 
     const moduleFallback = this.chooseTopLegalModuleRecommendation(
@@ -515,19 +662,32 @@ export class ActionPlanner {
     recommendations: ModuleRecommendation[],
     context: AgentContext,
     systemPrompt: string,
+    triggerReason?: StrategicTrigger | TacticalTrigger,
   ): Promise<ActionPlan> {
+    const memorySnapshot = this.buildMemorySnapshot(context, observation)
+    const isStuckReplan = triggerReason === "stuck_in_place"
+    // Stuck replans get an enlarged history window so the LLM can correlate the current
+    // position with prior "locked door" / failed-interact events that live outside the normal
+    // window. Bounded by `MAX_HISTORY` in agent.ts (50) and the runtime config.
+    const stuckHistoryWindow = Math.max(
+      this.config.historyWindow ?? 20,
+      40,
+    )
+    const recentHistory = isStuckReplan
+      ? this.buildHistoryWithWindow(context, stuckHistoryWindow)
+      : this.buildHistory(context)
+    const strategicContext = this.buildStrategicContextForPlan(tier, isStuckReplan)
     if (typeof llm.plan === "function") {
       return llm.plan({
         observation,
         moduleRecommendations: recommendations,
         legalActions: observation.legal_actions,
-        recentHistory: this.buildHistory(context),
+        recentHistory,
         systemPrompt,
         planType: tier,
         maxActions: this.config.maxPlanLength ?? 10,
-        ...(tier === "tactical" && this.strategicContext
-          ? { strategicContext: this.strategicContext }
-          : {}),
+        memorySnapshot,
+        ...(strategicContext ? { strategicContext } : {}),
       })
     }
 
@@ -535,8 +695,9 @@ export class ActionPlanner {
       observation,
       moduleRecommendations: recommendations,
       legalActions: observation.legal_actions,
-      recentHistory: this.buildHistory(context),
+      recentHistory,
       systemPrompt,
+      memorySnapshot,
     })
     return {
       strategy: decision.reasoning,
@@ -642,12 +803,120 @@ export class ActionPlanner {
   }
 
   private buildHistory(context: AgentContext): HistoryEntry[] {
-    return context.previousActions.slice(-10).map((entry) => ({
+    return this.buildHistoryWithWindow(context, this.config.historyWindow ?? 20)
+  }
+
+  private buildHistoryWithWindow(context: AgentContext, window: number): HistoryEntry[] {
+    return context.previousActions.slice(-window).map((entry) => ({
       turn: entry.turn,
       action: entry.action,
       reasoning: entry.reasoning,
-      observation_summary: `Turn ${entry.turn}`,
+      observation_summary: entry.observation_summary ?? `Turn ${entry.turn}`,
     }))
+  }
+
+  /**
+   * Compose the `strategic_context` string passed into planning prompts. For stuck replans,
+   * injects an explicit instruction steering the LLM toward backtrack reasoning regardless
+   * of the planning tier. For non-stuck calls, matches the prior behavior: only tactical
+   * replans inherit the previous strategic context; strategic replans produce fresh context.
+   */
+  private buildStrategicContextForPlan(
+    tier: "strategic" | "tactical",
+    isStuckReplan: boolean,
+  ): string | undefined {
+    const parts: string[] = []
+    if (isStuckReplan) {
+      parts.push(
+        [
+          "STUCK WARNING: You have not entered a new room for many turns. The current room has been fully explored; continuing to wander inside it will not make progress.",
+          "",
+          "Before choosing the next action you MUST do the following analysis step-by-step and include it in your reasoning:",
+          "  1. Look at \"Known map summary\" — it lists the REAL door coordinates on this floor. Do NOT invent door positions that are not listed there.",
+          "  2. Look at \"Adjacent movement\" — any direction tagged `STALLED xN` is a wall or a room boundary. Never choose those. Legal-but-stalled moves DO NOT move you. Do not plan routes through stalled directions.",
+          "  3. Look at \"Recent events\" for any `interact_blocked` entries. They tell you (a) the locked target_id, (b) the required item template id, (c) whether it is a locked exit.",
+          "  4. Look at \"Locked doors / blocked interactables\" in the remembered-items section. If you hold a key listed under \"Held keys matching known locked doors\", route back to the matching door — KeyDoorModule will auto-route once you are adjacent.",
+          "  5. If you do NOT hold a matching key, your goal is to REACH A NEW ROOM YOU HAVE NOT VISITED. Pick a door on \"Known map summary\" that belongs to a room you have not yet visited. If you are unsure which rooms are visited, pick the furthest visible door from your current tile and route to it using the real coordinates in \"Known map summary\".",
+          "  6. When you plan a multi-turn sequence, use only real tile coordinates that appear under \"Points of interest\" or \"Known map summary\". If no real door is visible and you are stuck, choose a legal non-stalled direction that moves you into the interior of the room so more tiles become visible next turn.",
+          "",
+          "Do NOT repeat the same move direction if its previous attempt stalled. Do NOT plan routes through coordinates you made up.",
+        ].join("\n"),
+      )
+    }
+    if (tier === "tactical" && this.strategicContext) {
+      parts.push(this.strategicContext)
+    }
+    return parts.length > 0 ? parts.join("\n\n") : undefined
+  }
+
+  private buildMemorySnapshot(context: AgentContext, observation: Observation): MemorySnapshot {
+    const seenItems = context.mapMemory.seenItems
+      ? Array.from(context.mapMemory.seenItems.values())
+      : []
+    const encounteredDoors = context.mapMemory.encounteredDoors
+      ? Array.from(context.mapMemory.encounteredDoors.values())
+      : []
+    // Derive "which key template ids are currently held" from the live observation rather than
+    // caching — avoids another source of truth to maintain.
+    const knownKeyTemplateIds = observation.inventory
+      .map((slot) => slot.template_id)
+      .filter((templateId) =>
+        encounteredDoors.some((door) => door.requiredKeyTemplateId === templateId),
+      )
+
+    const currentFloor = observation.position.floor
+    const floorPrefix = `${currentFloor}:`
+    const currentFloorKnownTiles: KnownFloorTile[] = []
+    for (const [key, tile] of context.mapMemory.knownTiles.entries()) {
+      if (!key.startsWith(floorPrefix)) continue
+      currentFloorKnownTiles.push({
+        floor: currentFloor,
+        x: tile.x,
+        y: tile.y,
+        type: tile.type,
+      })
+    }
+
+    const roomId = observation.position.room_id
+    const stallEntries: Array<[Direction, number]> = []
+    for (const direction of ["up", "down", "left", "right"] as const) {
+      const count = context.mapMemory.stalledMoves.get(`${roomId}:${direction}`) ?? 0
+      if (count > 0) stallEntries.push([direction, count])
+    }
+    const currentRoomStalls: RoomStallRecord | null =
+      stallEntries.length > 0
+        ? {
+            roomId,
+            stalledByDirection: Object.fromEntries(stallEntries) as Record<Direction, number>,
+          }
+        : null
+
+    // Deduplicate room-to-room crossings — `loopDoorCrossings` is a recent-history buffer that
+    // may contain the same edge multiple times if the agent has been ping-ponging.
+    const roomConnections: RoomConnection[] = []
+    const seenConnectionKeys = new Set<string>()
+    for (const crossing of context.mapMemory.loopDoorCrossings ?? []) {
+      const key = `${crossing.fromRoomId}|${crossing.direction}|${crossing.toRoomId}`
+      if (seenConnectionKeys.has(key)) continue
+      seenConnectionKeys.add(key)
+      roomConnections.push({
+        fromRoomId: crossing.fromRoomId,
+        direction: crossing.direction,
+        toRoomId: crossing.toRoomId,
+      })
+    }
+
+    return {
+      seenItems,
+      encounteredDoors,
+      knownKeyTemplateIds,
+      currentFloorKnownTiles,
+      currentRoomStalls,
+      visitedRoomCount: context.mapMemory.visitedRooms.size,
+      visitedRoomIds: Array.from(context.mapMemory.visitedRooms),
+      roomConnections,
+      turnsWithoutNewRoom: context.mapMemory.turnsWithoutNewRoom ?? 0,
+    }
   }
 
   private countVisibleEnemies(observation: Observation): number {

@@ -44,6 +44,7 @@ import {
   CombatModule,
   ExplorationModule,
   InventoryModule,
+  KeyDoorModule,
   TrapHandlingModule,
   PortalModule,
   HealingModule,
@@ -58,6 +59,7 @@ const DEFAULT_MODULES: AgentModule[] = [
   new CombatModule(),
   new ExplorationModule(),
   new InventoryModule(),
+  new KeyDoorModule(),
   new TrapHandlingModule(),
   new PortalModule(),
   new HealingModule(),
@@ -400,11 +402,12 @@ export class BaseAgent {
   }
 
   private recordAction(observation: Observation, result: DecisionResult): void {
+    const observationSummary = summarizeObservation(observation)
     const entry: HistoryEntry = {
       turn: observation.turn,
       action: result.action,
       reasoning: result.reasoning,
-      observation_summary: summarizeObservation(observation),
+      observation_summary: observationSummary,
     }
 
     this.history.push(entry)
@@ -416,6 +419,7 @@ export class BaseAgent {
       turn: observation.turn,
       action: result.action,
       reasoning: result.reasoning,
+      observation_summary: observationSummary,
     })
     if (this.context.previousActions.length > MAX_HISTORY) {
       this.context.previousActions.shift()
@@ -694,10 +698,16 @@ export class BaseAgent {
     const realms = mine.realms ?? []
     const candidateTemplates = this.selectRealmTemplateCandidates()
 
+    // Schema RealmStatus = "generated" | "active" | "paused" | "boss_cleared" |
+    //   "realm_cleared" | "completed" | "dead_end". We can resume any realm whose run
+    // hasn't finished server-side. "dead_end" is the actual death status (NOT "dead",
+    // which is a typo we used to use that produced the "No active session" reconnect
+    // loop). "boss_cleared" / "realm_cleared" are mid-extraction states the agent can
+    // still play out, so they remain reusable.
+    const FINISHED_REALM_STATUSES = new Set(["completed", "dead_end"])
     const reusableRealm = realms.find((realm) =>
       matchesRealmTemplate(realm, candidateTemplates)
-      && realm.status !== "completed"
-      && realm.status !== "dead",
+      && (!realm.status || !FINISHED_REALM_STATUSES.has(realm.status)),
     )
     if (reusableRealm?.id) {
       return reusableRealm.id
@@ -733,7 +743,7 @@ export class BaseAgent {
         const activeRealm = realms.find((realm) =>
           realm.template_id === templateId
           && realm.status !== "completed"
-          && realm.status !== "dead",
+          && realm.status !== "dead_end",
         )
         if (activeRealm?.id) {
           return activeRealm.id
@@ -1408,6 +1418,18 @@ export class BaseAgent {
       },
       onError: (error) => {
         this.emit("error", error)
+        // If the server says the session is over, stop hammering it. Errors like
+        // "No active session", "session expired", or "realm not found" mean the realm
+        // is unrecoverable; reconnecting won't fix anything. Disconnect the client
+        // and fail the current run so the outer realm loop can move on (or stop).
+        if (isFatalGameError(error)) {
+          this.clientInstance?.disconnect()
+          this.failRun(
+            error instanceof Error
+              ? error
+              : new Error(`Fatal game error: ${String(error)}`),
+          )
+        }
       },
       onClose: (event) => {
         if (!event.intentional && this.isRunning && this.runCompletion) {
@@ -1430,9 +1452,17 @@ export class BaseAgent {
   }
 
   private failRun(error: Error): void {
+    if (!this.runCompletion) {
+      // Already failed/finished — don't reject twice. failRun is idempotent so callers
+      // that race (e.g. fatal-error onError + onClose firing back-to-back) are safe.
+      return
+    }
     this.teardownChat()
     this.isRunning = false
-    this.runCompletion?.reject(error)
+    // Make sure the WebSocket is closed and reconnects are suppressed before we hand
+    // control back to the outer realm loop. disconnect() sets intentionalGameDisconnect.
+    this.clientInstance?.disconnect()
+    this.runCompletion.reject(error)
     this.runCompletion = null
     this.clientInstance = null
   }
@@ -1478,14 +1508,53 @@ function isRetryableCharacterRollConflict(error: unknown): boolean {
   )
 }
 
+/**
+ * Returns true when an error from the game WebSocket means the current realm is unrecoverable.
+ * Used by the agent's onError handler to fail the run instead of looping forever sending
+ * actions that the server keeps rejecting. Matches messages from the server's session layer.
+ */
+const FATAL_GAME_ERROR_PATTERNS = [
+  /no active session/i,
+  /session.*(?:expired|terminated|ended|closed)/i,
+  /realm.*not found/i,
+  /character.*not found/i,
+  /already.*(?:completed|extracted|dead)/i,
+]
+function isFatalGameError(error: unknown): boolean {
+  if (!error) return false
+  // Only flag GameClientError of kind "game" (server-side game errors). Network / protocol /
+  // payment errors are recoverable and shouldn't kill the run on their own.
+  const message =
+    typeof error === "object" && error !== null && "message" in error
+      ? String((error as { message: unknown }).message)
+      : String(error)
+  if (!message) return false
+  const kind =
+    typeof error === "object" && error !== null && "kind" in error
+      ? (error as { kind: unknown }).kind
+      : undefined
+  if (kind !== undefined && kind !== "game") return false
+  return FATAL_GAME_ERROR_PATTERNS.some((pattern) => pattern.test(message))
+}
+
 function summarizeObservation(obs: Observation): string {
+  const entityCounts: Record<string, number> = {}
+  for (const entity of obs.visible_entities) {
+    entityCounts[entity.type] = (entityCounts[entity.type] ?? 0) + 1
+  }
+  const entitySummary = Object.entries(entityCounts)
+    .map(([type, count]) => `${type}:${count}`)
+    .join("/") || "none"
   const parts = [
-    `Turn ${obs.turn}`,
-    `HP:${obs.character.hp.current}/${obs.character.hp.max}`,
-    `Room:${obs.position.room_id}`,
-    `Entities:${obs.visible_entities.length}`,
+    `f${obs.position.floor}/${obs.realm_info.floor_count}`,
+    `room:${obs.position.room_id}`,
+    `pos:(${obs.position.tile.x},${obs.position.tile.y})`,
+    `hp:${obs.character.hp.current}/${obs.character.hp.max}`,
+    `${obs.character.resource.type}:${obs.character.resource.current}/${obs.character.resource.max}`,
+    `entities:${entitySummary}`,
+    `status:${obs.realm_info.status}`,
   ]
-  return parts.join(", ")
+  return parts.join(" ")
 }
 
 function canUseInn(character: CharacterRecord): boolean {

@@ -82,7 +82,9 @@ describe("extraction homing after dungeon clear", () => {
     const obs = buildObservation({
       realm_info: { status: "realm_cleared", entrance_room_id: "ent", current_floor: 1 },
       position: { floor: 1, room_id: "boss-room", tile: { x: 2, y: 2 } },
-      visible_entities: [{ id: "loot-1", type: "item", name: "Gold", rarity: "common" }],
+      visible_entities: [
+        { id: "loot-1", type: "item", name: "Gold", rarity: "common", position: { x: 3, y: 2 } },
+      ],
       visible_tiles: [
         { x: 2, y: 2, type: "floor", entities: [] },
         { x: 3, y: 2, type: "floor", entities: [] },
