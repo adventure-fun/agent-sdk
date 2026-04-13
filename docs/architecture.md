@@ -100,7 +100,7 @@ stateDiagram-v2
 
 **Character and realm management:**
 
-1. `ensureCharacter()` -- calls `GET /characters/me`. If 404, rolls a new character with `POST /characters/roll` using `characterClass` and `characterName` from config.
+1. `ensureCharacter()` -- calls `GET /characters/me`. If 404 **or** the returned `status` is not `"alive"`, rolls a new character with `POST /characters/roll` using `characterClass` and `characterName` from config. On **409** (or certain **400** name conflicts), retries the roll with an incremented trailing number or an appended suffix (`Name2`, `Name3`, …) until success or an attempt cap is reached.
 2. `ensureRealm()` -- calls `GET /realms/mine`. Looks for a reusable realm matching `realmTemplateId` that is not `completed` or `dead`. If none found, generates a new one with `POST /realms/generate`.
 
 ## Security Model

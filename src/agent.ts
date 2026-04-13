@@ -51,6 +51,7 @@ import {
   type AgentModule,
   type ModuleRegistry,
 } from "./modules/index.js"
+import { computeCharacterRollNameForAttempt } from "./character-roll-name.js"
 import { SpendingTracker } from "./spending-tracker.js"
 
 const DEFAULT_MODULES: AgentModule[] = [
@@ -528,27 +529,65 @@ export class BaseAgent {
   }
 
   private async ensureCharacter(client: AgentClient): Promise<CharacterRecord> {
+    let character: CharacterRecord | null = null
     try {
-      return await client.request<CharacterRecord>("/characters/me")
+      character = await client.request<CharacterRecord>("/characters/me")
     } catch (error) {
       if (!isStatusError(error, 404)) {
         throw error
       }
     }
 
-    if (!this.config.characterClass || !this.config.characterName) {
+    if (
+      character !== null
+      && character.status !== undefined
+      && character.status !== "alive"
+    ) {
+      character = null
+    }
+
+    if (character !== null) {
+      return character
+    }
+
+    return this.rollNewPlayerCharacter(client)
+  }
+
+  /**
+   * Creates a new living character (e.g. first session or after death when `/characters/me` is
+   * absent or non-alive). Retries `POST /characters/roll` on 409 with incremented / suffixed names.
+   */
+  private async rollNewPlayerCharacter(client: AgentClient): Promise<CharacterRecord> {
+    const characterClass = this.config.characterClass
+    const baseName = this.config.characterName
+    if (!characterClass || !baseName) {
       throw new Error(
         "characterClass and characterName are required to roll a character when none exists",
       )
     }
 
-    return client.request<CharacterRecord>("/characters/roll", {
-      method: "POST",
-      body: JSON.stringify({
-        class: this.config.characterClass,
-        name: this.config.characterName,
-      }),
-    })
+    const maxAttempts = 40
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const name = computeCharacterRollNameForAttempt(baseName, attempt)
+      try {
+        return await client.request<CharacterRecord>("/characters/roll", {
+          method: "POST",
+          body: JSON.stringify({
+            class: characterClass,
+            name,
+          }),
+        })
+      } catch (error) {
+        if (isRetryableCharacterRollConflict(error)) {
+          continue
+        }
+        throw error
+      }
+    }
+
+    throw new Error(
+      `Could not roll a new character after ${maxAttempts} attempts (last name conflict or invalid name).`,
+    )
   }
 
   private async maybeRerollStats(
@@ -1373,6 +1412,23 @@ function isStatusError(error: unknown, status: number): boolean {
   }
 
   return false
+}
+
+/** Name / uniqueness conflicts from `POST /characters/roll` (dev API uses 409). */
+function isRetryableCharacterRollConflict(error: unknown): boolean {
+  if (isStatusError(error, 409)) {
+    return true
+  }
+  if (!isStatusError(error, 400)) {
+    return false
+  }
+  const message = error instanceof Error ? error.message.toLowerCase() : ""
+  return (
+    message.includes("name")
+    || message.includes("unique")
+    || message.includes("taken")
+    || message.includes("exists")
+  )
 }
 
 function summarizeObservation(obs: Observation): string {

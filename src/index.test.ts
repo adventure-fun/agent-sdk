@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test"
 import {
   authenticate,
+  computeCharacterRollNameForAttempt,
   createDefaultConfig,
   createWalletAdapter,
   createX402Client,
@@ -39,6 +40,11 @@ import {
 describe("agent-sdk public exports", () => {
   it("exposes the authentication helper", () => {
     expect(typeof authenticate).toBe("function")
+  })
+
+  it("exposes character roll name helper", () => {
+    expect(computeCharacterRollNameForAttempt("Scout", 0)).toBe("Scout")
+    expect(computeCharacterRollNameForAttempt("Scout", 1)).toBe("Scout2")
   })
 
   it("constructs a game client from the package entrypoint", () => {

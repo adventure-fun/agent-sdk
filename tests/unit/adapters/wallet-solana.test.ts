@@ -39,6 +39,8 @@ describe("solana env wallet adapter", () => {
   })
 
   it("creates a Solana wallet adapter with lazy-loaded dependencies", async () => {
+    // Prefer AGENT_PRIVATE_KEY over SVM_PRIVATE_KEY in env-wallet; clear it so this test is deterministic.
+    delete process.env["AGENT_PRIVATE_KEY"]
     process.env["SVM_PRIVATE_KEY"] = "solana-private-key"
     const { SolanaEnvWalletAdapter, createWalletAdapter } = await importFreshWalletModule()
 
