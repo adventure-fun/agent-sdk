@@ -102,6 +102,20 @@ export interface DecisionConfig {
   maxPlanLength?: number
   moduleConfidenceThreshold?: number
   emergencyHpPercent?: number
+  /**
+   * After a realm clear, homing can override the tactical LLM for stability. After this many
+   * consecutive overrides, one turn is left to the tactical planner so the model can re-assess.
+   * @default 12
+   */
+  extractionHomingOverrideMaxStreak?: number
+  /**
+   * On floor 1 after a clear (not at `entrance_room_id`), prefer moving **west** until `left` is
+   * blocked or stalled, then enter a one-shot `reassess` phase: no deterministic homing and no
+   * automatic `use_portal` fallback so the tactical LLM can choose the next move. Intended for
+   * layouts where the exit spine runs west. Off by default for generic test realms.
+   * @default false
+   */
+  extractionPreferLeftBiasExit?: boolean
 }
 
 export interface AgentConfig {
@@ -181,6 +195,8 @@ export function createDefaultConfig(
       maxPlanLength: decisionOverrides.maxPlanLength ?? 10,
       moduleConfidenceThreshold: decisionOverrides.moduleConfidenceThreshold ?? 0.75,
       emergencyHpPercent: decisionOverrides.emergencyHpPercent ?? 0.2,
+      extractionHomingOverrideMaxStreak: decisionOverrides.extractionHomingOverrideMaxStreak ?? 12,
+      extractionPreferLeftBiasExit: decisionOverrides.extractionPreferLeftBiasExit ?? false,
     },
   }
 

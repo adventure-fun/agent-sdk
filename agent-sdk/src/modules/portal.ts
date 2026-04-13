@@ -1,3 +1,4 @@
+import { hasActionableLootBlockingPostClearExtraction } from "../extraction-loot-gate.js"
 import type { Observation } from "../protocol.js"
 import type { AgentContext, AgentModule, ModuleRecommendation } from "./index.js"
 
@@ -14,7 +15,7 @@ export class PortalModule implements AgentModule {
     const realmCompleted = COMPLETED_STATUSES.has(observation.realm_info.status)
     const portalLegal = observation.legal_actions.some((a) => a.type === "use_portal")
     const retreatLegal = observation.legal_actions.some((a) => a.type === "retreat")
-    const pendingLoot = hasPendingLoot(observation)
+    const pendingLoot = hasActionableLootBlockingPostClearExtraction(observation)
 
     const survivalMode = hpRatio <= extractThreshold
     const completionExtract = realmCompleted && !pendingLoot
@@ -68,11 +69,4 @@ export class PortalModule implements AgentModule {
       confidence: 0,
     }
   }
-}
-
-function hasPendingLoot(observation: Observation): boolean {
-  return (
-    observation.legal_actions.some((action) => action.type === "pickup")
-    || observation.visible_entities.some((entity) => entity.type === "item")
-  )
 }

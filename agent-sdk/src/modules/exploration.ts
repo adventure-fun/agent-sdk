@@ -1,3 +1,4 @@
+import { hasActionableLootBlockingPostClearExtraction } from "../extraction-loot-gate.js"
 import type { Action, Direction, Observation } from "../protocol.js"
 import type { AgentContext, AgentModule, ModuleRecommendation } from "./index.js"
 
@@ -25,11 +26,33 @@ export class ExplorationModule implements AgentModule {
   analyze(observation: Observation, context: AgentContext): ModuleRecommendation {
     this.updateMapMemory(observation, context)
 
+    if (!COMPLETED_STATUSES.has(observation.realm_info.status)) {
+      delete context.mapMemory.extractionRecentRooms
+      delete context.mapMemory.extractionHomingOverrideStreak
+      delete context.mapMemory.extractionFloor1ExitPhase
+      delete context.mapMemory.extractionDoorCrossings
+      delete context.mapMemory.extractionFloor1LoopBans
+    }
+
+    const entranceRoomId = observation.realm_info.entrance_room_id
+    if (
+      entranceRoomId
+      && observation.position.floor === 1
+      && observation.position.room_id === entranceRoomId
+    ) {
+      delete context.mapMemory.extractionFloor1ExitPhase
+    }
+
     const moveActions = observation.legal_actions.filter(
       (a): a is Extract<Action, { type: "move" }> => a.type === "move",
     )
 
-    if (COMPLETED_STATUSES.has(observation.realm_info.status) && !hasPendingLoot(observation)) {
+    let effectiveMoveActions = moveActions
+
+    if (
+      COMPLETED_STATUSES.has(observation.realm_info.status)
+      && !hasActionableLootBlockingPostClearExtraction(observation)
+    ) {
       const retreatAction = observation.legal_actions.find((a) => a.type === "retreat")
       if (retreatAction) {
         return {
@@ -42,8 +65,21 @@ export class ExplorationModule implements AgentModule {
       if (homing) {
         return homing
       }
+      if (
+        observation.position.floor === 1
+        && context.mapMemory.extractionFloor1LoopBans?.[observation.position.room_id]
+      ) {
+        const loopBan = context.mapMemory.extractionFloor1LoopBans[observation.position.room_id]!
+        const strippedLoop = moveActions.filter((a) => a.direction !== loopBan)
+        if (strippedLoop.length > 0) {
+          effectiveMoveActions = strippedLoop
+        }
+      }
       const portalAction = observation.legal_actions.find((a) => a.type === "use_portal")
-      if (portalAction) {
+      const skipAutoPortalForTactical =
+        context.config.decision?.extractionPreferLeftBiasExit === true
+        && context.mapMemory.extractionFloor1ExitPhase === "reassess"
+      if (portalAction && !skipAutoPortalForTactical) {
         return {
           suggestedAction: portalAction,
           reasoning: "Realm completed; no path toward entrance visible — extracting via portal.",
@@ -52,7 +88,20 @@ export class ExplorationModule implements AgentModule {
       }
     }
 
-    if (moveActions.length === 0) {
+    if (
+      context.config.decision?.extractionPreferLeftBiasExit === true
+      && context.mapMemory.extractionFloor1ExitPhase === "reassess"
+    ) {
+      const prev = context.previousActions.at(-1)?.action
+      if (prev?.type === "move" && prev.direction === reverseDirection("left")) {
+        const stripped = moveActions.filter((a) => a.direction !== "left")
+        if (stripped.length > 0) {
+          effectiveMoveActions = stripped
+        }
+      }
+    }
+
+    if (effectiveMoveActions.length === 0) {
       return { reasoning: "No movement actions available.", confidence: 0 }
     }
 
@@ -62,7 +111,7 @@ export class ExplorationModule implements AgentModule {
       ? context.mapMemory.lastRoomEntry.cameFromDirection
       : null
 
-    const bestMove = chooseExplorationMove(observation, context, moveActions, cameFromDirection)
+    const bestMove = chooseExplorationMove(observation, context, effectiveMoveActions, cameFromDirection)
     if (bestMove) {
       return {
         suggestedAction: bestMove.action,
@@ -72,7 +121,7 @@ export class ExplorationModule implements AgentModule {
       }
     }
 
-    const unexplored = moveActions.filter((a) => {
+    const unexplored = effectiveMoveActions.filter((a) => {
       const targetRoom = directionTargetRoom(currentRoom, a.direction, exits)
       return !context.mapMemory.visitedRooms.has(targetRoom)
     })
@@ -85,7 +134,7 @@ export class ExplorationModule implements AgentModule {
       }
     }
 
-    const leastVisited = moveActions[0]!
+    const leastVisited = effectiveMoveActions[0]!
     return {
       suggestedAction: leastVisited,
       reasoning: `All adjacent areas explored, moving ${leastVisited.direction}.`,
@@ -154,18 +203,161 @@ export class ExplorationModule implements AgentModule {
       context.mapMemory.discoveredExits.set(roomId, merged)
     }
 
+    if (
+      COMPLETED_STATUSES.has(observation.realm_info.status)
+      && observation.position.floor === 1
+      && previousAction?.type === "move"
+      && previousPosition
+      && previousPosition.floor === currentPosition.floor
+      && previousPosition.roomId !== currentPosition.roomId
+    ) {
+      const log =
+        context.mapMemory.extractionDoorCrossings ?? (context.mapMemory.extractionDoorCrossings = [])
+      log.push({
+        fromRoomId: previousPosition.roomId,
+        toRoomId: currentPosition.roomId,
+        direction: previousAction.direction,
+      })
+      if (log.length > 24) {
+        log.shift()
+      }
+    }
+
     context.mapMemory.lastPosition = currentPosition
   }
 }
 
-function hasPendingLoot(observation: Observation): boolean {
-  return (
-    observation.legal_actions.some((action) => action.type === "pickup")
-    || observation.visible_entities.some((entity) => entity.type === "item")
-  )
+const EXTRACTION_HOMING_CONTEXT = { extractionHoming: true as const }
+
+const EXTRACTION_ROOM_HISTORY_CAP = 12
+
+function isAlternatingTwoRoomTail(roomIds: string[], tailLen: number): boolean {
+  if (roomIds.length < tailLen || tailLen < 4 || tailLen % 2 !== 0) {
+    return false
+  }
+  const tail = roomIds.slice(-tailLen)
+  const a = tail[0]!
+  const b = tail[1]!
+  if (a === b) {
+    return false
+  }
+  return tail.every((roomId, index) => roomId === (index % 2 === 0 ? a : b))
 }
 
-const EXTRACTION_HOMING_CONTEXT = { extractionHoming: true as const }
+function recordExtractionFloor1RoomVisit(context: AgentContext, roomId: string): boolean {
+  const seq = context.mapMemory.extractionRecentRooms ?? (context.mapMemory.extractionRecentRooms = [])
+  seq.push(roomId)
+  if (seq.length > EXTRACTION_ROOM_HISTORY_CAP) {
+    seq.shift()
+  }
+  return isAlternatingTwoRoomTail(seq, 4)
+}
+
+function refreshExtractionFloor1LoopBans(observation: Observation, context: AgentContext): void {
+  if (!COMPLETED_STATUSES.has(observation.realm_info.status) || observation.position.floor !== 1) {
+    delete context.mapMemory.extractionFloor1LoopBans
+    return
+  }
+  const seq = context.mapMemory.extractionRecentRooms
+  if (!seq || seq.length < 4 || !isAlternatingTwoRoomTail(seq, 4)) {
+    delete context.mapMemory.extractionFloor1LoopBans
+    return
+  }
+  const tail = seq.slice(-4)
+  const a = tail[0]!
+  const b = tail[1]!
+  const crossings = context.mapMemory.extractionDoorCrossings ?? []
+  let dirAtoB: Direction | undefined
+  let dirBtoA: Direction | undefined
+  for (let i = crossings.length - 1; i >= 0; i--) {
+    const c = crossings[i]!
+    if (c.fromRoomId === a && c.toRoomId === b && dirAtoB === undefined) {
+      dirAtoB = c.direction
+    }
+    if (c.fromRoomId === b && c.toRoomId === a && dirBtoA === undefined) {
+      dirBtoA = c.direction
+    }
+    if (dirAtoB !== undefined && dirBtoA !== undefined) {
+      break
+    }
+  }
+  if (dirAtoB !== undefined && dirBtoA !== undefined) {
+    context.mapMemory.extractionFloor1LoopBans = {
+      [a]: dirAtoB,
+      [b]: dirBtoA,
+    }
+  } else {
+    delete context.mapMemory.extractionFloor1LoopBans
+  }
+}
+
+/**
+ * When `cameFrom` retracing only swaps between two side rooms, skip it and try another exit.
+ */
+function chooseFloor1HomingBreakoutMove(
+  observation: Observation,
+  context: AgentContext,
+  moveActions: Array<Extract<Action, { type: "move" }>>,
+  tileByCoordinate: Map<string, Observation["visible_tiles"][number]>,
+  current: { x: number; y: number },
+  avoidDirection: Direction,
+  loopBan: Direction | null,
+): ModuleRecommendation | null {
+  const doorMoves = moveActions.filter((a) => {
+    if (a.direction === avoidDirection || (loopBan !== null && a.direction === loopBan)) {
+      return false
+    }
+    const next = nextPosition(current, a.direction)
+    return tileByCoordinate.get(`${next.x},${next.y}`)?.type === "door"
+  })
+  if (doorMoves.length > 0) {
+    return {
+      suggestedAction: doorMoves[0]!,
+      reasoning:
+        "Realm cleared on floor 1; leaving a two-room ping-pong — using a different doorway toward the entrance room.",
+      confidence: 0.63,
+      context: EXTRACTION_HOMING_CONTEXT,
+    }
+  }
+
+  const towardDoor = chooseMoveTowardsNearestPassableTarget(
+    observation,
+    context,
+    moveActions.filter(
+      (a) => a.direction !== avoidDirection && (loopBan === null || a.direction !== loopBan),
+    ),
+    tileByCoordinate,
+    current,
+    ["door"],
+    "Realm cleared on floor 1; avoiding an immediate room-to-room reversal; moving toward another visible doorway.",
+    0.6,
+  )
+  if (towardDoor) {
+    return towardDoor
+  }
+
+  const nonBack = moveActions.filter(
+    (a) => a.direction !== avoidDirection && (loopBan === null || a.direction !== loopBan),
+  )
+  if (nonBack.length > 0) {
+    nonBack.sort((left, right) => {
+      const ls =
+        context.mapMemory.stalledMoves.get(stalledMoveKey(observation.position.room_id, left.direction)) ?? 0
+      const rs =
+        context.mapMemory.stalledMoves.get(stalledMoveKey(observation.position.room_id, right.direction)) ?? 0
+      return ls - rs
+    })
+    return {
+      suggestedAction: nonBack[0]!,
+      reasoning:
+        "Realm cleared on floor 1; breaking out of a two-room reversal loop to search for a path to the entrance room.",
+      confidence: 0.58,
+      context: EXTRACTION_HOMING_CONTEXT,
+    }
+  }
+
+  return null
+}
 
 type HomingTargetType = "door" | "stairs_up"
 
@@ -183,6 +375,7 @@ function chooseMoveTowardsNearestPassableTarget(
   tileTypes: HomingTargetType[],
   reasoning: string,
   confidence: number,
+  forbiddenDirections?: ReadonlySet<Direction> | null,
 ): ModuleRecommendation | null {
   const targets = observation.visible_tiles.filter((tile) => tileTypes.includes(tile.type as HomingTargetType))
   if (targets.length === 0) {
@@ -206,6 +399,9 @@ function chooseMoveTowardsNearestPassableTarget(
   type Scored = { action: Extract<Action, { type: "move" }>; distAfter: number; stalled: number }
   const scored: Scored[] = []
   for (const action of moveActions) {
+    if (forbiddenDirections?.has(action.direction)) {
+      continue
+    }
     const next = nextPosition(current, action.direction)
     const nextTile = tileByCoordinate.get(`${next.x},${next.y}`)
     if (!nextTile || !PASSABLE_TILE_TYPES.has(nextTile.type)) {
@@ -333,23 +529,84 @@ function chooseHomingTowardsEntrance(
   }
 
   if (floor === 1 && roomId !== entranceId) {
+    const extractionOscillation = recordExtractionFloor1RoomVisit(context, roomId)
+    refreshExtractionFloor1LoopBans(observation, context)
+    const loopBan = context.mapMemory.extractionFloor1LoopBans?.[roomId] ?? null
+
+    const preferLeftBias = context.config.decision?.extractionPreferLeftBiasExit === true
+    if (preferLeftBias && context.mapMemory.extractionFloor1ExitPhase !== "reassess") {
+      const prev = context.previousActions.at(-1)?.action
+      // After moving east through a door, "west" would immediately walk back — same ping-pong as
+      // cameFrom. Treat that as the left-bias dead end and hand off to the tactician.
+      const immediateBacktrack =
+        prev?.type === "move" && prev.direction === reverseDirection("left")
+      const leftMove = moveActions.find((a) => a.direction === "left")
+      const leftStalls = leftMove
+        ? context.mapMemory.stalledMoves.get(stalledMoveKey(roomId, "left")) ?? 0
+        : 1
+      if (leftMove && leftStalls === 0 && !immediateBacktrack && loopBan !== "left") {
+        return {
+          suggestedAction: leftMove,
+          reasoning:
+            "Realm cleared on floor 1; moving west until that direction is blocked, then reassess with the tactician if still outside the entrance room.",
+          confidence: 0.69,
+          context: EXTRACTION_HOMING_CONTEXT,
+        }
+      }
+      if (!leftMove || leftStalls > 0 || immediateBacktrack) {
+        context.mapMemory.extractionFloor1ExitPhase = "reassess"
+      }
+    }
+
     const cameFrom = context.mapMemory.lastRoomEntry?.roomId === roomId
       ? context.mapMemory.lastRoomEntry.cameFromDirection
       : null
-    if (cameFrom) {
-      const back = moveActions.find((a) => a.direction === cameFrom)
-      if (back) {
-        return {
-          suggestedAction: back,
-          reasoning:
-            "Realm cleared on floor 1; retracing toward the entrance room (realm_info.entrance_room_id) to retreat.",
-          confidence: 0.68,
-          context: EXTRACTION_HOMING_CONTEXT,
+
+    if (extractionOscillation && cameFrom) {
+      const breakout = chooseFloor1HomingBreakoutMove(
+        observation,
+        context,
+        moveActions,
+        tileByCoordinate,
+        current,
+        cameFrom,
+        loopBan,
+      )
+      if (breakout) {
+        return breakout
+      }
+    }
+
+    const skipCameFromDuringReassess = context.mapMemory.extractionFloor1ExitPhase === "reassess"
+
+    if (cameFrom && !extractionOscillation && !skipCameFromDuringReassess) {
+      const cameFromStalls =
+        context.mapMemory.stalledMoves.get(stalledMoveKey(roomId, cameFrom)) ?? 0
+      // Breadcrumb matches the last door crossing; if that direction repeatedly fails to move
+      // (wall, gate, etc.), do not keep recommending it — fall through to other doors / gradient.
+      if (cameFromStalls === 0) {
+        const back = moveActions.find((a) => a.direction === cameFrom)
+        if (back) {
+          return {
+            suggestedAction: back,
+            reasoning:
+              "Realm cleared on floor 1; retracing toward the entrance room (realm_info.entrance_room_id) to retreat.",
+            confidence: 0.68,
+            context: EXTRACTION_HOMING_CONTEXT,
+          }
         }
       }
     }
 
+    const blockReversalDoor = extractionOscillation && cameFrom
+
     const doorMoves = moveActions.filter((a) => {
+      if (loopBan !== null && a.direction === loopBan) {
+        return false
+      }
+      if (blockReversalDoor && cameFrom && a.direction === cameFrom) {
+        return false
+      }
       const next = nextPosition(current, a.direction)
       return tileByCoordinate.get(`${next.x},${next.y}`)?.type === "door"
     })
@@ -363,10 +620,17 @@ function chooseHomingTowardsEntrance(
       }
     }
 
+    let towardDoorMoves = moveActions
+    if (loopBan !== null) {
+      towardDoorMoves = towardDoorMoves.filter((a) => a.direction !== loopBan)
+    }
+    if (blockReversalDoor && cameFrom) {
+      towardDoorMoves = towardDoorMoves.filter((a) => a.direction !== cameFrom)
+    }
     const towardDoorF1 = chooseMoveTowardsNearestPassableTarget(
       observation,
       context,
-      moveActions,
+      towardDoorMoves,
       tileByCoordinate,
       current,
       ["door"],

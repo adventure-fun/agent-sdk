@@ -106,7 +106,7 @@ describe("PortalModule", () => {
     expect(result.confidence).toBeGreaterThanOrEqual(0.9)
   })
 
-  it("does not recommend extraction when loot is still visible in a cleared room", () => {
+  it("defers portal when realm is cleared with visible-only loot (no pickup / disarm yet legal)", () => {
     const obs = buildObservation({
       realm_info: {
         template_name: "test-dungeon",
