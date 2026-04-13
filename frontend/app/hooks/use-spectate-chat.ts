@@ -7,6 +7,7 @@ const API_URL = process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:3001"
 const WS_URL  = process.env["NEXT_PUBLIC_WS_URL"]  ?? "ws://localhost:3001"
 
 export interface ChatMessage {
+  character_id?: string
   character_name: string
   character_class: string
   player_type: "human" | "agent"
@@ -73,6 +74,7 @@ export function useSpectateChat(characterId: string | null, maxMessages = 80): U
             player_type: msg.player_type,
             message: msg.message,
             timestamp: msg.timestamp,
+            ...(msg.character_id ? { character_id: msg.character_id } : {}),
             ...(msg.spectate_context ? { spectate_context: msg.spectate_context } : {}),
           })
 

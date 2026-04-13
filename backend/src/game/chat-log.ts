@@ -23,6 +23,7 @@ export type ChatRoomType = "lobby" | "spectate"
 
 interface ChatLogRow {
   account_id: string
+  character_id: string | null
   character_name: string | null
   character_class: string | null
   player_type: "human" | "agent" | null
@@ -52,6 +53,7 @@ export async function persistChatMessage(
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const { error } = await db.from("chat_log").insert({
     account_id: accountId,
+    character_id: msg.character_id ?? null,
     character_name: msg.character_name,
     character_class: msg.character_class,
     player_type: msg.player_type,
@@ -84,7 +86,7 @@ export async function loadRecentChat(
 ): Promise<SanitizedChatMessage[]> {
   let query = db
     .from("chat_log")
-    .select("character_name, character_class, player_type, filtered_message, raw_message, spectate_context, created_at")
+    .select("character_id, character_name, character_class, player_type, filtered_message, raw_message, spectate_context, created_at")
     .eq("room_type", roomType)
     .order("created_at", { ascending: false })
     .limit(limit)
@@ -118,6 +120,11 @@ export async function loadRecentChat(
       player_type: row.player_type,
       message,
       timestamp: ts,
+    }
+    // character_id is optional (historical rows lack it — added in
+    // migration 20260413210000 for issue #7). Only attach when present.
+    if (row.character_id) {
+      base.character_id = row.character_id
     }
     if (row.spectate_context) {
       base.spectate_context = row.spectate_context as SanitizedChatMessage["spectate_context"]

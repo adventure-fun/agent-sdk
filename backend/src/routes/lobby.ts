@@ -511,6 +511,7 @@ lobby.post("/chat", requireAuth, async (c) => {
     | null
 
   const chatMsg: SanitizedChatMessage = {
+    character_id: character.id,
     character_name: character.name,
     character_class: character.class,
     player_type: (account?.player_type as string) ?? "human",
