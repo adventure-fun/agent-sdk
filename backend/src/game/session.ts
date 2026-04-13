@@ -563,6 +563,11 @@ export class GameSession {
       const cause =
         result.notableEvents.find((e) => e.type === "death")?.detail ??
         "Unknown"
+      // IMPORTANT: `endSession` must complete BEFORE we notify the client, otherwise the
+      // client's next loop iteration (reroll character + generate new realm) can race the
+      // still-in-flight DB updates and observe the dead character as still "alive" via
+      // /characters/me, leading to a later 404 "No living character" on /realms/generate.
+      await this.endSession("death")
       this.ws.send(
         JSON.stringify({
           type: "death",
@@ -574,7 +579,6 @@ export class GameSession {
           },
         }),
       )
-      await this.endSession("death")
       return
     }
 
@@ -584,13 +588,15 @@ export class GameSession {
         this.gameState,
         this.startingItemIds,
       )
+      // Same ordering as death: finalize DB state first so the client's post-extract lobby +
+      // next-realm flow sees a committed character/realm state.
+      await this.endSession("extraction")
       this.ws.send(
         JSON.stringify({
           type: "extracted",
           data: extractionData,
         }),
       )
-      await this.endSession("extraction")
       return
     }
 
