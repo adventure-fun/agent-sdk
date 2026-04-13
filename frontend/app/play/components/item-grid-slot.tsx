@@ -6,14 +6,14 @@ import { formatItemStats, getItemRarityBadgePalette } from "../utils"
 import { EQUIP_SLOT_LABELS } from "../constants"
 
 const RARITY_BORDER: Record<string, string> = {
-  common: "border-gray-700",
+  common: "border-ob-outline-variant/30",
   uncommon: "border-emerald-700/70",
   rare: "border-blue-700/70",
   epic: "border-violet-700/70",
 }
 
 const RARITY_BG: Record<string, string> = {
-  common: "bg-gray-800/40",
+  common: "bg-ob-surface-container-high/40",
   uncommon: "bg-emerald-950/30",
   rare: "bg-blue-950/30",
   epic: "bg-violet-950/30",
@@ -59,8 +59,8 @@ export function ItemGridSlot({
 
   const empty = !item
   const rarity = template?.rarity ?? "common"
-  const borderColor = empty ? "border-gray-800" : (RARITY_BORDER[rarity] ?? "border-gray-700")
-  const bgColor = empty ? "bg-gray-900/30" : (RARITY_BG[rarity] ?? "bg-gray-800/40")
+  const borderColor = empty ? "border-ob-outline-variant/15" : (RARITY_BORDER[rarity] ?? "border-ob-outline-variant/30")
+  const bgColor = empty ? "bg-ob-surface-container-low/30" : (RARITY_BG[rarity] ?? "bg-ob-surface-container-high/40")
 
   return (
     <div
@@ -76,15 +76,15 @@ export function ItemGridSlot({
       >
         {item ? (
           <>
-            <span className="text-[10px] leading-tight text-gray-200 line-clamp-2 px-0.5">
+            <span className="text-[10px] leading-tight text-ob-on-surface line-clamp-2 px-0.5">
               {item.name}
             </span>
             {quantityLabel ? (
-              <span className="text-[9px] text-gray-500">{quantityLabel}</span>
+              <span className="text-[9px] text-ob-outline">{quantityLabel}</span>
             ) : null}
           </>
         ) : (
-          <span className="text-[9px] text-gray-600 uppercase">{label}</span>
+          <span className="text-[9px] text-ob-outline uppercase">{label}</span>
         )}
         {badge}
       </div>
@@ -95,21 +95,21 @@ export function ItemGridSlot({
           ref={tooltipRef}
           className="absolute bottom-full left-1/2 z-50 pb-2 w-52 -translate-x-1/2"
         >
-        <div className="rounded-lg border border-gray-700 bg-gray-900 p-3 shadow-xl shadow-black/50 text-xs">
+        <div className="rounded-lg border border-ob-outline-variant/30 bg-ob-surface-container-low p-3 shadow-xl shadow-black/50 text-xs">
           <div className="flex items-center justify-between gap-2">
-            <span className="font-semibold text-gray-100">{item.name}</span>
+            <span className="font-semibold text-ob-on-surface">{item.name}</span>
             <span className={`rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wide ${getItemRarityBadgePalette(rarity) ?? ""}`}>
               {rarity}
             </span>
           </div>
-          <p className="mt-1 text-gray-400">{template.description}</p>
+          <p className="mt-1 text-ob-on-surface-variant">{template.description}</p>
           {template.equip_slot ? (
-            <p className="mt-1.5 text-gray-500">
-              Slot: <span className="text-gray-300">{EQUIP_SLOT_LABELS[template.equip_slot]}</span>
+            <p className="mt-1.5 text-ob-outline">
+              Slot: <span className="text-ob-on-surface">{EQUIP_SLOT_LABELS[template.equip_slot]}</span>
             </p>
           ) : null}
           {template.stats ? (
-            <p className="mt-1 text-amber-300/80">{formatItemStats(template.stats)}</p>
+            <p className="mt-1 text-ob-primary/80">{formatItemStats(template.stats)}</p>
           ) : null}
           {template.class_restriction ? (
             <p className="mt-1 text-violet-300 text-[10px] uppercase">{template.class_restriction} only</p>

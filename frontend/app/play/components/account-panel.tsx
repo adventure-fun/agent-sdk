@@ -21,18 +21,18 @@ export function AccountPanel({
   const [copied, setCopied] = useState(false)
 
   return (
-    <div className="rounded border border-gray-800 bg-gray-900/80 p-3 text-left text-xs">
+    <div className="rounded border border-ob-outline-variant/15 bg-ob-surface-container-low/80 p-3 text-left text-xs">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="space-y-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-semibold text-amber-400">{handle || "Adventurer"}</span>
+            <span className="font-semibold text-ob-primary">{handle || "Adventurer"}</span>
             {isTestnet ? (
-              <span className="rounded border border-amber-700/60 bg-amber-950/30 px-2 py-1 text-[10px] uppercase tracking-wide text-amber-300">
+              <span className="rounded border border-ob-primary/30 bg-ob-primary/10 px-2 py-1 text-[10px] uppercase tracking-wide text-ob-primary">
                 Testnet
               </span>
             ) : null}
           </div>
-          <div className="text-gray-400">
+          <div className="text-ob-on-surface-variant">
             Wallet:{" "}
             {walletAddress ? (
               <button
@@ -43,7 +43,7 @@ export function AccountPanel({
                     setTimeout(() => setCopied(false), 1500)
                   }).catch(() => {})
                 }}
-                className="cursor-pointer text-gray-400 underline decoration-dotted underline-offset-2 hover:text-amber-300"
+                className="cursor-pointer text-ob-on-surface-variant underline decoration-dotted underline-offset-2 hover:text-ob-primary"
                 title="Click to copy full address"
               >
                 {copied ? "Copied!" : shortWallet}
@@ -52,14 +52,14 @@ export function AccountPanel({
               shortWallet
             )}
           </div>
-          <div className="text-gray-400">USDC: {balanceLabel}</div>
+          <div className="text-ob-on-surface-variant">USDC: {balanceLabel}</div>
         </div>
         <div className="flex items-center gap-2">
           {walletAddress ? (
             <button
               type="button"
               onClick={() => navigator.clipboard.writeText(walletAddress).catch(() => {})}
-              className="rounded border border-gray-700 px-2 py-1 text-gray-300 transition-colors hover:border-gray-500"
+              className="rounded border border-ob-outline-variant/30 px-2 py-1 text-ob-on-surface transition-colors hover:border-ob-primary/40"
             >
               Copy Address
             </button>
@@ -67,7 +67,7 @@ export function AccountPanel({
           <button
             type="button"
             onClick={onLogout}
-            className="rounded border border-gray-700 px-2 py-1 text-gray-300 transition-colors hover:border-gray-500"
+            className="rounded border border-ob-outline-variant/30 px-2 py-1 text-ob-on-surface transition-colors hover:border-ob-primary/40"
           >
             Logout
           </button>

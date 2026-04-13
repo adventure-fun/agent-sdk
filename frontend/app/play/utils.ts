@@ -58,7 +58,7 @@ export function getCompletionBonusText(status: RealmCompletionStatus) {
 
 export function getResourceBarColor(resourceType: Observation["character"]["resource"]["type"]) {
   switch (resourceType) {
-    case "stamina": return "bg-amber-500"
+    case "stamina": return "bg-ob-primary"
     case "mana": return "bg-blue-500"
     case "energy": return "bg-emerald-500"
     case "focus": return "bg-violet-500"
@@ -67,12 +67,12 @@ export function getResourceBarColor(resourceType: Observation["character"]["reso
 
 export function getDebuffPalette(effectType: ActiveEffect["type"]) {
   switch (effectType) {
-    case "poison": return "bg-green-950/40 border-green-900/60 text-green-300"
+    case "poison": return "bg-green-950/40 border-green-900/60 text-ob-secondary"
     case "stun": return "bg-yellow-950/40 border-yellow-900/60 text-yellow-300"
     case "slow": return "bg-blue-950/40 border-blue-900/60 text-blue-300"
     case "blind": return "bg-violet-950/40 border-violet-900/60 text-violet-300"
     case "buff-attack":
-    case "buff-defense": return "bg-amber-950/40 border-amber-900/60 text-amber-300"
+    case "buff-defense": return "bg-ob-primary/15 border-ob-primary/30 text-ob-primary"
   }
 }
 
@@ -84,8 +84,8 @@ export function formatEffectLabel(effect: ActiveEffect) {
 
 export function getHealthBarColor(pct: number) {
   if (pct > 50) return "bg-green-500"
-  if (pct > 25) return "bg-yellow-500"
-  return "bg-red-500"
+  if (pct > 25) return "bg-ob-primary-dim"
+  return "bg-ob-error"
 }
 
 export function getEnemyBehaviorHint(behavior: NonNullable<Observation["visible_entities"][number]["behavior"]>) {
@@ -104,21 +104,21 @@ export function getRecentEventPalette(
 ) {
   if (event.type === "floor_change") {
     return event.detail.startsWith("Ascended")
-      ? "border-sky-800/70 bg-sky-950/20 text-sky-200"
-      : "border-cyan-800/70 bg-cyan-950/20 text-cyan-200"
+      ? "border-ob-tertiary/40 bg-ob-tertiary/10 text-ob-tertiary"
+      : "border-cyan-800/70 bg-ob-tertiary/10 text-ob-tertiary"
   }
-  if (event.type === "boss_phase") return "border-amber-800/70 bg-amber-950/20 text-amber-200"
-  if (event.type === "realm_clear") return "border-emerald-800/70 bg-emerald-950/20 text-emerald-200"
+  if (event.type === "boss_phase") return "border-ob-primary/30 bg-ob-primary/10 text-ob-primary"
+  if (event.type === "realm_clear") return "border-emerald-800/70 bg-ob-secondary/10 text-ob-secondary"
   if (event.type === "level_up") return "border-yellow-700/70 bg-yellow-950/20 text-yellow-200"
-  if (event.type === "trap_triggered") return "border-red-800/70 bg-red-950/20 text-red-200"
+  if (event.type === "trap_triggered") return "border-ob-error/30 bg-ob-error/10 text-ob-error"
   if (event.type === "trap_disarmed") return "border-teal-800/70 bg-teal-950/20 text-teal-200"
-  if (event.type === "pickup") return "border-amber-700/70 bg-amber-950/20 text-amber-200"
-  if (event.type === "pickup_blocked") return "border-red-900/70 bg-red-950/30 text-red-200"
-  if (event.type === "interact" && event.data?.category === "lore") return "border-amber-800/70 bg-amber-950/20 text-amber-200"
+  if (event.type === "pickup") return "border-ob-primary/30 bg-ob-primary/10 text-ob-primary"
+  if (event.type === "pickup_blocked") return "border-ob-error/30 bg-ob-error/15 text-ob-error"
+  if (event.type === "interact" && event.data?.category === "lore") return "border-ob-primary/30 bg-ob-primary/10 text-ob-primary"
   if (event.type === "use_item" && event.detail.includes("layout of this entire floor")) return "border-indigo-800/70 bg-indigo-950/20 text-indigo-200"
   return isRecent
-    ? "border-gray-800 bg-gray-950 text-gray-300"
-    : "border-gray-900 bg-black/20 text-gray-500"
+    ? "border-ob-outline-variant/15 bg-ob-bg text-ob-on-surface"
+    : "border-ob-outline-variant/15 bg-black/20 text-ob-outline"
 }
 
 export function getRecentEventLead(event: Observation["recent_events"][number]) {
@@ -132,8 +132,8 @@ export function formatAbilityRange(range: number | "melee") {
 
 export function getItemRarityBadgePalette(rarity: string) {
   switch (rarity) {
-    case "common": return "border-gray-700/70 bg-gray-950/30 text-gray-300"
-    case "uncommon": return "border-emerald-800/70 bg-emerald-950/20 text-emerald-200"
+    case "common": return "border-ob-outline-variant/30 bg-ob-bg/30 text-ob-on-surface"
+    case "uncommon": return "border-emerald-800/70 bg-ob-secondary/10 text-ob-secondary"
     case "rare": return "border-blue-800/70 bg-blue-950/20 text-blue-200"
     case "epic": return "border-violet-800/70 bg-violet-950/20 text-violet-200"
   }
@@ -181,7 +181,7 @@ export function getStatDisplayMax(stat: typeof STAT_KEYS[number]) {
 
 export function getRollQualityTone(fillPct: number) {
   if (fillPct >= 67) return "bg-emerald-400"
-  if (fillPct >= 34) return "bg-amber-400"
+  if (fillPct >= 34) return "bg-ob-primary"
   return "bg-rose-400"
 }
 

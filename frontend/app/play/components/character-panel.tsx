@@ -53,16 +53,16 @@ export function CharacterPanel({
   children?: React.ReactNode | undefined
 }) {
   return (
-    <div className={`border border-gray-800 rounded p-4 text-sm space-y-3 ${className ?? ""}`}>
+    <div className={`border border-ob-outline-variant/15 rounded p-4 text-sm space-y-3 ${className ?? ""}`}>
       {/* Character header */}
       <div>
         {characterName && (
-          <div className="text-sm font-bold text-amber-400 uppercase">{characterName}</div>
+          <div className="text-sm font-bold text-ob-primary uppercase">{characterName}</div>
         )}
-        <div className="text-xs text-gray-500 uppercase mb-1">
+        <div className="text-xs text-ob-outline uppercase mb-1">
           Level {level} {classLabel}
         </div>
-        <div className="text-xs text-gray-500 mb-2">Gold: <span className="text-amber-300 font-semibold">{gold}</span></div>
+        <div className="text-xs text-ob-outline mb-2">Gold: <span className="text-ob-primary font-semibold">{gold}</span></div>
         <XpProgressBar
           xp={xp ?? 0}
           level={xpLevel ?? level}
@@ -93,9 +93,9 @@ export function CharacterPanel({
           const diff = stat.effective - stat.base
           const hasDiff = diff !== 0
           return (
-            <div key={stat.label} className="rounded border border-gray-800 bg-gray-950/50 px-1 py-1.5">
-              <div className="text-[10px] uppercase tracking-wide text-gray-500">{stat.label}</div>
-              <div className={hasDiff ? (diff > 0 ? "text-green-400" : "text-red-400") : "text-gray-200"}>
+            <div key={stat.label} className="rounded border border-ob-outline-variant/15 bg-ob-bg/50 px-1 py-1.5">
+              <div className="text-[10px] uppercase tracking-wide text-ob-outline">{stat.label}</div>
+              <div className={hasDiff ? (diff > 0 ? "text-ob-secondary" : "text-ob-error") : "text-ob-on-surface"}>
                 {stat.effective}
                 {hasDiff ? (
                   <span className="text-[10px]"> ({diff > 0 ? "+" : ""}{diff})</span>

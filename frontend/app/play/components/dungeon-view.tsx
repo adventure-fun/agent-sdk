@@ -109,7 +109,7 @@ export function DungeonView({
       : 0
 
   const hpPct = character.hp.max > 0 ? (character.hp.current / character.hp.max) * 100 : 0
-  const hpColor = hpPct > 50 ? "bg-green-500" : hpPct > 25 ? "bg-yellow-500" : "bg-red-500"
+  const hpColor = hpPct > 50 ? "bg-green-500" : hpPct > 25 ? "bg-ob-primary-dim" : "bg-ob-error"
   const resourceColor = getResourceBarColor(character.resource.type)
   const inventoryNearlyFull = inventory_slots_used >= Math.max(1, inventory_capacity - 2)
   const floorCanAscend = realm_info.current_floor > 1
@@ -124,13 +124,13 @@ export function DungeonView({
     if (adjacentStair.type === "stairs_up") {
       return {
         label: `Stairs up lead back to floor ${Math.max(1, realm_info.current_floor - 1)}.`,
-        tone: "border-sky-800/70 bg-sky-950/20 text-sky-200",
+        tone: "border-ob-tertiary/40 bg-ob-tertiary/10 text-ob-tertiary",
       }
     }
 
     return {
       label: `Stairs down lead to floor ${Math.min(realm_info.floor_count, realm_info.current_floor + 1)}.`,
-      tone: "border-cyan-800/70 bg-cyan-950/20 text-cyan-200",
+      tone: "border-cyan-800/70 bg-ob-tertiary/10 text-ob-tertiary",
     }
   }, [position.tile, realm_info.current_floor, realm_info.floor_count, visible_tiles])
   const newItemIds = useMemo(
@@ -295,11 +295,11 @@ export function DungeonView({
             {actionError && (
               <button
                 onClick={onDismissError}
-                className="mt-2 w-full rounded border border-red-800/70 bg-red-950/30 px-4 py-2 text-sm text-red-200 text-left transition-opacity hover:bg-red-950/50"
+                className="mt-2 w-full rounded border border-ob-error/30 bg-ob-error/15 px-4 py-2 text-sm text-ob-error text-left transition-opacity hover:bg-ob-error/20"
               >
                 <div className="flex items-center justify-between gap-3">
                   <span>{actionError}</span>
-                  <span className="text-red-400 text-xs shrink-0">dismiss</span>
+                  <span className="text-ob-error text-xs shrink-0">dismiss</span>
                 </div>
               </button>
             )}
@@ -350,7 +350,7 @@ export function DungeonView({
                         className={`px-3 py-2 text-left text-xs rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
                           action.target_id === "self"
                             ? "bg-violet-900/50 hover:bg-violet-900 text-violet-200"
-                            : "bg-red-900/50 hover:bg-red-900 text-red-200"
+                            : "bg-ob-error/15 hover:bg-ob-error/20 text-ob-error"
                         }`}
                       >
                         <div className="font-medium">{ability?.name ?? "Attack"}: {targetLabel}</div>
@@ -436,7 +436,7 @@ export function DungeonView({
                             </span>
                           )}
                           {disarmableItemIds.has(action.item_id) && (
-                            <span className="rounded border border-red-800/70 bg-red-950/30 px-2 py-0.5 text-[10px] uppercase tracking-wide text-red-200">
+                            <span className="rounded border border-ob-error/30 bg-ob-error/15 px-2 py-0.5 text-[10px] uppercase tracking-wide text-ob-error">
                               Trapped
                             </span>
                           )}
@@ -562,12 +562,12 @@ export function DungeonView({
                         key={enemy.id}
                         className={`rounded border p-3 ${
                           enemy.is_boss
-                            ? "border-amber-800/70 bg-amber-950/15"
-                            : "border-gray-800 bg-gray-950"
+                            ? "border-ob-primary/30 bg-ob-primary/10"
+                            : "border-ob-outline-variant/15 bg-ob-bg"
                         }`}
                       >
                         <div className="flex items-start justify-between gap-3">
-                          <div className="text-sm font-medium text-gray-200">{enemy.name}</div>
+                          <div className="text-sm font-medium text-ob-on-surface">{enemy.name}</div>
                           <EnemyBehaviorBadge behavior={enemy.behavior} isBoss={enemy.is_boss} />
                         </div>
                         <div className="mt-2">
@@ -590,7 +590,7 @@ export function DungeonView({
                           </div>
                         )}
                         {!enemy.is_boss && enemy.behavior && (
-                          <p className="mt-2 text-[11px] text-gray-500">
+                          <p className="mt-2 text-[11px] text-ob-outline">
                             {getEnemyBehaviorHint(enemy.behavior)}
                           </p>
                         )}
@@ -606,20 +606,20 @@ export function DungeonView({
                 <div className="text-[10px] text-aw-outline uppercase tracking-[0.2em] mb-2">Nearby Objects</div>
                 <div className="space-y-2">
                   {nearbyItems.map((item) => (
-                    <div key={item.id} className="rounded border border-gray-800 bg-gray-950 p-2 text-xs">
+                    <div key={item.id} className="rounded border border-ob-outline-variant/15 bg-ob-bg p-2 text-xs">
                       {(() => {
                         const isTrapped = (item as { trapped?: boolean }).trapped === true
                         return (
                           <>
                       <div className="flex items-center justify-between gap-3">
-                        <span className="font-medium text-gray-200">{item.name}</span>
+                        <span className="font-medium text-ob-on-surface">{item.name}</span>
                         {isTrapped && (
-                          <span className="rounded border border-red-800/70 bg-red-950/30 px-2 py-1 text-[10px] uppercase tracking-wide text-red-200">
+                          <span className="rounded border border-ob-error/30 bg-ob-error/15 px-2 py-1 text-[10px] uppercase tracking-wide text-ob-error">
                             Trap detected
                           </span>
                         )}
                       </div>
-                      <p className="mt-1 text-[11px] text-gray-500">
+                      <p className="mt-1 text-[11px] text-ob-outline">
                         {isTrapped
                           ? "A Rogue can disarm this before looting it."
                           : "Safe to pick up from an adjacent tile."}
@@ -632,10 +632,10 @@ export function DungeonView({
                   {visibleTrapMarkers.map((trap) => (
                     <div
                       key={trap.id}
-                      className="rounded border border-red-900/70 bg-red-950/20 p-2 text-xs text-red-200"
+                      className="rounded border border-ob-error/30 bg-ob-error/10 p-2 text-xs text-ob-error"
                     >
                       <div className="font-medium">{trap.name}</div>
-                      <p className="mt-1 text-[11px] text-red-300/80">
+                      <p className="mt-1 text-[11px] text-ob-error/80">
                         The trap's location is now marked on the floor.
                       </p>
                     </div>
@@ -694,12 +694,12 @@ function AbilityCard({
   const onCooldown = ability.current_cooldown > 0
   const missingResource = resourceCurrent < ability.resource_cost && !onCooldown
   const tone = onCooldown
-    ? "border-gray-800 bg-gray-950 text-gray-500"
+    ? "border-ob-outline-variant/15 bg-ob-bg text-ob-outline"
     : missingResource
-      ? "border-red-900/70 bg-red-950/30 text-red-300"
+      ? "border-ob-error/30 bg-ob-error/15 text-ob-error"
       : usable
-        ? "border-emerald-800/70 bg-emerald-950/20 text-emerald-300"
-        : "border-gray-800 bg-gray-950 text-gray-400"
+        ? "border-emerald-800/70 bg-ob-secondary/10 text-ob-secondary"
+        : "border-ob-outline-variant/15 bg-ob-bg text-ob-on-surface-variant"
 
   const statusLabel = onCooldown
     ? `${ability.current_cooldown}t cd`
@@ -728,7 +728,7 @@ function AbilityCard({
             <span>{formatAbilityRange(ability.range)}</span>
             <span>Cost {ability.resource_cost} {resourceType}</span>
           </div>
-          <p className="text-[11px] text-gray-400">{ability.description}</p>
+          <p className="text-[11px] text-ob-on-surface-variant">{ability.description}</p>
         </div>
       ) : null}
     </div>

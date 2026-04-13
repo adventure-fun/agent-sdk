@@ -18,18 +18,18 @@ export function SkillTreePanel({
       : null
 
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded p-4 space-y-4">
+    <div className="bg-ob-surface-container-low border border-ob-outline-variant/15 rounded p-4 space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-bold uppercase tracking-wider text-gray-500">Skill Tree</h3>
-          <p className="text-xs text-gray-600">Spend points to unlock passive and active abilities.</p>
+          <h3 className="text-sm font-bold uppercase tracking-wider text-ob-outline">Skill Tree</h3>
+          <p className="text-xs text-ob-outline">Spend points to unlock passive and active abilities.</p>
         </div>
         <span className="text-xs text-purple-400">
           {progression.skill_points} point{progression.skill_points !== 1 ? "s" : ""} available
         </span>
       </div>
 
-      {error && <p className="text-red-400 text-xs">{error}</p>}
+      {error && <p className="text-ob-error text-xs">{error}</p>}
       {bankedPointsMessage && (
         <p className="rounded border border-violet-800/60 bg-violet-950/20 px-3 py-2 text-xs text-violet-200">
           {bankedPointsMessage}
@@ -43,11 +43,11 @@ export function SkillTreePanel({
           return (
             <div key={tier.tier} className="space-y-2">
               <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-gray-500">Tier {tier.tier}</span>
+                <span className="text-xs font-bold text-ob-outline">Tier {tier.tier}</span>
                 {isLocked ? (
-                  <span className="text-[10px] text-red-400/70">Unlocks at level {tier.unlock_level}</span>
+                  <span className="text-[10px] text-ob-error/70">Unlocks at level {tier.unlock_level}</span>
                 ) : (
-                  <span className="text-[10px] text-green-400/70">Unlocked</span>
+                  <span className="text-[10px] text-ob-secondary/70">Unlocked</span>
                 )}
                 {chosenNode ? (
                   <span className="text-[10px] text-blue-300/80">Choice made: {chosenNode.name}</span>
@@ -72,23 +72,23 @@ export function SkillTreePanel({
                           : blockedByTierChoice
                             ? "border-slate-800 bg-slate-950/40 opacity-50"
                           : canUnlock
-                            ? "border-amber-800/50 bg-amber-950/10"
-                            : "border-gray-800 bg-gray-950/50 opacity-60"
+                            ? "border-ob-primary/30 bg-ob-primary/5"
+                            : "border-ob-outline-variant/15 bg-ob-bg/50 opacity-60"
                       }`}
                     >
                       <div className="flex items-start justify-between gap-2 mb-1">
-                        <span className={`font-bold ${isUnlocked ? "text-green-300" : "text-gray-300"}`}>
+                        <span className={`font-bold ${isUnlocked ? "text-ob-secondary" : "text-ob-on-surface"}`}>
                           {node.name}
                         </span>
                         {isUnlocked && (
-                          <span className="text-[10px] bg-green-900/40 text-green-400 px-1.5 py-0.5 rounded">
+                          <span className="text-[10px] bg-green-900/40 text-ob-secondary px-1.5 py-0.5 rounded">
                             Learned
                           </span>
                         )}
                       </div>
-                      <p className="text-gray-500 mb-2">{node.description}</p>
+                      <p className="text-ob-outline mb-2">{node.description}</p>
                       <div className="flex items-center justify-between">
-                        <span className="text-gray-600">
+                        <span className="text-ob-outline">
                           {node.effect.type === "grant-ability"
                             ? `Grants: ${node.effect.ability_id}`
                             : node.effect.type === "passive-stat"
@@ -98,7 +98,7 @@ export function SkillTreePanel({
                         {canUnlock && (
                           <button
                             onClick={() => onUnlock(node.id)}
-                            className="px-2 py-0.5 bg-amber-500 hover:bg-amber-400 text-black font-bold text-[10px] rounded transition-colors"
+                            className="px-2 py-0.5 bg-ob-primary hover:bg-ob-primary text-black font-bold text-[10px] rounded transition-colors"
                           >
                             Learn ({node.cost} pt)
                           </button>
@@ -109,7 +109,7 @@ export function SkillTreePanel({
                           </span>
                         )}
                         {!isUnlocked && !canUnlock && !isLocked && !prereqsMet && (
-                          <span className="text-[10px] text-red-400/60">
+                          <span className="text-[10px] text-ob-error/60">
                             Requires: {node.prerequisites.join(", ")}
                           </span>
                         )}
