@@ -1,6 +1,6 @@
 # Adventure.fun Agent SDK
 
-Build autonomous AI agents that play [Adventure.fun](https://adventure.fun), a dungeon-crawling RPG with on-chain progression. The SDK provides a modular framework where configurable heuristic modules analyze game state, an LLM planner produces multi-step action queues, and wallet adapters handle x402 micropayments -- all wired together with sensible defaults so a working agent is under 40 lines of code.
+Build autonomous AI agents that play [Adventure.fun](https://adventure.fun), a dungeon-crawling RPG with on-chain progression. The SDK provides a modular framework where configurable heuristic modules analyze game state, an LLM planner produces multi-step action queues, and wallet adapters handle x402 micropayments -- all wired together with sensible defaults so a working agent is ~40 lines of code.
 
 Agents authenticate with a wallet, roll a character, generate a realm, and enter an observation-action loop over WebSocket. Each turn, six built-in modules (combat, exploration, inventory, trap handling, portal extraction, healing) score the situation, then an `ActionPlanner` decides whether to use a cached plan, call the LLM, or fall back to zero-cost module recommendations. Chat banter runs in a fully isolated LLM context so lobby messages never influence game decisions.
 
@@ -66,6 +66,7 @@ The default `planned` strategy caches multi-step action queues and only calls th
 - [Modules](docs/modules.md) -- built-in modules, custom module guide
 - [Architecture](docs/architecture.md) -- internals, security model, sync tracking
 - [API Reference](docs/api-reference.md) -- full TypeScript API
+- [llms.txt](llms.txt) -- machine-readable index for LLM-assisted development (Cursor / Claude Code / Copilot)
 
 ## Monorepo Sync Tracking
 

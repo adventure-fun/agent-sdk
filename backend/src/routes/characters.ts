@@ -292,7 +292,7 @@ characters.get("/public/:id", async (c) => {
     .select(`
       id, name, class, level, xp, gold,
       hp_current, hp_max, resource_current, resource_max,
-      stats, skill_tree, status, stat_rerolled,
+      stats, skill_tree, perks, status, stat_rerolled,
       created_at, died_at,
       account_id,
       accounts (
@@ -366,6 +366,7 @@ characters.get("/public/:id", async (c) => {
       resource_max: character.resource_max,
       stats: character.stats,
       skill_tree: character.skill_tree,
+      perks: character.perks,
       status: character.status,
       stat_rerolled: character.stat_rerolled,
       created_at: character.created_at,
@@ -385,6 +386,10 @@ characters.get("/public/:id", async (c) => {
     lore_discovered: loreRows ?? [],
     current_realm: currentRealm,
     realms_completed: completedRealms?.length ?? 0,
+    // Shared perk pool template so the frontend can render perk names and
+    // value-per-stack without hardcoding content or making a second fetch.
+    // Same shape as /characters/progression's perks_template field.
+    perks_template: PERK_LIST,
     // Issue #6 — extra stats for feature parity with the legend page.
     // All nullable because leaderboard_entries is upserted lazily on
     // turn resolution and a brand-new character may not have a row
