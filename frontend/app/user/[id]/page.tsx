@@ -14,6 +14,7 @@
 //   - Otherwise the page is pure read-only. No mutations, no payments.
 
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { use, useEffect, useState } from "react"
 import type { CharacterClass } from "@adventure-fun/schemas"
 import { useAdventureAuth } from "../../hooks/use-adventure-auth"
@@ -83,22 +84,45 @@ interface UserProfile {
 
 export default function UserPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
+  const router = useRouter()
   const [data, setData] = useState<UserProfile | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [editOpen, setEditOpen] = useState(false)
+  const [confirmingHandle, setConfirmingHandle] = useState(false)
 
-  const { account, evmAddress, isAuthenticated, logout } = useAdventureAuth()
+  const { account, evmAddress, isAuthenticated, logout, token, refreshAccount } = useAdventureAuth()
   const { balanceLabel, isTestnet } = useUsdcBalance()
 
   // Reload the profile after a successful edit so the header and the
   // socials row pick up the new values. Cheap — just re-fires the same
-  // GET /users/:id request on the same id.
-  const reload = () => {
-    fetch(`${API_URL}/users/${encodeURIComponent(id)}`)
+  // GET /users/:id request on the id we want (which may be a NEW handle
+  // after an edit). We deliberately accept an optional override here
+  // because after a handle change, `id` from the URL is stale — React
+  // hasn't re-rendered yet, and /users/<old-handle> would 404.
+  const reload = (nextId?: string) => {
+    const target = nextId ?? id
+    fetch(`${API_URL}/users/${encodeURIComponent(target)}`)
       .then((res) => res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`)))
       .then((body) => setData(body as UserProfile))
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to reload"))
+  }
+
+  const confirmHandle = async () => {
+    if (!token) return
+    setConfirmingHandle(true)
+    try {
+      const res = await fetch(`${API_URL}/auth/profile/confirm-handle`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      await refreshAccount()
+    } catch {
+      // Non-fatal; leave the card visible so the user can retry.
+    } finally {
+      setConfirmingHandle(false)
+    }
   }
 
   useEffect(() => {
@@ -227,6 +251,54 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
             </div>
           ) : null}
         </section>
+
+        {/* Handle confirmation nudge — visible ONLY to the signed-in
+            owner when their handle hasn't been confirmed yet. Public
+            viewers never see this card (the /users/:id response doesn't
+            expose handle_confirmed; we gate on account from auth state).
+
+            Two paths to dismiss:
+              - "Keep this handle" → POST /auth/profile/confirm-handle,
+                which just flips the flag, no field change.
+              - "Change handle" → opens the edit modal; a successful
+                save via PATCH /auth/profile flips the flag as a side
+                effect. */}
+        {isOwnProfile && account?.handle_confirmed === false ? (
+          <section className="bg-ob-primary/5 border border-ob-primary/30 rounded-xl p-5 flex flex-col md:flex-row md:items-center gap-4">
+            <div className="flex items-start gap-3 flex-1 min-w-0">
+              <span className="material-symbols-outlined text-2xl text-ob-primary shrink-0" style={{ fontVariationSettings: "'FILL' 1" }}>
+                shield_person
+              </span>
+              <div className="min-w-0">
+                <div className="ob-label text-[10px] uppercase tracking-widest text-ob-primary mb-1">
+                  CONFIRM YOUR HANDLE
+                </div>
+                <p className="text-xs text-ob-on-surface-variant leading-relaxed">
+                  We picked <span className="text-ob-on-surface font-semibold">{account.handle}</span> for you
+                  automatically. Your runs won&apos;t show on the leaderboard until you keep this name or choose your own.
+                  Only you can see this notice.
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={confirmHandle}
+                disabled={confirmingHandle}
+                className="ob-label text-[10px] uppercase tracking-widest bg-ob-primary text-ob-on-primary px-4 py-2 rounded-lg hover:brightness-110 transition-all font-bold disabled:opacity-50"
+              >
+                {confirmingHandle ? "Saving…" : "Keep This"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditOpen(true)}
+                className="ob-label text-[10px] uppercase tracking-widest border border-ob-primary/40 text-ob-primary hover:bg-ob-primary/10 px-4 py-2 rounded-lg transition-colors"
+              >
+                Change
+              </button>
+            </div>
+          </section>
+        ) : null}
 
         {/* Socials — show X and GitHub links prominently when set. These
             come from the PATCH /auth/profile endpoint (issue #5) and are
@@ -423,9 +495,22 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
             github_handle: data.user.github_handle,
           }}
           onClose={() => setEditOpen(false)}
-          onSaved={() => {
+          onSaved={(newHandle) => {
             setEditOpen(false)
-            reload()
+            // Refresh the cached auth/account row so the header pill
+            // picks up the new handle without a page reload, and drop
+            // the unconfirmed-handle nudge state.
+            void refreshAccount()
+            // If the handle changed, the current URL still contains the
+            // OLD segment — /users/<old> 404s because the backend resolves
+            // by handle. Replace the URL and reload against the new id.
+            const oldSeg = decodeURIComponent(id).toLowerCase()
+            if (newHandle && newHandle !== oldSeg) {
+              router.replace(`/user/${encodeURIComponent(newHandle)}`)
+              reload(newHandle)
+            } else {
+              reload()
+            }
           }}
         />
       ) : null}

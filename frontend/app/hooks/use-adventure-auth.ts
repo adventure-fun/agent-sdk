@@ -12,6 +12,14 @@ interface Account {
   handle?: string | null
   x_handle?: string | null
   github_handle?: string | null
+  /** Leaderboard-gating flag. True when the user has either set a
+   *  custom handle or explicitly confirmed their auto-assigned anon
+   *  handle. Defaults false for brand-new anon accounts. The frontend
+   *  uses this to show a private nudge indicator (pulsing dot on the
+   *  header avatar + banner card on their own profile page) that is
+   *  ONLY visible to the user themselves — other viewers of the same
+   *  pages never see this field because /users/:id doesn't return it. */
+  handle_confirmed?: boolean
   free_realm_used: boolean
 }
 
@@ -29,6 +37,10 @@ interface AdventureAuthContextValue {
   error: string | null
   connect: () => Promise<void>
   logout: () => void
+  /** Re-fetch the cached account row from GET /auth/me. Called after
+   *  a mutation (profile edit, handle confirm) so header/dropdown state
+   *  reflects the new row without waiting for a page reload. */
+  refreshAccount: () => Promise<void>
 }
 
 export const AdventureAuthContext = createContext<AdventureAuthContextValue | null>(null)
@@ -100,6 +112,24 @@ export function useAdventureAuthProvider() {
     localStorage.removeItem("adventure_auth")
   }, [])
 
+  const refreshAccount = useCallback(async () => {
+    if (!auth.token) return
+    try {
+      const res = await fetch(`${API_URL}/auth/me`, {
+        headers: { Authorization: `Bearer ${auth.token}` },
+      })
+      if (!res.ok) return
+      const fresh = (await res.json()) as Account
+      setAuth((prev) => {
+        const next = { token: prev.token, account: fresh }
+        localStorage.setItem("adventure_auth", JSON.stringify(next))
+        return next
+      })
+    } catch {
+      // Network error — keep stale state.
+    }
+  }, [auth.token])
+
   // Refresh the cached account row from the server. Called on mount
   // whenever we have a token, so changes that happened server-side since
   // the last login (anon-handle backfill, a handle update from another
@@ -152,6 +182,7 @@ export function useAdventureAuthProvider() {
     error,
     connect,
     logout,
+    refreshAccount,
   }
 }
 

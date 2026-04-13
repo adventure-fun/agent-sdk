@@ -1,10 +1,12 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
 import { useAdventureAuth } from "../hooks/use-adventure-auth"
 import { useUsdcBalance } from "../hooks/use-usdc-balance"
+
+const API_URL = process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:3001"
 
 const NAV_LINKS = [
   { href: "/play",        label: "PLAY" },
@@ -14,11 +16,40 @@ const NAV_LINKS = [
 
 export function SiteHeader() {
   const pathname = usePathname()
-  const { account, evmAddress, isAuthenticated, logout } = useAdventureAuth()
+  const router = useRouter()
+  const { account, evmAddress, isAuthenticated, logout, token, refreshAccount } = useAdventureAuth()
   const { balanceLabel, isTestnet } = useUsdcBalance()
   const [copied, setCopied] = useState(false)
   const [open, setOpen] = useState(false)
+  const [confirming, setConfirming] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
+
+  // Private nudge: the user's handle was auto-assigned and they haven't
+  // acknowledged it yet. Only they see this indicator — the field comes
+  // from /auth/me and is never exposed in public /users/:id responses.
+  const needsConfirm = isAuthenticated && account?.handle_confirmed === false
+
+  const keepHandle = async () => {
+    if (!token) return
+    setConfirming(true)
+    try {
+      const res = await fetch(`${API_URL}/auth/profile/confirm-handle`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (res.ok) await refreshAccount()
+    } finally {
+      setConfirming(false)
+    }
+  }
+
+  const goToEdit = () => {
+    setOpen(false)
+    // The profile page owns the edit modal; opening it via a query-less
+    // route is fine because the page auto-renders the edit button for
+    // own-profile viewers. The user can click Edit once they land.
+    router.push(`/user/${encodeURIComponent(account?.handle ?? evmAddress ?? "")}`)
+  }
 
   useEffect(() => {
     if (!open) return
@@ -82,10 +113,19 @@ export function SiteHeader() {
             <button
               type="button"
               onClick={() => setOpen((v) => !v)}
-              className="hidden lg:flex items-center gap-3 px-4 py-2 bg-ob-surface-container rounded-xl border border-ob-outline-variant/15 hover:border-ob-primary/40 transition-colors"
+              title={needsConfirm ? "Your handle was picked for you — keep or change it to appear on leaderboards" : undefined}
+              className="hidden lg:flex items-center gap-3 px-4 py-2 bg-ob-surface-container rounded-xl border border-ob-outline-variant/15 hover:border-ob-primary/40 transition-colors relative"
             >
-              <span className="material-symbols-outlined text-ob-primary text-sm">
-                {account?.handle ? "person" : "account_balance_wallet"}
+              <span className="relative inline-flex">
+                <span className="material-symbols-outlined text-ob-primary text-sm">
+                  {account?.handle ? "person" : "account_balance_wallet"}
+                </span>
+                {needsConfirm ? (
+                  <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-ob-primary opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-ob-primary shadow-[0_0_6px_#ffb84d]" />
+                  </span>
+                ) : null}
               </span>
               <span className="ob-label text-xs tracking-tight text-ob-on-surface">
                 {account?.handle || shortWallet}
@@ -102,15 +142,24 @@ export function SiteHeader() {
             <button
               type="button"
               onClick={() => setOpen((v) => !v)}
+              title={needsConfirm ? "Your handle was picked for you — keep or change it to appear on leaderboards" : undefined}
               className="lg:hidden flex items-center gap-2 px-3 py-2 bg-ob-surface-container rounded-xl border border-ob-outline-variant/15 hover:border-ob-primary/40 transition-colors"
             >
-              <span className="material-symbols-outlined text-ob-primary text-sm">
-                {account?.handle ? "person" : "account_balance_wallet"}
+              <span className="relative inline-flex">
+                <span className="material-symbols-outlined text-ob-primary text-sm">
+                  {account?.handle ? "person" : "account_balance_wallet"}
+                </span>
+                {needsConfirm ? (
+                  <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-ob-primary opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-ob-primary shadow-[0_0_6px_#ffb84d]" />
+                  </span>
+                ) : null}
               </span>
             </button>
 
             {open ? (
-              <div className="absolute right-0 top-full mt-2 w-64 bg-ob-surface-container border border-ob-outline-variant/15 shadow-xl shadow-black/60 rounded-xl p-4 space-y-3 z-50">
+              <div className="absolute right-0 top-full mt-2 w-72 bg-ob-surface-container border border-ob-outline-variant/15 shadow-xl shadow-black/60 rounded-xl p-4 space-y-3 z-50">
                 {account?.handle ? (
                   <div className="flex items-center gap-2">
                     <span className="ob-headline text-base text-ob-primary not-italic font-bold">
@@ -121,6 +170,34 @@ export function SiteHeader() {
                         Testnet
                       </span>
                     ) : null}
+                  </div>
+                ) : null}
+
+                {needsConfirm ? (
+                  <div className="bg-ob-primary/5 border border-ob-primary/30 rounded-lg p-3 space-y-2">
+                    <div className="ob-label text-[9px] uppercase tracking-widest text-ob-primary">
+                      Confirm your handle
+                    </div>
+                    <p className="text-[11px] text-ob-on-surface-variant leading-snug">
+                      We picked this handle for you. Keep it or change it to appear on leaderboards.
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={keepHandle}
+                        disabled={confirming}
+                        className="flex-1 ob-label text-[9px] uppercase tracking-widest bg-ob-primary text-ob-on-primary px-2 py-1.5 rounded font-bold hover:brightness-110 transition-all disabled:opacity-50"
+                      >
+                        {confirming ? "Saving…" : "Keep"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={goToEdit}
+                        className="flex-1 ob-label text-[9px] uppercase tracking-widest border border-ob-primary/40 text-ob-primary px-2 py-1.5 rounded hover:bg-ob-primary/10 transition-colors"
+                      >
+                        Change
+                      </button>
+                    </div>
                   </div>
                 ) : null}
 

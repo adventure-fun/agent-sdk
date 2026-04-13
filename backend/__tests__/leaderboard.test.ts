@@ -61,8 +61,12 @@ describe("11.1 — leaderboard routes", () => {
     const app = new Hono()
     app.route("/leaderboard", leaderboardRoutes)
 
+    // include_unconfirmed=true bypasses the handle-confirmation gating
+    // added for the leaderboard nudge work — that code path does an
+    // extra `characters` query this test doesn't mock, and the filter
+    // itself is covered by its own dedicated test below.
     const response = await app.request(
-      "http://example.test/leaderboard/xp?player_type=human&class=knight&limit=1&offset=1",
+      "http://example.test/leaderboard/xp?player_type=human&class=knight&limit=1&offset=1&include_unconfirmed=true",
     )
 
     expect(response.status).toBe(200)
