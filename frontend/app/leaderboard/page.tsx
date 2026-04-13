@@ -13,66 +13,98 @@ import {
 } from "../hooks/use-leaderboard"
 import { useActiveSpectateSessions } from "../hooks/use-active-spectate-sessions"
 import { hasLegendPage, isLiveOnSpectate } from "../lib/leaderboard-links"
-import { listItemReveal, listStagger, pageEnter, sectionReveal } from "../lib/motion"
+import { listItemReveal, pageEnter, sectionReveal } from "../lib/motion"
+
+// ── Filter / sort options ────────────────────────────────────────────────────
 
 const SORT_OPTIONS: Array<{ id: LeaderboardSort; label: string; helper: string }> = [
-  { id: "xp", label: "XP", helper: "Most experienced heroes" },
-  { id: "level", label: "Level", helper: "Highest current level" },
-  { id: "floor", label: "Deepest Floor", helper: "Greatest depth reached" },
-  { id: "completions", label: "Completions", helper: "Most realms finished" },
+  { id: "xp",          label: "XP",            helper: "Most experienced delvers" },
+  { id: "level",       label: "LEVEL",         helper: "Highest current level" },
+  { id: "floor",       label: "DEEPEST FLOOR", helper: "Greatest depth reached" },
+  { id: "completions", label: "COMPLETIONS",   helper: "Most realms cleared" },
 ]
 
 const PLAYER_FILTERS: Array<{ id: LeaderboardPlayerFilter; label: string }> = [
-  { id: "all", label: "All" },
-  { id: "human", label: "Humans" },
-  { id: "agent", label: "Agents" },
+  { id: "all",   label: "ALL" },
+  { id: "human", label: "HUMANS" },
+  { id: "agent", label: "AGENTS" },
 ]
 
 const CLASS_FILTERS: Array<{ id: LeaderboardClassFilter; label: string }> = [
-  { id: "all", label: "All Classes" },
-  { id: "knight", label: "Knight" },
-  { id: "mage", label: "Mage" },
-  { id: "rogue", label: "Rogue" },
-  { id: "archer", label: "Archer" },
+  { id: "all",    label: "ALL CLASSES" },
+  { id: "knight", label: "KNIGHT" },
+  { id: "mage",   label: "MAGE" },
+  { id: "rogue",  label: "ROGUE" },
+  { id: "archer", label: "ARCHER" },
 ]
 
-const CLASS_STYLES: Record<CharacterClass, string> = {
-  knight: "border-blue-500/40 bg-blue-500/10 text-blue-200",
-  mage: "border-purple-500/40 bg-purple-500/10 text-purple-200",
-  rogue: "border-emerald-500/40 bg-emerald-500/10 text-emerald-200",
-  archer: "border-amber-500/40 bg-amber-500/10 text-amber-200",
+// ── Class theming ────────────────────────────────────────────────────────────
+// Each class has a Material Symbol glyph and an OBSIDIAN accent color. The
+// trio (primary/secondary/tertiary) keeps the four classes visually distinct
+// without introducing a fourth named color.
+const CLASS_ICON: Record<CharacterClass, string> = {
+  knight: "shield",
+  mage:   "auto_awesome",
+  rogue:  "bolt",
+  archer: "my_location",
 }
 
-const CLASS_EMOJI: Record<CharacterClass, string> = {
-  knight: "🛡",
-  mage: "✦",
-  rogue: "🗡",
-  archer: "🏹",
+const CLASS_COLOR: Record<CharacterClass, string> = {
+  knight: "text-ob-tertiary",
+  mage:   "text-ob-primary",
+  rogue:  "text-ob-secondary",
+  archer: "text-ob-tertiary",
 }
 
 const PAGE_SIZE = 25
-const PODIUM_STYLES = [
-  "border-amber-300/50 bg-amber-500/10 text-amber-100 shadow-[0_0_40px_rgba(245,158,11,0.18)]",
-  "border-slate-300/40 bg-slate-500/10 text-slate-100 shadow-[0_0_32px_rgba(148,163,184,0.12)]",
-  "border-orange-300/40 bg-orange-500/10 text-orange-100 shadow-[0_0_32px_rgba(251,146,60,0.12)]",
+
+// ── Podium accent palette ────────────────────────────────────────────────────
+// The center card is the champion (rank #1) and gets the most aggressive
+// styling: full primary border + glow. #2 and #3 are flanking cards on the
+// neutral surface-container-high background with a thin accent border.
+const PODIUM_VARIANTS = [
+  {
+    label: "VANGUARD",
+    accent: "tertiary",
+    iconBg: "border-ob-tertiary/30",
+    iconColor: "text-ob-tertiary",
+    badgeBg: "bg-ob-tertiary/10 text-ob-tertiary border-ob-tertiary/20",
+  },
+  {
+    label: "CHAMPION",
+    accent: "primary",
+    iconBg: "border-ob-primary/40 shadow-[0_0_30px_rgba(255,209,108,0.2)]",
+    iconColor: "text-ob-primary",
+    badgeBg: "bg-ob-primary text-ob-on-primary",
+  },
+  {
+    label: "TRAILBLAZER",
+    accent: "secondary",
+    iconBg: "border-ob-secondary/30",
+    iconColor: "text-ob-secondary",
+    badgeBg: "bg-ob-secondary/10 text-ob-secondary border-ob-secondary/20",
+  },
 ] as const
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
 function normalizeWallet(wallet: string | null | undefined) {
   return wallet?.trim().toLowerCase() ?? null
 }
 
-function formatMetric(entry: { xp: number; level: number; deepest_floor: number; realms_completed: number }, sort: LeaderboardSort) {
+function formatMetric(
+  entry: { xp: number; level: number; deepest_floor: number; realms_completed: number },
+  sort: LeaderboardSort,
+): string {
   switch (sort) {
-    case "xp":
-      return `${entry.xp.toLocaleString()} XP`
-    case "level":
-      return `Level ${entry.level}`
-    case "floor":
-      return `Floor ${entry.deepest_floor}`
-    case "completions":
-      return `${entry.realms_completed} clear${entry.realms_completed === 1 ? "" : "s"}`
+    case "xp":          return `${entry.xp.toLocaleString()} XP`
+    case "level":       return `LVL ${entry.level}`
+    case "floor":       return `Floor ${entry.deepest_floor}`
+    case "completions": return `${entry.realms_completed} clear${entry.realms_completed === 1 ? "" : "s"}`
   }
 }
+
+// ── Component ────────────────────────────────────────────────────────────────
 
 export default function LeaderboardPage() {
   const { account } = useAdventureAuth()
@@ -99,143 +131,240 @@ export default function LeaderboardPage() {
     void loadLeaderboard(0)
   }, [loadLeaderboard])
 
-  const selectedSort = useMemo(
-    () => SORT_OPTIONS.find((option) => option.id === sort) ?? SORT_OPTIONS[0]!,
-    [sort],
-  )
+  // Re-order the top 3 so the champion sits in the middle (visual podium).
+  // We display the entries in the order [#2, #1, #3] which means the champion
+  // gets the prominent center slot in the 3-column grid. Guarded by the
+  // length check so the non-null assertions below are safe.
+  const podiumEntries = useMemo(() => {
+    if (currentPage !== 1 || entries.length < 3) return [] as typeof entries
+    return [entries[1]!, entries[0]!, entries[2]!]
+  }, [currentPage, entries])
 
-  const podiumEntries = useMemo(
-    () => (currentPage === 1 ? entries.slice(0, 3) : []),
-    [currentPage, entries],
-  )
-
+  // The user's own entry on the current page, if present. Used to render the
+  // "Your Position" hero card above the podium.
   const featuredEntry = useMemo(
     () => entries.find((entry) => normalizeWallet(entry.owner.wallet) === playerWallet) ?? null,
     [entries, playerWallet],
   )
+
+  const featuredRank = useMemo(() => {
+    if (!featuredEntry) return null
+    return offset + entries.findIndex((e) => e.character_id === featuredEntry.character_id) + 1
+  }, [entries, featuredEntry, offset])
 
   const goToPage = async (page: number) => {
     const nextPage = Math.min(Math.max(page, 1), totalPages)
     await loadLeaderboard((nextPage - 1) * PAGE_SIZE)
   }
 
+  const selectedSort = SORT_OPTIONS.find((o) => o.id === sort) ?? SORT_OPTIONS[0]!
+
   return (
     <motion.main
       variants={pageEnter}
       initial="hidden"
       animate="visible"
-      className="min-h-screen bg-gradient-to-b from-gray-950 via-black to-gray-950 p-6 sm:p-8"
+      className="min-h-screen bg-ob-bg p-12 pt-16 ob-body relative overflow-hidden"
     >
-      <div className="mx-auto max-w-6xl space-y-6">
-        <motion.section variants={sectionReveal} className="panel-elevated rounded-2xl border border-amber-500/20 bg-amber-500/5 p-6">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div className="space-y-2">
-              <p className="text-xs uppercase tracking-[0.3em] text-amber-300/70">Hall of Legends</p>
-              <h1 className="font-display text-3xl font-bold text-amber-300 sm:text-4xl">Leaderboard</h1>
-              <p className="max-w-2xl text-sm text-gray-400">
-                Track the strongest delvers, compare human players against agents, read legends of the fallen, and{" "}
-                <Link href="/spectate" className="text-amber-300/90 underline-offset-2 hover:underline">
-                  watch live runs
-                </Link>{" "}
-                when someone is in a realm.
-              </p>
-            </div>
+      {/* Ambient amber glow behind the hero */}
+      <div className="pointer-events-none absolute -top-32 -left-12 w-[500px] h-[500px] bg-ob-primary/5 rounded-full blur-[150px] -z-0" />
+      <div className="pointer-events-none absolute top-1/2 right-0 w-[600px] h-[600px] bg-ob-tertiary/5 rounded-full blur-[200px] -z-0 opacity-30" />
 
-            <div className="rounded-xl border border-gray-800 bg-gray-950/80 px-4 py-3 text-sm">
-              <div className="text-gray-500">Current Focus</div>
-              <div className="font-semibold text-gray-100">{selectedSort.label}</div>
-              <div className="text-xs text-gray-500">{selectedSort.helper}</div>
-            </div>
+      <div className="relative z-10 mx-auto max-w-6xl">
+        {/* ── HERO ─────────────────────────────────────────────────────────── */}
+        <motion.section variants={sectionReveal} className="mb-16">
+          <h1 className="ob-headline text-6xl md:text-7xl text-ob-primary mb-4 tracking-tight ob-amber-glow">
+            LEADERBOARD
+          </h1>
+          <div className="flex items-center gap-4">
+            <span className="h-px w-24 bg-gradient-to-r from-ob-primary to-transparent" />
+            <p className="ob-label text-ob-on-surface-variant text-sm tracking-widest uppercase">
+              Tracking the most formidable delvers across the obsidian planes — {selectedSort.helper.toLowerCase()}.
+            </p>
           </div>
         </motion.section>
 
-        {featuredEntry ? (
+        {/* ── PERSONAL RANK + TOP 3 PODIUM ────────────────────────────────── */}
+        {(featuredEntry || podiumEntries.length > 0) && !isLoading ? (
           <motion.section
             variants={sectionReveal}
-            className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-5 shadow-[0_0_40px_rgba(16,185,129,0.1)]"
+            className="grid grid-cols-12 gap-6 md:gap-8 mb-16"
           >
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-              <div className="space-y-1">
-                <div className="text-xs uppercase tracking-[0.24em] text-emerald-300/70">Your Position</div>
-                <div className="font-display text-2xl text-emerald-100">{featuredEntry.character_name}</div>
-                <div className="text-sm text-emerald-100/80">
-                  Ranked #{entries.findIndex((entry) => entry.character_id === featuredEntry.character_id) + offset + 1} on this page with {formatMetric(featuredEntry, sort)}.
+            {/* Personal rank card — left side, 4 cols on lg */}
+            {featuredEntry ? (
+              <article className="col-span-12 lg:col-span-4 bg-ob-surface-container-low p-6 lg:p-8 rounded-xl relative overflow-hidden flex flex-col justify-between ob-relic-glow border border-ob-primary/10 min-h-[280px]">
+                <div>
+                  <h3 className="ob-label tracking-widest uppercase text-ob-on-surface-variant text-xs mb-6">
+                    YOUR POSITION
+                  </h3>
+                  <div className="flex items-baseline gap-3 mb-2">
+                    <span className="ob-headline text-5xl text-ob-on-surface">
+                      #{featuredRank}
+                    </span>
+                  </div>
+                  {hasLegendPage(featuredEntry) ? (
+                    <Link
+                      href={`/legends/${featuredEntry.character_id}`}
+                      className="ob-headline not-italic text-ob-primary text-xl uppercase tracking-wider hover:opacity-90 transition-opacity"
+                    >
+                      {featuredEntry.character_name}
+                    </Link>
+                  ) : (
+                    <span className="ob-headline not-italic text-ob-primary text-xl uppercase tracking-wider">
+                      {featuredEntry.character_name}
+                    </span>
+                  )}
+                </div>
+
+                <div className="mt-8 flex justify-between items-end">
+                  <div className="space-y-1">
+                    <div className="ob-label text-[10px] text-ob-on-surface-variant uppercase tracking-widest">
+                      DEEPEST FLOOR
+                    </div>
+                    <div className="text-2xl ob-label text-ob-tertiary font-medium">
+                      {featuredEntry.deepest_floor}
+                    </div>
+                  </div>
+                  <div className="text-right space-y-1">
+                    <div className="ob-label text-[10px] text-ob-on-surface-variant uppercase tracking-widest">
+                      COMPLETIONS
+                    </div>
+                    <div className="text-2xl ob-label text-ob-secondary font-medium">
+                      {featuredEntry.realms_completed}
+                    </div>
+                  </div>
+                </div>
+
+                {isLiveOnSpectate(featuredEntry, liveCharacterIds) ? (
+                  <Link
+                    href={`/spectate/${featuredEntry.character_id}`}
+                    className="absolute top-4 right-4 ob-label text-[10px] text-ob-secondary tracking-widest border border-ob-secondary/40 px-2 py-1 rounded hover:bg-ob-secondary/10 transition-colors"
+                  >
+                    ● LIVE
+                  </Link>
+                ) : null}
+
+                <div className="absolute inset-0 ob-scanline pointer-events-none opacity-20" />
+              </article>
+            ) : (
+              <div className="col-span-12 lg:col-span-4 bg-ob-surface-container-low p-8 rounded-xl border border-ob-outline-variant/10 flex flex-col items-center justify-center text-center min-h-[280px]">
+                <span className="material-symbols-outlined text-4xl text-ob-on-surface-variant/40 mb-4">
+                  person_search
+                </span>
+                <div className="ob-label text-[10px] text-ob-on-surface-variant uppercase tracking-widest mb-2">
+                  NO ENTRY ON THIS PAGE
+                </div>
+                <div className="text-xs text-ob-on-surface-variant max-w-[200px]">
+                  Roll a character and start a run to claim a spot on the ladder.
                 </div>
               </div>
-              {hasLegendPage(featuredEntry) ? (
-                <Link
-                  href={`/legends/${featuredEntry.character_id}`}
-                  className="inline-flex items-center justify-center rounded-full border border-emerald-400/40 px-4 py-2 text-sm font-medium text-emerald-100 transition-colors hover:border-emerald-300 hover:bg-emerald-500/10"
-                >
-                  View Your Legend
-                </Link>
-              ) : isLiveOnSpectate(featuredEntry, liveCharacterIds) ? (
-                <Link
-                  href={`/spectate/${featuredEntry.character_id}`}
-                  className="inline-flex items-center justify-center rounded-full border border-emerald-400/40 px-4 py-2 text-sm font-medium text-emerald-100 transition-colors hover:border-emerald-300 hover:bg-emerald-500/10"
-                >
-                  Spectate your run
-                </Link>
+            )}
+
+            {/* Top 3 champions — right side, 8 cols on lg */}
+            <div className="col-span-12 lg:col-span-8 grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-6">
+              {podiumEntries.length === 3 ? (
+                podiumEntries.map((entry, displayIndex) => {
+                  // displayIndex is the order in [vanguard, champion, trailblazer]
+                  // actualRank is the real rank from the leaderboard
+                  const actualRank = displayIndex === 1 ? 1 : displayIndex === 0 ? 2 : 3
+                  const variant = PODIUM_VARIANTS[displayIndex]!
+                  const isChampion = displayIndex === 1
+                  const NameTag = hasLegendPage(entry) ? Link : "div"
+                  const nameProps = hasLegendPage(entry) ? { href: `/legends/${entry.character_id}` } : {}
+
+                  return (
+                    <motion.article
+                      key={entry.character_id}
+                      variants={listItemReveal}
+                      className={`relative rounded-xl border flex flex-col items-center text-center transition-all duration-500 group ${
+                        isChampion
+                          ? "bg-ob-primary/5 border-2 border-ob-primary/20 hover:bg-ob-primary/10 p-6 md:p-8"
+                          : "bg-ob-surface-container-high border-ob-outline-variant/10 hover:bg-ob-surface-container-highest p-6"
+                      }`}
+                    >
+                      {isChampion ? (
+                        <div className="absolute top-0 right-0 p-4">
+                          <span
+                            className="material-symbols-outlined text-ob-primary animate-pulse"
+                            style={{ fontVariationSettings: "'FILL' 1" }}
+                          >
+                            workspace_premium
+                          </span>
+                        </div>
+                      ) : null}
+
+                      <div
+                        className={`rounded-full bg-ob-surface-container-lowest mb-4 flex items-center justify-center border-2 ${variant.iconBg} ${
+                          isChampion ? "w-24 h-24" : "w-16 h-16"
+                        }`}
+                      >
+                        <span
+                          className={`material-symbols-outlined ${variant.iconColor} ${isChampion ? "text-5xl" : "text-3xl"}`}
+                          style={{ fontVariationSettings: "'FILL' 1" }}
+                        >
+                          {CLASS_ICON[entry.class]}
+                        </span>
+                      </div>
+
+                      <div className={`ob-label tracking-widest uppercase mb-1 ${variant.iconColor} ${isChampion ? "text-sm" : "text-xs"}`}>
+                        {variant.label}
+                      </div>
+
+                      <NameTag
+                        {...(nameProps as { href: string })}
+                        className={`ob-headline text-ob-on-surface mb-4 ${isChampion ? "text-2xl" : "text-lg"} ${
+                          hasLegendPage(entry) ? "hover:opacity-90 transition-opacity" : ""
+                        }`}
+                      >
+                        {entry.character_name.toUpperCase()}
+                      </NameTag>
+
+                      <div
+                        className={`px-4 py-1 rounded-full ob-label tracking-widest font-bold border ${variant.badgeBg} ${
+                          isChampion ? "text-xs px-6 py-2" : "text-[10px]"
+                        }`}
+                      >
+                        RANK #{actualRank}
+                      </div>
+
+                      <div className="mt-3 ob-label text-[10px] text-ob-on-surface-variant uppercase tracking-tighter">
+                        {formatMetric(entry, sort)}
+                      </div>
+
+                      {isLiveOnSpectate(entry, liveCharacterIds) ? (
+                        <Link
+                          href={`/spectate/${entry.character_id}`}
+                          className="mt-3 ob-label text-[10px] text-ob-secondary tracking-widest hover:underline"
+                        >
+                          ● SPECTATE LIVE
+                        </Link>
+                      ) : null}
+                    </motion.article>
+                  )
+                })
               ) : (
-                <p className="text-sm text-emerald-200/70">Still alive — your legend page unlocks if you fall in the dungeon.</p>
+                <div className="col-span-3 bg-ob-surface-container-high rounded-xl p-12 text-center border border-ob-outline-variant/10">
+                  <span className="material-symbols-outlined text-4xl text-ob-on-surface-variant/40 mb-2 block">
+                    hourglass_empty
+                  </span>
+                  <div className="ob-label text-[10px] text-ob-on-surface-variant uppercase tracking-widest">
+                    Awaiting top three contenders for {selectedSort.label}
+                  </div>
+                </div>
               )}
             </div>
           </motion.section>
         ) : null}
 
-        {podiumEntries.length > 0 && !isLoading ? (
-          <motion.section
-            variants={sectionReveal}
-            className="grid gap-4 lg:grid-cols-3"
-          >
-            {podiumEntries.map((entry, index) => (
-              <motion.article
-                key={entry.character_id}
-                variants={listItemReveal}
-                className={`rounded-2xl border p-5 ${PODIUM_STYLES[index]}`}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="text-xs uppercase tracking-[0.24em] text-current/70">
-                      #{index + 1} {index === 0 ? "Champion" : index === 1 ? "Vanguard" : "Trailblazer"}
-                    </div>
-                    {hasLegendPage(entry) ? (
-                      <Link
-                        href={`/legends/${entry.character_id}`}
-                        className="mt-2 block font-display text-2xl text-current transition-opacity hover:opacity-85"
-                      >
-                        {entry.character_name}
-                      </Link>
-                    ) : (
-                      <span className="mt-2 block font-display text-2xl text-current">{entry.character_name}</span>
-                    )}
-                    {isLiveOnSpectate(entry, liveCharacterIds) ? (
-                      <Link
-                        href={`/spectate/${entry.character_id}`}
-                        className="mt-2 inline-flex text-sm font-medium text-current/90 underline-offset-2 hover:underline"
-                      >
-                        Spectate live
-                      </Link>
-                    ) : null}
-                  </div>
-                  <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium ${CLASS_STYLES[entry.class]}`}>
-                    <span aria-hidden="true">{CLASS_EMOJI[entry.class]}</span>
-                    <span className="capitalize">{entry.class}</span>
-                  </span>
-                </div>
-                <div className="mt-4 space-y-2 text-sm text-current/85">
-                  <div>{formatMetric(entry, sort)}</div>
-                  <div>Floor {entry.deepest_floor} · {entry.realms_completed} clears</div>
-                  <div>{entry.owner.handle ? `Owned by ${entry.owner.handle}` : "Anonymous adventurer"}</div>
-                </div>
-              </motion.article>
-            ))}
-          </motion.section>
-        ) : null}
-
-        <motion.section variants={sectionReveal} className="space-y-4 rounded-2xl border border-gray-800 bg-gray-900/70 p-5">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex flex-wrap gap-2">
+        {/* ── DETAILED TABLE ──────────────────────────────────────────────── */}
+        <motion.section
+          variants={sectionReveal}
+          className="bg-ob-surface-container-low rounded-xl border border-ob-outline-variant/10 overflow-hidden"
+        >
+          {/* Filter bar */}
+          <div className="p-6 md:p-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 border-b border-ob-outline-variant/10">
+            {/* Sort tabs */}
+            <div className="flex flex-wrap gap-1 p-1 bg-ob-surface-container-lowest rounded-xl">
               {SORT_OPTIONS.map((option) => {
                 const isActive = option.id === sort
                 return (
@@ -243,10 +372,10 @@ export default function LeaderboardPage() {
                     key={option.id}
                     type="button"
                     onClick={() => setSort(option.id)}
-                    className={`rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
+                    className={`px-4 md:px-6 py-2 rounded-lg ob-label text-xs tracking-widest uppercase transition-colors ${
                       isActive
-                        ? "border-amber-400/70 bg-amber-500/15 text-amber-200"
-                        : "border-gray-700 bg-gray-950/50 text-gray-400 hover:border-gray-500 hover:text-gray-200"
+                        ? "bg-ob-surface-container-high text-ob-primary shadow-sm"
+                        : "text-ob-on-surface-variant hover:text-ob-on-surface"
                     }`}
                   >
                     {option.label}
@@ -255,8 +384,9 @@ export default function LeaderboardPage() {
               })}
             </div>
 
+            {/* Player type + class filter */}
             <div className="flex flex-wrap items-center gap-3">
-              <div className="flex flex-wrap gap-2 text-sm">
+              <div className="flex gap-1 p-1 bg-ob-surface-container-lowest rounded-xl">
                 {PLAYER_FILTERS.map((filter) => {
                   const isActive = filter.id === playerFilter
                   return (
@@ -264,10 +394,10 @@ export default function LeaderboardPage() {
                       key={filter.id}
                       type="button"
                       onClick={() => setPlayerFilter(filter.id)}
-                      className={`rounded-full border px-3 py-1.5 transition-colors ${
+                      className={`px-3 py-1.5 rounded-lg ob-label text-[10px] tracking-widest uppercase transition-colors ${
                         isActive
-                          ? "border-gray-500 bg-gray-800 text-gray-100"
-                          : "border-gray-700 text-gray-400 hover:border-gray-500 hover:text-gray-200"
+                          ? "bg-ob-surface-container-high text-ob-primary"
+                          : "text-ob-on-surface-variant hover:text-ob-on-surface"
                       }`}
                     >
                       {filter.label}
@@ -276,178 +406,200 @@ export default function LeaderboardPage() {
                 })}
               </div>
 
-              <select
-                value={classFilter}
-                onChange={(event) => setClassFilter(event.currentTarget.value as LeaderboardClassFilter)}
-                className="rounded-full border border-gray-700 bg-gray-950 px-4 py-2 text-sm text-gray-200 outline-none transition-colors hover:border-gray-500"
-              >
-                {CLASS_FILTERS.map((filter) => (
-                  <option key={filter.id} value={filter.id}>
-                    {filter.label}
-                  </option>
-                ))}
-              </select>
+              <div className="relative">
+                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-ob-on-surface-variant text-sm pointer-events-none">
+                  filter_list
+                </span>
+                <select
+                  value={classFilter}
+                  onChange={(e) => setClassFilter(e.currentTarget.value as LeaderboardClassFilter)}
+                  className="bg-ob-surface-container-lowest border-none ob-label text-[10px] tracking-widest uppercase text-ob-on-surface-variant pl-10 pr-8 py-2 rounded-lg focus:ring-1 focus:ring-ob-primary appearance-none cursor-pointer"
+                >
+                  {CLASS_FILTERS.map((filter) => (
+                    <option key={filter.id} value={filter.id}>
+                      {filter.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
 
+          {/* Error banner */}
           {error ? (
-            <div className="flex flex-col gap-3 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300 sm:flex-row sm:items-center sm:justify-between">
-              <span>{error}</span>
+            <div className="border-b border-ob-error/20 bg-ob-error/10 px-6 py-4 flex items-center justify-between gap-4">
+              <span className="text-sm text-ob-error">{error}</span>
               <button
                 type="button"
                 onClick={() => void loadLeaderboard(offset)}
-                className="inline-flex items-center justify-center rounded-full border border-red-300/30 px-3 py-1.5 text-xs font-medium text-red-100 transition-colors hover:border-red-200/50 hover:bg-red-500/10"
+                className="ob-label text-[10px] uppercase tracking-widest text-ob-error border border-ob-error/40 hover:bg-ob-error/10 px-3 py-1.5 rounded transition-colors"
               >
-                Retry Fetch
+                Retry
               </button>
             </div>
           ) : null}
 
-          <div className="overflow-hidden rounded-2xl border border-gray-800">
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead className="bg-gray-950 text-xs uppercase tracking-wide text-gray-500">
-                  <tr>
-                    <th className="px-4 py-3 text-left">Rank</th>
-                    <th className="px-4 py-3 text-left">Character</th>
-                    <th className="px-4 py-3 text-left">Class</th>
-                    <th className="px-4 py-3 text-left">Level</th>
-                    <th className="px-4 py-3 text-left">Best Metric</th>
-                    <th className="px-4 py-3 text-left">Type</th>
-                    <th className="px-4 py-3 text-left">Status</th>
-                  </tr>
-                </thead>
-                <motion.tbody
-                  variants={listStagger}
-                  initial="hidden"
-                  animate="visible"
-                  className="divide-y divide-gray-800 bg-gray-950/70"
-                >
-                  {isLoading ? (
-                    Array.from({ length: 8 }).map((_, index) => (
-                      <tr key={`skeleton-${index}`} className="animate-pulse">
-                        <td className="px-4 py-4"><div className="h-4 w-8 rounded bg-gray-800" /></td>
-                        <td className="px-4 py-4"><div className="h-4 w-32 rounded bg-gray-800" /></td>
-                        <td className="px-4 py-4"><div className="h-8 w-24 rounded-full bg-gray-800" /></td>
-                        <td className="px-4 py-4"><div className="h-4 w-16 rounded bg-gray-800" /></td>
-                        <td className="px-4 py-4"><div className="h-4 w-24 rounded bg-gray-800" /></td>
-                        <td className="px-4 py-4"><div className="h-7 w-20 rounded-full bg-gray-800" /></td>
-                        <td className="px-4 py-4"><div className="h-7 w-20 rounded-full bg-gray-800" /></td>
-                      </tr>
-                    ))
-                  ) : entries.length > 0 ? (
-                    entries.map((entry, index) => {
-                      const rank = offset + index + 1
-                      const isTopThree = rank <= 3
-                      const isOwnedEntry = normalizeWallet(entry.owner.wallet) === playerWallet
-                      const statusClass = entry.status === "alive"
-                        ? "border-green-500/30 bg-green-500/10 text-green-300"
-                        : "border-red-500/30 bg-red-500/10 text-red-300"
+          {/* Table */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="ob-label text-[10px] text-ob-on-surface-variant tracking-widest uppercase bg-ob-surface-container-high/50">
+                  <th className="px-6 md:px-8 py-5 font-medium">RANK</th>
+                  <th className="px-6 md:px-8 py-5 font-medium">CHARACTER</th>
+                  <th className="px-6 md:px-8 py-5 font-medium">CLASS</th>
+                  <th className="px-6 md:px-8 py-5 font-medium">LEVEL</th>
+                  <th className="px-6 md:px-8 py-5 font-medium">{selectedSort.label === "XP" ? "TOTAL XP" : selectedSort.label}</th>
+                  <th className="px-6 md:px-8 py-5 font-medium">TYPE</th>
+                  <th className="px-6 md:px-8 py-5 font-medium">STATUS</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-ob-outline-variant/5">
+                {isLoading ? (
+                  Array.from({ length: 8 }).map((_, index) => (
+                    <tr key={`skeleton-${index}`} className="animate-pulse">
+                      <td className="px-8 py-5"><div className="h-4 w-8 rounded bg-ob-surface-container-high" /></td>
+                      <td className="px-8 py-5"><div className="h-4 w-32 rounded bg-ob-surface-container-high" /></td>
+                      <td className="px-8 py-5"><div className="h-4 w-20 rounded bg-ob-surface-container-high" /></td>
+                      <td className="px-8 py-5"><div className="h-4 w-16 rounded bg-ob-surface-container-high" /></td>
+                      <td className="px-8 py-5"><div className="h-4 w-24 rounded bg-ob-surface-container-high" /></td>
+                      <td className="px-8 py-5"><div className="h-4 w-16 rounded bg-ob-surface-container-high" /></td>
+                      <td className="px-8 py-5"><div className="h-4 w-16 rounded bg-ob-surface-container-high" /></td>
+                    </tr>
+                  ))
+                ) : entries.length > 0 ? (
+                  entries.map((entry, index) => {
+                    const rank = offset + index + 1
+                    const isOwnedEntry = normalizeWallet(entry.owner.wallet) === playerWallet
+                    const isDead = entry.status !== "alive"
+                    const isLive = isLiveOnSpectate(entry, liveCharacterIds)
+                    const NameTag = hasLegendPage(entry) ? Link : "span"
+                    const nameProps = hasLegendPage(entry) ? { href: `/legends/${entry.character_id}` } : {}
 
-                      return (
-                        <motion.tr
-                          layout
-                          variants={listItemReveal}
-                          key={entry.character_id}
-                          className={`transition-colors hover:bg-gray-900/80 ${isOwnedEntry ? "bg-emerald-500/10" : ""}`}
-                        >
-                          <td className="px-4 py-4">
-                            <span
-                              className={`inline-flex min-w-9 items-center justify-center rounded-full border px-2.5 py-1 text-xs font-bold ${
-                                isTopThree
-                                  ? "border-amber-400/50 bg-amber-500/10 text-amber-200 shadow-[0_0_20px_rgba(245,158,11,0.12)]"
-                                  : "border-gray-700 bg-gray-900 text-gray-300"
-                              }`}
-                            >
-                              #{rank}
-                            </span>
-                          </td>
-                          <td className="px-4 py-4">
-                            <div className="space-y-1">
-                              <div className="flex flex-wrap items-center gap-2">
-                                {hasLegendPage(entry) ? (
-                                  <Link
-                                    href={`/legends/${entry.character_id}`}
-                                    className="font-semibold text-gray-100 transition-colors hover:text-amber-300"
-                                  >
-                                    {entry.character_name}
-                                  </Link>
-                                ) : (
-                                  <span className="font-semibold text-gray-100">{entry.character_name}</span>
-                                )}
-                                {isLiveOnSpectate(entry, liveCharacterIds) ? (
-                                  <Link
-                                    href={`/spectate/${entry.character_id}`}
-                                    className="text-xs font-medium text-amber-300/90 underline-offset-2 hover:underline"
-                                  >
-                                    Spectate
-                                  </Link>
-                                ) : null}
-                                {isOwnedEntry ? (
-                                  <span className="inline-flex rounded-full border border-emerald-400/30 bg-emerald-500/10 px-2.5 py-0.5 text-[11px] uppercase tracking-[0.18em] text-emerald-200">
-                                    You
+                    return (
+                      <motion.tr
+                        layout
+                        variants={listItemReveal}
+                        key={entry.character_id}
+                        className={`transition-colors cursor-pointer group ${
+                          isOwnedEntry ? "bg-ob-primary/5 hover:bg-ob-primary/10"
+                          : "hover:bg-ob-primary/5"
+                        } ${isDead ? "opacity-60 hover:opacity-100" : ""}`}
+                      >
+                        <td className="px-6 md:px-8 py-5">
+                          <span className={`ob-label font-bold ${rank <= 3 ? "text-ob-primary" : "text-ob-on-surface-variant"}`}>
+                            #{rank}
+                          </span>
+                        </td>
+                        <td className="px-6 md:px-8 py-5">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center border ${
+                              isOwnedEntry ? "bg-ob-primary/20 border-ob-primary/40" : "bg-ob-surface-container-highest border-ob-outline-variant/10"
+                            }`}>
+                              <span className={`material-symbols-outlined text-lg ${CLASS_COLOR[entry.class]}`}>
+                                {CLASS_ICON[entry.class]}
+                              </span>
+                            </div>
+                            <div className="min-w-0">
+                              <NameTag
+                                {...(nameProps as { href: string })}
+                                className={`ob-headline not-italic font-bold uppercase block truncate ${
+                                  isOwnedEntry ? "text-ob-primary" : isDead ? "text-ob-on-surface-variant line-through" : "text-ob-on-surface"
+                                } ${hasLegendPage(entry) ? "hover:opacity-90 transition-opacity" : ""}`}
+                              >
+                                {entry.character_name}
+                              </NameTag>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                {entry.owner.handle ? (
+                                  <span className="text-[10px] text-ob-on-surface-variant truncate">
+                                    by {entry.owner.handle}
                                   </span>
                                 ) : null}
-                              </div>
-                              <div className="text-xs text-gray-500">
-                                {entry.owner.handle ? `by ${entry.owner.handle}` : "Unnamed owner"}
+                                {isOwnedEntry ? (
+                                  <span className="ob-label text-[9px] uppercase tracking-widest text-ob-primary border border-ob-primary/30 bg-ob-primary/10 px-1.5 py-0.5 rounded">
+                                    YOU
+                                  </span>
+                                ) : null}
+                                {isLive ? (
+                                  <Link
+                                    href={`/spectate/${entry.character_id}`}
+                                    className="ob-label text-[9px] uppercase tracking-widest text-ob-secondary hover:underline"
+                                  >
+                                    ● LIVE
+                                  </Link>
+                                ) : null}
                               </div>
                             </div>
-                          </td>
-                          <td className="px-4 py-4">
-                            <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium ${CLASS_STYLES[entry.class]}`}>
-                              <span aria-hidden="true">{CLASS_EMOJI[entry.class]}</span>
-                              <span className="capitalize">{entry.class}</span>
+                          </div>
+                        </td>
+                        <td className="px-6 md:px-8 py-5">
+                          <div className="flex items-center gap-2">
+                            <span className={`material-symbols-outlined text-sm ${CLASS_COLOR[entry.class]}`}>
+                              {CLASS_ICON[entry.class]}
                             </span>
-                          </td>
-                          <td className="px-4 py-4 text-gray-200">{entry.level}</td>
-                          <td className="px-4 py-4">
-                            <div className="font-medium text-gray-100">{formatMetric(entry, sort)}</div>
-                            <div className="text-xs text-gray-500">
-                              Floor {entry.deepest_floor} · {entry.realms_completed} completion{entry.realms_completed === 1 ? "" : "s"}
-                            </div>
-                          </td>
-                          <td className="px-4 py-4">
-                            <span className="inline-flex rounded-full border border-gray-700 bg-gray-900 px-3 py-1 text-xs capitalize text-gray-300">
-                              {entry.player_type}
+                            <span className="ob-label text-xs uppercase tracking-tight">
+                              {entry.class}
                             </span>
-                          </td>
-                          <td className="px-4 py-4">
+                          </div>
+                        </td>
+                        <td className="px-6 md:px-8 py-5 ob-label text-sm">LVL {entry.level}</td>
+                        <td className="px-6 md:px-8 py-5 ob-label text-sm text-ob-tertiary">
+                          {formatMetric(entry, sort)}
+                        </td>
+                        <td className="px-6 md:px-8 py-5">
+                          <span className={`ob-label text-[10px] px-2 py-0.5 border rounded uppercase ${
+                            entry.player_type === "human"
+                              ? "border-ob-primary/20 bg-ob-primary/5 text-ob-primary"
+                              : "border-ob-outline-variant bg-ob-outline-variant/10 text-ob-on-surface-variant"
+                          }`}>
+                            {entry.player_type}
+                          </span>
+                        </td>
+                        <td className="px-6 md:px-8 py-5">
+                          {entry.status === "alive" ? (
+                            <span className="flex items-center gap-2 text-ob-secondary ob-label text-[10px] uppercase tracking-widest">
+                              <span className="w-1.5 h-1.5 rounded-full bg-ob-secondary shadow-[0_0_8px_#6bfe9c]" />
+                              ALIVE
+                            </span>
+                          ) : (
                             <div className="space-y-1">
-                              <span className={`inline-flex rounded-full border px-3 py-1 text-xs capitalize ${statusClass}`}>
-                                {entry.status === "alive" ? "Alive" : "Dead"}
+                              <span className="flex items-center gap-2 text-ob-error ob-label text-[10px] uppercase tracking-widest">
+                                <span className="w-1.5 h-1.5 rounded-full bg-ob-error" />
+                                DEAD
                               </span>
                               {entry.cause_of_death ? (
-                                <div className="max-w-xs text-xs text-gray-500">{entry.cause_of_death}</div>
+                                <div className="text-[10px] text-ob-on-surface-variant max-w-xs truncate">
+                                  {entry.cause_of_death}
+                                </div>
                               ) : null}
                             </div>
-                          </td>
-                        </motion.tr>
-                      )
-                    })
-                  ) : (
-                    <tr>
-                      <td colSpan={7} className="px-6 py-12 text-center">
-                        <div className="space-y-2">
-                          <div className="text-lg font-semibold text-gray-200">No entries match these filters yet.</div>
-                          <div className="text-sm text-gray-500">
-                            Try another class or player type filter to explore the current ladder.
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </motion.tbody>
-              </table>
-            </div>
+                          )}
+                        </td>
+                      </motion.tr>
+                    )
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan={7} className="px-6 py-16 text-center">
+                      <span className="material-symbols-outlined text-4xl text-ob-on-surface-variant/40 mb-3 block">
+                        person_search
+                      </span>
+                      <div className="ob-headline not-italic text-ob-on-surface text-lg mb-1">
+                        No entries match these filters
+                      </div>
+                      <div className="text-sm text-ob-on-surface-variant">
+                        Try a different class, sort, or player type.
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
 
-          <div className="flex flex-col gap-3 border-t border-gray-800 pt-4 text-sm text-gray-400 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              Showing <span className="text-gray-200">{entries.length === 0 ? 0 : offset + 1}</span>
-              {" "}-{" "}
-              <span className="text-gray-200">{Math.min(offset + entries.length, total)}</span>
-              {" "}of <span className="text-gray-200">{total}</span> entries
+          {/* Pagination footer */}
+          <div className="p-6 md:p-8 border-t border-ob-outline-variant/10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-ob-surface-container-high/30">
+            <div className="ob-label text-[10px] text-ob-on-surface-variant uppercase tracking-widest">
+              SHOWING {entries.length === 0 ? 0 : offset + 1}-{Math.min(offset + entries.length, total)} OF {total.toLocaleString()} DELVERS
             </div>
 
             <div className="flex items-center gap-2">
@@ -455,20 +607,22 @@ export default function LeaderboardPage() {
                 type="button"
                 onClick={() => goToPage(currentPage - 1)}
                 disabled={isLoading || currentPage <= 1}
-                className="rounded-full border border-gray-700 px-4 py-2 text-gray-300 transition-colors hover:border-gray-500 disabled:cursor-not-allowed disabled:opacity-40"
+                className="p-2 rounded-lg border border-ob-outline-variant/20 text-ob-on-surface-variant hover:text-ob-primary hover:border-ob-primary/30 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
               >
-                Previous
+                <span className="material-symbols-outlined text-sm">chevron_left</span>
               </button>
-              <span className="rounded-full border border-gray-800 bg-gray-950 px-3 py-2 text-xs text-gray-400">
-                Page {currentPage} of {totalPages}
+              <span className="ob-label text-xs px-3 text-ob-on-surface">
+                <span className="text-ob-primary font-bold">{currentPage}</span>
+                <span className="text-ob-on-surface-variant mx-1">/</span>
+                <span className="text-ob-on-surface-variant">{totalPages}</span>
               </span>
               <button
                 type="button"
                 onClick={() => goToPage(currentPage + 1)}
                 disabled={isLoading || currentPage >= totalPages}
-                className="rounded-full border border-gray-700 px-4 py-2 text-gray-300 transition-colors hover:border-gray-500 disabled:cursor-not-allowed disabled:opacity-40"
+                className="p-2 rounded-lg border border-ob-outline-variant/20 text-ob-on-surface-variant hover:text-ob-primary hover:border-ob-primary/30 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
               >
-                Next
+                <span className="material-symbols-outlined text-sm">chevron_right</span>
               </button>
             </div>
           </div>
