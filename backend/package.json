@@ -19,6 +19,7 @@
     "hono": "^4.6.20",
     "ioredis": "^5.4.2",
     "jose": "^5.9.6",
+    "obscenity": "^0.4.6",
     "viem": "^2.21.54"
   },
   "devDependencies": {
