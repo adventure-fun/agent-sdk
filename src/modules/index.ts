@@ -31,6 +31,23 @@ export interface MapMemory {
     x: number
     y: number
   }
+  /** Room ids visited while post-clear homing on floor 1 (detect A↔B ping-pong). */
+  extractionRecentRooms?: string[]
+  /** Consecutive planner turns that used post-clear homing override (reset to let tactical LLM run). */
+  extractionHomingOverrideStreak?: number
+  /**
+   * Floor-1 post-clear: after `extractionPreferLeftBiasExit` west steps hit a dead end, set to
+   * `reassess` so deterministic homing yields to the tactician (and auto-portal is skipped once).
+   */
+  extractionFloor1ExitPhase?: "reassess"
+  /**
+   * Recent room-to-room moves while cleared on floor 1 (for learning two-room ping-pong edges).
+   */
+  extractionDoorCrossings?: Array<{ fromRoomId: string; toRoomId: string; direction: Direction }>
+  /**
+   * When stuck in an A↔B room alternation, do not take these move directions (they re-enter the loop).
+   */
+  extractionFloor1LoopBans?: Partial<Record<string, Direction>>
 }
 
 export interface AgentContext {

@@ -11,6 +11,7 @@ import {
   buildTacticalSystemPrompt,
 } from "./adapters/llm/index.js"
 import type { DecisionConfig } from "./config.js"
+import { hasActionableLootBlockingPostClearExtraction } from "./extraction-loot-gate.js"
 import type { Action, Observation } from "./protocol.js"
 import type { AgentContext, ModuleRecommendation, ModuleRegistry } from "./modules/index.js"
 
@@ -63,7 +64,7 @@ export class ActionPlanner {
       return lootDecision
     }
 
-    const homingDecision = this.tryPostClearHomingOverride(observation, recommendations)
+    const homingDecision = this.tryPostClearHomingOverride(observation, recommendations, context)
     if (homingDecision) {
       this.previousObservation = observation
       return homingDecision
@@ -194,10 +195,14 @@ export class ActionPlanner {
    * After a clear, the tactical model often replans every turn (`plan_exhausted`) and can oscillate
    * on interior tiles instead of committing to doors/stairs. Deterministic exploration homing
    * (tagged with `context.extractionHoming`) overrides LLM tactical plans in that phase.
+   *
+   * After `extractionHomingOverrideMaxStreak` consecutive overrides, one turn is yielded to the
+   * tactical LLM so it can re-read the observation and module hints instead of running fully open-loop.
    */
   private tryPostClearHomingOverride(
     observation: Observation,
     recommendations: ModuleRecommendation[],
+    agentContext: AgentContext,
   ): PlannerDecision | null {
     if (!this.previousObservation) {
       return null
@@ -214,11 +219,26 @@ export class ActionPlanner {
       !exploration?.suggestedAction
       || exploration.context?.extractionHoming !== true
     ) {
+      delete agentContext.mapMemory.extractionHomingOverrideStreak
       return null
     }
     if (!this.isActionLegal(exploration.suggestedAction, observation.legal_actions)) {
       return null
     }
+
+    const loopBanActive =
+      observation.position.floor === 1
+      && agentContext.mapMemory.extractionFloor1LoopBans?.[observation.position.room_id] !== undefined
+    const maxStreak = loopBanActive
+      ? 999
+      : (this.config.extractionHomingOverrideMaxStreak ?? 12)
+    const streak = agentContext.mapMemory.extractionHomingOverrideStreak ?? 0
+    if (streak >= maxStreak) {
+      delete agentContext.mapMemory.extractionHomingOverrideStreak
+      return null
+    }
+
+    agentContext.mapMemory.extractionHomingOverrideStreak = streak + 1
 
     this.currentPlan = null
     return {
@@ -558,10 +578,7 @@ function hasPendingLootBeforeExtraction(observation: Observation): boolean {
     return false
   }
 
-  return (
-    observation.legal_actions.some((action) => action.type === "pickup")
-    || observation.visible_entities.some((entity) => entity.type === "item")
-  )
+  return hasActionableLootBlockingPostClearExtraction(observation)
 }
 
 function withOptionalTriggerReason(

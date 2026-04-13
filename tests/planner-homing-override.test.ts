@@ -65,4 +65,46 @@ describe("ActionPlanner post-clear homing override", () => {
     expect(second.tier).toBe("module")
     expect(second.action).toEqual({ type: "move", direction: "right" })
   })
+
+  it("yields one tactical plan after extractionHomingOverrideMaxStreak consecutive homing overrides", async () => {
+    const strategic = new MockLLMAdapter({
+      actionPicker: () => ({ type: "wait" }),
+    })
+    const tactical = new MockLLMAdapter({
+      actionPicker: () => ({ type: "move", direction: "left" }),
+    })
+    const registry = createModuleRegistry([new ExplorationModule()])
+    const planner = new ActionPlanner(strategic, tactical, registry, {
+      strategy: "planned",
+      extractionHomingOverrideMaxStreak: 2,
+    })
+    const context = createAgentContext(config)
+
+    const clearedObs = () =>
+      buildObservation({
+        realm_info: { status: "realm_cleared", entrance_room_id: "ent" },
+        position: { floor: 1, room_id: "boss", tile: { x: 2, y: 2 } },
+        visible_tiles: [
+          { x: 2, y: 2, type: "floor", entities: [] },
+          { x: 3, y: 2, type: "floor", entities: [] },
+          { x: 4, y: 2, type: "floor", entities: [] },
+          { x: 5, y: 2, type: "door", entities: [] },
+        ],
+        legal_actions: [
+          { type: "move", direction: "left" },
+          { type: "move", direction: "right" },
+          { type: "wait" },
+        ],
+      })
+
+    await planner.decideAction(clearedObs(), context)
+    tactical.clearHistory()
+
+    await planner.decideAction(clearedObs(), context)
+    await planner.decideAction(clearedObs(), context)
+    expect(tactical.getHistory().filter((h) => h.kind === "plan")).toHaveLength(0)
+
+    await planner.decideAction(clearedObs(), context)
+    expect(tactical.getHistory().filter((h) => h.kind === "plan")).toHaveLength(1)
+  })
 })
