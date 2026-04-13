@@ -72,13 +72,20 @@ export function SiteHeader() {
       <div className="flex items-center gap-6">
         {isAuthenticated && shortWallet ? (
           <div className="relative" ref={menuRef}>
+            {/* The pill prefers the display handle over the wallet
+                address. The user.handle is always set (auto-assigned
+                as "anon-*" on first login via /auth/connect) so the
+                wallet is only a fallback for the brief moment when
+                the auth state rehydrates from localStorage on a new
+                tab. The dropdown below still shows the full wallet
+                for copy/paste. */}
             <button
               type="button"
               onClick={() => setOpen((v) => !v)}
               className="hidden lg:flex items-center gap-3 px-4 py-2 bg-ob-surface-container rounded-xl border border-ob-outline-variant/15 hover:border-ob-primary/40 transition-colors"
             >
               <span className="material-symbols-outlined text-ob-primary text-sm">
-                account_balance_wallet
+                {account?.handle ? "person" : "account_balance_wallet"}
               </span>
               <span className="ob-label text-xs tracking-tight text-ob-on-surface">
                 {account?.handle || shortWallet}
@@ -91,14 +98,14 @@ export function SiteHeader() {
               </svg>
             </button>
 
-            {/* Compact wallet button for narrow viewports */}
+            {/* Compact button for narrow viewports — same icon swap. */}
             <button
               type="button"
               onClick={() => setOpen((v) => !v)}
               className="lg:hidden flex items-center gap-2 px-3 py-2 bg-ob-surface-container rounded-xl border border-ob-outline-variant/15 hover:border-ob-primary/40 transition-colors"
             >
               <span className="material-symbols-outlined text-ob-primary text-sm">
-                account_balance_wallet
+                {account?.handle ? "person" : "account_balance_wallet"}
               </span>
             </button>
 

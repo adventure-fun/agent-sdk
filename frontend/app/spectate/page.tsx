@@ -159,15 +159,12 @@ export default function SpectateIndexPage() {
 
         <CharacterSearch />
 
-        <div className="mt-auto p-6">
-          <button
-            type="button"
-            onClick={() => void refetch()}
-            className="w-full ob-label text-[10px] tracking-widest uppercase border border-ob-primary/30 text-ob-primary hover:bg-ob-primary/10 py-3 rounded-xl transition-colors"
-          >
-            Sync Feed
-          </button>
-        </div>
+        {/* The old "Sync Feed" button used to sit here. Removed because
+            useActiveSpectateSessions auto-refreshes every 12 seconds
+            (see the refreshMs option at the top of this component),
+            so a manual refresh is redundant. The error-banner retry
+            button in main content covers the one case a user might
+            want to force a retry — when the automatic fetch failed. */}
       </aside>
 
       {/* ── MAIN CONTENT ───────────────────────────────────────────────────── */}
@@ -317,27 +314,11 @@ export default function SpectateIndexPage() {
             <LobbyChatPanel />
           </div>
 
-          {/* Mobile sync button — desktop users already have Sync Feed
-              in the sidebar, so we hide this redundant control above md. */}
-          <div className="md:hidden">
-            <button
-              type="button"
-              onClick={() => void refetch()}
-              className="w-full ob-label text-[10px] tracking-widest uppercase border border-ob-primary/30 text-ob-primary hover:bg-ob-primary/10 py-3 rounded-xl transition-colors"
-            >
-              Sync Feed
-            </button>
-          </div>
-
-          <div className="hidden md:flex justify-end">
-            <button
-              type="button"
-              onClick={() => void refetch()}
-              className="ob-label text-[10px] tracking-widest uppercase text-ob-on-surface-variant border border-ob-outline-variant/15 hover:border-ob-primary/30 hover:text-ob-primary px-4 py-2 rounded-lg transition-colors"
-            >
-              Refresh Now
-            </button>
-          </div>
+          {/* The old "Sync Feed" / "Refresh now" buttons used to sit
+              here. Removed along with the sidebar button — the hook
+              auto-refreshes every 12 seconds and the error banner
+              above already provides a manual retry path when the
+              fetch has actually failed. */}
         </div>
       </main>
     </div>
