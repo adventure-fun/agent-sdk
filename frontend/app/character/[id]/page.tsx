@@ -59,6 +59,7 @@ interface CharacterDetail {
       speed: number
     }
     skill_tree: Record<string, boolean>
+    perks: Record<string, number>
     status: "alive" | "dead"
     stat_rerolled: boolean
     created_at: string
@@ -88,6 +89,14 @@ interface CharacterDetail {
     created_at: string
   } | null
   realms_completed: number
+  perks_template: Array<{
+    id: string
+    name: string
+    description: string
+    stat: "hp" | "attack" | "defense" | "accuracy" | "evasion" | "speed"
+    value_per_stack: number
+    max_stacks: number
+  }>
   history: {
     deepest_floor: number | null
     cause_of_death: string | null
@@ -163,6 +172,17 @@ export default function CharacterPage({ params }: { params: Promise<{ id: string
     { label: "EVA", value: character.stats.evasion },
     { label: "SPD", value: character.stats.speed },
   ]
+
+  // Join the shared perk pool template against the character's unlocked
+  // stacks. Filter out anything the character hasn't touched — the public
+  // profile is a read-only viewer, not a purchase screen, so empty perks
+  // would just be clutter.
+  const perkRows = (data.perks_template ?? [])
+    .map((perk) => {
+      const stacks = character.perks?.[perk.id] ?? 0
+      return { perk, stacks }
+    })
+    .filter((row) => row.stacks > 0)
 
   return (
     <main className="min-h-[calc(100vh-5rem)] bg-ob-bg ob-body relative overflow-hidden">
@@ -361,6 +381,32 @@ export default function CharacterPage({ params }: { params: Promise<{ id: string
                     ) : (
                       <div className="text-xs text-ob-outline italic">—</div>
                     )}
+                  </div>
+                )
+              })}
+            </div>
+          </section>
+        ) : null}
+
+        {/* ── Perks acquired ──────────────────────────────────────────── */}
+        {perkRows.length > 0 ? (
+          <section className="bg-ob-surface-container-low border border-ob-outline-variant/10 rounded-xl p-6">
+            <h3 className="ob-label text-[10px] tracking-[0.2em] text-ob-on-surface-variant uppercase mb-4">PERKS ACQUIRED</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {perkRows.map(({ perk, stacks }) => {
+                const total = perk.value_per_stack * stacks
+                return (
+                  <div key={perk.id} className="bg-ob-surface-container p-3 rounded-lg border border-ob-outline-variant/10">
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <div className="ob-label text-xs text-ob-secondary font-bold uppercase tracking-wide">
+                        {perk.name}
+                      </div>
+                      <div className="ob-label text-[9px] bg-slate-900/60 text-ob-on-surface-variant px-1.5 py-0.5 rounded">
+                        {stacks} / {perk.max_stacks}
+                      </div>
+                    </div>
+                    <div className="text-xs text-ob-on-surface mb-1">+{total} {perk.stat}</div>
+                    <div className="text-[11px] italic text-ob-on-surface-variant">{perk.description}</div>
                   </div>
                 )
               })}
