@@ -63,6 +63,7 @@ export interface Character {
   stats: CharacterStats
   effective_stats: CharacterStats // after equipment + buffs
   skill_tree: Record<string, string>
+  perks: Record<string, number>
   status: CharacterStatus
   stat_rerolled: boolean
   lore_discovered?: LoreDiscovery[]
@@ -131,6 +132,7 @@ export interface GameState {
     abilities: string[]
     cooldowns: Record<string, number>
     skill_tree: Record<string, boolean>
+    perks: Record<string, number>
   }
   position: {
     floor: number
@@ -335,6 +337,13 @@ export interface SkillNodeTemplate {
     description?: string
   }
 }
+
+/**
+ * A stackable passive buff from the shared perk pool. Players earn 1 perk point
+ * per level-up and spend it to buy a stack of any perk they like. Stacks cap at
+ * `max_stacks` per perk. Applied to `effective_stats` server-side, same path as
+ * the skill-tree passive-stat effects.
+ */
 
 export interface SkillTier {
   tier: number

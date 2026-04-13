@@ -19,6 +19,7 @@ const DEFAULT_CHARACTER: Observation["character"] = {
   xp: 120,
   xp_to_next_level: 200,
   skill_points: 0,
+  tier_choices_available: 0,
   hp: { current: 25, max: 30 },
   resource: { type: "energy", current: 80, max: 100 },
   buffs: [],
@@ -28,6 +29,7 @@ const DEFAULT_CHARACTER: Observation["character"] = {
   base_stats: { hp: 30, attack: 10, defense: 5, accuracy: 13, evasion: 14, speed: 16 },
   effective_stats: { hp: 30, attack: 10, defense: 5, accuracy: 13, evasion: 14, speed: 16 },
   skill_tree: {},
+  perks: {},
 }
 
 const DEFAULT_EQUIPMENT: Record<EquipSlot, InventoryItem | null> = {

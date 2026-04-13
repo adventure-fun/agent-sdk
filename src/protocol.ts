@@ -149,7 +149,13 @@ export interface Observation {
     level: number
     xp: number
     xp_to_next_level: number
+    /**
+     * Perk points remaining: `(level - 1) - sum(perk stacks spent)`. Tier choices
+     * from the skill tree are milestone rewards and do NOT consume this pool.
+     */
     skill_points: number
+    /** Number of unclaimed tier levels (tier.unlock_level <= level with no choice picked). */
+    tier_choices_available: number
     hp: { current: number; max: number }
     resource: { type: ResourceType; current: number; max: number }
     buffs: ActiveEffect[]
@@ -159,6 +165,7 @@ export interface Observation {
     base_stats: CharacterStats
     effective_stats: CharacterStats
     skill_tree: Record<string, boolean>
+    perks: Record<string, number>
   }
   inventory: InventorySlot[]
   new_item_ids?: string[]
@@ -226,6 +233,15 @@ export type ClientMessage =
   | { type: "action"; data: Action }
 
 // ---- Content Templates (from CONTENT.md) --------------------
+
+export interface PerkTemplate {
+  id: string
+  name: string
+  description: string
+  stat: "hp" | "attack" | "defense" | "accuracy" | "evasion" | "speed"
+  value_per_stack: number
+  max_stacks: number
+}
 
 export type EnemyBehavior = "aggressive" | "defensive" | "patrol" | "ambush" | "boss"
 
