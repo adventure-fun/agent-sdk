@@ -144,6 +144,7 @@ class AgentStoppedError extends Error {
 
 interface AgentPlanner {
   decideAction(observation: Observation, context: AgentContext): Promise<PlannerDecision>
+  reset?(): void
 }
 
 export interface BaseAgentOptions {
@@ -180,7 +181,7 @@ type AgentEventName = keyof AgentEvents
 type AgentEventHandler<K extends AgentEventName> = (payload: AgentEvents[K]) => void
 
 export class BaseAgent {
-  readonly context: AgentContext
+  context: AgentContext
   private readonly config: AgentConfig
   private readonly llm: LLMAdapter
   private readonly tacticalLLM: LLMAdapter
@@ -1343,6 +1344,12 @@ export class BaseAgent {
   }
 
   private async playRealm(client: AgentClient, realmId: string): Promise<RunOutcome> {
+    // Each realm instance gets a fresh planner + context so that leftover strategic plans
+    // (e.g. queued actions after an emergency retreat) and stale map memory from the previous
+    // realm can't bleed into the new run's first turns.
+    this.planner.reset?.()
+    this.context = createAgentContext(this.config)
+
     const completion = new Promise<RunOutcome>((resolve, reject) => {
       this.runCompletion = { resolve, reject }
     })
