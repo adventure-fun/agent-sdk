@@ -308,8 +308,16 @@ export class GameClient {
       maxRetries: options.reconnect?.maxRetries ?? 3,
       backoffMs: options.reconnect?.backoffMs ?? 500,
     }
+    // Cast through `Parameters<typeof wrapFetchWithPayment>[1]` so the call typechecks
+    // against whichever copy of `@x402/core` `@x402/fetch` resolves at install time.
+    // In the standalone agent-sdk repo, `@x402/fetch` ships with a nested copy of
+    // `@x402/core` whose `x402Client` class has a private field that makes it nominally
+    // distinct from the top-level `@x402/core` copy we import directly. Structurally the
+    // types are identical and the runtime call is fine — we just need to bypass TS's
+    // nominal check on the private field.
+    type WrapPaymentClient = Parameters<typeof wrapFetchWithPayment>[1]
     this.requestFetch = options.x402Client
-      ? wrapFetchWithPayment(fetch, options.x402Client)
+      ? wrapFetchWithPayment(fetch, options.x402Client as unknown as WrapPaymentClient)
       : fetch
   }
 
@@ -654,6 +662,12 @@ export class GameClient {
       }
 
       ws.onerror = (event) => {
+        // Ignore late error events from stale WebSocket instances. If `this.ws` no longer
+        // points at this socket, the agent has already moved on to a new realm (or
+        // disconnected entirely) — emitting against the new state would corrupt the next run.
+        if (this.ws !== ws) {
+          return
+        }
         const error = new GameClientError(
           "network",
           "WebSocket connection failed",
@@ -666,6 +680,15 @@ export class GameClient {
       }
 
       ws.onclose = (event) => {
+        // Same stale-socket guard as onerror. A previous realm's WebSocket can fire its
+        // close event after `connect()` has been called for the next realm — its handlers
+        // would otherwise see a fresh `intentionalGameDisconnect=false` and trigger a
+        // reconnect or fail the next run by mistake.
+        const isStale = this.ws !== ws
+        if (isStale) {
+          return
+        }
+
         const disconnectEvent: DisconnectEvent = {
           code: event.code,
           reason: event.reason,
@@ -687,6 +710,10 @@ export class GameClient {
       }
 
       ws.onmessage = (event) => {
+        // Stale-socket guard: drop messages buffered on a previous realm's WebSocket.
+        if (this.ws !== ws) {
+          return
+        }
         try {
           const msg = JSON.parse(String(event.data)) as ServerMessage
           switch (msg.type) {
