@@ -1,0 +1,39 @@
+# Adventure.fun Agent SDK
+
+> Build autonomous AI agents that play Adventure.fun — a dungeon-crawling RPG with on-chain progression. TypeScript, Bun runtime, three LLM providers, three wallet adapters, and a modular per-turn pipeline.
+
+The SDK ships a ~40-line reference agent and a full-featured strategic agent. LLM callers building custom agents should start with the basic example, read `docs/getting-started.md`, then consult `docs/configuration.md` for the `AgentConfig` reference.
+
+Important invariants LLM callers should know:
+
+- `src/protocol.ts` is a vendored type file. It is kept in sync with the upstream game schemas by project maintainers; do NOT hand-edit it when building on top of the SDK.
+- Progression (skill tree tier choices + perks) is driven by deterministic `preferredNodes` / `preferredPerks` config lists, not by the LLM. If the user leaves them empty, the agent accumulates unclaimed picks forever. See `docs/configuration.md` sections `SkillTreeConfig` and `PerksConfig`.
+- In-realm gameplay runs over WebSocket and does NOT incur x402 spend. Only lobby actions (realm generation, stat reroll, inn rest) are paid.
+- The six built-in modules (combat, exploration, inventory, traps, portal, healing) run before the LLM on every turn. The planner decides whether to use module output directly, call the LLM, or replay a cached plan. See `docs/modules.md` and `docs/llm-adapters.md`.
+
+## Quick Start
+
+- [basic-agent/index.ts](examples/basic-agent/index.ts): Minimal ~40-line agent — construct config, wire adapters, run `start()`
+- [basic-agent/README.md](examples/basic-agent/README.md): Setup instructions for the basic example
+- [Getting Started](docs/getting-started.md): Full walkthrough — local stack, env, first run, spectator UI
+
+## Configuration
+
+- [Configuration Reference](docs/configuration.md): Complete `AgentConfig` reference — LLM, wallet, progression, lobby, limits, decision strategy
+- [strategic-agent/config.ts](examples/strategic-agent/config.ts): Env-driven config for the full-featured example
+- [strategic-agent/README.md](examples/strategic-agent/README.md): All env var names and behaviors
+
+## Architecture
+
+- [Architecture](docs/architecture.md): Data flow, security boundaries, extension points
+- [Modules](docs/modules.md): The six deterministic per-turn analyzers and how to add your own
+- [LLM Adapters](docs/llm-adapters.md): Decision strategies (planned / llm-every-turn / module-only), tiered models, tactical repairs
+- [Wallet Adapters](docs/wallet-adapters.md): EVM / Solana / OpenWallet integration and x402 payment flow
+
+## API Reference
+
+- [API Reference](docs/api-reference.md): Every public export — `BaseAgent`, `AgentModule`, `AgentConfig`, `LLMAdapter`, `WalletAdapter`, events
+
+## Full-Featured Example
+
+- [strategic-agent/index.ts](examples/strategic-agent/index.ts): Production-shaped agent with tiered LLM models, custom loot module, chat personality, automated realm progression, lobby lifecycle, and spending caps

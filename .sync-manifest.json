@@ -157,7 +157,7 @@
     },
     {
       "file": "backend/src/routes/characters.ts",
-      "hash": "6c1f16c59226c5eed119670112ba2954cd5c120d69985b9495f2a2603c509ce6",
+      "hash": "e2ea98c32c7dbc34b0c7554a8e2228f9f0836839bb030365b274f1a998e84297",
       "affectedModules": [
         "dev-stack",
         "agent-lifecycle"
