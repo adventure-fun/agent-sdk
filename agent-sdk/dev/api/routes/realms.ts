@@ -19,7 +19,14 @@ realmRoutes.get("/mine", requireAuth, (c) => {
 
 realmRoutes.post("/generate", requireAuth, async (c) => {
   const { account_id } = c.get("session")
-  const body = await c.req.json<{ template_id?: string }>()
+  const body = await c.req.json<{
+    template_id?: string
+    // Dev-only test hook: pin the realm seed. Everything downstream —
+    // enemy placement, damage rolls, loot drops, trap detection — is
+    // derived from this single number via the engine's SeededRng, so
+    // fixing it makes the entire play-through reproducible.
+    seed?: number
+  }>()
 
   if (!body.template_id || !VALID_TEMPLATES.includes(body.template_id)) {
     return c.json({ error: `Invalid template. Choose: ${VALID_TEMPLATES.join(", ")}` }, 400)
@@ -30,7 +37,11 @@ realmRoutes.post("/generate", requireAuth, async (c) => {
     return c.json({ error: "No living character" }, 404)
   }
 
-  const realm = createRealm(character.id, body.template_id)
+  const realm = createRealm(
+    character.id,
+    body.template_id,
+    typeof body.seed === "number" ? { seedOverride: body.seed } : {},
+  )
   return c.json(realm)
 })
 
