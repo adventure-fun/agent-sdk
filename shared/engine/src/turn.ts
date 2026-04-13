@@ -2802,6 +2802,7 @@ export function buildObservationFromState(
         id: item.id,
         type: "item",
         name: template?.name ?? item.template_id,
+        template_id: item.template_id,
         position: item.position,
         ...(template?.rarity ? { rarity: template.rarity } : {}),
         trapped: canSenseTraps && item.trapped === true && item.trap_disarmed !== true,

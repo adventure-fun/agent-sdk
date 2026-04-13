@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, lazy, Suspense } from "react"
-import type { Tile, Entity, SpectatorEntity } from "@adventure-fun/schemas"
+import type { Tile, Entity, SpectatorEntity, CharacterClass } from "@adventure-fun/schemas"
 import { AsciiMap } from "./ascii-map"
 
 const PixiJSWorld = lazy(() =>
@@ -13,6 +13,8 @@ interface GameMapProps {
   knownTiles?: Tile[]
   playerPosition: { x: number; y: number }
   entities: (Entity | SpectatorEntity)[]
+  realmTemplateId?: string
+  playerClass?: CharacterClass
 }
 
 export function GameMap(props: GameMapProps) {

@@ -254,6 +254,8 @@ export function DungeonView({
               knownTiles={knownTiles}
               playerPosition={position.tile}
               entities={visible_entities}
+              realmTemplateId={realm_info.template_name}
+              playerClass={character.class}
             />
             {visibleInteractables.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-2 border-t border-white/5 pt-2">

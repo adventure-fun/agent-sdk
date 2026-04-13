@@ -311,6 +311,7 @@ export interface Entity {
   type: EntityType
   name: string
   position: { x: number; y: number }
+  template_id?: string
   rarity?: ItemRarity
   hp_current?: number
   hp_max?: number

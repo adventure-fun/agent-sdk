@@ -1,0 +1,110 @@
+{
+  "frames": {
+    "necromancer-idle-0": {
+      "frame": { "x": 0, "y": 0, "w": 128, "h": 128 },
+      "sourceSize": { "w": 128, "h": 128 },
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 }
+    },
+    "necromancer-idle-1": {
+      "frame": { "x": 128, "y": 0, "w": 128, "h": 128 },
+      "sourceSize": { "w": 128, "h": 128 },
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 }
+    },
+    "necromancer-idle-2": {
+      "frame": { "x": 256, "y": 0, "w": 128, "h": 128 },
+      "sourceSize": { "w": 128, "h": 128 },
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 }
+    },
+    "necromancer-idle-3": {
+      "frame": { "x": 384, "y": 0, "w": 128, "h": 128 },
+      "sourceSize": { "w": 128, "h": 128 },
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 }
+    },
+    "necromancer-idle-4": {
+      "frame": { "x": 512, "y": 0, "w": 128, "h": 128 },
+      "sourceSize": { "w": 128, "h": 128 },
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 }
+    },
+    "necromancer-idle-5": {
+      "frame": { "x": 640, "y": 0, "w": 128, "h": 128 },
+      "sourceSize": { "w": 128, "h": 128 },
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 }
+    },
+    "necromancer-idle-6": {
+      "frame": { "x": 768, "y": 0, "w": 128, "h": 128 },
+      "sourceSize": { "w": 128, "h": 128 },
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 }
+    },
+    "necromancer-idle-7": {
+      "frame": { "x": 896, "y": 0, "w": 128, "h": 128 },
+      "sourceSize": { "w": 128, "h": 128 },
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 }
+    },
+    "necromancer-idle-8": {
+      "frame": { "x": 1024, "y": 0, "w": 128, "h": 128 },
+      "sourceSize": { "w": 128, "h": 128 },
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 }
+    },
+    "necromancer-idle-9": {
+      "frame": { "x": 1152, "y": 0, "w": 128, "h": 128 },
+      "sourceSize": { "w": 128, "h": 128 },
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 }
+    },
+    "necromancer-idle-10": {
+      "frame": { "x": 1280, "y": 0, "w": 128, "h": 128 },
+      "sourceSize": { "w": 128, "h": 128 },
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 }
+    },
+    "necromancer-idle-11": {
+      "frame": { "x": 1408, "y": 0, "w": 128, "h": 128 },
+      "sourceSize": { "w": 128, "h": 128 },
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 }
+    },
+    "necromancer-idle-12": {
+      "frame": { "x": 1536, "y": 0, "w": 128, "h": 128 },
+      "sourceSize": { "w": 128, "h": 128 },
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 }
+    },
+    "necromancer-idle-13": {
+      "frame": { "x": 1664, "y": 0, "w": 128, "h": 128 },
+      "sourceSize": { "w": 128, "h": 128 },
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 }
+    },
+    "necromancer-idle-14": {
+      "frame": { "x": 1792, "y": 0, "w": 128, "h": 128 },
+      "sourceSize": { "w": 128, "h": 128 },
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 }
+    },
+    "necromancer-idle-15": {
+      "frame": { "x": 1920, "y": 0, "w": 128, "h": 128 },
+      "sourceSize": { "w": 128, "h": 128 },
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 }
+    }
+  },
+  "meta": {
+    "image": "necromancer-spritesheet.png",
+    "format": "RGBA8888",
+    "size": { "w": 2048, "h": 128 },
+    "scale": "1"
+  },
+  "animations": {
+    "necromancer-idle": [
+      "necromancer-idle-0",
+      "necromancer-idle-1",
+      "necromancer-idle-2",
+      "necromancer-idle-3",
+      "necromancer-idle-4",
+      "necromancer-idle-5",
+      "necromancer-idle-6",
+      "necromancer-idle-7",
+      "necromancer-idle-8",
+      "necromancer-idle-9",
+      "necromancer-idle-10",
+      "necromancer-idle-11",
+      "necromancer-idle-12",
+      "necromancer-idle-13",
+      "necromancer-idle-14",
+      "necromancer-idle-15"
+    ]
+  }
+}
