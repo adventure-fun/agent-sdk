@@ -66,6 +66,12 @@ export interface SkillTreeConfig {
   preferredNodes?: string[]
 }
 
+export interface PerksConfig {
+  autoSpend?: boolean
+  /** Perk IDs in order of preference. The agent buys stacks top-to-bottom. */
+  preferredPerks?: string[]
+}
+
 export interface LobbyConfig {
   innHealThreshold?: number
   autoSellJunk?: boolean
@@ -153,6 +159,7 @@ export interface AgentConfig {
   realmProgression?: RealmProgressionConfig
   profile?: AgentProfileConfig
   skillTree?: SkillTreeConfig
+  perks?: PerksConfig
   lobby?: LobbyConfig
   limits?: AgentLimitsConfig
   rerollOnDeath?: boolean
@@ -197,6 +204,10 @@ export function createDefaultConfig(
     skillTree: {
       autoSpend: false,
       preferredNodes: [],
+    },
+    perks: {
+      autoSpend: false,
+      preferredPerks: [],
     },
     lobby: {
       innHealThreshold: 1,
@@ -310,6 +321,13 @@ export function createDefaultConfig(
     config.skillTree = {
       autoSpend: overrides.skillTree.autoSpend ?? true,
       preferredNodes: [...(overrides.skillTree.preferredNodes ?? [])],
+    }
+  }
+
+  if (overrides.perks !== undefined) {
+    config.perks = {
+      autoSpend: overrides.perks.autoSpend ?? true,
+      preferredPerks: [...(overrides.perks.preferredPerks ?? [])],
     }
   }
 

@@ -25,14 +25,28 @@ interface SkillTier {
   choices: SkillNodeTemplate[]
 }
 
+export interface PerkTemplate {
+  id: string
+  name: string
+  description: string
+  stat: "hp" | "attack" | "defense" | "accuracy" | "evasion" | "speed"
+  value_per_stack: number
+  max_stacks: number
+}
+
 export interface ProgressionData {
   level: number
   xp: number
   xp_to_next_level: number
   xp_for_next_level: number
+  /** Perk points remaining (earned 1 per level-up, minus stacks already purchased). */
   skill_points: number
+  /** Number of unclaimed tier choices (tier levels reached where no node has been picked). */
+  tier_choices_available: number
   skill_tree_template: { tiers: SkillTier[] } | null
   skill_tree_unlocked: Record<string, boolean>
+  perks_template: PerkTemplate[]
+  perks_unlocked: Record<string, number>
 }
 
 export function useProgression() {
@@ -89,11 +103,33 @@ export function useProgression() {
     }
   }, [headers, fetchProgression])
 
+  const buyPerk = useCallback(async (perkId: string): Promise<boolean> => {
+    setError(null)
+    try {
+      const res = await fetch(`${API_URL}/characters/perk`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ perk_id: perkId }),
+      })
+      if (!res.ok) {
+        const body = await res.json()
+        throw new Error(body.error ?? "Failed to buy perk")
+      }
+      await fetchProgression()
+      return true
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to buy perk"
+      setError(msg)
+      return false
+    }
+  }, [headers, fetchProgression])
+
   return {
     progression,
     isLoading,
     error,
     fetchProgression,
     unlockSkill,
+    buyPerk,
   }
 }

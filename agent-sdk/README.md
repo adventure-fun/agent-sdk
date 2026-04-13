@@ -106,6 +106,43 @@ The SDK now supports full chained runs inside `BaseAgent.start()`:
 
 The x402 spending cap only applies outside of active realm gameplay. Realm entry/generation, stat rerolls, and inn rests are paid HTTP actions; the in-realm WebSocket session itself does not incur x402 spend.
 
+### Progression: skill tree + perks (deterministic, **you must opt in**)
+
+Adventure.fun has two independent progression tracks:
+
+1. **Tier choices** — one mutually-exclusive class-defining pick at levels 3, 6, and 10. Milestone rewards, not point-gated.
+2. **Perks** — 1 perk point per level-up, spent on a shared pool of stackable passive stat buffs (HP, attack, defense, etc.) up to each perk's `max_stacks` cap.
+
+**The SDK does not drive either track through the LLM.** The built-in between-run `maybeSpendSkillPoints` and `maybeSpendPerks` passes are both fully deterministic — they walk the `preferredNodes` / `preferredPerks` lists you configure and do nothing else. Unconfigured agents accumulate unclaimed tier slots and unspent perk points forever, which is a real gameplay loss over time since max-level characters earn ~19 perk points worth of stat stacks.
+
+If you want your agent to progress, **you must opt in** by providing both config blocks:
+
+```typescript
+createDefaultConfig({
+  // ... your other config ...
+  skillTree: {
+    autoSpend: true,
+    // Tier choices unlock at levels 3, 6, 10 — one pick per tier. List in priority order.
+    preferredNodes: ["rogue-t1-disarm-trap", "rogue-t2-envenom", "rogue-t3-death-mark"],
+  },
+  perks: {
+    autoSpend: true,
+    // Round-robin — the agent alternates stacks across this list so priorities stay balanced.
+    preferredPerks: ["perk-sharpness", "perk-toughness", "perk-swiftness"],
+  },
+})
+```
+
+Key differences between the two loops:
+
+- **`preferredNodes` is walked once, top-to-bottom.** Only one node per tier is possible anyway, so there's no round-robin.
+- **`preferredPerks` is walked round-robin.** One stack per pass — a 10-point budget with `["perk-sharpness", "perk-toughness"]` produces 5/5, not 10/0.
+- **The agent discovers the perk pool at runtime.** It reads `perks_template` from `GET /characters/progression` and caches stack caps client-side, so new perks added server-side work without an SDK release — your `preferredPerks` IDs just have to stay valid.
+
+If you want LLM-driven progression decisions instead of a fixed priority list, build your own module that reads `observation.character.skill_points`, `tier_choices_available`, and `perks`, then issues `POST /characters/skill` and `POST /characters/perk` directly. The built-in passes are intentionally simple to keep the contract predictable; they are not wired into the tactical or lobby LLMs.
+
+See [`docs/configuration.md`](docs/configuration.md) for the full `SkillTreeConfig` and `PerksConfig` reference, and [`examples/strategic-agent`](examples/strategic-agent/) for env-driven wiring (`AUTO_SPEND_SKILL_POINTS`, `PREFERRED_SKILL_NODES`, `AUTO_SPEND_PERKS`, `PREFERRED_PERKS`).
+
 ### Strategic Example Env Vars
 
 The `examples/strategic-agent` example exposes the lifecycle controls through env vars:

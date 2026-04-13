@@ -2,9 +2,14 @@ import { Hono } from "hono"
 import { db } from "../db/client.js"
 import { requireAuth } from "../auth/middleware.js"
 import { rollStats, rerollStats, getResourceMax } from "../game/stats.js"
-import { validateSkillAllocation } from "../game/skill-tree.js"
-import { CLASSES, SKILL_TREES } from "@adventure-fun/engine"
-import { xpForLevel, xpToNextLevel } from "@adventure-fun/engine"
+import { validatePerkAllocation, validateSkillAllocation } from "../game/skill-tree.js"
+import { CLASSES, PERK_LIST, SKILL_TREES } from "@adventure-fun/engine"
+import {
+  computePerkPointsRemaining,
+  computeTierChoicesAvailable,
+  xpForLevel,
+  xpToNextLevel,
+} from "@adventure-fun/engine"
 import type { CharacterClass } from "@adventure-fun/schemas"
 import { getRequestedNetworks, logPayment, return402, verifyAndSettle } from "../payments/x402.js"
 
@@ -85,6 +90,7 @@ characters.post("/roll", requireAuth, async (c) => {
       resource_max: resourceMax,
       stats,
       skill_tree: {},
+      perks: {},
       status: "alive",
       stat_rerolled: false,
     })
@@ -138,13 +144,13 @@ characters.post("/reroll-stats", requireAuth, async (c) => {
   return c.json(data)
 })
 
-// GET /characters/progression — returns skill tree template + XP curve info for the character
+// GET /characters/progression — returns skill tree + perk template + XP curve info
 characters.get("/progression", requireAuth, async (c) => {
   const { account_id } = c.get("session")
 
   const { data: character, error } = await db
     .from("characters")
-    .select("class, level, xp, skill_tree")
+    .select("class, level, xp, skill_tree, perks")
     .eq("account_id", account_id)
     .eq("status", "alive")
     .maybeSingle()
@@ -158,17 +164,28 @@ characters.get("/progression", requireAuth, async (c) => {
   const tree = treeId ? SKILL_TREES[treeId] : classTemplate?.skill_tree
 
   const currentTree = (character.skill_tree ?? {}) as Record<string, boolean>
-  const spentPoints = Object.keys(currentTree).length
-  const availablePoints = Math.max(0, (character.level - 1) - spentPoints)
+  const currentPerks = (character.perks ?? {}) as Record<string, number>
+  const perkPointsRemaining = computePerkPointsRemaining({
+    level: character.level,
+    perks: currentPerks,
+  })
+  const tierChoicesAvailable = computeTierChoicesAvailable({
+    level: character.level,
+    class: cls,
+    skill_tree: currentTree,
+  })
 
   return c.json({
     level: character.level,
     xp: character.xp,
     xp_to_next_level: xpToNextLevel(character.xp, character.level),
     xp_for_next_level: xpForLevel(character.level + 1),
-    skill_points: availablePoints,
+    skill_points: perkPointsRemaining,
+    tier_choices_available: tierChoicesAvailable,
     skill_tree_template: tree ?? null,
     skill_tree_unlocked: currentTree,
+    perks_template: PERK_LIST,
+    perks_unlocked: currentPerks,
   })
 })
 
@@ -215,6 +232,46 @@ characters.post("/skill", requireAuth, async (c) => {
   return c.json(data)
 })
 
+// POST /characters/perk — spend 1 perk point to buy one more stack of a shared perk
+characters.post("/perk", requireAuth, async (c) => {
+  const { account_id } = c.get("session")
+
+  const { data: character, error: fetchErr } = await db
+    .from("characters")
+    .select("*")
+    .eq("account_id", account_id)
+    .eq("status", "alive")
+    .maybeSingle()
+
+  if (fetchErr) return c.json({ error: fetchErr.message }, 500)
+  if (!character) return c.json({ error: "No living character" }, 404)
+
+  const body = await c.req.json<{ perk_id: string }>()
+  if (!body.perk_id || typeof body.perk_id !== "string") {
+    return c.json({ error: "perk_id is required" }, 400)
+  }
+
+  const currentPerks = (character.perks ?? {}) as Record<string, number>
+  const result = validatePerkAllocation(character.level, currentPerks, body.perk_id)
+  if (!result.ok) {
+    return c.json({ error: result.error }, 400)
+  }
+
+  const updatedPerks = {
+    ...currentPerks,
+    [body.perk_id]: (currentPerks[body.perk_id] ?? 0) + 1,
+  }
+  const { data, error } = await db
+    .from("characters")
+    .update({ perks: updatedPerks })
+    .eq("id", character.id)
+    .select()
+    .single()
+
+  if (error) return c.json({ error: error.message }, 500)
+  return c.json(data)
+})
+  
 // ── Public character detail ──────────────────────────────────────────────────
 // GET /characters/public/:id
 //

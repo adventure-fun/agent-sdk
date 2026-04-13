@@ -17,6 +17,7 @@ import {
   generateRealm,
   REALMS,
   CLASSES,
+  PERKS,
   SKILL_TREES,
   SeededRng,
   resolveTurn,
@@ -322,6 +323,7 @@ export class GameSession {
     const stats = character.stats as CharacterStats
     const classTemplate = CLASSES[character.class]
     const dbSkillTree = (character.skill_tree ?? {}) as Record<string, boolean>
+    const dbPerks = (character.perks ?? {}) as Record<string, number>
 
     const abilities = [...new Set(classTemplate?.starting_abilities ?? [])]
     const effectiveStats = { ...stats }
@@ -346,6 +348,20 @@ export class GameSession {
             }
           }
         }
+      }
+    }
+
+    // Merge shared perk passives into effective stats. Perks apply on top of tree
+    // passives (same pattern as equipment). HP bonuses flow through to hp.max below.
+    let perkHpBonus = 0
+    for (const [perkId, stackCount] of Object.entries(dbPerks)) {
+      const perk = PERKS[perkId]
+      if (!perk || stackCount <= 0) continue
+      const stat = perk.stat as keyof CharacterStats
+      if (stat in effectiveStats) {
+        const delta = perk.value_per_stack * stackCount
+        effectiveStats[stat] += delta
+        if (stat === "hp") perkHpBonus += delta
       }
     }
 
@@ -376,6 +392,7 @@ export class GameSession {
         abilities,
         cooldowns: {},
         skill_tree: dbSkillTree,
+        perks: dbPerks,
       },
       position: {
         floor,
@@ -398,15 +415,16 @@ export class GameSession {
           : "active",
     }
 
-    // Apply equipment HP bonus to max HP so initial observation is correct
-    // hp_max from DB is the base (includes level-up gains but not equipment)
+    // Apply equipment + perk HP bonuses to max HP so initial observation is correct.
+    // hp_max from DB is the base (includes level-up gains but NOT equipment or perks).
     let equipHpBonus = 0
     for (const eq of Object.values(equipment)) {
       if (!eq) continue
       try { equipHpBonus += getItem(eq.template_id).stats?.hp ?? 0 } catch { /* skip */ }
     }
-    if (equipHpBonus > 0) {
-      gameState.character.hp.max = character.hp_max + equipHpBonus
+    const bonusHp = equipHpBonus + perkHpBonus
+    if (bonusHp > 0) {
+      gameState.character.hp.max = character.hp_max + bonusHp
       gameState.character.effective_stats.hp = gameState.character.hp.max
       if (gameState.character.hp.current > gameState.character.hp.max) {
         gameState.character.hp.current = gameState.character.hp.max
@@ -729,13 +747,19 @@ export class GameSession {
 
   private async saveCharacterState(reason: string): Promise<void> {
     const char = this.gameState.character
-    // Strip equipment HP bonus — DB stores base hp_max only
+    // Strip equipment + perk HP bonuses — DB stores base hp_max only
     let equipHpBonus = 0
     for (const eq of Object.values(this.gameState.equipment)) {
       if (!eq) continue
       try { equipHpBonus += getItem(eq.template_id).stats?.hp ?? 0 } catch { /* skip */ }
     }
-    const baseHpMax = char.hp.max - equipHpBonus
+    let perkHpBonus = 0
+    for (const [perkId, stackCount] of Object.entries(char.perks ?? {})) {
+      const perk = PERKS[perkId]
+      if (!perk || stackCount <= 0) continue
+      if (perk.stat === "hp") perkHpBonus += perk.value_per_stack * stackCount
+    }
+    const baseHpMax = char.hp.max - equipHpBonus - perkHpBonus
     const updates: Record<string, unknown> = {
       hp_current: Math.min(Math.max(0, char.hp.current), baseHpMax),
       hp_max: baseHpMax,
@@ -746,6 +770,7 @@ export class GameSession {
       resource_max: char.resource.max,
       stats: char.stats,
       skill_tree: char.skill_tree ?? {},
+      perks: char.perks ?? {},
     }
 
     if (reason === "death") {
@@ -754,7 +779,15 @@ export class GameSession {
       updates.gold = 0
     }
 
-    await db.from("characters").update(updates).eq("id", this.characterId)
+    const { error: updateError } = await db
+      .from("characters")
+      .update(updates)
+      .eq("id", this.characterId)
+    if (updateError) {
+      throw new Error(
+        `characters update failed (reason=${reason}, characterId=${this.characterId}): ${updateError.message}`,
+      )
+    }
   }
 
   private async updateLeaderboard(reason: string): Promise<void> {

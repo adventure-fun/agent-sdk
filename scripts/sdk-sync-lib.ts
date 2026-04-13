@@ -32,6 +32,7 @@ export const TRACKED_EXPORTS = [
   "TileType",
   "Tile",
   "Observation",
+  "PerkTemplate",
   "EnemyBehavior",
   "LobbyEvent",
   "SanitizedChatMessage",

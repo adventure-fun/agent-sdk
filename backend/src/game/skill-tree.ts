@@ -1,10 +1,22 @@
-import { CLASSES, SKILL_TREES } from "@adventure-fun/engine"
-import type { CharacterClass, CharacterStats, SkillNodeTemplate, SkillTier } from "@adventure-fun/schemas"
+import { CLASSES, PERKS, SKILL_TREES } from "@adventure-fun/engine"
+import type {
+  CharacterClass,
+  CharacterStats,
+  PerkTemplate,
+  SkillNodeTemplate,
+  SkillTier,
+} from "@adventure-fun/schemas"
 
 export interface SkillAllocationResult {
   ok: boolean
   error?: string
   node?: SkillNodeTemplate
+}
+
+export interface PerkAllocationResult {
+  ok: boolean
+  error?: string
+  perk?: PerkTemplate
 }
 
 /**
@@ -45,12 +57,6 @@ export function validateSkillAllocation(
 
   if (currentSkillTree[nodeId]) {
     return { ok: false, error: "Skill already unlocked" }
-  }
-
-  const spentPoints = Object.keys(currentSkillTree).length
-  const availablePoints = (characterLevel - 1) - spentPoints
-  if (availablePoints < targetNode.cost) {
-    return { ok: false, error: "Not enough skill points" }
   }
 
   if (characterLevel < targetTier.unlock_level) {
@@ -104,5 +110,52 @@ export function applySkillTreePassives(
     }
   }
 
+  return result
+}
+
+/**
+ * Validate whether a character can buy one more stack of a shared perk.
+ * Pure function — no DB or side effects.
+ */
+export function validatePerkAllocation(
+  characterLevel: number,
+  currentPerks: Record<string, number>,
+  perkId: string,
+): PerkAllocationResult {
+  const perk = PERKS[perkId]
+  if (!perk) return { ok: false, error: "Unknown perk" }
+
+  const currentStack = currentPerks[perkId] ?? 0
+  if (currentStack >= perk.max_stacks) {
+    return { ok: false, error: `Perk already at max stacks (${perk.max_stacks})` }
+  }
+
+  const totalSpent = Object.values(currentPerks).reduce((sum, n) => sum + (n ?? 0), 0)
+  const availablePoints = (characterLevel - 1) - totalSpent
+  if (availablePoints < 1) {
+    return { ok: false, error: "Not enough perk points" }
+  }
+
+  return { ok: true, perk }
+}
+
+/**
+ * Apply stackable passive-stat bonuses from the shared perk pool to a base stats
+ * object. Returns a new stats object. Composes cleanly with `applySkillTreePassives`:
+ * call tree first, then perks, on the same running `CharacterStats`.
+ */
+export function applyPerkPassives(
+  baseStats: CharacterStats,
+  perks: Record<string, number>,
+): CharacterStats {
+  const result = { ...baseStats }
+  for (const [perkId, stackCount] of Object.entries(perks)) {
+    const perk = PERKS[perkId]
+    if (!perk || stackCount <= 0) continue
+    const stat = perk.stat as keyof CharacterStats
+    if (stat in result) {
+      result[stat] += perk.value_per_stack * stackCount
+    }
+  }
   return result
 }
