@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test"
 import { ActionPlanner } from "../src/planner.js"
 import {
   ExplorationModule,
+  HealingModule,
   PortalModule,
   createAgentContext,
   createDefaultConfig,
@@ -268,5 +269,76 @@ describe("ActionPlanner post-clear homing override", () => {
     expect(emergency.tier).toBe("emergency")
     expect(emergency.action).toEqual({ type: "retreat" })
     expect(emergency.planDepth).toBe(0)
+  })
+
+  it("does NOT re-trigger strategic resources_critical on every turn while HP stays critical", async () => {
+    const strategic = new MockLLMAdapter({
+      actionPicker: () => ({ type: "move", direction: "left" }),
+    })
+    const tactical = new MockLLMAdapter({
+      actionPicker: () => ({ type: "move", direction: "left" }),
+    })
+    const registry = createModuleRegistry([new HealingModule(), new ExplorationModule()])
+    const planner = new ActionPlanner(strategic, tactical, registry, {
+      strategy: "planned",
+      maxPlanLength: 10,
+    })
+    const context = createAgentContext(config)
+
+    // Turn 1: HP full — initial_observation strategic call.
+    await planner.decideAction(
+      buildObservation({
+        turn: 1,
+        realm_info: { status: "active", entrance_room_id: "ent" },
+        position: { floor: 1, room_id: "side", tile: { x: 5, y: 3 } },
+        character: { hp: { current: 27, max: 27 } },
+        legal_actions: [
+          { type: "move", direction: "left" },
+          { type: "move", direction: "right" },
+          { type: "wait" },
+        ],
+      }),
+      context,
+    )
+    strategic.clearHistory()
+
+    // Turn 2: HP drops to 4/27 (~15%, below CRITICAL_THRESHOLD=0.25). Inventory empty — no heal
+    // item. HealingModule reports criticalHP=true, healingAvailable=false. This is a TRANSITION
+    // from non-critical to critical and SHOULD fire one strategic replan.
+    await planner.decideAction(
+      buildObservation({
+        turn: 2,
+        realm_info: { status: "active", entrance_room_id: "ent" },
+        position: { floor: 1, room_id: "side", tile: { x: 5, y: 3 } },
+        character: { hp: { current: 4, max: 27 } },
+        legal_actions: [
+          { type: "move", direction: "left" },
+          { type: "move", direction: "right" },
+          { type: "wait" },
+        ],
+      }),
+      context,
+    )
+    expect(strategic.getHistory().filter((h) => h.kind === "plan").length).toBe(1)
+    strategic.clearHistory()
+
+    // Turns 3..6: HP still 4/27. These are PERSISTENT critical — strategic MUST NOT fire again.
+    for (let turn = 3; turn <= 6; turn++) {
+      await planner.decideAction(
+        buildObservation({
+          turn,
+          realm_info: { status: "active", entrance_room_id: "ent" },
+          position: { floor: 1, room_id: "side", tile: { x: 5 - turn, y: 3 } },
+          character: { hp: { current: 4, max: 27 } },
+          legal_actions: [
+            { type: "move", direction: "left" },
+            { type: "move", direction: "right" },
+            { type: "wait" },
+          ],
+        }),
+        context,
+      )
+    }
+    expect(strategic.getHistory().filter((h) => h.kind === "plan").length).toBe(0)
   })
 })
