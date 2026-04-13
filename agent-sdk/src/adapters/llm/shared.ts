@@ -99,6 +99,7 @@ export function buildSystemPrompt(config: AgentConfig): string {
     "Never invent actions, targets, directions, slots, or item ids that are not present in legal_actions.",
     "Prioritize survival, legal play, and progress toward extraction or completion.",
     "After the dungeon objective is met (realm_info.status boss_cleared or realm_cleared), your default exit is: reach floor 1 room realm_info.entrance_room_id with no hostiles in the room, then use `retreat` to return to town without spending portal resources. Use `move` toward stairs_up when on deeper floors, then retrace toward that room on floor 1. Prefer `retreat` over `use_portal` whenever both are legal.",
+    "When retreating on floor 1 and unsure which door leads toward entrance_room_id, prefer moving west (`move left`): realm layouts generally place the entrance to the west, so stepping west — including walking across the room interior to find a west-side door — is usually progress. Only deviate when west is blocked, stalled, or clearly away from a known visited path.",
     "If the room is cleared but loot is still visible or pickup actions remain legal, collect the loot before extracting unless survival is at immediate risk.",
     "Module recommendations are advisory. They may disagree. Use them alongside the live observation.",
     "Recent history is informative but lower priority than the current observation.",

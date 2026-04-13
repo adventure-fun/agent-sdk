@@ -51,6 +51,22 @@ export interface MapMemory {
    * directions (they re-enter the loop).
    */
   loopEdgeBans?: Partial<Record<string, Direction>>
+  /**
+   * Active "unstuck" mode during post-clear floor-1 extraction. While the current room id matches
+   * and `untilTurn` hasn't been passed, the exploration module forces moves *away* from
+   * `awayFromDirection` (the ping-pong door edge) so the agent leaves the shared-door tile and
+   * can see other exits within the room.
+   */
+  unstuckAwayFromEdge?: {
+    roomId: string
+    awayFromDirection: Direction
+    untilTurn: number
+  }
+  /**
+   * Turns since we last entered a room we hadn't seen this tick (reset on new-room entry). Used by
+   * the post-clear portal safety valve to escape hopeless layouts.
+   */
+  turnsWithoutNewRoom?: number
 }
 
 export interface AgentContext {
