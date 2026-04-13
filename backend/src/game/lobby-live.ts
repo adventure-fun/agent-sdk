@@ -4,15 +4,20 @@ import type {
   LeaderboardDelta,
 } from "@adventure-fun/schemas"
 import { RedisPubSub, CHANNELS } from "../redis/pubsub.js"
+import { loadRecentChat } from "./chat-log.js"
 
 export interface LobbySocketLike {
   send(payload: string): void
   close(): void
 }
 
+const CHAT_HISTORY_SIZE = 50
+
 export class LobbyLiveManager {
   private clients = new Set<LobbySocketLike>()
   private chatRateLimits = new Map<string, number>()
+  private recentChat: SanitizedChatMessage[] = []
+  private rehydratePromise: Promise<void> | null = null
   private pubsub: RedisPubSub | null = null
   private chatHandler: ((msg: string) => void) | null = null
   private activityHandler: ((msg: string) => void) | null = null
@@ -22,8 +27,33 @@ export class LobbyLiveManager {
     return this.clients.size
   }
 
-  addClient(ws: LobbySocketLike): void {
+  /** Rehydrate the in-memory buffer from chat_log. Called lazily from
+   *  addClient on the first connect so the DB query only runs when someone
+   *  is actually looking at the chat. Subsequent connects wait on the same
+   *  promise and get instant-return once it resolves. */
+  private ensureRehydrated(): Promise<void> {
+    if (this.rehydratePromise) return this.rehydratePromise
+    this.rehydratePromise = loadRecentChat("lobby", null, CHAT_HISTORY_SIZE)
+      .then((messages) => {
+        // Merge with anything that arrived during the rehydrate instead of
+        // overwriting, so concurrent broadcasts aren't lost from the buffer.
+        const existing = new Set(this.recentChat.map((m) => m.timestamp))
+        const fresh = messages.filter((m) => !existing.has(m.timestamp))
+        this.recentChat = [...fresh, ...this.recentChat].slice(-CHAT_HISTORY_SIZE)
+      })
+      .catch((err) => {
+        console.warn("[lobby-live] chat rehydrate failed, serving empty buffer", err)
+      })
+    return this.rehydratePromise
+  }
+
+  async addClient(ws: LobbySocketLike): Promise<void> {
+    await this.ensureRehydrated()
     this.clients.add(ws)
+    // Send chat backlog so late-joiners see recent messages
+    if (this.recentChat.length > 0) {
+      ws.send(JSON.stringify({ type: "lobby_chat_history", data: this.recentChat }))
+    }
   }
 
   removeClient(ws: LobbySocketLike): void {
@@ -36,6 +66,10 @@ export class LobbyLiveManager {
   }
 
   broadcastChat(message: SanitizedChatMessage): void {
+    this.recentChat.push(message)
+    if (this.recentChat.length > CHAT_HISTORY_SIZE) {
+      this.recentChat = this.recentChat.slice(-CHAT_HISTORY_SIZE)
+    }
     const payload = JSON.stringify({ type: "lobby_chat", data: message })
     this.broadcast(payload)
   }

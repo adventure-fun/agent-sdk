@@ -55,6 +55,43 @@ function applyOrdering(
   }
 }
 
+// GET /leaderboard/character/:id — public single character lookup
+leaderboard.get("/character/:id", async (c) => {
+  const { id } = c.req.param()
+  const { data, error } = await db
+    .from("leaderboard_entries")
+    .select("*")
+    .eq("character_id", id)
+    .maybeSingle()
+
+  if (error) return c.json({ error: error.message }, 500)
+  if (!data) return c.json({ error: "Character not found" }, 404)
+
+  return c.json({ entry: mapLeaderboardEntry(data as Record<string, unknown>) })
+})
+
+// GET /leaderboard/search?q=name — public character search by name
+leaderboard.get("/search", async (c) => {
+  const q = c.req.query("q")?.trim()
+  if (!q || q.length < 1) {
+    return c.json({ error: "Query parameter 'q' is required" }, 400)
+  }
+
+  const { data, error } = await db
+    .from("leaderboard_entries")
+    .select("*")
+    .ilike("character_name", `%${q}%`)
+    .order("xp", { ascending: false })
+    .limit(10)
+
+  if (error) return c.json({ error: error.message }, 500)
+
+  const rows = Array.isArray(data) ? data : []
+  return c.json({
+    results: rows.map((row) => mapLeaderboardEntry(row as Record<string, unknown>)),
+  })
+})
+
 // GET /leaderboard/hall-of-fame — public
 leaderboard.get("/hall-of-fame", async (c) => {
   const { data, error } = await db

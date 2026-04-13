@@ -19,14 +19,14 @@ export function EnemyBehaviorBadge({
           ? "Ambush"
           : "Aggressive"
   const palette = isBoss
-    ? "border-amber-700/70 bg-amber-950/30 text-amber-300"
+    ? "border-ob-primary/30 bg-ob-primary/10 text-ob-primary"
     : behavior === "defensive"
       ? "border-blue-900/60 bg-blue-950/30 text-blue-300"
       : behavior === "patrol"
         ? "border-slate-800 bg-slate-950/40 text-slate-300"
         : behavior === "ambush"
           ? "border-violet-900/60 bg-violet-950/30 text-violet-300"
-          : "border-red-900/60 bg-red-950/30 text-red-300"
+          : "border-ob-error/30 bg-ob-error/15 text-ob-error"
 
   return (
     <span className={`rounded border px-2 py-1 text-[10px] uppercase tracking-wide ${palette}`}>

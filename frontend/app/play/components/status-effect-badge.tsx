@@ -10,7 +10,7 @@ export function StatusEffectBadge({
 }) {
   const palette =
     tone === "buff"
-      ? "bg-emerald-950/40 border-emerald-900/60 text-emerald-300"
+      ? "bg-emerald-950/40 border-emerald-900/60 text-ob-secondary"
       : getDebuffPalette(effect.type)
 
   return (

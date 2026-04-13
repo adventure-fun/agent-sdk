@@ -6,6 +6,7 @@ import { getRequestedNetworks, logPayment, return402, verifyAndSettle } from "..
 import { getPubSub } from "../redis/pubsub.js"
 import { publishChatMessage, validateChatMessage } from "../redis/publishers.js"
 import { getLobbyManager } from "../game/lobby-live.js"
+import { persistChatMessage } from "../game/chat-log.js"
 import type { EquipSlot, ItemTemplate, SanitizedChatMessage } from "@adventure-fun/schemas"
 import { getItem } from "@adventure-fun/engine"
 import {
@@ -517,13 +518,20 @@ lobby.post("/chat", requireAuth, async (c) => {
     timestamp: Date.now(),
   }
 
-  // Broadcast locally
-  manager.broadcastChat(chatMsg)
+  // Persist first so a DB failure blocks delivery — we never want in-memory
+  // ghosts that nobody else can rehydrate after a restart.
+  const persisted = await persistChatMessage(account_id, "lobby", null, chatMsg)
+  if (!persisted.ok) {
+    return c.json({ error: "Failed to store message" }, 500)
+  }
 
-  // Publish to Redis for cross-instance delivery
+  // Publish to Redis for cross-instance delivery (the subscriber will broadcast locally).
+  // If Redis is unavailable, broadcast directly so single-instance still works.
   const pubsub = getPubSub()
   if (pubsub) {
     await publishChatMessage(pubsub, chatMsg)
+  } else {
+    manager.broadcastChat(chatMsg)
   }
 
   return c.json({ ok: true })

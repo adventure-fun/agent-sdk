@@ -35,13 +35,13 @@ export function ShopBuyPanel({
   const bagCapacity = getInventoryCapacity()
 
   return (
-    <div className="rounded border border-gray-800 bg-gray-900 p-4 space-y-4">
+    <div className="rounded border border-ob-outline-variant/15 bg-ob-surface-container-low p-4 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-sm font-bold uppercase tracking-wider text-gray-500">Lobby Shop</h2>
-          <p className="text-xs text-gray-600">Buy supplies before the next descent.</p>
+          <h2 className="text-sm font-bold uppercase tracking-wider text-ob-outline">Lobby Shop</h2>
+          <p className="text-xs text-ob-outline">Buy supplies before the next descent.</p>
         </div>
-        <div className="rounded-full border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-200">
+        <div className="rounded-full border border-ob-primary/30 bg-ob-primary/10 px-4 py-2 text-sm font-semibold text-ob-primary">
           Gold: {gold}
         </div>
       </div>
@@ -62,8 +62,8 @@ export function ShopBuyPanel({
             onClick={() => setCategory(tab.id)}
             className={`rounded-full border px-3 py-1.5 text-xs transition-colors ${
               category === tab.id
-                ? "border-amber-400/60 bg-amber-500/10 text-amber-200"
-                : "border-gray-700 text-gray-400 hover:border-gray-500 hover:text-gray-200"
+                ? "border-ob-primary/60 bg-ob-primary/10 text-ob-primary"
+                : "border-ob-outline-variant/30 text-ob-on-surface-variant hover:border-ob-primary/40 hover:text-ob-on-surface"
             }`}
           >
             {tab.label}
@@ -71,17 +71,17 @@ export function ShopBuyPanel({
         ))}
       </div>
 
-      {error ? <p className="text-sm text-red-400">{error}</p> : null}
-      {isLoading ? <p className="text-sm text-gray-500">Loading shop inventory...</p> : null}
+      {error ? <p className="text-sm text-ob-error">{error}</p> : null}
+      {isLoading ? <p className="text-sm text-ob-outline">Loading shop inventory...</p> : null}
 
       {featured.length > 0 ? (
-        <div className="rounded border border-amber-900/30 bg-amber-950/10 p-3">
-          <p className="mb-2 text-xs font-bold uppercase tracking-wider text-amber-300/70">Featured Gear</p>
+        <div className="rounded border border-ob-primary/20 bg-ob-primary/5 p-3">
+          <p className="mb-2 text-xs font-bold uppercase tracking-wider text-ob-primary/70">Featured Gear</p>
           <div className="flex flex-wrap gap-2">
             {featured.slice(0, 4).map((item) => (
               <span
                 key={item.id}
-                className="rounded-full border border-gray-700 bg-gray-950 px-3 py-1 text-xs text-gray-300"
+                className="rounded-full border border-ob-outline-variant/30 bg-ob-bg px-3 py-1 text-xs text-ob-on-surface"
               >
                 {item.name} · {item.buy_price}g
               </span>
@@ -106,29 +106,29 @@ export function ShopBuyPanel({
           return (
             <div
               key={item.id}
-              className="rounded border border-gray-800 bg-gray-950/60 p-3 text-xs space-y-3"
+              className="rounded border border-ob-outline-variant/15 bg-ob-bg/60 p-3 text-xs space-y-3"
             >
               <div className="flex items-start justify-between gap-3">
                 <div>
                   {item.equip_slot ? (
-                    <span className="mb-1 inline-block rounded border border-cyan-700/40 bg-cyan-950/30 px-2 py-0.5 text-[10px] font-bold uppercase text-cyan-300">
+                    <span className="mb-1 inline-block rounded border border-cyan-700/40 bg-cyan-950/30 px-2 py-0.5 text-[10px] font-bold uppercase text-ob-tertiary">
                       {item.equip_slot}
                     </span>
                   ) : null}
-                  <p className="font-bold text-gray-100">{item.name}</p>
-                  <p className="mt-1 text-gray-500">{item.description}</p>
+                  <p className="font-bold text-ob-on-surface">{item.name}</p>
+                  <p className="mt-1 text-ob-outline">{item.description}</p>
                 </div>
-                <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[10px] text-amber-200">
+                <span className="rounded-full border border-ob-primary/30 bg-ob-primary/10 px-2 py-1 text-[10px] text-ob-primary">
                   {item.buy_price}g
                 </span>
               </div>
 
               <div className="flex flex-wrap gap-2 text-[10px]">
-                <span className="rounded-full border border-gray-700 px-2 py-1 text-gray-400">
+                <span className="rounded-full border border-ob-outline-variant/30 px-2 py-1 text-ob-on-surface-variant">
                   {item.rarity}
                 </span>
                 {item.stack_limit > 1 ? (
-                  <span className="rounded-full border border-gray-700 px-2 py-1 text-gray-400">
+                  <span className="rounded-full border border-ob-outline-variant/30 px-2 py-1 text-ob-on-surface-variant">
                     stack {item.stack_limit}
                   </span>
                 ) : null}
@@ -140,7 +140,7 @@ export function ShopBuyPanel({
               </div>
 
               {item.stats && Object.keys(item.stats).length > 0 ? (
-                <div className="text-[11px] text-gray-400">
+                <div className="text-[11px] text-ob-on-surface-variant">
                   {Object.entries(item.stats)
                     .filter(([, value]) => value !== 0)
                     .map(([stat, value]) => `${stat.toUpperCase()} ${Number(value) > 0 ? "+" : ""}${value}`)
@@ -156,7 +156,7 @@ export function ShopBuyPanel({
                       ...current,
                       [item.id]: Number(event.target.value),
                     }))}
-                  className="rounded border border-gray-700 bg-gray-900 px-2 py-1 text-xs text-gray-200"
+                  className="rounded border border-ob-outline-variant/30 bg-ob-surface-container-low px-2 py-1 text-xs text-ob-on-surface"
                 >
                   {Array.from({ length: Math.min(item.stack_limit, 5) }, (_, index) => index + 1).map((value) => (
                     <option key={value} value={value}>
@@ -168,7 +168,7 @@ export function ShopBuyPanel({
                   type="button"
                   disabled={disabled || isLoading}
                   onClick={() => onBuy(item.id, quantity)}
-                  className="rounded bg-amber-500 px-3 py-1.5 text-xs font-bold text-black transition-colors hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="rounded bg-ob-primary px-3 py-1.5 text-xs font-bold text-black transition-colors hover:bg-ob-primary disabled:cursor-not-allowed disabled:opacity-40"
                   title={
                     inventoryFull
                       ? "Inventory full"

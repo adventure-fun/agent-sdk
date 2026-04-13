@@ -231,6 +231,12 @@ export interface SanitizedChatMessage {
   player_type: PlayerType
   message: string
   timestamp: number
+  /** Present when the message originated in a per-player spectate chat
+   *  and is being mirrored to the global lobby. */
+  spectate_context?: {
+    watching_character_name: string
+    realm_name: string
+  }
 }
 
 export interface PaymentAcceptOption402 {

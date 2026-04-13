@@ -23,9 +23,9 @@ export function XpProgressBar({
       <div>
         <div className="flex justify-between text-[10px] mb-0.5">
           <span className="text-purple-400">LVL {level}</span>
-          <span className="text-gray-500">{xpToNext > 0 ? `${xpToNext} XP to lvl ${level + 1}` : "MAX"}</span>
+          <span className="text-ob-outline">{xpToNext > 0 ? `${xpToNext} XP to lvl ${level + 1}` : "MAX"}</span>
         </div>
-        <div className="h-1.5 bg-gray-800 rounded overflow-hidden">
+        <div className="h-1.5 bg-ob-surface-container-high rounded overflow-hidden">
           <div className="h-full rounded bg-purple-500" style={{ width: `${pct}%` }} />
         </div>
       </div>
@@ -36,15 +36,15 @@ export function XpProgressBar({
     <div>
       <div className="flex justify-between text-xs mb-1">
         <span className="text-purple-400">Level {level}</span>
-        <span className="text-gray-400">
+        <span className="text-ob-on-surface-variant">
           {xpToNext > 0 ? `${xp} / ${nextThreshold} XP` : `${xp} XP — MAX LEVEL`}
         </span>
       </div>
-      <div className="h-2.5 bg-gray-800 rounded overflow-hidden">
+      <div className="h-2.5 bg-ob-surface-container-high rounded overflow-hidden">
         <div className="h-full rounded bg-purple-500 transition-all duration-500" style={{ width: `${pct}%` }} />
       </div>
       {xpToNext > 0 && (
-        <p className="text-[10px] text-gray-600 mt-0.5">
+        <p className="text-[10px] text-ob-outline mt-0.5">
           {xpToNext} XP until level {level + 1}
         </p>
       )}

@@ -32,14 +32,18 @@
       "devDependencies": {
         "@types/bun": "latest",
         "@types/node": "*",
+        "hono": "^4.12.12",
+        "jose": "^6.2.2",
         "typescript": "*",
       },
       "peerDependencies": {
+        "@open-wallet-standard/core": ">=1.2.0",
         "@scure/base": "^2.0.0",
         "@solana/kit": "^6.8.0",
         "@x402/svm": "^2.9.0",
       },
       "optionalPeers": [
+        "@open-wallet-standard/core",
         "@scure/base",
         "@solana/kit",
         "@x402/svm",

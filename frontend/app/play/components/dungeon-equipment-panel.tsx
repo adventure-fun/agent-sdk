@@ -32,7 +32,7 @@ export function DungeonEquipmentPanel({
     <>
       {/* Equipment grid */}
       <div>
-        <div className="text-xs text-gray-500 uppercase mb-2">Equipment</div>
+        <div className="text-xs text-ob-outline uppercase mb-2">Equipment</div>
         <div className="flex flex-wrap gap-2">
           {EQUIP_SLOT_ORDER.map((slot) => {
             const item = equipment[slot]
@@ -49,7 +49,7 @@ export function DungeonEquipmentPanel({
                     type="button"
                     disabled={waitingForResponse}
                     onClick={() => onAction(action)}
-                    className="mt-2 w-full rounded border border-gray-700 px-2 py-1 text-[11px] text-gray-300 transition-colors hover:border-gray-500 disabled:cursor-not-allowed disabled:opacity-40"
+                    className="mt-2 w-full rounded border border-ob-outline-variant/30 px-2 py-1 text-[11px] text-ob-on-surface transition-colors hover:border-ob-primary/40 disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     Unequip
                   </button>
@@ -63,16 +63,16 @@ export function DungeonEquipmentPanel({
       {/* Inventory grid */}
       <div>
         <div className="flex items-center justify-between gap-3 mb-2">
-          <div className="text-xs text-gray-500 uppercase">
+          <div className="text-xs text-ob-outline uppercase">
             Inventory ({inventorySlotsUsed}/{inventoryCapacity})
           </div>
           {inventorySlotsUsed >= inventoryCapacity && (
-            <span className="rounded border border-red-800/70 bg-red-950/30 px-2 py-1 text-[10px] uppercase tracking-wide text-red-200">
+            <span className="rounded border border-ob-error/30 bg-ob-error/15 px-2 py-1 text-[10px] uppercase tracking-wide text-ob-error">
               Full
             </span>
           )}
           {inventorySlotsUsed < inventoryCapacity && inventoryNearlyFull && (
-            <span className="rounded border border-amber-800/70 bg-amber-950/20 px-2 py-1 text-[10px] uppercase tracking-wide text-amber-200">
+            <span className="rounded border border-ob-primary/30 bg-ob-primary/10 px-2 py-1 text-[10px] uppercase tracking-wide text-ob-primary">
               Nearly full
             </span>
           )}
@@ -96,7 +96,7 @@ export function DungeonEquipmentPanel({
                   quantityLabel={item.quantity > 1 ? `x${item.quantity}` : undefined}
                   badge={
                     newItemIds.has(item.item_id) ? (
-                      <span className="absolute -top-1 -right-1 rounded-full border border-emerald-700 bg-emerald-950 px-1 text-[8px] text-emerald-300">
+                      <span className="absolute -top-1 -right-1 rounded-full border border-emerald-700 bg-emerald-950 px-1 text-[8px] text-ob-secondary">
                         New
                       </span>
                     ) : undefined
@@ -107,7 +107,7 @@ export function DungeonEquipmentPanel({
                       disabled={waitingForResponse}
                       onClick={() => onAction(equipAction)}
                       title={template ? getEquipComparisonTitle(template, equippedInSlot, itemTemplateMap) : undefined}
-                      className="mt-2 w-full rounded border border-cyan-700/70 bg-cyan-950/20 px-2 py-1 text-[11px] font-semibold text-cyan-200 transition-colors hover:bg-cyan-900/30 disabled:cursor-not-allowed disabled:opacity-40"
+                      className="mt-2 w-full rounded border border-ob-tertiary/40 bg-ob-tertiary/10 px-2 py-1 text-[11px] font-semibold text-ob-tertiary transition-colors hover:bg-ob-tertiary/15 disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       Equip
                     </button>
@@ -116,7 +116,7 @@ export function DungeonEquipmentPanel({
               )
             })
           ) : (
-            <p className="text-xs text-gray-600">Pack is empty.</p>
+            <p className="text-xs text-ob-outline">Pack is empty.</p>
           )}
           {/* Empty slots */}
           {Array.from({ length: Math.max(0, inventoryCapacity - inventory.length) }, (_, i) => (

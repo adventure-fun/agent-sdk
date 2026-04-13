@@ -37,14 +37,14 @@ export function GearManagementPanel({
   const bagFull = bagItems.length >= bagCapacity
 
   return (
-    <div className="rounded border border-gray-800 bg-gray-950/60 p-3 space-y-4">
+    <div className="rounded border border-ob-outline-variant/15 bg-ob-bg/60 p-3 space-y-4">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-xs font-bold uppercase tracking-wider text-gray-500">Equipment and Inventory</p>
-          <p className="text-[11px] text-gray-600">{bagItems.length}/{bagCapacity} bag slots used</p>
+          <p className="text-xs font-bold uppercase tracking-wider text-ob-outline">Equipment and Inventory</p>
+          <p className="text-[11px] text-ob-outline">{bagItems.length}/{bagCapacity} bag slots used</p>
         </div>
         {bagFull ? (
-          <span className="rounded border border-red-800/70 bg-red-950/30 px-2 py-1 text-[10px] uppercase tracking-wide text-red-200">
+          <span className="rounded border border-ob-error/30 bg-ob-error/15 px-2 py-1 text-[10px] uppercase tracking-wide text-ob-error">
             Bag full
           </span>
         ) : null}
@@ -67,7 +67,7 @@ export function GearManagementPanel({
                   disabled={isLoading || bagFull}
                   onClick={() => void onUnequip(slot)}
                   title={bagFull ? "Free a bag slot before unequipping." : `Unequip ${item.name}`}
-                  className="mt-2 w-full rounded border border-gray-700 px-2 py-1 text-[11px] text-gray-300 transition-colors hover:border-gray-500 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="mt-2 w-full rounded border border-ob-outline-variant/30 px-2 py-1 text-[11px] text-ob-on-surface transition-colors hover:border-ob-primary/40 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   Unequip
                 </button>
@@ -80,8 +80,8 @@ export function GearManagementPanel({
       {/* Bag grid */}
       <div>
         <div className="flex items-center justify-between gap-3 mb-2">
-          <p className="text-xs font-bold uppercase tracking-wider text-gray-500">Bag</p>
-          <span className="text-[11px] text-gray-600">Unequip here, then sell in the shop</span>
+          <p className="text-xs font-bold uppercase tracking-wider text-ob-outline">Bag</p>
+          <span className="text-[11px] text-ob-outline">Unequip here, then sell in the shop</span>
         </div>
         <div className="flex flex-wrap gap-2">
           {bagItems.map((item) => {
@@ -123,7 +123,7 @@ export function GearManagementPanel({
                         disabled={isLoading || Boolean(classLocked)}
                         onClick={() => void onEquip(item.id)}
                         title={getEquipComparisonTitle(template, equippedInSlot, itemTemplateMap)}
-                        className="mt-2 w-full rounded border border-cyan-700/70 bg-cyan-950/20 px-2 py-1 text-[11px] font-semibold text-cyan-200 transition-colors hover:bg-cyan-900/30 disabled:cursor-not-allowed disabled:opacity-40"
+                        className="mt-2 w-full rounded border border-ob-tertiary/40 bg-ob-tertiary/10 px-2 py-1 text-[11px] font-semibold text-ob-tertiary transition-colors hover:bg-ob-tertiary/15 disabled:cursor-not-allowed disabled:opacity-40"
                       >
                         Equip
                       </button>

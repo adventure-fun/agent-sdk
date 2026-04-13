@@ -16,7 +16,7 @@ interface GameMapProps {
 }
 
 export function GameMap(props: GameMapProps) {
-  const [mode, setMode] = useState<"ascii" | "2d">("ascii")
+  const [mode, setMode] = useState<"ascii" | "2d">("2d")
 
   return (
     <div>
@@ -42,7 +42,7 @@ export function GameMap(props: GameMapProps) {
       ) : (
         <Suspense
           fallback={
-            <div className="w-full aspect-square max-h-[500px] flex items-center justify-center text-gray-500 text-sm">
+            <div className="w-full h-[280px] flex items-center justify-center text-gray-500 text-sm">
               Loading…
             </div>
           }

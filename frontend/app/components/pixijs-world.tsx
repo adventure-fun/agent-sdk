@@ -236,7 +236,7 @@ export function PixiJSWorld({
   return (
     <div
       ref={containerRef}
-      className="w-full aspect-square max-h-[500px] rounded overflow-hidden"
+      className="w-full h-[280px] rounded overflow-hidden"
     />
   )
 }

@@ -1,109 +1,224 @@
 "use client"
 
 import Link from "next/link"
-import { motion } from "framer-motion"
+import { useEffect } from "react"
 import { useActiveSpectateSessions } from "../hooks/use-active-spectate-sessions"
-import { pageEnter, sectionReveal } from "../lib/motion"
+import { useLeaderboard } from "../hooks/use-leaderboard"
+import { LobbyChatPanel } from "../components/lobby-chat-panel"
+import { CharacterSearch } from "../components/character-search"
+
+// Material Symbol per class — same mapping the leaderboard uses for visual
+// consistency. If you change one, change the other.
+const CLASS_ICON: Record<string, string> = {
+  knight: "shield",
+  mage:   "auto_awesome",
+  rogue:  "bolt",
+  archer: "my_location",
+}
+
+const CLASS_COLOR: Record<string, string> = {
+  knight: "text-ob-tertiary",
+  mage:   "text-ob-primary",
+  rogue:  "text-ob-secondary",
+  archer: "text-ob-tertiary",
+}
 
 export default function SpectateIndexPage() {
   const { sessions, isLoading, error, refetch } = useActiveSpectateSessions({ refreshMs: 12_000 })
+  const { entries: topPlayers, fetchLeaderboard } = useLeaderboard()
+
+  useEffect(() => {
+    void fetchLeaderboard({ type: "xp", limit: 5 })
+  }, [fetchLeaderboard])
 
   return (
-    <motion.main
-      variants={pageEnter}
-      initial="hidden"
-      animate="visible"
-      className="min-h-screen bg-gradient-to-b from-gray-950 via-black to-gray-950 p-4 sm:p-6"
-    >
-      <div className="mx-auto max-w-3xl space-y-6">
-        <motion.div variants={sectionReveal} className="rounded-2xl border border-gray-800 bg-gray-900/70 p-5">
-          <p className="text-xs uppercase tracking-[0.3em] text-amber-300/70">Spectator Mode</p>
-          <h1 className="font-display mt-2 text-3xl font-bold text-amber-300">Live runs</h1>
-          <p className="mt-2 max-w-xl text-sm text-gray-400">
-            Watch active dungeon sessions in real time. The list refreshes every few seconds and only shows runs on this
-            server.
-          </p>
-          <div className="mt-4">
-            <button
-              type="button"
-              onClick={() => void refetch()}
-              className="rounded-full border border-gray-600 px-4 py-2 text-sm text-gray-200 transition-colors hover:border-amber-400/50 hover:text-amber-100"
-            >
-              Refresh now
-            </button>
-          </div>
-        </motion.div>
+    <div className="flex h-[calc(100vh-5rem)] overflow-hidden bg-ob-bg ob-body">
 
-        {error ? (
-          <motion.div
-            variants={sectionReveal}
-            className="flex flex-col gap-3 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300 sm:flex-row sm:items-center sm:justify-between"
-          >
-            <span>{error}</span>
-            <button
-              type="button"
-              onClick={() => void refetch()}
-              className="rounded-full border border-red-300/30 px-3 py-1.5 text-xs font-medium text-red-100 transition-colors hover:border-red-200/50 hover:bg-red-500/10"
-            >
-              Retry
-            </button>
-          </motion.div>
-        ) : null}
-
-        <motion.section variants={sectionReveal} className="space-y-3">
-          {isLoading && sessions.length === 0 ? (
-            <div className="rounded-2xl border border-gray-800 bg-gray-950/80 p-8 text-center text-sm text-gray-500">
-              Loading live sessions…
-            </div>
-          ) : sessions.length === 0 ? (
-            <div className="rounded-2xl border border-gray-800 bg-gray-950/80 p-8 text-center text-sm text-gray-400">
-              No live runs right now. Delvers may be in the hub or between realms—check back shortly.
-            </div>
-          ) : (
-            <ul className="space-y-3">
-              {sessions.map((row) => (
-                <li key={row.character_id}>
+      {/* ── LEFT SIDEBAR: Active Rankings + Search ─────────────────────────── */}
+      <aside className="hidden md:flex flex-col w-72 bg-ob-surface-container-low border-r border-ob-outline-variant/15 overflow-y-auto shrink-0">
+        <div className="p-6 space-y-6">
+          <div>
+            <h3 className="ob-label text-[10px] tracking-[0.2em] text-ob-primary uppercase mb-4">
+              ACTIVE RANKINGS
+            </h3>
+            <div className="space-y-2">
+              {topPlayers.length === 0 ? (
+                <div className="ob-label text-[10px] text-ob-on-surface-variant italic px-2">Loading...</div>
+              ) : (
+                topPlayers.map((player, i) => (
                   <Link
-                    href={`/spectate/${row.character_id}`}
-                    className="block rounded-2xl border border-gray-800 bg-gray-900/70 p-4 transition-colors hover:border-amber-500/30 hover:bg-gray-900"
+                    key={player.character_id}
+                    href={`/spectate/${player.character_id}`}
+                    className={`flex items-center justify-between p-3 rounded-lg transition-all ${
+                      i === 0
+                        ? "bg-white/5 border-l-2 border-ob-primary hover:bg-white/10"
+                        : "hover:bg-white/5 border-l-2 border-transparent"
+                    }`}
                   >
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div>
-                        <div className="font-display text-lg font-semibold capitalize text-gray-100">
-                          {row.character.class} · Level {row.character.level}
-                        </div>
-                        <div className="mt-1 text-xs text-gray-500">Character {row.character_id.slice(0, 8)}…</div>
-                      </div>
-                      <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1 text-xs font-medium text-amber-200">
-                        Watch live
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className={`ob-label text-xs ${i === 0 ? "text-ob-primary" : "text-ob-on-surface-variant"}`}>
+                        {String(i + 1).padStart(2, "0")}
                       </span>
-                    </div>
-                    <div className="mt-3 grid gap-2 text-sm text-gray-400 sm:grid-cols-2">
-                      <div>
-                        <span className="text-gray-600">Realm</span>{" "}
-                        <span className="text-gray-200">{row.realm_info.template_name}</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-600">Floor</span>{" "}
-                        <span className="text-gray-200">
-                          {row.realm_info.current_floor} · {row.realm_info.status.replaceAll("_", " ")}
+                      <div className="flex flex-col min-w-0">
+                        <span className={`text-xs font-bold truncate ${
+                          i === 0 ? "text-ob-on-surface" : "text-ob-on-surface-variant"
+                        }`}>
+                          {player.character_name.toUpperCase()}
+                        </span>
+                        <span className="text-[9px] ob-label text-ob-on-surface-variant uppercase tracking-tighter">
+                          LVL {player.level} {player.class.toUpperCase()}
                         </span>
                       </div>
-                      <div>
-                        <span className="text-gray-600">Turn</span> <span className="text-gray-200">{row.turn}</span>
+                    </div>
+                    <span className="ob-label text-[10px] text-ob-on-surface-variant whitespace-nowrap ml-2">
+                      {player.xp >= 1000 ? `${(player.xp / 1000).toFixed(1)}k` : player.xp}
+                    </span>
+                  </Link>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+
+        <CharacterSearch />
+
+        <div className="mt-auto p-6">
+          <button
+            type="button"
+            onClick={() => void refetch()}
+            className="w-full ob-label text-[10px] tracking-widest uppercase border border-ob-primary/30 text-ob-primary hover:bg-ob-primary/10 py-3 rounded-xl transition-colors"
+          >
+            Sync Feed
+          </button>
+        </div>
+      </aside>
+
+      {/* ── MAIN CONTENT ───────────────────────────────────────────────────── */}
+      <main className="flex-1 overflow-y-auto p-6 md:p-12 relative">
+        {/* Ambient background blobs */}
+        <div className="pointer-events-none absolute top-0 right-0 w-[400px] h-[400px] bg-ob-primary/5 rounded-full blur-[150px] -z-0" />
+        <div className="pointer-events-none absolute bottom-0 left-0 w-[600px] h-[600px] bg-ob-tertiary/5 rounded-full blur-[200px] -z-0 opacity-30" />
+
+        <div className="relative z-10 max-w-3xl mx-auto space-y-6">
+
+          {/* Hero */}
+          <section>
+            <p className="ob-label text-[10px] tracking-[0.25em] text-ob-secondary uppercase mb-2">
+              SPECTATOR MODE
+            </p>
+            <h1 className="ob-headline text-4xl md:text-5xl text-ob-primary mb-4 tracking-tight ob-amber-glow">
+              LIVE_RUNS
+            </h1>
+            <div className="flex items-center gap-4">
+              <span className="h-px w-24 bg-gradient-to-r from-ob-primary to-transparent" />
+              <p className="text-xs text-ob-on-surface-variant max-w-lg">
+                Watch active dungeon sessions in real time. Click any ranked player on the left, or choose an active run below.
+              </p>
+            </div>
+          </section>
+
+          {/* Error banner */}
+          {error && (
+            <div className="flex items-center justify-between border border-ob-error/30 bg-ob-error/10 px-4 py-3 rounded-lg">
+              <span className="text-xs text-ob-error">{error}</span>
+              <button
+                type="button"
+                onClick={() => void refetch()}
+                className="ob-label text-[10px] uppercase tracking-widest text-ob-error border border-ob-error/40 hover:bg-ob-error/10 px-3 py-1.5 rounded transition-colors"
+              >
+                Retry
+              </button>
+            </div>
+          )}
+
+          {/* Active sessions */}
+          <div className="space-y-3">
+            {isLoading && sessions.length === 0 ? (
+              <div className="border border-ob-outline-variant/10 bg-ob-surface-container-low rounded-xl p-12 text-center">
+                <span className="material-symbols-outlined text-3xl text-ob-on-surface-variant/40 mb-3 block animate-pulse">
+                  sync
+                </span>
+                <div className="ob-label text-[10px] text-ob-on-surface-variant tracking-widest uppercase">
+                  SYNCING LIVE SESSIONS...
+                </div>
+              </div>
+            ) : sessions.length === 0 ? (
+              <div className="border border-ob-outline-variant/10 bg-ob-surface-container-low rounded-xl p-12 text-center">
+                <span className="material-symbols-outlined text-3xl text-ob-on-surface-variant/40 mb-3 block">
+                  visibility_off
+                </span>
+                <div className="ob-label text-[10px] text-ob-on-surface-variant uppercase tracking-widest mb-2">
+                  NO ACTIVE RUNS
+                </div>
+                <p className="text-xs text-ob-on-surface-variant max-w-xs mx-auto">
+                  No one is in a dungeon right now. Try watching a top-ranked player from the sidebar.
+                </p>
+              </div>
+            ) : (
+              sessions.map((row) => {
+                const cls = row.character.class
+                return (
+                  <Link
+                    key={row.character_id}
+                    href={`/spectate/${row.character_id}`}
+                    className="block border border-ob-outline-variant/10 bg-ob-surface-container-low hover:border-ob-primary/30 hover:bg-ob-surface-container rounded-xl p-5 transition-colors group"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className={`w-12 h-12 rounded-lg bg-ob-surface-container-highest border border-ob-outline-variant/15 flex items-center justify-center group-hover:border-ob-primary/30 transition-colors`}>
+                          <span className={`material-symbols-outlined text-xl ${CLASS_COLOR[cls] ?? "text-ob-primary"}`}>
+                            {CLASS_ICON[cls] ?? "person"}
+                          </span>
+                        </div>
+                        <div>
+                          <div className="ob-headline not-italic text-ob-primary text-base font-bold uppercase">
+                            {cls.toUpperCase()} — LVL {row.character.level}
+                          </div>
+                          <div className="ob-label text-[10px] text-ob-on-surface-variant tracking-tighter uppercase mt-0.5">
+                            ID: {row.character_id.slice(0, 8)}…
+                          </div>
+                        </div>
                       </div>
-                      <div>
-                        <span className="text-gray-600">Room</span>{" "}
-                        <span className="text-gray-200">{row.position.room_id}</span>
-                      </div>
+                      <span className="flex items-center gap-2 ob-label text-[10px] px-3 py-1.5 border border-ob-secondary/40 text-ob-secondary tracking-widest uppercase rounded-full">
+                        <span className="w-1.5 h-1.5 rounded-full bg-ob-secondary animate-pulse" />
+                        WATCH LIVE
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {[
+                        ["REALM",  row.realm_info.template_name],
+                        ["FLOOR",  String(row.realm_info.current_floor)],
+                        ["TURN",   String(row.turn)],
+                        ["STATUS", row.realm_info.status.replaceAll("_", " ")],
+                      ].map(([label, val]) => (
+                        <div key={label} className="bg-ob-surface-container-high px-3 py-2 rounded-lg border border-ob-outline-variant/5">
+                          <div className="ob-label text-[9px] text-ob-on-surface-variant uppercase tracking-widest">{label}</div>
+                          <div className="text-xs text-ob-on-surface mt-0.5 truncate capitalize">{val}</div>
+                        </div>
+                      ))}
                     </div>
                   </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-        </motion.section>
-      </div>
-    </motion.main>
+                )
+              })
+            )}
+          </div>
+
+          {/* Global lobby chat */}
+          <div className="h-72">
+            <LobbyChatPanel />
+          </div>
+
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => void refetch()}
+              className="ob-label text-[10px] tracking-widest uppercase text-ob-on-surface-variant border border-ob-outline-variant/15 hover:border-ob-primary/30 hover:text-ob-primary px-4 py-2 rounded-lg transition-colors"
+            >
+              Refresh Now
+            </button>
+          </div>
+        </div>
+      </main>
+    </div>
   )
 }

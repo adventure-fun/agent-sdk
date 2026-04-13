@@ -15,8 +15,9 @@ export async function publishSpectatorUpdate(
   pubsub: RedisPubSub,
   characterId: string,
   observation: Observation,
+  characterName?: string,
 ): Promise<boolean> {
-  const spectatorObs = toSpectatorObservation(observation)
+  const spectatorObs = toSpectatorObservation(observation, characterName)
   const payload = JSON.stringify({
     type: "spectator_observation",
     characterId,

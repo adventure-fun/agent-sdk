@@ -18,14 +18,14 @@ export function StatRangeBar({
 
   return (
     <div className="flex items-center gap-2 text-xs">
-      <span className="w-16 text-gray-500 text-right shrink-0">{label}</span>
-      <div className="flex-1 h-2 bg-gray-800 rounded-full relative overflow-hidden">
+      <span className="w-16 text-ob-outline text-right shrink-0">{label}</span>
+      <div className="flex-1 h-2 bg-ob-surface-container-high rounded-full relative overflow-hidden">
         <div
-          className="absolute h-full bg-amber-400/60 rounded-full"
+          className="absolute h-full bg-ob-primary/60 rounded-full"
           style={{ left: `${leftPct}%`, width: `${Math.max(widthPct, 2)}%` }}
         />
       </div>
-      <span className="w-14 text-gray-600 shrink-0">{min}-{max}</span>
+      <span className="w-14 text-ob-outline shrink-0">{min}-{max}</span>
     </div>
   )
 }
@@ -53,10 +53,10 @@ export function StatValueBar({
 
   return (
     <div className="flex items-center gap-2 text-xs">
-      <span className="w-16 text-gray-500 text-right shrink-0">{label}</span>
-      <div className="flex-1 h-2 bg-gray-800 rounded-full relative overflow-hidden">
+      <span className="w-16 text-ob-outline text-right shrink-0">{label}</span>
+      <div className="flex-1 h-2 bg-ob-surface-container-high rounded-full relative overflow-hidden">
         <div
-          className="absolute h-full rounded-full bg-gray-700/70"
+          className="absolute h-full rounded-full bg-ob-surface-container-highest/70"
           style={{ left: `${leftPct}%`, width: `${Math.max(widthPct, 2)}%` }}
         />
         <div
@@ -64,9 +64,9 @@ export function StatValueBar({
           style={{ left: `${leftPct}%`, width: `${qualityWidthPct}%` }}
         />
       </div>
-      <span className="w-20 text-gray-400 shrink-0">
+      <span className="w-20 text-ob-on-surface-variant shrink-0">
         {value}{" "}
-        <span className="text-gray-600">({min}-{max})</span>
+        <span className="text-ob-outline">({min}-{max})</span>
       </span>
     </div>
   )

@@ -163,6 +163,7 @@ export function applyExtractionOutcome(
 export class GameSession {
   readonly realmId: string
   readonly characterId: string
+  readonly characterName: string
 
   private turn: number
   private gameState: GameState
@@ -182,10 +183,12 @@ export class GameSession {
     rng: SeededRng,
     turn: number,
     startingItemIds: Set<string>,
+    characterName: string,
   ) {
     this.ws = ws
     this.realmId = ws.data.realmId
     this.characterId = ws.data.characterId
+    this.characterName = characterName
     this.gameState = gameState
     this.generatedRealm = realm
     this.rng = rng
@@ -438,6 +441,7 @@ export class GameSession {
       rng,
       turn,
       startingItemIds,
+      character.name,
     )
   }
 
@@ -472,7 +476,7 @@ export class GameSession {
   }
 
   getSpectatorObservation(): SpectatorObservation {
-    return toSpectatorObservation(this.buildCurrentObservation())
+    return toSpectatorObservation(this.buildCurrentObservation(), this.characterName)
   }
 
   addSpectator(ws: SpectatorSocketLike): void {
@@ -608,7 +612,7 @@ export class GameSession {
 
     // Cross-instance spectator broadcast via Redis pub/sub
     if (pubsubEarly) {
-      publishSpectatorUpdate(pubsubEarly, this.characterId, result.observation)
+      publishSpectatorUpdate(pubsubEarly, this.characterId, result.observation, this.characterName)
     }
   }
 
