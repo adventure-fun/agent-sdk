@@ -5,8 +5,8 @@
     {
       "canonical": "shared/schemas/src/index.ts",
       "vendored": "agent-sdk/src/protocol.ts",
-      "canonicalHash": "be6a39b0c2baba52b1db5f59b64e1500d9194fd3b6530d92594dddae1d57856d",
-      "generatedHash": "1164845a60b7be9d95431dc5e982f84764e4f5f0a5bca1af3f0a18f4716d097a",
+      "canonicalHash": "c274f5a42c9841508975938bb92a315612f4182eb79fefd69bd0b202aa26bce4",
+      "generatedHash": "ef8b75faf3f90cac1d547aaa5da50cbf0b53fb3d16a3f04a6861c86ff0808a57",
       "types": [
         "Stats",
         "CharacterStats",
@@ -157,7 +157,7 @@
     },
     {
       "file": "backend/src/routes/characters.ts",
-      "hash": "c0c8fd3a7649527b67e22bbc7322ebed2dfad68c09fded8ecda4f12e4988ec2d",
+      "hash": "6c1f16c59226c5eed119670112ba2954cd5c120d69985b9495f2a2603c509ce6",
       "affectedModules": [
         "dev-stack",
         "agent-lifecycle"
@@ -235,7 +235,7 @@
     {
       "source": "shared/schemas/src/index.ts",
       "vendored": "agent-sdk/dev/engine/types.ts",
-      "sourceHash": "be6a39b0c2baba52b1db5f59b64e1500d9194fd3b6530d92594dddae1d57856d",
+      "sourceHash": "c274f5a42c9841508975938bb92a315612f4182eb79fefd69bd0b202aa26bce4",
       "vendoredHash": "4327177eb30c80d9de45548cd530f623a2c46292884e90d17a8d5ac85e49ec5c",
       "affectedModules": [
         "dev-stack"
