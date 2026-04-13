@@ -12,6 +12,7 @@ interface GameMapProps {
   visibleTiles: Tile[]
   knownTiles?: Tile[]
   playerPosition: { x: number; y: number }
+  playerHpPercent?: number
   entities: (Entity | SpectatorEntity)[]
   realmTemplateId?: string
   playerClass?: CharacterClass

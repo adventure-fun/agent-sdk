@@ -522,6 +522,7 @@ export default function SpectatePage({ params }: Props) {
                 <GameMap
                   visibleTiles={obs.visible_tiles}
                   playerPosition={obs.position.tile}
+                  playerHpPercent={obs.character.hp_percent}
                   entities={obs.visible_entities}
                   realmTemplateId={obs.realm_info.template_id}
                   playerClass={obs.character.class as CharacterClass}

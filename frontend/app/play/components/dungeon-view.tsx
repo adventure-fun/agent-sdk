@@ -270,6 +270,7 @@ export function DungeonView({
               visibleTiles={visible_tiles}
               knownTiles={knownTiles}
               playerPosition={position.tile}
+              playerHpPercent={Math.round(hpPct)}
               entities={visible_entities}
               realmTemplateId={realm_info.template_id}
               playerClass={character.class}

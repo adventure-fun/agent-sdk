@@ -189,10 +189,55 @@ const PLAYER_SPRITE_REGISTRY: Record<CharacterClass, { json: string; animKey: st
   archer: { json: "/sprites/player/archer-idle.json", animKey: "archer-idle" },
 }
 
+const HP_BAR_WIDTH = 48
+const HP_BAR_HEIGHT = 3
+const HP_BAR_GAP = 2
+const HP_BAR_BG = 0x444444
+const HP_COLOR_HIGH = 0x22c55e   // green
+const HP_COLOR_MID = 0xecb200    // amber/yellow
+const HP_COLOR_LOW = 0xef4444    // red
+
+function getHpColor(pct: number): number {
+  if (pct > 50) return HP_COLOR_HIGH
+  if (pct > 25) return HP_COLOR_MID
+  return HP_COLOR_LOW
+}
+
+function getEntityHpPercent(entity: Entity | SpectatorEntity): number | null {
+  // Play Entity: exact values
+  if ("hp_current" in entity && "hp_max" in entity && entity.hp_max && entity.hp_max > 0) {
+    return Math.round(((entity.hp_current ?? 0) / entity.hp_max) * 100)
+  }
+  // Spectator Entity: map health_indicator to approximate %
+  if ("health_indicator" in entity && entity.health_indicator) {
+    switch (entity.health_indicator) {
+      case "full": return 100
+      case "high": return 80
+      case "medium": return 50
+      case "low": return 25
+      case "critical": return 10
+    }
+  }
+  return null
+}
+
+function drawHealthBar(gfx: Graphics, px: number, py: number, pct: number) {
+  const barX = px + (TILE_SIZE - HP_BAR_WIDTH) / 2
+  const barY = py - HP_BAR_HEIGHT - HP_BAR_GAP
+  // Background (grey)
+  gfx.rect(barX, barY, HP_BAR_WIDTH, HP_BAR_HEIGHT).fill(HP_BAR_BG)
+  // Foreground (colored)
+  const fillWidth = Math.round((pct / 100) * HP_BAR_WIDTH)
+  if (fillWidth > 0) {
+    gfx.rect(barX, barY, fillWidth, HP_BAR_HEIGHT).fill(getHpColor(pct))
+  }
+}
+
 interface PixiJSWorldProps {
   visibleTiles: Tile[]
   knownTiles?: Tile[]
   playerPosition: { x: number; y: number }
+  playerHpPercent?: number
   entities: (Entity | SpectatorEntity)[]
   realmTemplateId?: string
   playerClass?: CharacterClass
@@ -202,6 +247,7 @@ export function PixiJSWorld({
   visibleTiles,
   knownTiles = [],
   playerPosition,
+  playerHpPercent,
   entities,
   realmTemplateId,
   playerClass,
@@ -211,16 +257,10 @@ export function PixiJSWorld({
   const initPromiseRef = useRef<Promise<void> | null>(null)
 
   const floorTextureRef = useRef<Texture | null>(null)
-  const wallDownTextureRef = useRef<Texture | null>(null)
-  const wallUpTextureRef = useRef<Texture | null>(null)
-  const wallRightTextureRef = useRef<Texture | null>(null)
-  const wallLeftTextureRef = useRef<Texture | null>(null)
-  const wallCornerNERef = useRef<Texture | null>(null)
-  const wallCornerNWRef = useRef<Texture | null>(null)
-  const wallCornerSERef = useRef<Texture | null>(null)
-  const wallCornerSWRef = useRef<Texture | null>(null)
+  const wallTextureRef = useRef<Texture | null>(null)
+  const wallCornerTextureRef = useRef<Texture | null>(null)
+  const stairsTextureRef = useRef<Texture | null>(null)
   const doorTextureRef = useRef<Texture | null>(null)
-  const doorUpTextureRef = useRef<Texture | null>(null)
   const lockedGateTextureRef = useRef<Texture | null>(null)
   const playerFramesRef = useRef<Texture[] | null>(null)
   const enemyFramesRef = useRef<Record<string, Texture[]>>({})
@@ -238,14 +278,8 @@ export function PixiJSWorld({
   const draw = useCallback(
     (app: Application) => {
       const floorTexture = floorTextureRef.current
-      const wallDownTexture = wallDownTextureRef.current
-      const wallUpTexture = wallUpTextureRef.current
-      const wallRightTexture = wallRightTextureRef.current
-      const wallLeftTexture = wallLeftTextureRef.current
-      const wallCornerNE = wallCornerNERef.current
-      const wallCornerNW = wallCornerNWRef.current
-      const wallCornerSE = wallCornerSERef.current
-      const wallCornerSW = wallCornerSWRef.current
+      const wallTexture = wallTextureRef.current
+      const wallCornerTexture = wallCornerTextureRef.current
       // Remove previous children
       app.stage.removeChildren()
 
@@ -262,9 +296,12 @@ export function PixiJSWorld({
       const mapWidth = (maxX - minX + 1) * TILE_SIZE
       const mapHeight = (maxY - minY + 1) * TILE_SIZE
 
-      // Center the map in the canvas
-      const offsetX = Math.max(0, (app.canvas.width - mapWidth) / 2)
-      const offsetY = Math.max(0, (app.canvas.height - mapHeight) / 2)
+      // Resize canvas: container width for centering, map height for fit
+      const containerWidth = containerRef.current?.clientWidth ?? mapWidth
+      app.renderer.resize(containerWidth, mapHeight)
+
+      const offsetX = Math.max(0, (containerWidth - mapWidth) / 2)
+      const offsetY = 0
 
       const world = new Container()
       world.x = offsetX
@@ -286,11 +323,13 @@ export function PixiJSWorld({
         const px = (tile.x - minX) * TILE_SIZE
         const py = (tile.y - minY) * TILE_SIZE
 
-        const isFloor = tile.type === "floor" || tile.type === "stairs" || tile.type === "stairs_up" || tile.type === "entrance"
+        const isStairs = tile.type === "stairs" || tile.type === "stairs_up" || tile.type === "entrance"
+        const isFloor = tile.type === "floor" || isStairs
         const doorTexture = doorTextureRef.current
 
-        // Determine wall texture based on adjacent floor direction
-        let wallTexture: Texture | null = null
+        // Determine wall texture and rotation based on adjacent tiles
+        let wallTex: Texture | null = null
+        let wallRotation = 0
         if (tile.type === "wall") {
           const below = tileMap.get(`${tile.x},${tile.y + 1}`)
           const above = tileMap.get(`${tile.x},${tile.y - 1}`)
@@ -306,37 +345,64 @@ export function PixiJSWorld({
           const sw = tileMap.get(`${tile.x - 1},${tile.y + 1}`)
 
           // Corner walls: wall on both adjacent sides, floor on the diagonal
-          if (isWall(above) && isWall(right) && isOpen(ne) && wallCornerNE) wallTexture = wallCornerNE
-          else if (isWall(above) && isWall(left) && isOpen(nw) && wallCornerNW) wallTexture = wallCornerNW
-          else if (isWall(below) && isWall(right) && isOpen(se) && wallCornerSE) wallTexture = wallCornerSE
-          else if (isWall(below) && isWall(left) && isOpen(sw) && wallCornerSW) wallTexture = wallCornerSW
+          if (isWall(above) && isWall(right) && isOpen(ne) && wallCornerTexture) {
+            wallTex = wallCornerTexture; wallRotation = Math.PI          // NE corner: 180°
+          } else if (isWall(above) && isWall(left) && isOpen(nw) && wallCornerTexture) {
+            wallTex = wallCornerTexture; wallRotation = Math.PI / 2      // NW corner: 90° CW
+          } else if (isWall(below) && isWall(left) && isOpen(sw) && wallCornerTexture) {
+            wallTex = wallCornerTexture; wallRotation = 0                // SW corner: 0°
+          } else if (isWall(below) && isWall(right) && isOpen(se) && wallCornerTexture) {
+            wallTex = wallCornerTexture; wallRotation = -Math.PI / 2     // SE corner: 270° CW
+          }
           // Straight edge walls
-          else if (isOpen(below) && wallDownTexture) wallTexture = wallDownTexture
-          else if (isOpen(above) && wallUpTexture) wallTexture = wallUpTexture
-          else if (isOpen(right) && wallRightTexture) wallTexture = wallRightTexture
-          else if (isOpen(left) && wallLeftTexture) wallTexture = wallLeftTexture
+          else if (isOpen(below) && wallTexture) {
+            wallTex = wallTexture; wallRotation = 0                      // floor below: 0°
+          } else if (isOpen(left) && wallTexture) {
+            wallTex = wallTexture; wallRotation = Math.PI / 2            // floor left: 90° CW
+          } else if (isOpen(above) && wallTexture) {
+            wallTex = wallTexture; wallRotation = Math.PI                // floor above: 180°
+          } else if (isOpen(right) && wallTexture) {
+            wallTex = wallTexture; wallRotation = -Math.PI / 2           // floor right: 270° CW
+          }
         }
 
         if (tile.type === "door" && doorTexture) {
-          // Rotate door sprite toward nearest floor
           const below = tileMap.get(`${tile.x},${tile.y + 1}`)
           const above = tileMap.get(`${tile.x},${tile.y - 1}`)
           const right = tileMap.get(`${tile.x + 1},${tile.y}`)
           const left = tileMap.get(`${tile.x - 1},${tile.y}`)
           const isOpenTile = (t: Tile | undefined) => t != null && t.type !== "wall" && t.type !== "door"
 
-          // Use dedicated up texture when floor is below, otherwise rotate default
-          const doorUpTexture = doorUpTextureRef.current
           let rotation = 0
-          let tex = doorTexture
-          if (isOpenTile(below) && doorUpTexture) {
-            tex = doorUpTexture
-            rotation = 0
-          } else if (isOpenTile(above)) rotation = Math.PI          // floor above: 180°
-          else if (isOpenTile(right)) rotation = -Math.PI / 2 // floor right: -90°
-          else if (isOpenTile(left)) rotation = Math.PI / 2   // floor left: 90°
+          if (isOpenTile(below)) rotation = 0
+          else if (isOpenTile(left)) rotation = Math.PI / 2
+          else if (isOpenTile(above)) rotation = Math.PI
+          else if (isOpenTile(right)) rotation = -Math.PI / 2
 
-          const sprite = new Sprite(tex)
+          const sprite = new Sprite(doorTexture)
+          sprite.anchor.set(0.5, 0.5)
+          sprite.x = px + TILE_SIZE / 2
+          sprite.y = py + TILE_SIZE / 2
+          sprite.width = TILE_SIZE
+          sprite.height = TILE_SIZE
+          sprite.rotation = rotation
+          if (!isVisible) sprite.alpha = 0.4
+          world.addChild(sprite)
+        } else if (isStairs && stairsTextureRef.current) {
+          const stairsTex = stairsTextureRef.current
+          const below = tileMap.get(`${tile.x},${tile.y + 1}`)
+          const above = tileMap.get(`${tile.x},${tile.y - 1}`)
+          const right = tileMap.get(`${tile.x + 1},${tile.y}`)
+          const left = tileMap.get(`${tile.x - 1},${tile.y}`)
+          const isFloorTile = (t: Tile | undefined) => t != null && t.type === "floor"
+
+          let rotation = 0
+          if (isFloorTile(below)) rotation = 0
+          else if (isFloorTile(left)) rotation = Math.PI / 2
+          else if (isFloorTile(above)) rotation = Math.PI
+          else if (isFloorTile(right)) rotation = -Math.PI / 2
+
+          const sprite = new Sprite(stairsTex)
           sprite.anchor.set(0.5, 0.5)
           sprite.x = px + TILE_SIZE / 2
           sprite.y = py + TILE_SIZE / 2
@@ -353,12 +419,14 @@ export function PixiJSWorld({
           sprite.height = TILE_SIZE
           if (!isVisible) sprite.alpha = 0.4
           world.addChild(sprite)
-        } else if (tile.type === "wall" && wallTexture) {
-          const sprite = new Sprite(wallTexture)
-          sprite.x = px
-          sprite.y = py
+        } else if (tile.type === "wall" && wallTex) {
+          const sprite = new Sprite(wallTex)
+          sprite.anchor.set(0.5, 0.5)
+          sprite.x = px + TILE_SIZE / 2
+          sprite.y = py + TILE_SIZE / 2
           sprite.width = TILE_SIZE
           sprite.height = TILE_SIZE
+          sprite.rotation = wallRotation
           if (!isVisible) sprite.alpha = 0.4
           world.addChild(sprite)
         } else {
@@ -366,22 +434,12 @@ export function PixiJSWorld({
         }
 
         // Wall top highlight for depth (only for non-textured walls)
-        if (tile.type === "wall" && !wallTexture) {
+        if (tile.type === "wall" && !wallTex) {
           tileGfx
             .rect(px, py, TILE_SIZE, 3)
             .fill(isVisible ? 0x555555 : 0x3a3a3a)
         }
 
-        // Stairs arrow indicator
-        if (
-          tile.type === "stairs" ||
-          tile.type === "stairs_up" ||
-          tile.type === "entrance"
-        ) {
-          tileGfx
-            .rect(px + 4, py + 4, TILE_SIZE - 8, TILE_SIZE - 8)
-            .fill(isVisible ? 0x6ab4f2 : 0x3a6a9e)
-        }
       }
       world.addChild(tileGfx)
 
@@ -476,6 +534,7 @@ export function PixiJSWorld({
       }
 
       // Pass 3: enemies (top layer)
+      const healthBarGfx = new Graphics()
       for (const entity of visibleEntities) {
         if (entity.type !== "enemy") continue
         const px = (entity.position.x - minX) * TILE_SIZE
@@ -493,6 +552,10 @@ export function PixiJSWorld({
           world.addChild(sprite)
         } else {
           addFallbackSprite(px, py, TILE_SIZE, 0)
+        }
+        const hpPct = getEntityHpPercent(entity)
+        if (hpPct != null) {
+          drawHealthBar(healthBarGfx, px, py, hpPct)
         }
       }
 
@@ -517,8 +580,12 @@ export function PixiJSWorld({
         playerGfx.circle(pcx, pcy, TILE_SIZE / 3).fill(PLAYER_COLOR)
         world.addChild(playerGfx)
       }
+      if (playerHpPercent != null) {
+        drawHealthBar(healthBarGfx, ppx, ppy, playerHpPercent)
+      }
+      world.addChild(healthBarGfx)
     },
-    [visibleTiles, knownTiles, playerPosition, entities]
+    [visibleTiles, knownTiles, playerPosition, playerHpPercent, entities]
   )
 
   useEffect(() => {
@@ -530,34 +597,21 @@ export function PixiJSWorld({
         const app = new Application()
         await app.init({
           background: 0x000000,
-          resizeTo: container,
           antialias: true,
         })
-        const [floor, wallDown, wallUp, wallRight, wallLeft, cornerNE, cornerNW, cornerSE, cornerSW, door, doorUp, lockedGate] = await Promise.all([
-          Assets.load("/sprites/world/dungeon-floor-a.png"),
-          Assets.load("/sprites/world/dungeon-wall-down-a.png"),
-          Assets.load("/sprites/world/dungeon-wall-up-a.png"),
-          Assets.load("/sprites/world/dungeon-wall-right-a.png"),
-          Assets.load("/sprites/world/dungeon-wall-left-a.png"),
-          Assets.load("/sprites/world/dungeon-wall-corner-ne-a.png"),
-          Assets.load("/sprites/world/dungeon-wall-corner-nw-a.png"),
-          Assets.load("/sprites/world/dungeon-wall-corner-se-a.png"),
-          Assets.load("/sprites/world/dungeon-wall-corner-sw-a.png"),
-          Assets.load("/sprites/world/dungeon-door-a.png"),
-          Assets.load("/sprites/world/dungeon-door-up-a.png"),
+        const [floor, wall, wallCorner, stairs, door, lockedGate] = await Promise.all([
+          Assets.load("/sprites/world/dungeon-floor.png"),
+          Assets.load("/sprites/world/dungeon-wall.png"),
+          Assets.load("/sprites/world/dungeon-wall-corner.png"),
+          Assets.load("/sprites/world/dungeon-stairs.png"),
+          Assets.load("/sprites/world/dungeon-door.png"),
           Assets.load("/sprites/world/dungeon-locked-iron-gate.png"),
         ])
         floorTextureRef.current = floor
-        wallDownTextureRef.current = wallDown
-        wallUpTextureRef.current = wallUp
-        wallRightTextureRef.current = wallRight
-        wallLeftTextureRef.current = wallLeft
-        wallCornerNERef.current = cornerNE
-        wallCornerNWRef.current = cornerNW
-        wallCornerSERef.current = cornerSE
-        wallCornerSWRef.current = cornerSW
+        wallTextureRef.current = wall
+        wallCornerTextureRef.current = wallCorner
+        stairsTextureRef.current = stairs
         doorTextureRef.current = door
-        doorUpTextureRef.current = doorUp
         lockedGateTextureRef.current = lockedGate
 
         // Load animated spritesheets — player + fallback always, enemies based on realm, all items
