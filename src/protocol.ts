@@ -170,7 +170,7 @@ export interface Observation {
     template_name: string
     floor_count: number
     current_floor: number
-    /** Floor-1 entrance room id — `retreat` is legal only here (with no hostiles). */
+    /** Floor-1 entrance room id — legal `retreat` requires being here with no hostiles. */
     entrance_room_id: string
     status: "active" | "boss_floor" | "boss_cleared" | "realm_cleared"
   }

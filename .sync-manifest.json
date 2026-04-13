@@ -1,12 +1,12 @@
 {
   "version": 1,
-  "lastSync": "2026-04-11",
+  "lastSync": "2026-04-13",
   "sources": [
     {
       "canonical": "shared/schemas/src/index.ts",
       "vendored": "agent-sdk/src/protocol.ts",
-      "canonicalHash": "353f77f67b25cba86cc8bcd26cc5f9c957c5c58a5ae210458877acbf4ac80932",
-      "generatedHash": "5b19d24aa61ec4193b5864f2e9d7defff5b933b085b5002cfac0e3c83a17c6b6",
+      "canonicalHash": "857e88e601c75e32d7ea188785d833d2e9308dc2d10ad845324aca5fc4e09668",
+      "generatedHash": "b0eed41c61d4d234bf8f6b7409d95ceea4b62b68bad10177536e03242db512a6",
       "types": [
         "Stats",
         "CharacterStats",
@@ -63,7 +63,7 @@
         "EntityType": "dc5ea506151da79061416a00288cb0bd8bccd0c95f5fae6cd975f025699e4009",
         "Entity": "fa84be2f59e433d81f26a39c0f29e4a6c57b427daab81bff11e5c61f9e6ee6e6",
         "GameEvent": "c9a2fc99f5d4ab9904d13ac72af246cb309c04da7389709220dfd6d42f868641",
-        "Observation": "df99cf8d90e9f2103f39594c2368e58d2b5416900c85cc5f0964c081dc3c23d7",
+        "Observation": "9b8f73a96730a7650b3cd53e46ec02fc9805fc00b88f51bcd13d61fac66ad13e",
         "Action": "1b8446abb59ebda082b8ca36485fad21d6253450a9aefbe8f948ca03fb854eed",
         "ServerMessage": "b7c8e60ebd6df37993ee28cc03bba4241717384a80d9143c78558f9ac614f151",
         "ClientMessage": "79a054df95ff262378c7651b58be1cfa38b5e8310e7366f2a648373a1a706859",
@@ -79,7 +79,7 @@
   "engineWatchlist": [
     {
       "file": "shared/engine/src/turn.ts",
-      "hash": "0212ffe9d74786de02adc323fb0b69f8313d3f20504d6ffc38a340a277bc15aa",
+      "hash": "ed2f065114fa1063138a9513e790ff636ac2753779df1355d295a51c795fdd04",
       "affectedModules": [
         "combat",
         "exploration",
@@ -138,7 +138,7 @@
     },
     {
       "file": "backend/src/game/session.ts",
-      "hash": "5bd79f710058637726e06e0245286240bf073daf453f9e424bd6e63cdd1d901a",
+      "hash": "2c9ae632eef0a6ea62837b096102e14a763e462a49c31742358545340d2b6ed3",
       "affectedModules": [
         "agent-lifecycle",
         "chat"
@@ -171,14 +171,14 @@
     },
     {
       "file": "backend/src/routes/content.ts",
-      "hash": "6fd623d9f26c89a6682d5820c783265256fcd968b64b979d0e1caec00da2f444",
+      "hash": "5a319a68cd28b71dfcde290c3c137e883b452e53c4f80e9b925d21c7eb6aa2f6",
       "affectedModules": [
         "dev-stack"
       ]
     },
     {
       "file": "backend/src/index.ts",
-      "hash": "4ed578e98a88ecd510f99922717ffb9373bda369a2556fb891f13e905cfd8051",
+      "hash": "936f8a9cb65603baf5c7a3c42e18956f9dea12385ee3867294d74bc329db46a6",
       "affectedModules": [
         "dev-stack",
         "chat"
@@ -223,7 +223,7 @@
     },
     {
       "file": "agent-sdk/src/adapters/llm/shared.ts",
-      "hash": "522cd49444cd27330f43477b03d76790c64d8d8afb61443d08db67b03daa1828",
+      "hash": "45bafdf93cb8bbb09eb40b923b7ee84f8efa756b8e061cc830ecc2392bf7bf03",
       "affectedModules": [
         "llm-adapters"
       ]
@@ -233,8 +233,8 @@
     {
       "source": "shared/schemas/src/index.ts",
       "vendored": "agent-sdk/dev/engine/types.ts",
-      "sourceHash": "353f77f67b25cba86cc8bcd26cc5f9c957c5c58a5ae210458877acbf4ac80932",
-      "vendoredHash": "184db62aa9b1faa333b99627478b9741f0640b44cd8c878781d4400609fff90e",
+      "sourceHash": "857e88e601c75e32d7ea188785d833d2e9308dc2d10ad845324aca5fc4e09668",
+      "vendoredHash": "33f9f599cd3b978c505c17825dd41303ae4a525b25b19cf1c7eb39faebcd4e7a",
       "affectedModules": [
         "dev-stack"
       ]
@@ -278,8 +278,8 @@
     {
       "source": "shared/engine/src/turn.ts",
       "vendored": "agent-sdk/dev/engine/turn.ts",
-      "sourceHash": "0212ffe9d74786de02adc323fb0b69f8313d3f20504d6ffc38a340a277bc15aa",
-      "vendoredHash": "d98f0ae6c46592d2ee2e372026a3183e9ceebb0ebce05724c01c4b7e11ac93fb",
+      "sourceHash": "ed2f065114fa1063138a9513e790ff636ac2753779df1355d295a51c795fdd04",
+      "vendoredHash": "92b3fbb945f8c0a8f275e982b5d6d0d02b9daf4c1fffb2e46ec40785617baff2",
       "affectedModules": [
         "dev-stack"
       ]
@@ -296,7 +296,7 @@
     {
       "source": "scripts/sync-dev-engine.ts",
       "vendored": "agent-sdk/dev/engine/content.ts",
-      "sourceHash": "0a0c83edb38203f28ad1a135236184305778d873822e37628254774518fba779",
+      "sourceHash": "a589b30b39d29c01998a1390054cde6c4d56be8ef3c9d598ea8ff21070ef5711",
       "vendoredHash": "da93a077bfb499cb43f4548b0eea5c6de64292a49d47f4242ac0bbbe530a967f",
       "affectedModules": [
         "dev-stack"
@@ -305,7 +305,7 @@
     {
       "source": "scripts/sync-dev-engine.ts",
       "vendored": "agent-sdk/dev/engine/index.ts",
-      "sourceHash": "0a0c83edb38203f28ad1a135236184305778d873822e37628254774518fba779",
+      "sourceHash": "a589b30b39d29c01998a1390054cde6c4d56be8ef3c9d598ea8ff21070ef5711",
       "vendoredHash": "3d2575dc16cc48b9a6df9d3dc9e0cc98c9e13c7c44afedc12ea7e95830775a39",
       "affectedModules": [
         "dev-stack"
