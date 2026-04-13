@@ -1988,8 +1988,20 @@ function resolveInteract(
   const interactable = roomTemplate.interactables.find((i) => i.id === action.target_id)
   if (!interactable) return "Nothing to interact with."
 
+  const isLockedExit = roomTemplate.locked_exit === interactable.id
+
   // Check if already used
   if (s.mutatedEntities.includes(action.target_id)) {
+    events.push({
+      turn: 0,
+      type: "interact_blocked",
+      detail: "Already used.",
+      data: {
+        target_id: action.target_id,
+        reason: "already-used",
+        ...(isLockedExit ? { is_locked_exit: true } : {}),
+      },
+    })
     return "Already used."
   }
 
@@ -1998,24 +2010,71 @@ function resolveInteract(
     switch (cond.type) {
       case "enemy-defeated":
         if (!s.mutatedEntities.includes(cond.entity_id)) {
-          return "Something must be dealt with first."
+          const detail = "Something must be dealt with first."
+          events.push({
+            turn: 0,
+            type: "interact_blocked",
+            detail,
+            data: {
+              target_id: action.target_id,
+              reason: "enemy-not-defeated",
+              required_entity_id: cond.entity_id,
+              ...(isLockedExit ? { is_locked_exit: true } : {}),
+            },
+          })
+          return detail
         }
         break
       case "room-cleared": {
         const livingEnemies = room.enemies.filter(e => e.hp > 0)
         if (livingEnemies.length > 0) {
-          return "You must deal with the enemies first."
+          const detail = "You must deal with the enemies first."
+          events.push({
+            turn: 0,
+            type: "interact_blocked",
+            detail,
+            data: {
+              target_id: action.target_id,
+              reason: "room-not-cleared",
+              ...(isLockedExit ? { is_locked_exit: true } : {}),
+            },
+          })
+          return detail
         }
         break
       }
       case "has-flag":
         if (!s.questFlags?.includes(cond.flag)) {
-          return "The conditions aren't right yet."
+          const detail = "The conditions aren't right yet."
+          events.push({
+            turn: 0,
+            type: "interact_blocked",
+            detail,
+            data: {
+              target_id: action.target_id,
+              reason: "missing-flag",
+              required_flag: cond.flag,
+              ...(isLockedExit ? { is_locked_exit: true } : {}),
+            },
+          })
+          return detail
         }
         break
       case "has-item":
         if (!s.inventory.some((i) => i.template_id === cond.item_id)) {
-          return "You're missing something."
+          const detail = "You're missing something."
+          events.push({
+            turn: 0,
+            type: "interact_blocked",
+            detail,
+            data: {
+              target_id: action.target_id,
+              reason: "missing-item",
+              required_template_id: cond.item_id,
+              ...(isLockedExit ? { is_locked_exit: true } : {}),
+            },
+          })
+          return detail
         }
         break
       case "class-is":
@@ -2804,6 +2863,7 @@ export function buildObservationFromState(
         name: template?.name ?? item.template_id,
         template_id: item.template_id,
         position: item.position,
+        ...(template?.type ? { template_type: template.type } : {}),
         ...(template?.rarity ? { rarity: template.rarity } : {}),
         trapped: canSenseTraps && item.trapped === true && item.trap_disarmed !== true,
       })
@@ -2852,6 +2912,7 @@ export function buildObservationFromState(
           type: "interactable",
           name: inter.name,
           position,
+          ...(isLockedExit ? { is_locked_exit: true } : {}),
         })
       }
     }

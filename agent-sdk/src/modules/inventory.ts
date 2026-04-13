@@ -69,10 +69,22 @@ export class InventoryModule implements AgentModule {
     const best = ranked[0]
     if (!best) return null
 
+    const bestEntity = observation.visible_entities.find((e) => e.id === best.item_id)
+    const name = bestEntity?.name ?? ""
+    const rarity = bestEntity?.rarity
+    const isKeyItem = isLikelyKeyItem(bestEntity)
+    // Confidence tiers — overrides east-bias (0.69). Keys are near-certain; rare/epic loot beats
+    // exploration; common/uncommon still beats exploration but leaves room for the tactician to
+    // override when combat or survival dictates otherwise.
+    let confidence = 0.75
+    if (rarity === "rare") confidence = 0.85
+    if (rarity === "epic") confidence = 0.9
+    if (isKeyItem) confidence = 0.95
+
     return {
       suggestedAction: best,
-      reasoning: `Picking up item${observation.visible_entities.find((e) => e.id === best.item_id)?.name ? ` (${observation.visible_entities.find((e) => e.id === best.item_id)!.name})` : ""}.`,
-      confidence: 0.3,
+      reasoning: `Picking up item${name ? ` (${name})` : ""}${isKeyItem ? " — key item, prioritized for door unlocking" : ""}.`,
+      confidence,
     }
   }
 
@@ -128,8 +140,21 @@ function rankPickupsByRarity(
   return [...pickups].sort((a, b) => {
     const entityA = entities.find((e) => e.id === a.item_id)
     const entityB = entities.find((e) => e.id === b.item_id)
+    // Key items always rank first — they unblock locked doors and are the only way
+    // to recover from certain stuck states. Falls back to rarity ordering otherwise.
+    const keyA = isLikelyKeyItem(entityA) ? 1 : 0
+    const keyB = isLikelyKeyItem(entityB) ? 1 : 0
+    if (keyA !== keyB) return keyB - keyA
     const scoreA = RARITY_SCORE[entityA?.rarity ?? "common"] ?? 1
     const scoreB = RARITY_SCORE[entityB?.rarity ?? "common"] ?? 1
     return scoreB - scoreA
   })
+}
+
+function isLikelyKeyItem(entity: Entity | undefined): boolean {
+  if (!entity || entity.type !== "item") return false
+  // Prefer the structured signal from the engine. Fallback to a name regex for legacy observations
+  // or realms whose content hasn't been tagged yet.
+  if (entity.template_type === "key-item") return true
+  return /\bkey\b/i.test(entity.name) || /\bskeleton\s+key\b/i.test(entity.name)
 }

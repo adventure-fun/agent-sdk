@@ -66,6 +66,7 @@ export class OpenAIAdapter implements LLMAdapter {
       prompt.observation,
       prompt.moduleRecommendations,
       prompt.recentHistory,
+      prompt.memorySnapshot,
     )
 
     for (let attempt = 0; attempt <= this.maxRetries; attempt += 1) {
@@ -85,16 +86,37 @@ export class OpenAIAdapter implements LLMAdapter {
     const userPrompt = buildPlanningPrompt(prompt)
 
     for (let attempt = 0; attempt <= this.maxRetries; attempt += 1) {
-      const response = await this.postChatCompletion(
-        this.buildPlanningBody(prompt.systemPrompt, userPrompt, prompt.maxActions, attempt),
-      )
-      const result = this.parsePlanningResponse(response)
-      if (result) {
-        return result
+      try {
+        const response = await this.postChatCompletion(
+          this.buildPlanningBody(prompt.systemPrompt, userPrompt, prompt.maxActions, attempt),
+        )
+        const result = this.parsePlanningResponse(response)
+        if (result) {
+          return result
+        }
+      } catch {
+        // Swallow and try the next attempt; final fallback handles total failure.
       }
     }
 
-    throw new Error("OpenAI did not return a valid action plan")
+    // Final fallback: ask for a single decision and wrap it as a 1-action plan rather than
+    // crashing the run when the model returns unparseable structured output.
+    try {
+      const decision = await this.decide({
+        observation: prompt.observation,
+        moduleRecommendations: prompt.moduleRecommendations,
+        legalActions: prompt.legalActions,
+        recentHistory: prompt.recentHistory,
+        systemPrompt: prompt.systemPrompt,
+        ...(prompt.memorySnapshot ? { memorySnapshot: prompt.memorySnapshot } : {}),
+      })
+      return {
+        strategy: "Fallback: model returned an unparseable plan; using single tactical decision.",
+        actions: [{ action: decision.action, reasoning: decision.reasoning }],
+      }
+    } catch {
+      throw new Error("OpenAI did not return a valid action plan")
+    }
   }
 
   async chat(prompt: ChatPrompt): Promise<string> {
