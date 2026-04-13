@@ -34,17 +34,31 @@ export async function batchPersistMutations(
   }
 
   if (position) {
-    await db
-      .from("realm_instances")
-      .update({
-        last_turn: turn,
-        current_room_id: position.room_id,
-        tile_x: position.tile.x,
-        tile_y: position.tile.y,
-        floor_reached: position.floor,
-      })
-      .eq("id", realmId)
+    await persistRealmProgress(db, realmId, turn, position)
   }
+}
+
+/**
+ * Writes the live `last_turn` / position cursor on `realm_instances`. Called every turn so that
+ * a silent disconnect (e.g. agent SIGKILL) never regresses the resume point by more than one
+ * turn — regardless of whether the turn produced any world mutations.
+ */
+export async function persistRealmProgress(
+  db: { from: (t: string) => any },
+  realmId: string,
+  turn: number,
+  position: PositionInfo,
+): Promise<void> {
+  await db
+    .from("realm_instances")
+    .update({
+      last_turn: turn,
+      current_room_id: position.room_id,
+      tile_x: position.tile.x,
+      tile_y: position.tile.y,
+      floor_reached: position.floor,
+    })
+    .eq("id", realmId)
 }
 
 // ── 8.2 — Disconnect recovery (session state serialization) ─────────────────
