@@ -12,7 +12,27 @@ interface Props {
   params: Promise<{ characterId: string }>
 }
 
-// ── All WebSocket / reconnect logic is UNCHANGED ──────────────────────────────
+// Class glyph mapping shared with leaderboard + spectate index for consistency.
+const CLASS_ICON: Record<string, string> = {
+  knight: "shield",
+  mage:   "auto_awesome",
+  rogue:  "bolt",
+  archer: "my_location",
+}
+
+const CLASS_COLOR: Record<string, string> = {
+  knight: "text-ob-tertiary",
+  mage:   "text-ob-primary",
+  rogue:  "text-ob-secondary",
+  archer: "text-ob-tertiary",
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// IMPORTANT: every state/ref/effect/handler in this component is functionally
+// identical to the previous ARCANE_WATCH version. Only the JSX is new. The WS
+// connect/reconnect lifecycle, the character-name lookup chain, the spectator
+// observation handling, and the chat tabs all behave exactly as before.
+// ─────────────────────────────────────────────────────────────────────────────
 
 export default function SpectatePage({ params }: Props) {
   const [observation, setObservation] = useState<SpectatorObservation | null>(null)
@@ -27,7 +47,7 @@ export default function SpectatePage({ params }: Props) {
   const retryCountRef = useRef(0)
   const endedReasonRef = useRef<string | null>(null)
 
-  // Top-5 leaderboard for the left sidebar
+  // Top-5 leaderboard for the left sidebar (same as before)
   const { entries: topPlayers, fetchLeaderboard } = useLeaderboard()
   const [charEntry, setCharEntry] = useState<{ character_name: string; class: string } | null>(null)
 
@@ -132,134 +152,175 @@ export default function SpectatePage({ params }: Props) {
   const leaderboardPlayer = topPlayers.find((p) => p.character_id === characterId)
   const charName = obs?.character.name ?? leaderboardPlayer?.character_name ?? charEntry?.character_name ?? null
   const classLabel = obs ? obs.character.class.toUpperCase() : "???"
+  const charClass = obs?.character.class ?? leaderboardPlayer?.class ?? charEntry?.class ?? null
   const shortId = characterId ? characterId.slice(0, 8) : "..."
   const rank = leaderboardPlayer ? topPlayers.indexOf(leaderboardPlayer) + 1 : 0
 
   if (!characterId) {
     return (
-      <div className="flex h-[calc(100vh-4rem)] items-center justify-center bg-aw-bg aw-label text-aw-secondary">
+      <div className="flex h-[calc(100vh-5rem)] items-center justify-center bg-ob-bg ob-body">
         <div className="text-center space-y-2">
-          <div className="aw-headline text-2xl text-aw-primary aw-amber-glow">ARCANE_WATCH</div>
-          <div className="text-xs tracking-widest opacity-60 uppercase">Initialising uplink...</div>
+          <div className="ob-headline text-3xl text-ob-primary ob-amber-glow">ADVENTURE.FUN</div>
+          <div className="ob-label text-xs tracking-widest opacity-60 uppercase text-ob-on-surface-variant">
+            Initialising spectator uplink...
+          </div>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] overflow-hidden bg-aw-bg aw-label">
+    <div className="flex h-[calc(100vh-5rem)] overflow-hidden bg-ob-bg ob-body">
 
-      {/* ── LEFT SIDEBAR: Active Rankings ────────────────────────────────── */}
-      <aside className="hidden md:flex flex-col w-56 bg-aw-surface-lowest border-r border-white/5 overflow-y-auto shrink-0">
-        <div className="px-4 pt-5 pb-3">
-          <div className="text-[10px] tracking-[0.2em] text-aw-outline uppercase mb-3">Active_Rankings</div>
-          <div className="space-y-0.5">
-            {topPlayers.length === 0 ? (
-              <div className="text-[10px] text-aw-outline italic px-2">Loading...</div>
-            ) : (
-              topPlayers.map((player, i) => {
-                const isWatching = player.character_id === characterId
-                return (
-                  <Link
-                    key={player.character_id}
-                    href={`/spectate/${player.character_id}`}
-                    className={`flex items-center gap-3 py-3 px-3 border-l-4 transition-all group ${
-                      isWatching
-                        ? "border-aw-secondary bg-aw-surface-high text-aw-secondary"
-                        : "border-transparent text-aw-outline hover:bg-aw-surface-container hover:text-aw-on-surface"
-                    }`}
-                  >
-                    <span className={`text-sm shrink-0 ${
-                      i === 0 ? "text-aw-primary" : "text-aw-outline"
-                    }`}>
-                      {i === 0 ? "◈" : i === 1 ? "◇" : "○"}
-                    </span>
-                    <div className="min-w-0">
-                      <div className={`text-xs font-medium truncate uppercase tracking-wide ${
-                        isWatching ? "text-aw-secondary" : "text-aw-on-surface group-hover:text-aw-on-surface"
-                      }`}>
-                        {player.character_name}
+      {/* ── LEFT SIDEBAR: Active Rankings + Search ─────────────────────────── */}
+      <aside className="hidden md:flex flex-col w-72 bg-ob-surface-container-low border-r border-ob-outline-variant/15 overflow-y-auto shrink-0">
+        <div className="p-6 space-y-6">
+          <div>
+            <h3 className="ob-label text-[10px] tracking-[0.2em] text-ob-primary uppercase mb-4">
+              ACTIVE RANKINGS
+            </h3>
+            <div className="space-y-2">
+              {topPlayers.length === 0 ? (
+                <div className="ob-label text-[10px] text-ob-on-surface-variant italic px-2">Loading...</div>
+              ) : (
+                topPlayers.map((player, i) => {
+                  const isWatching = player.character_id === characterId
+                  return (
+                    <Link
+                      key={player.character_id}
+                      href={`/spectate/${player.character_id}`}
+                      className={`flex items-center justify-between p-3 rounded-lg transition-all ${
+                        isWatching
+                          ? "bg-white/5 border-l-2 border-ob-primary"
+                          : "hover:bg-white/5 border-l-2 border-transparent"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className={`ob-label text-xs ${isWatching ? "text-ob-primary" : "text-ob-on-surface-variant"}`}>
+                          {String(i + 1).padStart(2, "0")}
+                        </span>
+                        <div className="flex flex-col min-w-0">
+                          <span className={`text-xs font-bold truncate ${
+                            isWatching ? "text-ob-on-surface" : "text-ob-on-surface-variant"
+                          }`}>
+                            {player.character_name.toUpperCase()}
+                          </span>
+                          <span className="text-[9px] ob-label text-ob-on-surface-variant uppercase tracking-tighter">
+                            LVL {player.level} {player.class.toUpperCase()}
+                          </span>
+                        </div>
                       </div>
-                      <div className="text-[10px] text-aw-outline mt-0.5">
-                        RANK #{i + 1} · {player.xp.toLocaleString()} XP
-                      </div>
-                    </div>
-                  </Link>
-                )
-              })
-            )}
+                      <span className="ob-label text-[10px] text-ob-on-surface-variant whitespace-nowrap ml-2">
+                        {player.xp >= 1000 ? `${(player.xp / 1000).toFixed(1)}k` : player.xp}
+                      </span>
+                    </Link>
+                  )
+                })
+              )}
+            </div>
           </div>
         </div>
 
         <CharacterSearch />
 
-        <div className="mt-auto px-4 pb-5 space-y-2">
+        <div className="mt-auto p-6 space-y-2">
           <button
             type="button"
             onClick={requestReconnect}
-            className="w-full py-2 text-[10px] tracking-widest uppercase border border-aw-secondary/30 text-aw-secondary hover:bg-aw-secondary/10 transition-colors"
+            className="w-full ob-label text-[10px] tracking-widest uppercase border border-ob-primary/30 text-ob-primary hover:bg-ob-primary/10 py-3 rounded-xl transition-colors"
           >
             Reconnect Feed
           </button>
           <Link
             href="/spectate"
-            className="block w-full py-2 text-center text-[10px] tracking-widest uppercase border border-white/5 text-aw-outline hover:border-white/15 hover:text-aw-on-surface transition-colors"
+            className="block w-full text-center ob-label text-[10px] tracking-widest uppercase border border-ob-outline-variant/15 text-ob-on-surface-variant hover:border-ob-primary/30 hover:text-ob-on-surface py-3 rounded-xl transition-colors"
           >
             All Live Runs
           </Link>
         </div>
       </aside>
 
-      {/* ── MAIN CONTENT ──────────────────────────────────────────────────── */}
-      <main className="flex-1 flex flex-col overflow-y-auto bg-aw-surface p-4 gap-4">
+      {/* ── MAIN CONTENT: Game Canvas + Feeds ──────────────────────────────── */}
+      <main className="flex-1 flex flex-col min-w-0 bg-ob-bg relative">
 
-        {/* Header */}
-        <header className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h2 className="aw-headline text-aw-primary aw-amber-glow text-2xl md:text-3xl">
-              NOW SPECTATING: {charName ?? classLabel}
-              {rank > 0 && <span className="text-aw-secondary ml-2 text-lg">(RANK #{rank})</span>}
+        {/* Header bar */}
+        <div className="px-6 py-4 flex items-center justify-between border-b border-ob-outline-variant/10">
+          <div className="flex items-center gap-3 min-w-0">
+            <span className="ob-label text-[10px] text-ob-primary tracking-widest whitespace-nowrap">
+              NOW SPECTATING:
+            </span>
+            <h2 className="ob-headline text-xl text-ob-on-surface truncate">
+              {charName ?? classLabel}
             </h2>
-            <p className="text-aw-secondary text-xs tracking-widest mt-0.5 opacity-70 uppercase">
-              ID: {shortId}... // {statusMessage}
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            {endedReason ? (
-              <span className="text-[10px] px-3 py-1 border border-aw-error/40 text-aw-error uppercase tracking-widest">
-                SESSION_ENDED: {endedReason}
-              </span>
-            ) : (
-              <span className={`flex items-center gap-2 text-[10px] px-3 py-1 border tracking-widest uppercase ${
-                connected
-                  ? "border-aw-secondary/40 text-aw-secondary"
-                  : "border-white/10 text-aw-outline"
-              }`}>
-                <span className={`h-1.5 w-1.5 rounded-full ${connected ? "bg-aw-secondary animate-pulse" : "bg-aw-outline"}`} />
-                {connected ? "LIVE" : "OFFLINE"}
+            {rank > 0 && (
+              <span className="ob-label text-[10px] text-ob-secondary border border-ob-secondary/40 px-2 py-0.5 rounded">
+                RANK #{rank}
               </span>
             )}
           </div>
-        </header>
+          <div className="flex items-center gap-3 shrink-0">
+            {endedReason ? (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded bg-ob-error/10 border border-ob-error/30">
+                <div className="w-1.5 h-1.5 rounded-full bg-ob-error" />
+                <span className="ob-label text-[10px] text-ob-error font-bold tracking-widest">
+                  ENDED
+                </span>
+              </div>
+            ) : (
+              <div className={`flex items-center gap-2 px-3 py-1.5 rounded ${
+                connected
+                  ? "bg-ob-error/10 border border-ob-error/20"
+                  : "bg-ob-surface-container border border-ob-outline-variant/15"
+              }`}>
+                <div className={`w-1.5 h-1.5 rounded-full ${
+                  connected ? "bg-ob-error animate-pulse" : "bg-ob-on-surface-variant"
+                }`} />
+                <span className={`ob-label text-[10px] font-bold tracking-widest ${
+                  connected ? "text-ob-error" : "text-ob-on-surface-variant"
+                }`}>
+                  {connected ? "LIVE" : "OFFLINE"}
+                </span>
+              </div>
+            )}
+            <span className="ob-label text-[10px] text-ob-on-surface-variant uppercase hidden md:inline">
+              FLOOR: {obs?.realm_info.current_floor ?? "—"}
+            </span>
+          </div>
+        </div>
 
+        {/* Error banner */}
         {error && (
-          <div className="flex items-center justify-between border border-aw-error/30 bg-aw-error-container/20 px-4 py-2 text-xs text-aw-error">
-            <span>&gt;&gt; ERROR: {error}</span>
-            <button type="button" onClick={requestReconnect} className="underline hover:no-underline ml-3">Retry</button>
+          <div className="mx-6 mt-4 flex items-center justify-between border border-ob-error/30 bg-ob-error/10 px-4 py-3 rounded-lg">
+            <span className="text-xs text-ob-error">{error}</span>
+            <button
+              type="button"
+              onClick={requestReconnect}
+              className="ob-label text-[10px] uppercase tracking-widest text-ob-error border border-ob-error/40 hover:bg-ob-error/10 px-3 py-1.5 rounded transition-colors"
+            >
+              Retry
+            </button>
           </div>
         )}
 
+        {/* Session ended panel */}
         {endedReason && (
-          <div className="border border-aw-primary/20 bg-aw-primary-container/10 p-4">
-            <div className="aw-headline text-aw-primary text-sm mb-2">RUN_ENDED // {endedReason.toUpperCase()}</div>
+          <div className="mx-6 mt-4 border border-ob-primary/20 bg-ob-primary/5 p-4 rounded-xl">
+            <div className="ob-headline not-italic text-ob-primary text-sm uppercase mb-2 font-bold">
+              RUN_ENDED — {endedReason.toUpperCase()}
+            </div>
             <div className="flex gap-3 mt-3">
-              <button type="button" onClick={requestReconnect}
-                className="px-4 py-2 text-xs bg-aw-primary-container text-aw-on-primary uppercase tracking-widest hover:opacity-90 transition-opacity">
+              <button
+                type="button"
+                onClick={requestReconnect}
+                className="px-4 py-2 ob-label text-[10px] uppercase tracking-widest bg-ob-primary text-ob-on-primary rounded-lg hover:brightness-110 transition-all font-bold"
+              >
                 Retry Connection
               </button>
               {endedReason === "death" && characterId && (
-                <Link href={`/legends/${characterId}`}
-                  className="px-4 py-2 text-xs border border-aw-outline/40 text-aw-on-surface-variant uppercase tracking-widest hover:border-aw-outline transition-colors">
+                <Link
+                  href={`/legends/${characterId}`}
+                  className="px-4 py-2 ob-label text-[10px] uppercase tracking-widest border border-ob-outline-variant/30 text-ob-on-surface-variant hover:border-ob-primary/30 hover:text-ob-primary rounded-lg transition-colors"
+                >
                   View Legend
                 </Link>
               )}
@@ -267,167 +328,224 @@ export default function SpectatePage({ params }: Props) {
           </div>
         )}
 
-        {/* Game feed terminal */}
-        <div className={`relative border rounded-sm overflow-hidden ${connected ? "border-aw-secondary/30" : "border-white/5"}`}
-             style={{ boxShadow: connected ? "0 0 40px rgba(118,211,244,0.06)" : "none" }}>
+        {/* Game canvas */}
+        <div className="flex-1 relative overflow-hidden flex items-center justify-center p-6 min-h-0">
+          <div className="absolute inset-0 ob-scanline opacity-30" />
 
-          {/* Corner brackets */}
-          <div className="absolute top-3 left-3 w-5 h-5 border-t-2 border-l-2 border-aw-secondary/50 pointer-events-none z-10" />
-          <div className="absolute top-3 right-3 w-5 h-5 border-t-2 border-r-2 border-aw-secondary/50 pointer-events-none z-10" />
-          <div className="absolute bottom-3 left-3 w-5 h-5 border-b-2 border-l-2 border-aw-secondary/50 pointer-events-none z-10" />
-          <div className="absolute bottom-3 right-3 w-5 h-5 border-b-2 border-r-2 border-aw-secondary/50 pointer-events-none z-10" />
+          <div className="w-full h-full max-w-4xl bg-ob-surface-container-low rounded-xl border border-ob-outline-variant/10 shadow-2xl relative flex items-center justify-center overflow-hidden">
 
-          {/* Scanline */}
-          <div className="aw-scanline absolute inset-0 pointer-events-none z-10 opacity-40" />
-
-          {/* HUD overlays */}
-          {obs && (
-            <div className="absolute inset-0 p-4 flex flex-col justify-between pointer-events-none z-20">
-              <div className="flex justify-between items-start text-[10px]">
-                <div className="space-y-1">
-                  <div className="bg-black/70 border-l-2 border-aw-secondary px-2 py-1 text-aw-secondary flex items-center gap-2">
-                    <span className={`w-1.5 h-1.5 rounded-full ${connected ? "bg-red-400 animate-pulse" : "bg-aw-outline"}`} />
-                    {statusMessage}
-                  </div>
-                  <div className="bg-black/60 px-2 py-1 text-aw-secondary">HP: {obs.character.hp_percent}%</div>
-                  <div className="bg-black/60 px-2 py-1 text-aw-secondary">RESOURCE: {obs.character.resource_percent}%</div>
+            {/* Asymmetric metadata corners — wired to real obs data */}
+            {obs && (
+              <>
+                <div className="absolute top-3 left-3 ob-label text-[10px] text-ob-tertiary/60 tracking-widest z-20">
+                  LOC: [{obs.position.tile.x}, {obs.position.tile.y}]<br />
+                  REALM: {obs.realm_info.template_name.toUpperCase()}
                 </div>
-                <div className="text-right space-y-1">
-                  <div className="bg-black/60 px-2 py-1 text-aw-secondary">FLOOR: {obs.realm_info.current_floor}</div>
-                  <div className="bg-black/60 px-2 py-1 text-aw-secondary">TURN: {obs.turn}</div>
+                <div className="absolute top-3 right-3 ob-label text-[10px] text-ob-on-surface-variant/60 text-right z-20">
+                  HP: {obs.character.hp_percent}%<br />
+                  ESS: {obs.character.resource_percent}%
                 </div>
-              </div>
-              {obs.recent_events.length > 0 && (
-                <div className="text-[10px] text-aw-secondary">
-                  <div className="bg-black/60 border border-aw-secondary/20 px-2 py-1 inline-block">
-                    <span className="text-aw-primary">&gt;&gt; </span>
-                    {obs.recent_events[obs.recent_events.length - 1]?.detail}
-                  </div>
+                <div className="absolute bottom-3 left-3 ob-label text-[10px] text-ob-on-surface-variant/60 z-20">
+                  ID: {shortId}…<br />
+                  STATUS: {statusMessage}
+                </div>
+                <div className="absolute bottom-3 right-3 ob-label text-[10px] text-ob-on-surface-variant/60 text-right z-20">
+                  TURN: {obs.turn}<br />
+                  FLOOR: {obs.realm_info.current_floor}
+                </div>
+              </>
+            )}
+
+            {/* Map content */}
+            <div className="z-10 p-12 w-full h-full flex items-center justify-center">
+              {obs ? (
+                <GameMap
+                  visibleTiles={obs.visible_tiles}
+                  playerPosition={obs.position.tile}
+                  entities={obs.visible_entities}
+                />
+              ) : (
+                <div className="ob-label text-xs text-ob-on-surface-variant tracking-widest uppercase animate-pulse">
+                  Awaiting live feed...
                 </div>
               )}
             </div>
-          )}
+          </div>
+        </div>
 
-          {/* Map */}
-          <div className="bg-black p-6 min-h-[300px] flex items-center justify-center">
-            {obs ? (
-              <GameMap
-                visibleTiles={obs.visible_tiles}
-                playerPosition={obs.position.tile}
-                entities={obs.visible_entities}
-              />
-            ) : (
-              <div className="text-aw-secondary/30 text-xs tracking-widest uppercase animate-pulse">
-                Awaiting live feed...
+        {/* Room narrative */}
+        {obs?.room_text && (
+          <div className="mx-6 mb-2 border-l-2 border-ob-primary/30 pl-3 py-1">
+            <p className="text-xs text-ob-on-surface-variant italic">{obs.room_text}</p>
+          </div>
+        )}
+
+        {/* Bottom feeds: dungeon events + chat tabs */}
+        <div className="h-72 grid md:grid-cols-2 bg-ob-surface-container-low border-t border-ob-outline-variant/15 shrink-0">
+
+          {/* Dungeon Feed */}
+          <div className="p-4 border-r border-ob-outline-variant/15 overflow-y-auto ob-scrollbar">
+            <h4 className="ob-label text-[10px] text-ob-on-surface-variant tracking-widest mb-3 flex items-center gap-2 uppercase">
+              <span className="w-1.5 h-1.5 bg-ob-secondary rounded-full" />
+              DUNGEON FEED
+              <button
+                type="button"
+                onClick={requestReconnect}
+                className="ml-auto ob-label text-[10px] text-ob-on-surface-variant hover:text-ob-primary"
+              >
+                SYNC
+              </button>
+            </h4>
+            <div className="space-y-1.5 ob-label text-[11px]">
+              {obs && obs.recent_events.length > 0 ? (
+                obs.recent_events.slice(-12).map((event, i, arr) => {
+                  const isLatest = i === arr.length - 1
+                  return (
+                    <p key={`${event.turn}-${i}`} className={isLatest ? "text-ob-on-surface" : "text-ob-on-surface-variant"}>
+                      <span className="text-ob-secondary">[T{event.turn}]</span>{" "}
+                      {event.detail}
+                    </p>
+                  )
+                })
+              ) : (
+                <p className="text-xs text-ob-on-surface-variant italic">Waiting for events...</p>
+              )}
+            </div>
+          </div>
+
+          {/* Chat tabs (global + per-player) */}
+          <div className="min-h-0">
+            <ChatTabs characterId={characterId} characterName={charName} />
+          </div>
+        </div>
+      </main>
+
+      {/* ── RIGHT SIDEBAR: Vital Signs + Entity Feed ───────────────────────── */}
+      <aside className="hidden xl:flex flex-col w-80 bg-ob-surface-container border-l border-ob-outline-variant/15 overflow-y-auto shrink-0">
+        <div className="p-6 space-y-6">
+
+          {/* Character vitals card */}
+          <div className="p-5 rounded-xl bg-ob-surface-container-high border border-ob-outline-variant/10">
+            <div className="flex items-center gap-4 mb-6">
+              <div className="w-14 h-14 rounded-lg bg-ob-surface-container-lowest border border-ob-outline-variant/20 flex items-center justify-center">
+                {charClass ? (
+                  <span className={`material-symbols-outlined text-2xl ${CLASS_COLOR[charClass] ?? "text-ob-primary"}`}>
+                    {CLASS_ICON[charClass] ?? "person"}
+                  </span>
+                ) : (
+                  <span className="material-symbols-outlined text-2xl text-ob-on-surface-variant/40">person</span>
+                )}
               </div>
+              <div className="min-w-0">
+                <h2 className="ob-headline text-lg text-ob-primary leading-tight truncate">
+                  {charName ? charName.toUpperCase() : "—"}
+                </h2>
+                <p className="ob-label text-[10px] text-ob-on-surface-variant uppercase tracking-widest">
+                  {charClass ? `${charClass.toUpperCase()} • LVL ${obs?.character.level ?? leaderboardPlayer?.level ?? "?"}` : ""}
+                </p>
+              </div>
+            </div>
+
+            {obs ? (
+              <div className="space-y-4">
+                {/* HP bar */}
+                <div className="space-y-1">
+                  <div className="flex justify-between ob-label text-[10px]">
+                    <span className="text-ob-secondary font-bold">HEALTH</span>
+                    <span className="text-ob-on-surface">{obs.character.hp_percent}%</span>
+                  </div>
+                  <div className="h-1.5 w-full bg-ob-surface-container-lowest rounded-full overflow-hidden">
+                    <div
+                      className={`h-full transition-all duration-500 ${
+                        obs.character.hp_percent < 25
+                          ? "bg-ob-error shadow-[0_0_8px_rgba(255,115,81,0.3)]"
+                          : "bg-ob-secondary shadow-[0_0_8px_rgba(107,254,156,0.3)]"
+                      }`}
+                      style={{ width: `${obs.character.hp_percent}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Resource bar */}
+                <div className="space-y-1">
+                  <div className="flex justify-between ob-label text-[10px]">
+                    <span className="text-ob-tertiary font-bold">RESOURCE</span>
+                    <span className="text-ob-on-surface">{obs.character.resource_percent}%</span>
+                  </div>
+                  <div className="h-1.5 w-full bg-ob-surface-container-lowest rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-ob-tertiary shadow-[0_0_8px_rgba(127,197,255,0.3)] transition-all duration-500"
+                      style={{ width: `${obs.character.resource_percent}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Quick stats */}
+                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-ob-outline-variant/10">
+                  <div className="bg-ob-surface-container-low p-2 rounded">
+                    <div className="ob-label text-[9px] text-ob-on-surface-variant uppercase tracking-widest">CLASS</div>
+                    <div className={`text-xs mt-0.5 capitalize ${CLASS_COLOR[obs.character.class] ?? "text-ob-primary"}`}>
+                      {obs.character.class}
+                    </div>
+                  </div>
+                  <div className="bg-ob-surface-container-low p-2 rounded">
+                    <div className="ob-label text-[9px] text-ob-on-surface-variant uppercase tracking-widest">LEVEL</div>
+                    <div className="text-xs text-ob-primary mt-0.5">{obs.character.level}</div>
+                  </div>
+                  <div className="col-span-2 bg-ob-surface-container-low p-2 rounded">
+                    <div className="ob-label text-[9px] text-ob-on-surface-variant uppercase tracking-widest">REALM</div>
+                    <div className="text-xs text-ob-on-surface mt-0.5 truncate">{obs.realm_info.template_name}</div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="h-1.5 bg-ob-surface-container animate-pulse rounded-full" />
+                <div className="h-1.5 bg-ob-surface-container animate-pulse rounded-full" />
+              </div>
+            )}
+          </div>
+
+          {/* Entity feed */}
+          <div>
+            <h3 className="ob-label text-[10px] tracking-[0.2em] text-ob-on-surface-variant uppercase mb-4">
+              NEARBY ENTITIES
+            </h3>
+            {enemies.length > 0 ? (
+              <div className="space-y-3">
+                {enemies.map((e) => (
+                  <div key={e.id} className="flex items-center gap-3 group">
+                    <div className="w-8 h-8 rounded bg-ob-error/10 border border-ob-error/20 flex items-center justify-center shrink-0">
+                      <span className="material-symbols-outlined text-ob-error text-base">
+                        skull
+                      </span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex justify-between gap-2">
+                        <span className="text-xs font-bold text-ob-on-surface truncate">{e.name}</span>
+                        {e.health_indicator ? (
+                          <span className="ob-label text-[9px] text-ob-error capitalize whitespace-nowrap">
+                            {e.health_indicator} HP
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="ob-label text-[10px] text-ob-on-surface-variant italic">No enemies in view.</p>
             )}
           </div>
         </div>
 
-        {obs?.room_text && (
-          <div className="border-l-2 border-aw-primary/30 pl-3 py-1">
-            <p className="text-xs text-aw-on-surface-variant italic">{obs.room_text}</p>
-          </div>
-        )}
-
-        {/* Bottom row: events + chat */}
-        <div className="grid md:grid-cols-2 gap-4">
-
-          {/* Recent events terminal */}
-          <div className="border border-white/5 bg-aw-surface-lowest flex flex-col">
-            <div className="px-3 py-2 bg-aw-surface-container border-b border-white/5 flex items-center justify-between shrink-0">
-              <span className="text-[10px] tracking-[0.2em] uppercase text-aw-outline">DUNGEON_FEED</span>
-              <button type="button" onClick={requestReconnect} className="text-[10px] text-aw-outline hover:text-aw-on-surface">SYNC</button>
-            </div>
-            <div className="p-3 space-y-1.5 h-36 overflow-y-auto">
-              {obs && obs.recent_events.length > 0 ? (
-                obs.recent_events.slice(-8).map((event, i, arr) => (
-                  <div key={`${event.turn}-${i}`}
-                    className={`text-xs px-2 py-1 ${i === arr.length - 1 ? "border-l-2 border-aw-primary text-aw-on-surface" : "text-aw-on-surface-variant"}`}>
-                    <span className="text-aw-outline mr-2">T{event.turn}</span>
-                    {event.detail}
-                  </div>
-                ))
-              ) : (
-                <p className="text-xs text-aw-outline italic">Waiting for events...</p>
-              )}
-            </div>
-          </div>
-
-          {/* Chat (global + per-player tabs) */}
-          <ChatTabs characterId={characterId} characterName={charName} />
-        </div>
-      </main>
-
-      {/* ── RIGHT SIDEBAR: Vitals + Entities ─────────────────────────────── */}
-      <aside className="hidden lg:flex flex-col w-52 bg-aw-surface-lowest border-l border-white/5 p-4 gap-5 shrink-0 overflow-y-auto">
-        <div>
-          <div className="text-[10px] tracking-[0.2em] text-aw-outline uppercase mb-3 aw-headline">VITAL_SIGNS</div>
-          {obs ? (
-            <div className="space-y-3">
-              <div>
-                <div className="flex justify-between text-[10px] text-aw-outline mb-1">
-                  <span>HP</span><span>{obs.character.hp_percent}%</span>
-                </div>
-                <div className="h-1.5 bg-aw-surface-highest rounded-sm overflow-hidden">
-                  <div className={`h-full rounded-sm transition-all duration-500 ${obs.character.hp_percent < 25 ? "bg-aw-error" : "bg-green-500"}`}
-                       style={{ width: `${obs.character.hp_percent}%` }} />
-                </div>
-              </div>
-              <div>
-                <div className="flex justify-between text-[10px] text-aw-outline mb-1">
-                  <span>RESOURCE</span><span>{obs.character.resource_percent}%</span>
-                </div>
-                <div className="h-1.5 bg-aw-surface-highest rounded-sm overflow-hidden">
-                  <div className="h-full bg-aw-secondary rounded-sm transition-all duration-500"
-                       style={{ width: `${obs.character.resource_percent}%` }} />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-1.5 text-[10px]">
-                <div className="bg-aw-surface-container p-2">
-                  <div className="text-aw-outline">CLASS</div>
-                  <div className="text-aw-secondary mt-0.5 capitalize">{obs.character.class}</div>
-                </div>
-                <div className="bg-aw-surface-container p-2">
-                  <div className="text-aw-outline">LEVEL</div>
-                  <div className="text-aw-primary mt-0.5">{obs.character.level}</div>
-                </div>
-                <div className="bg-aw-surface-container p-2 col-span-2">
-                  <div className="text-aw-outline">REALM</div>
-                  <div className="text-aw-on-surface mt-0.5 truncate">{obs.realm_info.template_name}</div>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              <div className="h-1.5 bg-aw-surface-container animate-pulse" />
-              <div className="h-1.5 bg-aw-surface-container animate-pulse" />
-            </div>
-          )}
-        </div>
-
-        <div>
-          <div className="text-[10px] tracking-[0.2em] text-aw-outline uppercase mb-3 aw-headline">ENTITY_FEED</div>
-          {enemies.length > 0 ? (
-            <div className="space-y-1.5">
-              {enemies.map((e) => (
-                <div key={e.id} className="bg-aw-surface-container p-2 text-[10px]">
-                  <div className="text-aw-error font-medium truncate">{e.name}</div>
-                  {e.health_indicator && (
-                    <div className="text-aw-outline capitalize mt-0.5">{e.health_indicator} HP</div>
-                  )}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-[10px] text-aw-outline italic">No enemies in view.</p>
-          )}
-        </div>
-
-        <div className="mt-auto space-y-2">
-          <button type="button" onClick={requestReconnect}
-            className="w-full py-2.5 text-[10px] tracking-widest uppercase border border-aw-secondary/30 text-aw-secondary hover:bg-aw-secondary/10 transition-colors">
-            INITIALIZE_UPLINK
+        <div className="mt-auto p-6 border-t border-ob-outline-variant/10">
+          <button
+            type="button"
+            onClick={requestReconnect}
+            className="w-full ob-label text-[10px] tracking-widest uppercase border border-ob-primary/30 text-ob-primary hover:bg-ob-primary/10 py-3 rounded-xl transition-colors"
+          >
+            Initialize Uplink
           </button>
         </div>
       </aside>
