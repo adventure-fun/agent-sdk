@@ -5,8 +5,8 @@
     {
       "canonical": "shared/schemas/src/index.ts",
       "vendored": "agent-sdk/src/protocol.ts",
-      "canonicalHash": "857e88e601c75e32d7ea188785d833d2e9308dc2d10ad845324aca5fc4e09668",
-      "generatedHash": "b0eed41c61d4d234bf8f6b7409d95ceea4b62b68bad10177536e03242db512a6",
+      "canonicalHash": "284dd8cd7534e658dd374567efee4be2a5923d88aa48a5cc98c630a84a805513",
+      "generatedHash": "fddaabf0bac2763a821ddeef842dac6bd8fc8e50d3ecd778ad50085ae465596c",
       "types": [
         "Stats",
         "CharacterStats",
@@ -79,7 +79,7 @@
   "engineWatchlist": [
     {
       "file": "shared/engine/src/turn.ts",
-      "hash": "ed2f065114fa1063138a9513e790ff636ac2753779df1355d295a51c795fdd04",
+      "hash": "55169f7d6da0089a143299bfed6050e0feec3346f3ab28c4c80152dde8dc7ea4",
       "affectedModules": [
         "combat",
         "exploration",
@@ -138,7 +138,7 @@
     },
     {
       "file": "backend/src/game/session.ts",
-      "hash": "2c9ae632eef0a6ea62837b096102e14a763e462a49c31742358545340d2b6ed3",
+      "hash": "653ce2df4dd142f6e3011c7762932549c3abb7a5cbf97e087f1f05f5e4c5d989",
       "affectedModules": [
         "agent-lifecycle",
         "chat"
@@ -178,7 +178,7 @@
     },
     {
       "file": "backend/src/index.ts",
-      "hash": "936f8a9cb65603baf5c7a3c42e18956f9dea12385ee3867294d74bc329db46a6",
+      "hash": "ccbfaf83ad09ffdf1cc7190364aded81b05b759ce445e6322e7fccc3d6390d6b",
       "affectedModules": [
         "dev-stack",
         "chat"
@@ -233,8 +233,8 @@
     {
       "source": "shared/schemas/src/index.ts",
       "vendored": "agent-sdk/dev/engine/types.ts",
-      "sourceHash": "857e88e601c75e32d7ea188785d833d2e9308dc2d10ad845324aca5fc4e09668",
-      "vendoredHash": "33f9f599cd3b978c505c17825dd41303ae4a525b25b19cf1c7eb39faebcd4e7a",
+      "sourceHash": "284dd8cd7534e658dd374567efee4be2a5923d88aa48a5cc98c630a84a805513",
+      "vendoredHash": "3d4b10b97c96a0bfdd9d67c33027a29498a3c6e02d3f680a23149f1cfc4e1332",
       "affectedModules": [
         "dev-stack"
       ]
@@ -278,8 +278,8 @@
     {
       "source": "shared/engine/src/turn.ts",
       "vendored": "agent-sdk/dev/engine/turn.ts",
-      "sourceHash": "ed2f065114fa1063138a9513e790ff636ac2753779df1355d295a51c795fdd04",
-      "vendoredHash": "92b3fbb945f8c0a8f275e982b5d6d0d02b9daf4c1fffb2e46ec40785617baff2",
+      "sourceHash": "55169f7d6da0089a143299bfed6050e0feec3346f3ab28c4c80152dde8dc7ea4",
+      "vendoredHash": "9b44bc2c2bd44d4a9e348e59f2226a106165b79b233a63db3852c11482cb8f0b",
       "affectedModules": [
         "dev-stack"
       ]
