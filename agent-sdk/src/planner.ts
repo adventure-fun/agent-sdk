@@ -308,8 +308,19 @@ export class ActionPlanner {
     }
 
     const healing = recommendations.find((recommendation) => recommendation.moduleName === "healing")
-    if (healing?.context?.criticalHP === true && healing.context?.healingAvailable === false) {
-      return "resources_critical"
+    const nowCritical =
+      healing?.context?.criticalHP === true && healing.context?.healingAvailable === false
+    if (nowCritical) {
+      // Only fire on the TRANSITION into the critical state, not on every subsequent turn. Once
+      // the agent is limping home at 4 HP, nothing new has been learned by replanning on every
+      // step — let the existing plan execute and rely on tactical/module triggers for reactions.
+      const prev = this.previousObservation
+      const prevHpMax = prev.character.hp.max
+      const prevHpRatio = prevHpMax > 0 ? prev.character.hp.current / prevHpMax : 1
+      const wasAlreadyCritical = prevHpRatio <= 0.25
+      if (!wasAlreadyCritical) {
+        return "resources_critical"
+      }
     }
 
     return null
