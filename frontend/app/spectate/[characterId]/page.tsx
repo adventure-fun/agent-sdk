@@ -170,9 +170,54 @@ export default function SpectatePage({ params }: Props) {
   }
 
   return (
-    <div className="flex h-[calc(100vh-5rem)] overflow-hidden bg-ob-bg ob-body">
+    <div className="flex flex-col md:flex-row md:h-[calc(100vh-5rem)] md:overflow-hidden bg-ob-bg ob-body">
 
-      {/* ── LEFT SIDEBAR: Active Rankings + Search ─────────────────────────── */}
+      {/* ── MOBILE: SEARCH + RANKINGS STRIP (above main) ─────────────────── */}
+      {/* On mobile the left sidebar is hidden (see `hidden md:flex` below)
+          — this block takes its place at the top of the page so search is
+          still the first affordance after the header. */}
+      <div className="md:hidden bg-ob-surface-container-low border-b border-ob-outline-variant/15">
+        <CharacterSearch />
+        <div className="px-4 pb-3">
+          <h3 className="ob-label text-[9px] tracking-[0.2em] text-ob-primary uppercase mb-2">
+            TOP RANKINGS
+          </h3>
+          {topPlayers.length === 0 ? (
+            <div className="ob-label text-[10px] text-ob-on-surface-variant italic">Loading...</div>
+          ) : (
+            <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-4 px-4">
+              {topPlayers.map((player, i) => {
+                const isWatching = player.character_id === characterId
+                return (
+                  <Link
+                    key={player.character_id}
+                    href={`/spectate/${player.character_id}`}
+                    className={`shrink-0 flex items-center gap-2 rounded-xl px-3 py-2 min-w-[150px] border transition-colors ${
+                      isWatching
+                        ? "bg-ob-primary/10 border-ob-primary/40"
+                        : "bg-ob-surface-container-high border-ob-outline-variant/10 hover:border-ob-primary/30"
+                    }`}
+                  >
+                    <span className={`ob-label text-xs ${isWatching ? "text-ob-primary" : "text-ob-on-surface-variant"}`}>
+                      {String(i + 1).padStart(2, "0")}
+                    </span>
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-xs font-bold truncate text-ob-on-surface">
+                        {player.character_name.toUpperCase()}
+                      </span>
+                      <span className="text-[9px] ob-label text-ob-on-surface-variant uppercase">
+                        LVL {player.level}
+                      </span>
+                    </div>
+                  </Link>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── DESKTOP LEFT SIDEBAR: Active Rankings + Search ────────────────── */}
       <aside className="hidden md:flex flex-col w-72 bg-ob-surface-container-low border-r border-ob-outline-variant/15 overflow-y-auto shrink-0">
         <div className="p-6 space-y-6">
           <div>
@@ -241,19 +286,19 @@ export default function SpectatePage({ params }: Props) {
       </aside>
 
       {/* ── MAIN CONTENT: Game Canvas + Feeds ──────────────────────────────── */}
-      <main className="flex-1 flex flex-col min-w-0 bg-ob-bg relative">
+      <main className="flex-1 flex flex-col min-w-0 bg-ob-bg relative min-h-[calc(100vh-5rem)] md:min-h-0">
 
         {/* Header bar */}
-        <div className="px-6 py-4 flex items-center justify-between border-b border-ob-outline-variant/10">
-          <div className="flex items-center gap-3 min-w-0">
-            <span className="ob-label text-[10px] text-ob-primary tracking-widest whitespace-nowrap">
+        <div className="px-4 md:px-6 py-3 md:py-4 flex items-center justify-between gap-3 border-b border-ob-outline-variant/10">
+          <div className="flex items-center gap-2 md:gap-3 min-w-0 flex-1">
+            <span className="hidden md:inline ob-label text-[10px] text-ob-primary tracking-widest whitespace-nowrap">
               NOW SPECTATING:
             </span>
-            <h2 className="ob-headline text-xl text-ob-on-surface truncate">
+            <h2 className="ob-headline text-base md:text-xl text-ob-on-surface truncate">
               {charName ?? classLabel}
             </h2>
             {rank > 0 && (
-              <span className="ob-label text-[10px] text-ob-secondary border border-ob-secondary/40 px-2 py-0.5 rounded">
+              <span className="hidden sm:inline ob-label text-[10px] text-ob-secondary border border-ob-secondary/40 px-2 py-0.5 rounded whitespace-nowrap">
                 RANK #{rank}
               </span>
             )}
@@ -282,7 +327,7 @@ export default function SpectatePage({ params }: Props) {
                 </span>
               </div>
             )}
-            <span className="ob-label text-[10px] text-ob-on-surface-variant uppercase hidden md:inline">
+            <span className="ob-label text-[10px] text-ob-on-surface-variant uppercase hidden lg:inline">
               FLOOR: {obs?.realm_info.current_floor ?? "—"}
             </span>
           </div>
@@ -329,7 +374,10 @@ export default function SpectatePage({ params }: Props) {
         )}
 
         {/* Game canvas */}
-        <div className="flex-1 relative overflow-hidden flex items-center justify-center p-6 min-h-0">
+        {/* On mobile we fix a min-h so it doesn't collapse under the weight
+            of the feeds + chat that stack below. On desktop flex-1 takes
+            whatever's left between header, vitals strip, and bottom feeds. */}
+        <div className="flex-1 relative overflow-hidden flex items-center justify-center p-4 md:p-6 min-h-[300px]">
           <div className="absolute inset-0 ob-scanline opacity-30" />
 
           <div className="w-full h-full max-w-4xl bg-ob-surface-container-low rounded-xl border border-ob-outline-variant/10 shadow-2xl relative flex items-center justify-center overflow-hidden">
@@ -382,11 +430,40 @@ export default function SpectatePage({ params }: Props) {
           </div>
         )}
 
+        {/* Mobile-only inline vitals strip — gives tablet/phone users access
+            to HP / resource / level / class without needing the right sidebar
+            which is hidden below xl. Desktop (xl+) gets the full sidebar on
+            the right. */}
+        {obs && (
+          <div className="xl:hidden mx-6 mb-2 grid grid-cols-2 md:grid-cols-4 gap-2">
+            <div className="bg-ob-surface-container-high rounded-lg p-2">
+              <div className="ob-label text-[9px] text-ob-on-surface-variant uppercase tracking-widest">HP</div>
+              <div className="text-sm text-ob-secondary font-bold">{obs.character.hp_percent}%</div>
+            </div>
+            <div className="bg-ob-surface-container-high rounded-lg p-2">
+              <div className="ob-label text-[9px] text-ob-on-surface-variant uppercase tracking-widest">RESOURCE</div>
+              <div className="text-sm text-ob-tertiary font-bold">{obs.character.resource_percent}%</div>
+            </div>
+            <div className="bg-ob-surface-container-high rounded-lg p-2">
+              <div className="ob-label text-[9px] text-ob-on-surface-variant uppercase tracking-widest">LEVEL</div>
+              <div className="text-sm text-ob-primary font-bold">{obs.character.level}</div>
+            </div>
+            <div className="bg-ob-surface-container-high rounded-lg p-2">
+              <div className="ob-label text-[9px] text-ob-on-surface-variant uppercase tracking-widest">ENEMIES</div>
+              <div className="text-sm text-ob-error font-bold">{enemies.length}</div>
+            </div>
+          </div>
+        )}
+
         {/* Bottom feeds: dungeon events + chat tabs */}
-        <div className="h-72 grid md:grid-cols-2 bg-ob-surface-container-low border-t border-ob-outline-variant/15 shrink-0">
+        {/* On mobile we stack these vertically so neither is cramped.
+            The chat panel becomes the primary surface (most likely use)
+            and the dungeon feed collapses to a smaller fixed-height block
+            on top so chat still gets meaningful space. */}
+        <div className="grid grid-cols-1 md:grid-cols-2 md:h-72 bg-ob-surface-container-low border-t border-ob-outline-variant/15 shrink-0">
 
           {/* Dungeon Feed */}
-          <div className="p-4 border-r border-ob-outline-variant/15 overflow-y-auto ob-scrollbar">
+          <div className="h-40 md:h-auto p-4 border-b md:border-b-0 md:border-r border-ob-outline-variant/15 overflow-y-auto ob-scrollbar">
             <h4 className="ob-label text-[10px] text-ob-on-surface-variant tracking-widest mb-3 flex items-center gap-2 uppercase">
               <span className="w-1.5 h-1.5 bg-ob-secondary rounded-full" />
               DUNGEON FEED
@@ -416,7 +493,7 @@ export default function SpectatePage({ params }: Props) {
           </div>
 
           {/* Chat tabs (global + per-player) */}
-          <div className="min-h-0">
+          <div className="h-80 md:h-auto min-h-0">
             <ChatTabs characterId={characterId} characterName={charName} />
           </div>
         </div>

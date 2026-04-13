@@ -65,7 +65,8 @@ export function DungeonView({
   const useItemActions = legal_actions.filter((a): a is Action & { type: "use_item" } => a.type === "use_item")
   const equipActions = legal_actions.filter((a): a is Action & { type: "equip" } => a.type === "equip")
   const unequipActions = legal_actions.filter((a): a is Action & { type: "unequip" } => a.type === "unequip")
-  const canWait = legal_actions.some((a) => a.type === "wait")
+  // `wait` is always legal in the engine but hidden from the UI — see the
+  // Utility buttons block below for rationale.
   const canPortal = legal_actions.some((a) => a.type === "use_portal")
   const canRetreat = legal_actions.some((a) => a.type === "retreat")
   const canPickup = legal_actions.filter((a): a is Action & { type: "pickup" } => a.type === "pickup")
@@ -306,30 +307,62 @@ export function DungeonView({
               </button>
             )}
 
-            {/* Action buttons — moved inside map column */}
+            {/* Action buttons — moved inside map column.
+                Removed the "RESOLVING..." line that caused layout jitter
+                whenever a turn took >0 ms; the "in-flight" state is now
+                communicated by the disabled + opacity-60 state on the
+                action buttons themselves. */}
             <div className="mt-3 border-t border-white/5 pt-3 space-y-3">
-              {waitingForResponse && (
-                <p className="text-aw-outline text-[10px] text-center tracking-widest uppercase">RESOLVING...</p>
-              )}
 
-              {/* Movement */}
+              {/* Movement — 3x3 d-pad with arrow glyphs. Always has a stable
+                  footprint (grid-cols-3 × 3 rows) even when a direction
+                  isn't legal, so the layout doesn't shift. Keyboard shortcuts
+                  (arrow keys + WASD) are still bound via the useEffect above.
+                  N/S/E/W compass labels sit as tiny subscripts under each
+                  glyph. */}
               {moveActions.length > 0 && (
-                <div className="flex flex-wrap gap-2 justify-center">
-                  {(["up", "down", "left", "right"] as const).map((dir) => {
-                    const action = moveActions.find((a) => a.direction === dir)
-                    if (!action) return null
-                    const labels = { up: "Move N", down: "Move S", left: "Move W", right: "Move E" }
-                    return (
-                      <button
-                        key={dir}
-                        disabled={waitingForResponse}
-                        onClick={() => onAction(action)}
-                        className="px-4 py-1.5 text-xs bg-aw-surface-container hover:bg-aw-surface-high text-aw-on-surface tracking-widest uppercase transition-colors disabled:opacity-40 disabled:cursor-not-allowed border border-white/5"
-                      >
-                        {labels[dir]}
-                      </button>
-                    )
-                  })}
+                <div className="flex justify-center">
+                  <div
+                    className="grid grid-cols-3 gap-1.5"
+                    aria-label="Movement controls"
+                  >
+                    {([
+                      { pos: 0, dir: null },
+                      { pos: 1, dir: "up",    compass: "N" },
+                      { pos: 2, dir: null },
+                      { pos: 3, dir: "left",  compass: "W" },
+                      { pos: 4, dir: null },
+                      { pos: 5, dir: "right", compass: "E" },
+                      { pos: 6, dir: null },
+                      { pos: 7, dir: "down",  compass: "S" },
+                      { pos: 8, dir: null },
+                    ] as const).map((cell) => {
+                      if (!cell.dir) {
+                        return <div key={cell.pos} aria-hidden className="w-14 h-14" />
+                      }
+                      const action = moveActions.find((a) => a.direction === cell.dir)
+                      const disabled = !action || waitingForResponse
+                      const glyph = cell.dir === "up" ? "↑"
+                        : cell.dir === "down" ? "↓"
+                        : cell.dir === "left" ? "←"
+                        : "→"
+                      return (
+                        <button
+                          key={cell.pos}
+                          type="button"
+                          disabled={disabled}
+                          onClick={() => action && onAction(action)}
+                          className="w-14 h-14 bg-ob-surface-container hover:bg-ob-surface-container-high active:bg-ob-surface-container-highest text-ob-on-surface border border-ob-outline-variant/15 hover:border-ob-primary/30 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex flex-col items-center justify-center"
+                          title={`Move ${cell.compass}`}
+                        >
+                          <span className="text-xl leading-none">{glyph}</span>
+                          <span className="ob-label text-[9px] tracking-widest text-ob-outline mt-0.5">
+                            {cell.compass}
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
                 </div>
               )}
 
@@ -468,17 +501,13 @@ export function DungeonView({
                 </div>
               )}
 
-              {/* Utility: Wait, Portal, Retreat */}
+              {/* Utility: Portal, Retreat.
+                  The "Wait" action is always legal (engine line turn.ts:3084
+                  pushes it unconditionally) so it is never the *only* option
+                  — showing it in the UI as a button is visual clutter with
+                  no player value. Keyboard shortcut for wait could be added
+                  later if we find a real use case. */}
               <div className="flex flex-wrap gap-2 justify-center">
-                {canWait && (
-                  <button
-                    disabled={waitingForResponse}
-                    onClick={() => onAction({ type: "wait" })}
-                    className="px-4 py-1.5 text-xs bg-aw-surface-container hover:bg-aw-surface-high text-aw-outline border border-white/5 tracking-widest uppercase transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    Wait
-                  </button>
-                )}
                 {canPortal && (
                   <button
                     disabled={waitingForResponse}
