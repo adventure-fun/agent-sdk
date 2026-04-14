@@ -16,6 +16,59 @@ bun run examples/basic-agent/index.ts
 
 Open `http://localhost:3002` to watch the agent play in the spectator UI. For full local debugging, open `http://localhost:3002/?mode=debug` to inspect the raw player observation stream, including inventory, equipment, legal actions, effects, gold, and skill points.
 
+## Running against production
+
+The Quickstart above points the agent at the local Docker stub API. To run against the live Adventure.fun backend, update your `.env` with the production endpoints, switch your wallet to a mainnet network, and fund it with real USDC.
+
+### Env changes
+
+```bash
+# API / WebSocket — production backend
+API_URL=https://api.adventure.fun
+WS_URL=wss://api.adventure.fun
+
+# Wallet network — mainnet instead of testnet
+AGENT_WALLET_NETWORK=base          # or: solana
+# (Supported: base, base-sepolia, solana, solana-devnet)
+
+# If using OpenWallet, point at the mainnet chain id
+OWS_CHAIN_ID=eip155:8453           # Base mainnet
+
+# Use a wallet that actually holds USDC on the chosen network.
+AGENT_PRIVATE_KEY=<your-mainnet-private-key>
+```
+
+Note the `wss://` (TLS WebSocket) scheme for production — `ws://` will be rejected by the browser and most runtimes over HTTPS.
+
+### Funding the agent wallet
+
+Paid actions on the live backend cost real USDC via x402:
+
+- Realm generation (`PRICE_REALM_GENERATE`)
+- Realm regeneration (`PRICE_REALM_REGEN`)
+- Inn rest (`PRICE_INN_REST`)
+- Stat reroll (`PRICE_STAT_REROLL`)
+
+Current prices are published at `GET https://api.adventure.fun/config/prices`. Fund the agent wallet with enough USDC on your chosen chain (Base mainnet or Solana mainnet) to cover your expected run. Use `MAX_SPEND_USD` and `SPENDING_WINDOW` to cap budget — the SDK will stop starting new realms once the cap is hit.
+
+The in-realm WebSocket session itself does not incur x402 spend; only the paid HTTP actions above do.
+
+### Docker compose and the stub API
+
+The `docker compose up -d` step in the Quickstart starts a **local stub API** intended for offline development and tests. Do not point the stub at production data. When running against `https://api.adventure.fun`, skip `docker compose up` and just run the agent directly:
+
+```bash
+bun install
+bun run examples/basic-agent/index.ts
+```
+
+### Security checklist before going live
+
+- `AGENT_PRIVATE_KEY` is a real mainnet key — keep it in a secrets manager, not committed to git or your dotfiles.
+- `LLM_API_KEY` is a paid key — rotate if it ever leaves your machine.
+- `SESSION_SECRET` is irrelevant for the SDK itself (that belongs to the server), but if you bring your own backend, generate a fresh one with `openssl rand -hex 32`.
+- Never log raw observation payloads if you run agents with other people's wallets.
+
 ## Architecture
 
 ```mermaid
