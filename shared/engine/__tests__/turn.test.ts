@@ -2558,3 +2558,657 @@ describe("recalcStats preserves perks and skill-tree passives", () => {
     expect(result.newState.character.effective_stats[stat]).toBe(baseAfter + value)
   })
 })
+
+// ── Skill tree mechanics: Arcane Sight, Vanish, Death Mark, Riposte,
+//                         Shadow Step, Disengage, Multishot ──────────────────
+
+describe("mage Arcane Sight reveal-room-enemies", () => {
+  function makeMageState(overrides?: Partial<GameState>): GameState {
+    return makeState({
+      character: {
+        ...makeState().character,
+        class: "mage",
+        resource: { type: "mana", current: 20, max: 20 },
+        abilities: ["mage-arcane-bolt", "mage-arcane-sight"],
+      },
+      ...overrides,
+    })
+  }
+
+  it("activating Arcane Sight pushes an arcane-sight buff with 3 turns remaining", () => {
+    const state = makeMageState()
+    const result = resolveTurn(
+      state,
+      { type: "attack", target_id: "self", ability_id: "mage-arcane-sight" },
+      makeRealm(),
+      new SeededRng(1),
+    )
+    const buff = result.newState.character.buffs.find((b) => b.type === "arcane-sight")
+    expect(buff).toBeDefined()
+    expect(buff?.turns_remaining).toBe(3)
+  })
+
+  it("Arcane Sight reveals enemies whose tile is outside the visible set", () => {
+    // Place player and enemy far apart so the enemy is in fog without the buff.
+    const state = makeMageState({
+      activeFloor: {
+        rooms: [
+          {
+            id: "f1_r1_test-room",
+            tiles: makeTiles(20, 20),
+            enemies: [makeEnemy({ position: { x: 18, y: 18 } })],
+            items: [],
+          },
+        ],
+      },
+      position: { floor: 1, room_id: "f1_r1_test-room", tile: { x: 1, y: 1 } },
+    })
+
+    // Without the buff, the enemy is not in visible_entities
+    const noBuff = resolveTurn(state, { type: "wait" }, makeRealm("f1_r1_test-room"), new SeededRng(1))
+    expect(
+      noBuff.observation.visible_entities.some((e) => e.id === "enemy-1"),
+    ).toBe(false)
+
+    // Activate Arcane Sight
+    const withBuff = resolveTurn(
+      noBuff.newState,
+      { type: "attack", target_id: "self", ability_id: "mage-arcane-sight" },
+      makeRealm("f1_r1_test-room"),
+      new SeededRng(2),
+    )
+    expect(
+      withBuff.observation.visible_entities.some((e) => e.id === "enemy-1"),
+    ).toBe(true)
+  })
+})
+
+describe("rogue Vanish stealth", () => {
+  function makeRogueState(overrides?: Partial<GameState>): GameState {
+    return makeState({
+      character: {
+        ...makeState().character,
+        class: "rogue",
+        resource: { type: "energy", current: 10, max: 10 },
+        abilities: ["rogue-backstab", "rogue-vanish"],
+        // Make the player squishy so any enemy hit would be obvious
+        hp: { current: 50, max: 50 },
+      },
+      activeFloor: {
+        rooms: [
+          {
+            id: "f1_r1_test-room",
+            tiles: makeTiles(6, 4),
+            enemies: [makeEnemy({ position: { x: 2, y: 1 }, hp: 50, hp_max: 50 })],
+            items: [],
+          },
+        ],
+      },
+      ...overrides,
+    })
+  }
+
+  it("activating Vanish pushes a stealth buff with 1 turn remaining", () => {
+    const state = makeRogueState()
+    const result = resolveTurn(
+      state,
+      { type: "attack", target_id: "self", ability_id: "rogue-vanish" },
+      makeRealm(),
+      new SeededRng(1),
+    )
+    const buff = result.newState.character.buffs.find((b) => b.type === "stealth")
+    expect(buff).toBeDefined()
+    expect(buff?.turns_remaining).toBe(1)
+  })
+
+  it("while stealthed, adjacent enemies do not damage the player", () => {
+    const state = makeRogueState()
+    const startHp = state.character.hp.current
+    // Activate Vanish — enemy turn happens immediately after, and it should NOT deal damage
+    const result = resolveTurn(
+      state,
+      { type: "attack", target_id: "self", ability_id: "rogue-vanish" },
+      makeRealm(),
+      new SeededRng(1),
+    )
+    expect(result.newState.character.hp.current).toBe(startHp)
+    // The enemy "loses sight" event should fire
+    expect(result.observation.recent_events.some((e) => e.detail.includes("loses sight") || (e.data as Record<string, unknown>)?.["reason"] === "stealth")).toBe(true)
+  })
+
+  it("stealth expires after one full turn cycle", () => {
+    const state = makeRogueState()
+    const after1 = resolveTurn(state, { type: "attack", target_id: "self", ability_id: "rogue-vanish" }, makeRealm(), new SeededRng(1))
+    // Wait — stealth should tick down at the start of next player turn
+    const after2 = resolveTurn(after1.newState, { type: "wait" }, makeRealm(), new SeededRng(2))
+    // After this wait, stealth should be gone (or about to expire)
+    const stealthAfter = after2.newState.character.buffs.find((b) => b.type === "stealth")
+    expect(stealthAfter).toBeUndefined()
+  })
+})
+
+describe("rogue Death Mark mark-target", () => {
+  function makeRogueWithMarkState(targetHp = 100): GameState {
+    return makeState({
+      character: {
+        ...makeState().character,
+        class: "rogue",
+        resource: { type: "energy", current: 20, max: 20 },
+        abilities: ["rogue-backstab", "rogue-death-mark"],
+        stats: { hp: 40, attack: 15, defense: 5, accuracy: 999, evasion: 10, speed: 10 },
+        effective_stats: { hp: 40, attack: 15, defense: 5, accuracy: 999, evasion: 10, speed: 10 },
+      },
+      activeFloor: {
+        rooms: [
+          {
+            id: "f1_r1_test-room",
+            tiles: makeTiles(6, 4),
+            enemies: [makeEnemy({ position: { x: 2, y: 1 }, hp: targetHp, hp_max: targetHp })],
+            items: [],
+          },
+        ],
+      },
+    })
+  }
+
+  it("casting Death Mark applies a death-mark debuff to the target", () => {
+    const state = makeRogueWithMarkState()
+    const result = resolveTurn(
+      state,
+      { type: "attack", target_id: "enemy-1", ability_id: "rogue-death-mark" },
+      makeRealm(),
+      new SeededRng(1),
+    )
+    const enemy = result.newState.activeFloor.rooms[0]?.enemies[0]
+    const mark = enemy?.effects.find((e) => e.type === "death-mark")
+    expect(mark).toBeDefined()
+    // The mark is applied with 5 but ticks down by 1 during the enemy turn
+    // (status effect tick at turn.ts:1341), so by end of the cast turn it's 4.
+    expect(mark?.turns_remaining).toBeGreaterThanOrEqual(4)
+  })
+
+  it("the cast itself does NOT consume the mark it applies", () => {
+    const state = makeRogueWithMarkState()
+    const result = resolveTurn(
+      state,
+      { type: "attack", target_id: "enemy-1", ability_id: "rogue-death-mark" },
+      makeRealm(),
+      new SeededRng(1),
+    )
+    // Mark must still be on the target after the cast
+    const enemy = result.newState.activeFloor.rooms[0]?.enemies[0]
+    expect(enemy?.effects.some((e) => e.type === "death-mark")).toBe(true)
+  })
+
+  it("the next attack on a marked target deals 2x damage and consumes the mark", () => {
+    // Hit a target with backstab, note damage. Then mark + backstab again.
+    const baselineState = makeRogueWithMarkState(500)
+    const baseHit = resolveTurn(
+      baselineState,
+      { type: "attack", target_id: "enemy-1", ability_id: "rogue-backstab" },
+      makeRealm(),
+      new SeededRng(42),
+    )
+    const baseDamage = (baselineState.activeFloor.rooms[0]?.enemies[0]?.hp ?? 0)
+      - (baseHit.newState.activeFloor.rooms[0]?.enemies[0]?.hp ?? 0)
+
+    // Now cast Death Mark, then backstab on the same target
+    const markedState = makeRogueWithMarkState(500)
+    const afterMark = resolveTurn(
+      markedState,
+      { type: "attack", target_id: "enemy-1", ability_id: "rogue-death-mark" },
+      makeRealm(),
+      new SeededRng(42),
+    )
+    const hpAfterMark = afterMark.newState.activeFloor.rooms[0]?.enemies[0]?.hp ?? 0
+    const afterBackstab = resolveTurn(
+      afterMark.newState,
+      { type: "attack", target_id: "enemy-1", ability_id: "rogue-backstab" },
+      makeRealm(),
+      new SeededRng(42),
+    )
+    const backstabDamage = hpAfterMark - (afterBackstab.newState.activeFloor.rooms[0]?.enemies[0]?.hp ?? 0)
+
+    // Marked backstab should deal at least double the base damage (2x +
+    // ignore-defense bonus). With 5 defense, base damage is reduced by 5;
+    // marked damage doubles the post-defense damage AND skips the reduction
+    // entirely. So marked should be strictly more than 2 * baseDamage.
+    expect(backstabDamage).toBeGreaterThanOrEqual(baseDamage * 2)
+
+    // Mark should be consumed
+    const enemy = afterBackstab.newState.activeFloor.rooms[0]?.enemies[0]
+    expect(enemy?.effects.some((e) => e.type === "death-mark")).toBe(false)
+  })
+
+  it("mark applied to one target doesn't affect attacks on a different target", () => {
+    const state = makeState({
+      character: {
+        ...makeState().character,
+        class: "rogue",
+        resource: { type: "energy", current: 20, max: 20 },
+        abilities: ["rogue-backstab", "rogue-death-mark"],
+      },
+      activeFloor: {
+        rooms: [
+          {
+            id: "f1_r1_test-room",
+            tiles: makeTiles(8, 4),
+            enemies: [
+              makeEnemy({ id: "enemy-1", position: { x: 2, y: 1 }, hp: 100, hp_max: 100 }),
+              makeEnemy({ id: "enemy-2", position: { x: 5, y: 1 }, hp: 100, hp_max: 100 }),
+            ],
+            items: [],
+          },
+        ],
+      },
+    })
+
+    const afterMark = resolveTurn(
+      state,
+      { type: "attack", target_id: "enemy-1", ability_id: "rogue-death-mark" },
+      makeRealm(),
+      new SeededRng(1),
+    )
+    // Enemy 2 should NOT have a death-mark
+    const enemy2 = afterMark.newState.activeFloor.rooms[0]?.enemies.find((e) => e.id === "enemy-2")
+    expect(enemy2?.effects.some((e) => e.type === "death-mark")).toBe(false)
+  })
+})
+
+describe("knight Riposte counter-on-hit", () => {
+  function makeKnightWithRiposteState(): GameState {
+    return makeState({
+      character: {
+        ...makeState().character,
+        // Lower accuracy so attacks miss isn't 100% — but high enough that
+        // the seeded rng still lands hits
+        stats: { hp: 50, attack: 25, defense: 10, accuracy: 999, evasion: 5, speed: 5 },
+        effective_stats: { hp: 50, attack: 25, defense: 10, accuracy: 999, evasion: 5, speed: 5 },
+        hp: { current: 50, max: 50 },
+        abilities: ["knight-slash", "knight-riposte"],
+      },
+      activeFloor: {
+        rooms: [
+          {
+            id: "f1_r1_test-room",
+            tiles: makeTiles(6, 4),
+            enemies: [
+              makeEnemy({ id: "enemy-1", position: { x: 2, y: 1 }, hp: 80, hp_max: 80 }),
+            ],
+            items: [],
+          },
+        ],
+      },
+    })
+  }
+
+  it("activating Riposte pushes a riposte-stance buff with 1 turn remaining", () => {
+    const state = makeKnightWithRiposteState()
+    const result = resolveTurn(
+      state,
+      { type: "attack", target_id: "self", ability_id: "knight-riposte" },
+      makeRealm(),
+      new SeededRng(1),
+    )
+    const buff = result.newState.character.buffs.find((b) => b.type === "riposte-stance")
+    expect(buff).toBeDefined()
+    expect(buff?.turns_remaining).toBe(1)
+  })
+
+  it("if the player has Riposte stance and an enemy hits them, the player counter-attacks", () => {
+    const state = makeKnightWithRiposteState()
+    const enemyStartHp = state.activeFloor.rooms[0]?.enemies[0]?.hp ?? 0
+    const result = resolveTurn(
+      state,
+      { type: "attack", target_id: "self", ability_id: "knight-riposte" },
+      makeRealm(),
+      new SeededRng(1),
+    )
+    const enemyEndHp = result.newState.activeFloor.rooms[0]?.enemies[0]?.hp ?? 0
+    // Enemy should have taken damage from the counter (assuming the enemy hit)
+    expect(enemyEndHp).toBeLessThan(enemyStartHp)
+    // A counter-attack event should have been logged
+    expect(
+      result.observation.recent_events.some(
+        (e) => (e.data as Record<string, unknown>)?.["source"] === "riposte",
+      ),
+    ).toBe(true)
+  })
+
+  it("Riposte stance expires after one turn cycle", () => {
+    const state = makeKnightWithRiposteState()
+    const after1 = resolveTurn(
+      state,
+      { type: "attack", target_id: "self", ability_id: "knight-riposte" },
+      makeRealm(),
+      new SeededRng(1),
+    )
+    const after2 = resolveTurn(after1.newState, { type: "wait" }, makeRealm(), new SeededRng(2))
+    expect(after2.newState.character.buffs.find((b) => b.type === "riposte-stance")).toBeUndefined()
+  })
+})
+
+describe("rogue Shadow Step teleport-attack", () => {
+  function makeShadowStepState(playerPos = { x: 1, y: 1 }, enemyPos = { x: 4, y: 1 }): GameState {
+    return makeState({
+      character: {
+        ...makeState().character,
+        class: "rogue",
+        resource: { type: "energy", current: 10, max: 10 },
+        abilities: ["rogue-backstab", "rogue-shadow-step"],
+      },
+      position: { floor: 1, room_id: "f1_r1_test-room", tile: playerPos },
+      activeFloor: {
+        rooms: [
+          {
+            id: "f1_r1_test-room",
+            tiles: makeTiles(8, 5),
+            enemies: [makeEnemy({ id: "enemy-1", position: enemyPos, hp: 100, hp_max: 100 })],
+            items: [],
+          },
+        ],
+      },
+    })
+  }
+
+  it("teleports the player to a tile adjacent to the target", () => {
+    const state = makeShadowStepState({ x: 1, y: 2 }, { x: 5, y: 2 })
+    const result = resolveTurn(
+      state,
+      { type: "attack", target_id: "enemy-1", ability_id: "rogue-shadow-step" },
+      makeRealm(),
+      new SeededRng(1),
+    )
+    const dx = Math.abs((result.newState.position.tile.x ?? 0) - 5)
+    const dy = Math.abs((result.newState.position.tile.y ?? 0) - 2)
+    expect(dx + dy).toBe(1)
+  })
+
+  it("damages the target after teleporting", () => {
+    const state = makeShadowStepState({ x: 1, y: 2 }, { x: 5, y: 2 })
+    const enemyStartHp = state.activeFloor.rooms[0]?.enemies[0]?.hp ?? 0
+    const result = resolveTurn(
+      state,
+      { type: "attack", target_id: "enemy-1", ability_id: "rogue-shadow-step" },
+      makeRealm(),
+      new SeededRng(1),
+    )
+    const enemyEndHp = result.newState.activeFloor.rooms[0]?.enemies[0]?.hp ?? 0
+    expect(enemyEndHp).toBeLessThan(enemyStartHp)
+  })
+
+  it("fails (no resource consumed) if no walkable tile is adjacent to the target", () => {
+    // Surround the target with walls on all 4 cardinal sides so Shadow Step
+    // has no valid landing tile. makeTiles defaults to all-floor, so we
+    // explicitly transition the 4 adjacent tiles to walls.
+    const tiles = makeTilesWithTransitions(7, 7, [
+      { x: 2, y: 3, type: "wall" },
+      { x: 4, y: 3, type: "wall" },
+      { x: 3, y: 2, type: "wall" },
+      { x: 3, y: 4, type: "wall" },
+    ])
+    const state = makeState({
+      character: {
+        ...makeState().character,
+        class: "rogue",
+        resource: { type: "energy", current: 10, max: 10 },
+        abilities: ["rogue-backstab", "rogue-shadow-step"],
+      },
+      position: { floor: 1, room_id: "f1_r1_test-room", tile: { x: 1, y: 1 } },
+      activeFloor: {
+        rooms: [
+          {
+            id: "f1_r1_test-room",
+            tiles,
+            enemies: [
+              makeEnemy({ id: "enemy-1", position: { x: 3, y: 3 }, hp: 100, hp_max: 100 }),
+            ],
+            items: [],
+          },
+        ],
+      },
+    })
+
+    const startResource = state.character.resource.current
+    const result = resolveTurn(
+      state,
+      { type: "attack", target_id: "enemy-1", ability_id: "rogue-shadow-step" },
+      makeRealm(),
+      new SeededRng(1),
+    )
+    // Resource should NOT have been consumed
+    expect(result.newState.character.resource.current).toBe(startResource)
+    // Player position should not have changed
+    expect(result.newState.position.tile).toEqual({ x: 1, y: 1 })
+  })
+
+  it("works when target is in line-of-sight blocked by walls (teleport bypass LOS)", () => {
+    // Build a room with a wall between player and target
+    const tiles = makeTilesWithTransitions(8, 5, [
+      // Wall column at x=3 except for top/bottom edge so LOS is blocked
+      { x: 3, y: 1, type: "wall" },
+      { x: 3, y: 2, type: "wall" },
+      { x: 3, y: 3, type: "wall" },
+    ])
+    const state = makeState({
+      character: {
+        ...makeState().character,
+        class: "rogue",
+        resource: { type: "energy", current: 10, max: 10 },
+        abilities: ["rogue-backstab", "rogue-shadow-step"],
+      },
+      position: { floor: 1, room_id: "f1_r1_test-room", tile: { x: 1, y: 2 } },
+      activeFloor: {
+        rooms: [
+          {
+            id: "f1_r1_test-room",
+            tiles,
+            enemies: [makeEnemy({ id: "enemy-1", position: { x: 5, y: 2 }, hp: 100, hp_max: 100 })],
+            items: [],
+          },
+        ],
+      },
+    })
+
+    const result = resolveTurn(
+      state,
+      { type: "attack", target_id: "enemy-1", ability_id: "rogue-shadow-step" },
+      makeRealm(),
+      new SeededRng(1),
+    )
+    // Player should have moved adjacent to (5, 2)
+    const dx = Math.abs((result.newState.position.tile.x ?? 0) - 5)
+    const dy = Math.abs((result.newState.position.tile.y ?? 0) - 2)
+    expect(dx + dy).toBe(1)
+  })
+})
+
+describe("archer Disengage leap-back", () => {
+  function makeDisengageState(): GameState {
+    return makeState({
+      character: {
+        ...makeState().character,
+        class: "archer",
+        resource: { type: "focus", current: 10, max: 10 },
+        abilities: ["archer-aimed-shot", "archer-disengage"],
+      },
+      // Place player in the middle of an open room, enemy adjacent
+      position: { floor: 1, room_id: "f1_r1_test-room", tile: { x: 4, y: 3 } },
+      activeFloor: {
+        rooms: [
+          {
+            id: "f1_r1_test-room",
+            tiles: makeTiles(10, 7),
+            enemies: [
+              makeEnemy({ id: "enemy-1", position: { x: 5, y: 3 }, hp: 100, hp_max: 100 }),
+            ],
+            items: [],
+          },
+        ],
+      },
+    })
+  }
+
+  it("after Disengage, player is 2 tiles away from the target", () => {
+    const state = makeDisengageState()
+    const targetPos = state.activeFloor.rooms[0]?.enemies[0]?.position ?? { x: 0, y: 0 }
+    const result = resolveTurn(
+      state,
+      { type: "attack", target_id: "enemy-1", ability_id: "archer-disengage" },
+      makeRealm(),
+      new SeededRng(1),
+    )
+    const dx = Math.abs((result.newState.position.tile.x ?? 0) - targetPos.x)
+    const dy = Math.abs((result.newState.position.tile.y ?? 0) - targetPos.y)
+    expect(dx + dy).toBeGreaterThanOrEqual(2)
+  })
+
+  it("Disengage still damages the target before leaping", () => {
+    const state = makeDisengageState()
+    const startHp = state.activeFloor.rooms[0]?.enemies[0]?.hp ?? 0
+    const result = resolveTurn(
+      state,
+      { type: "attack", target_id: "enemy-1", ability_id: "archer-disengage" },
+      makeRealm(),
+      new SeededRng(1),
+    )
+    const endHp = result.newState.activeFloor.rooms[0]?.enemies[0]?.hp ?? 0
+    expect(endHp).toBeLessThan(startHp)
+  })
+})
+
+describe("archer Volley & Rain of Arrows multishot", () => {
+  function makeVolleyState(abilityId: "archer-volley" | "archer-rain-of-arrows" = "archer-volley"): GameState {
+    return makeState({
+      character: {
+        ...makeState().character,
+        class: "archer",
+        resource: { type: "focus", current: 30, max: 30 },
+        abilities: ["archer-aimed-shot", abilityId],
+        // Stock arrows for the shot — archer abilities consume ammo
+      },
+      inventory: [
+        {
+          id: "ammo-stack",
+          template_id: "ammo-arrows-10",
+          name: "Arrows",
+          quantity: 50,
+          modifiers: {},
+          owner_type: "character",
+          owner_id: "player-1",
+          slot: null,
+        },
+      ],
+      activeFloor: {
+        rooms: [
+          {
+            id: "f1_r1_test-room",
+            tiles: makeTiles(10, 7),
+            enemies: [
+              makeEnemy({ id: "enemy-1", position: { x: 4, y: 3 }, hp: 500, hp_max: 500 }),
+              makeEnemy({ id: "enemy-2", position: { x: 5, y: 3 }, hp: 500, hp_max: 500 }),
+            ],
+            items: [],
+          },
+        ],
+      },
+      position: { floor: 1, room_id: "f1_r1_test-room", tile: { x: 1, y: 3 } },
+    })
+  }
+
+  it("Volley fires exactly 2 shots per AoE target", () => {
+    const state = makeVolleyState("archer-volley")
+    const result = resolveTurn(
+      state,
+      { type: "attack", target_id: "enemy-1", ability_id: "archer-volley" },
+      makeRealm(),
+      new SeededRng(1),
+    )
+    // Count attack_hit + attack_miss events tagged to enemy-1 with the volley ability
+    const enemy1Events = result.observation.recent_events.filter(
+      (e) =>
+        (e.type === "attack_hit" || e.type === "attack_miss")
+        && (e.data as Record<string, unknown>)?.["target"] === "enemy-1"
+        && (e.data as Record<string, unknown>)?.["ability_id"] === "archer-volley",
+    )
+    expect(enemy1Events.length).toBe(2)
+  })
+
+  it("Rain of Arrows fires exactly 3 shots per AoE target", () => {
+    const state = makeVolleyState("archer-rain-of-arrows")
+    const result = resolveTurn(
+      state,
+      { type: "attack", target_id: "enemy-1", ability_id: "archer-rain-of-arrows" },
+      makeRealm(),
+      new SeededRng(1),
+    )
+    const enemy1Events = result.observation.recent_events.filter(
+      (e) =>
+        (e.type === "attack_hit" || e.type === "attack_miss")
+        && (e.data as Record<string, unknown>)?.["target"] === "enemy-1"
+        && (e.data as Record<string, unknown>)?.["ability_id"] === "archer-rain-of-arrows",
+    )
+    expect(enemy1Events.length).toBe(3)
+  })
+
+  it("a killing blow stops further shots on the dead target", () => {
+    const state = makeVolleyState("archer-rain-of-arrows")
+    // Drop the target HP very low so the first shot kills it
+    if (state.activeFloor.rooms[0]?.enemies[0]) {
+      state.activeFloor.rooms[0].enemies[0].hp = 1
+    }
+    const result = resolveTurn(
+      state,
+      { type: "attack", target_id: "enemy-1", ability_id: "archer-rain-of-arrows" },
+      makeRealm(),
+      new SeededRng(1),
+    )
+    const enemy1Hits = result.observation.recent_events.filter(
+      (e) =>
+        e.type === "attack_hit"
+        && (e.data as Record<string, unknown>)?.["target"] === "enemy-1"
+        && (e.data as Record<string, unknown>)?.["ability_id"] === "archer-rain-of-arrows",
+    )
+    // At most 1 hit should land on the killed target (the other 2 are skipped)
+    expect(enemy1Hits.length).toBeLessThanOrEqual(1)
+  })
+
+  it("non-multishot AoE abilities still fire once per target (regression)", () => {
+    // Use a mage Frost Nova (aoe, no multishot) as a regression check
+    const state = makeState({
+      character: {
+        ...makeState().character,
+        class: "mage",
+        resource: { type: "mana", current: 30, max: 30 },
+        abilities: ["mage-arcane-bolt", "mage-frost-nova"],
+      },
+      activeFloor: {
+        rooms: [
+          {
+            id: "f1_r1_test-room",
+            tiles: makeTiles(10, 7),
+            enemies: [
+              makeEnemy({ id: "enemy-1", position: { x: 2, y: 1 }, hp: 500, hp_max: 500 }),
+              makeEnemy({ id: "enemy-2", position: { x: 1, y: 2 }, hp: 500, hp_max: 500 }),
+            ],
+            items: [],
+          },
+        ],
+      },
+    })
+
+    const result = resolveTurn(
+      state,
+      { type: "attack", target_id: "enemy-1", ability_id: "mage-frost-nova" },
+      makeRealm(),
+      new SeededRng(1),
+    )
+    const enemy1Events = result.observation.recent_events.filter(
+      (e) =>
+        (e.type === "attack_hit" || e.type === "attack_miss")
+        && (e.data as Record<string, unknown>)?.["target"] === "enemy-1"
+        && (e.data as Record<string, unknown>)?.["ability_id"] === "mage-frost-nova",
+    )
+    expect(enemy1Events.length).toBe(1)
+  })
+})

@@ -305,13 +305,13 @@ export function DungeonView({
                   {room_text ?? "\u00A0"}
                 </p>
 
-                {/* Recent events — fixed-height slot so vertical layout
-                    around it stays stable. Last two events shown; older
-                    ones are in the dungeon feed side panel. */}
-                <div className="mt-3 border-t border-white/5 pt-2 min-h-[5.5rem]">
+                {/* Recent events — scrollable slot showing the last 6 events
+                    so multi-hit AoEs, status ticks, and counter-attacks don't
+                    scroll off the screen before the player can read them. */}
+                <div className="mt-3 border-t border-white/5 pt-2 min-h-[5.5rem] max-h-[14rem] overflow-y-auto">
                   <div className="text-[10px] text-aw-outline uppercase tracking-[0.2em] mb-1">RECENT_EVENTS</div>
                   {recent_events.length > 0 ? (
-                    recent_events.slice(-2).map((e, i, arr) => (
+                    recent_events.slice(-6).map((e, i, arr) => (
                       <div
                         key={`${e.turn}-${i}`}
                         className={`text-xs rounded border px-2 py-1 mb-1 ${

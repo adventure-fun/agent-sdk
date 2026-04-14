@@ -138,6 +138,138 @@ function hasEffect(
   return effects.some((effect) => effect.type === type)
 }
 
+function hasPlayerEffect(s: GameState, type: ActiveEffect["type"]): boolean {
+  return hasEffect(s.character.buffs, type) || hasEffect(s.character.debuffs, type)
+}
+
+function isWalkable(
+  room: RoomState,
+  x: number,
+  y: number,
+  opts?: { allowEnemyOccupied?: boolean },
+): boolean {
+  const tile = room.tiles[y]?.[x]
+  if (!tile || tile.type === "wall") return false
+  if (!opts?.allowEnemyOccupied) {
+    const occupied = room.enemies.some(
+      (e) => e.hp > 0 && e.position.x === x && e.position.y === y,
+    )
+    if (occupied) return false
+  }
+  return true
+}
+
+function getWalkableTilesAtDistance(
+  room: RoomState,
+  center: { x: number; y: number },
+  distance: number,
+): Array<{ x: number; y: number }> {
+  const candidates: Array<{ x: number; y: number }> = []
+  for (let dx = -distance; dx <= distance; dx++) {
+    for (let dy = -distance; dy <= distance; dy++) {
+      if (Math.abs(dx) + Math.abs(dy) !== distance) continue
+      const tx = center.x + dx
+      const ty = center.y + dy
+      if (isWalkable(room, tx, ty)) candidates.push({ x: tx, y: ty })
+    }
+  }
+  return candidates
+}
+
+/**
+ * Per-target attack pipeline factored out of resolvePlayerAttack so the same
+ * combat math can be invoked from passive triggers (Riposte counter), targeted
+ * teleports (Shadow Step), and multi-shot loops (Volley) without duplicating
+ * the defense-modifier / piercing-shot / damage-multiplier handling.
+ *
+ * Mutates target.hp and target.effects on hit. Does NOT push any events or
+ * call handleEnemyDefeat — the caller decides how to narrate the hit and
+ * whether a killed target should fire defeat handling.
+ */
+function resolveSingleAttack(
+  s: GameState,
+  target: RoomState["enemies"][number],
+  ability: AbilityTemplate,
+  rng: SeededRng,
+  preTurnDebuffs: ActiveEffect[],
+  options?: { ignoreDefense?: boolean; damageMultiplier?: number },
+): {
+  hit: boolean
+  damage: number
+  critical: boolean
+  killed: boolean
+  enemyTemplate: ReturnType<typeof getEnemySafe>
+} {
+  const enemyTemplate = getEnemySafe(target.template_id)
+  if (!enemyTemplate) {
+    console.warn(`[resolveSingleAttack] Skipping target with unknown template "${target.template_id}" (id=${target.id})`)
+    target.hp = 0
+    return { hit: false, damage: 0, critical: false, killed: true, enemyTemplate: null }
+  }
+
+  // Death Mark is consumed by the NEXT attack on the marked target — the
+  // cast itself (`mark-target`) never triggers consumption, even if the
+  // same target somehow already carries a mark from a prior cast.
+  const isMarked =
+    ability.special !== "mark-target"
+    && target.effects.some(
+      (e) => e.type === "death-mark" && e.turns_remaining > 0,
+    )
+
+  const baseDefense = enemyTemplate.stats.defense
+  const ignoreDefense =
+    !!options?.ignoreDefense || ability.special === "piercing-shot" || isMarked
+  const effectiveDefense = ignoreDefense
+    ? 0
+    : target.defense_modifier !== undefined
+      ? Math.max(0, Math.floor(baseDefense * (1 + target.defense_modifier)))
+      : baseDefense
+  const defenderStats = { ...enemyTemplate.stats, defense: effectiveDefense }
+
+  const combatResult = resolveAttack(
+    {
+      id: s.character.id,
+      stats: s.character.effective_stats,
+      hp: s.character.hp.current,
+      active_effects: getCombinedEffects(s.character.buffs, preTurnDebuffs),
+    },
+    {
+      id: target.id,
+      stats: defenderStats,
+      hp: target.hp,
+      active_effects: target.effects,
+    },
+    rng,
+    getAbilityDamageFormula(ability),
+    ability.effects,
+  )
+
+  if (!combatResult.hit) {
+    return { hit: false, damage: 0, critical: false, killed: false, enemyTemplate }
+  }
+
+  const multiplier = (options?.damageMultiplier ?? 1) * (isMarked ? 2 : 1)
+  const finalDamage = multiplier === 1
+    ? combatResult.damage
+    : Math.max(1, Math.floor(combatResult.damage * multiplier))
+
+  target.hp = target.hp - finalDamage
+  target.effects.push(...combatResult.effects_applied)
+
+  // Consume the Death Mark on the first hit that benefits from it.
+  if (isMarked) {
+    target.effects = target.effects.filter((e) => e.type !== "death-mark")
+  }
+
+  return {
+    hit: true,
+    damage: finalDamage,
+    critical: combatResult.critical,
+    killed: target.hp <= 0,
+    enemyTemplate,
+  }
+}
+
 function getCombinedEffects(
   ...effectLists: Array<ActiveEffect[] | undefined>
 ): ActiveEffect[] {
@@ -1002,7 +1134,47 @@ function resolvePlayerAttack(
     return { summary: "No valid target.", notableEvent: null, regenBonusEligible: false }
   }
 
-  if (!isAbilityTargetInRange(room, s.position.tile, enemy.position, ability)) {
+  // Shadow Step: bypasses LOS (it's a teleport) and pre-selects a landing
+  // tile adjacent to the target. We do all validation BEFORE resource /
+  // cooldown deduction so failures don't waste the ability.
+  let teleportLanding: { x: number; y: number } | null = null
+  if (ability.special === "teleport-attack") {
+    const range = typeof ability.range === "number" ? ability.range : 1
+    if (getAbilityRangeDistance(s.position.tile, enemy.position) > range) {
+      return {
+        summary: "Target is out of range.",
+        notableEvent: null,
+        regenBonusEligible: false,
+      }
+    }
+    if (getAbilityRangeDistance(s.position.tile, enemy.position) > 1) {
+      const candidates = getWalkableTilesAtDistance(room, enemy.position, 1)
+      if (candidates.length === 0) {
+        return {
+          summary: "No room to land near the target.",
+          notableEvent: null,
+          regenBonusEligible: false,
+        }
+      }
+      // Kiting bias: prefer landing tiles farthest from any other live enemy.
+      let bestScore = -Infinity
+      let best: Array<{ x: number; y: number }> = []
+      for (const c of candidates) {
+        let score = 0
+        for (const e of room.enemies) {
+          if (e.id === enemy.id || e.hp <= 0) continue
+          score += getAbilityRangeDistance(c, e.position)
+        }
+        if (score > bestScore) {
+          bestScore = score
+          best = [c]
+        } else if (score === bestScore) {
+          best.push(c)
+        }
+      }
+      teleportLanding = best[rng.nextInt(0, best.length - 1)] ?? null
+    }
+  } else if (!isAbilityTargetInRange(room, s.position.tile, enemy.position, ability)) {
     return {
       summary: "Target is out of range.",
       notableEvent: null,
@@ -1014,6 +1186,10 @@ function resolvePlayerAttack(
   if (abilityRequiresAmmo(s, ability)) consumeAmmo(s)
   if (ability.cooldown_turns > 0) {
     s.character.cooldowns[ability.id] = ability.cooldown_turns
+  }
+
+  if (teleportLanding) {
+    s.position.tile = teleportLanding
   }
 
   if (ability.special === "self-damage-20pct") {
@@ -1037,96 +1213,119 @@ function resolvePlayerAttack(
   let notableEvent: LobbyEvent | null = null
   let anyHit = false
 
+  // Multishot abilities (Volley, Rain of Arrows) fire multiple independent
+  // attack rolls per AoE target. Each shot is a fresh resolveSingleAttack
+  // call with its own crit and on-hit-effect roll. A killing blow on shot
+  // N short-circuits subsequent shots on that target.
+  const shotsPerTarget =
+    ability.special === "multishot"
+      ? ability.id === "archer-rain-of-arrows"
+        ? 3
+        : 2
+      : 1
+
   for (const target of targets) {
-    const enemyTemplate = getEnemySafe(target.template_id)
-    if (!enemyTemplate) {
-      console.warn(`[resolveAbility] Skipping target with unknown template "${target.template_id}" (id=${target.id})`)
-      target.hp = 0
-      continue
-    }
-    const baseDefense = enemyTemplate.stats.defense
-    const effectiveDefense =
-      ability.special === "piercing-shot"
-        ? 0
-        : target.defense_modifier !== undefined
-          ? Math.max(0, Math.floor(baseDefense * (1 + target.defense_modifier)))
-          : baseDefense
-    const defenderStats = { ...enemyTemplate.stats, defense: effectiveDefense }
-    const combatResult = resolveAttack(
-      {
-        id: s.character.id,
-        stats: s.character.effective_stats,
-        hp: s.character.hp.current,
-        active_effects: getCombinedEffects(s.character.buffs, preTurnDebuffs),
-      },
-      {
-        id: target.id,
-        stats: defenderStats,
-        hp: target.hp,
-        active_effects: target.effects,
-      },
-      rng,
-      getAbilityDamageFormula(ability),
-      ability.effects,
-    )
+    for (let shot = 0; shot < shotsPerTarget; shot++) {
+      if (target.hp <= 0) break
 
-    target.hp = combatResult.defender_hp_after
+      const r = resolveSingleAttack(s, target, ability, rng, preTurnDebuffs)
+      if (!r.enemyTemplate) break
 
-    if (!combatResult.hit) {
-      parts.push(`${ability.name} misses ${enemyTemplate.name}.`)
+      if (!r.hit) {
+        parts.push(`${ability.name} misses ${r.enemyTemplate.name}.`)
+        events.push({
+          turn: 0,
+          type: "attack_miss",
+          detail: `${ability.name} misses ${r.enemyTemplate.name}.`,
+          data: { target: target.id, ability_id: ability.id },
+        })
+        continue
+      }
+
+      anyHit = true
+      if (ability.special === "restore-resource-on-hit") {
+        s.character.resource.current = applyHeal(
+          s.character.resource.current,
+          s.character.resource.max,
+          8,
+        )
+      }
+      if (ability.special === "mark-target") {
+        target.effects.push({ type: "death-mark", turns_remaining: 5, magnitude: 0 })
+        parts.push(`A lethal sigil burns onto ${r.enemyTemplate.name}.`)
+      }
+
+      const critText = r.critical ? " Critical hit!" : ""
+      parts.push(
+        `${ability.name} deals ${r.damage} damage to ${r.enemyTemplate.name}.${critText}`,
+      )
       events.push({
         turn: 0,
-        type: "attack_miss",
-        detail: `${ability.name} misses ${enemyTemplate.name}.`,
-        data: { target: target.id, ability_id: ability.id },
+        type: "attack_hit",
+        detail: `${ability.name} hit ${r.enemyTemplate.name} for ${r.damage}.${critText}`.trim(),
+        data: {
+          target: target.id,
+          ability_id: ability.id,
+          damage: r.damage,
+          critical: r.critical,
+          defender_hp: target.hp,
+        },
       })
-      continue
-    }
 
-    anyHit = true
-    target.effects.push(...combatResult.effects_applied)
-    if (ability.special === "restore-resource-on-hit") {
-      s.character.resource.current = applyHeal(
-        s.character.resource.current,
-        s.character.resource.max,
-        8,
-      )
-    }
-
-    const critText = combatResult.critical ? " Critical hit!" : ""
-    parts.push(
-      `${ability.name} deals ${combatResult.damage} damage to ${enemyTemplate.name}.${critText}`,
-    )
-    events.push({
-      turn: 0,
-      type: "attack_hit",
-      detail: `${ability.name} hit ${enemyTemplate.name} for ${combatResult.damage}.${critText}`.trim(),
-      data: {
-        target: target.id,
-        ability_id: ability.id,
-        damage: combatResult.damage,
-        critical: combatResult.critical,
-        defender_hp: target.hp,
-      },
-    })
-
-    if (target.hp <= 0) {
-      const killResult = handleEnemyDefeat(
-        s,
-        room,
-        realm,
-        target,
-        enemyTemplate,
-        mutations,
-        events,
-      )
-      notableEvent = killResult.notableEvent ?? notableEvent
-      parts.push(`The ${enemyTemplate.name} is defeated!`)
+      if (r.killed) {
+        const killResult = handleEnemyDefeat(
+          s,
+          room,
+          realm,
+          target,
+          r.enemyTemplate,
+          mutations,
+          events,
+        )
+        notableEvent = killResult.notableEvent ?? notableEvent
+        parts.push(`The ${r.enemyTemplate.name} is defeated!`)
+        break
+      }
     }
   }
 
   if (!anyHit && parts.length === 0) {
     parts.push(`${ability.name} fails to connect.`)
+  }
+
+  // Disengage: after the attack resolves (hit or miss), the player leaps
+  // 2 tiles away from the target. Falls back to distance 1 if no valid
+  // 2-distance tile exists; if even that fails, the leap is skipped but
+  // the attack still counts.
+  if (ability.special === "disengage") {
+    let candidates = getWalkableTilesAtDistance(room, enemy.position, 2)
+    if (candidates.length === 0) candidates = getWalkableTilesAtDistance(room, enemy.position, 1)
+    if (candidates.length > 0) {
+      // Same kiting bias as Shadow Step.
+      let bestScore = -Infinity
+      let best: Array<{ x: number; y: number }> = []
+      for (const c of candidates) {
+        let score = 0
+        for (const e of room.enemies) {
+          if (e.id === enemy.id || e.hp <= 0) continue
+          score += getAbilityRangeDistance(c, e.position)
+        }
+        if (score > bestScore) {
+          bestScore = score
+          best = [c]
+        } else if (score === bestScore) {
+          best.push(c)
+        }
+      }
+      const landing = best[rng.nextInt(0, best.length - 1)]
+      if (landing) {
+        s.position.tile = landing
+        const enemyName = (() => {
+          try { return getEnemy(enemy.template_id).name } catch { return "the enemy" }
+        })()
+        parts.push(`You leap away from ${enemyName}.`)
+      }
+    }
   }
 
   recalcStats(s)
@@ -1190,10 +1389,16 @@ function applyAbilityToPlayerSelf(
       parts.push("A stable portal briefly opens nearby.")
       break
     case "reveal-room-enemies":
-      parts.push("Arcane sight sharpens your awareness.")
+      s.character.buffs.push({ type: "arcane-sight", turns_remaining: 3, magnitude: 0 })
+      parts.push("Arcane sight sharpens your awareness of the room.")
       break
     case "stealth":
-      parts.push("You vanish into the shadows.")
+      s.character.buffs.push({ type: "stealth", turns_remaining: 1, magnitude: 0 })
+      parts.push("You fade into the shadows.")
+      break
+    case "counter-on-hit":
+      s.character.buffs.push({ type: "riposte-stance", turns_remaining: 1, magnitude: 0 })
+      parts.push("You take a defensive stance, ready to counter.")
       break
     case "heal-self":
       s.character.hp.current = applyHeal(
@@ -1423,6 +1628,23 @@ function resolveEnemyTurns(
         isAbilityTargetInRange(room, enemy.position, s.position.tile, ability)
       : false
 
+    // Vanish: if the player is stealthed, enemies can still self-buff but
+    // cannot pick the player as a target. They lose sight for the turn.
+    if (
+      ability
+      && normalizeAbilityTarget(ability.target) !== "self"
+      && hasPlayerEffect(s, "stealth")
+    ) {
+      parts.push(`${template.name} loses sight of you.`)
+      events.push({
+        turn: 0,
+        type: "enemy_miss",
+        detail: `${template.name} cannot find you.`,
+        data: { enemy_id: enemy.id, reason: "stealth" },
+      })
+      continue
+    }
+
     if (!ability || !inRange) {
       if (hasEffect(preTurnEffects, "slow")) {
         parts.push(`${template.name} struggles to move while slowed.`)
@@ -1504,6 +1726,57 @@ function resolveEnemyTurns(
     if (s.character.hp.current <= 0) {
       killedBy = template.name
       break
+    }
+
+    // Riposte counter-attack: if the player is in a counter-attack stance
+    // and the enemy is still alive, automatically strike back. The stance
+    // is NOT consumed per-counter — every enemy that hits the player while
+    // it's active eats a counter, until the stance expires at the start of
+    // the next player turn via processStatusEffects.
+    if (hasPlayerEffect(s, "riposte-stance") && enemy.hp > 0) {
+      let riposteAbility: AbilityTemplate | null = null
+      try {
+        riposteAbility = getAbility("knight-riposte")
+      } catch { /* ability not loaded — skip */ }
+      if (riposteAbility) {
+        const counter = resolveSingleAttack(s, enemy, riposteAbility, rng, [])
+        if (counter.hit && counter.enemyTemplate) {
+          const counterCrit = counter.critical ? " Critical hit!" : ""
+          parts.push(
+            `You counter ${counter.enemyTemplate.name} for ${counter.damage} damage.${counterCrit}`,
+          )
+          events.push({
+            turn: 0,
+            type: "attack_hit",
+            detail: `Riposte counter dealt ${counter.damage} to ${counter.enemyTemplate.name}.${counterCrit}`.trim(),
+            data: {
+              ability_id: "knight-riposte",
+              target: enemy.id,
+              damage: counter.damage,
+              critical: counter.critical,
+              source: "riposte",
+            },
+          })
+          if (counter.killed) {
+            const killResult = handleEnemyDefeat(
+              s,
+              room,
+              realm,
+              enemy,
+              counter.enemyTemplate,
+              mutations,
+              events,
+            )
+            if (killResult.notableEvent) {
+              // Riposte kills don't bubble up notableEvents from inside
+              // resolveEnemyTurns — record a generic kill line for now.
+              parts.push(`The ${counter.enemyTemplate.name} is defeated by your counter!`)
+            } else {
+              parts.push(`The ${counter.enemyTemplate.name} falls to your counter!`)
+            }
+          }
+        }
+      }
     }
   }
 
@@ -2927,11 +3200,12 @@ export function buildObservationFromState(
   }
 
   // Visible entities
+  const arcaneSightActive = hasPlayerEffect(state, "arcane-sight")
   const visibleEntities: Entity[] = []
   if (room) {
     for (const enemy of room.enemies) {
       if (enemy.hp <= 0) continue
-      if (!visibleSet.has(tileKey(enemy.position))) continue
+      if (!arcaneSightActive && !visibleSet.has(tileKey(enemy.position))) continue
       const template = tryGetEnemy(enemy.template_id)
       visibleEntities.push({
         id: enemy.id,

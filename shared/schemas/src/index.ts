@@ -26,6 +26,10 @@ export type StatusEffectType =
   | "blind"
   | "buff-attack"
   | "buff-defense"
+  | "riposte-stance"
+  | "stealth"
+  | "death-mark"
+  | "arcane-sight"
 
 export interface StatusEffect {
   type: StatusEffectType
