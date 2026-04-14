@@ -20,6 +20,7 @@ async function importFreshLobbyRoutes(
   }))
   mock.module("../src/game/active-sessions.js", () => ({
     hasActiveSession: () => options?.activeSession ?? false,
+    hasLockedRealm: async () => options?.activeSession ?? false,
     getActiveSession: () => undefined,
     registerActiveSession: () => {},
     unregisterActiveSession: () => {},

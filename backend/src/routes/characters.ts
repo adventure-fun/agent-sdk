@@ -1,6 +1,7 @@
 import { Hono } from "hono"
 import { db } from "../db/client.js"
 import { requireAuth } from "../auth/middleware.js"
+import { hasLockedRealm } from "../game/active-sessions.js"
 import { rollStats, rerollStats, getResourceMax } from "../game/stats.js"
 import { validatePerkAllocation, validateSkillAllocation } from "../game/skill-tree.js"
 import { CLASSES, PERK_LIST, SKILL_TREES } from "@adventure-fun/engine"
@@ -122,6 +123,22 @@ characters.post("/reroll-stats", requireAuth, async (c) => {
   if (character.stat_rerolled) {
     return c.json({ error: "Stats already rerolled. Once per character." }, 409)
   }
+  if (await hasLockedRealm(character.id)) {
+    return c.json({ error: "Leave the dungeon before re-rolling stats." }, 409)
+  }
+  // Reroll is only available before the character has entered any realm.
+  // "generated" means a realm was created but never played; any other status
+  // means the player has committed to their stats.
+  const { data: enteredRealms, error: enteredErr } = await db
+    .from("realm_instances")
+    .select("id")
+    .eq("character_id", character.id)
+    .neq("status", "generated")
+    .limit(1)
+  if (enteredErr) return c.json({ error: enteredErr.message }, 500)
+  if (enteredRealms && enteredRealms.length > 0) {
+    return c.json({ error: "Re-rolling is only available before your first run." }, 409)
+  }
 
   const networks = getRequestedNetworks(c)
   const settledPayment = await verifyAndSettle(c, "stat_reroll", networks)
@@ -207,6 +224,9 @@ characters.post("/skill", requireAuth, async (c) => {
 
   if (fetchErr) return c.json({ error: fetchErr.message }, 500)
   if (!character) return c.json({ error: "No living character" }, 404)
+  if (await hasLockedRealm(character.id)) {
+    return c.json({ error: "Leave the dungeon before spending skill points." }, 409)
+  }
 
   const body = await c.req.json<{ node_id: string }>()
   if (!body.node_id || typeof body.node_id !== "string") {
@@ -250,6 +270,9 @@ characters.post("/perk", requireAuth, async (c) => {
 
   if (fetchErr) return c.json({ error: fetchErr.message }, 500)
   if (!character) return c.json({ error: "No living character" }, 404)
+  if (await hasLockedRealm(character.id)) {
+    return c.json({ error: "Leave the dungeon before allocating perks." }, 409)
+  }
 
   const body = await c.req.json<{ perk_id: string }>()
   if (!body.perk_id || typeof body.perk_id !== "string") {

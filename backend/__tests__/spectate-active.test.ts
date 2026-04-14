@@ -90,6 +90,7 @@ describe("spectate — active session listing", () => {
     mock.module("../src/game/active-sessions.js", () => ({
       listSpectatableSessions: () => [row],
       hasActiveSession: () => false,
+      hasLockedRealm: async () => false,
       getActiveSession: () => undefined,
       registerActiveSession: () => {},
       unregisterActiveSession: () => {},
