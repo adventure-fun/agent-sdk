@@ -59,6 +59,14 @@ interface CharacterDetail {
       evasion: number
       speed: number
     }
+    effective_stats?: {
+      hp: number
+      attack: number
+      defense: number
+      accuracy: number
+      evasion: number
+      speed: number
+    }
     skill_tree: Record<string, boolean>
     perks: Record<string, number>
     status: "alive" | "dead"
@@ -167,12 +175,13 @@ export default function CharacterPage({ params }: { params: Promise<{ id: string
   const displayName = characterDisplayName(character.name, owner)
   const profileHref = ownerProfileHref(owner)
 
+  const statSource = character.effective_stats ?? character.stats
   const statRows: Array<{ label: string; value: number }> = [
-    { label: "ATK", value: character.stats.attack },
-    { label: "DEF", value: character.stats.defense },
-    { label: "ACC", value: character.stats.accuracy },
-    { label: "EVA", value: character.stats.evasion },
-    { label: "SPD", value: character.stats.speed },
+    { label: "ATK", value: statSource.attack },
+    { label: "DEF", value: statSource.defense },
+    { label: "ACC", value: statSource.accuracy },
+    { label: "EVA", value: statSource.evasion },
+    { label: "SPD", value: statSource.speed },
   ]
 
   // Join the shared perk pool template against the character's unlocked

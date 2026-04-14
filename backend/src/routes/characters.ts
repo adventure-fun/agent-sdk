@@ -3,16 +3,20 @@ import { db } from "../db/client.js"
 import { requireAuth } from "../auth/middleware.js"
 import { rollStats, rerollStats, getResourceMax } from "../game/stats.js"
 import { validatePerkAllocation, validateSkillAllocation } from "../game/skill-tree.js"
-import { CLASSES, PERK_LIST, SKILL_TREES, getItem } from "@adventure-fun/engine"
+import { CLASSES, PERK_LIST, SKILL_TREES } from "@adventure-fun/engine"
 import {
   computePerkPointsRemaining,
   computeTierChoicesAvailable,
   xpForLevel,
   xpToNextLevel,
 } from "@adventure-fun/engine"
-import type { CharacterClass } from "@adventure-fun/schemas"
+import type { CharacterClass, CharacterStats } from "@adventure-fun/schemas"
 import { getRequestedNetworks, logPayment, return402, verifyAndSettle } from "../payments/x402.js"
-import { computePerkHpBonus } from "./lobby-helpers.js"
+import {
+  computeEquipmentStatBonuses,
+  computePerkStatBonuses,
+  type LobbyInventoryRecord,
+} from "./lobby-helpers.js"
 
 const characters = new Hono()
 
@@ -353,16 +357,35 @@ characters.get("/public/:id", async (c) => {
     .eq("character_id", id)
     .maybeSingle()
 
-  // Effective max HP = base hp_max + equipped item HP + perk HP bonuses.
-  // hp_max in DB is the base value; equipment and perks layer on top so
-  // every page sees the same cap the realm-gameplay path uses.
-  let equipHpBonus = 0
-  for (const row of inventoryRows ?? []) {
-    if (!row.slot) continue
-    try { equipHpBonus += getItem(row.template_id).stats?.hp ?? 0 } catch { /* skip */ }
+  // Effective stats = base stats + equipped-item bonuses + perk bonuses for
+  // all 6 stats (hp, attack, defense, accuracy, evasion, speed). hp_max in
+  // DB is the base value; equipment and perks layer on top so every page
+  // sees the same caps the realm-gameplay path uses. hp_max_effective is
+  // kept as a parallel field so HP-bar consumers don't need to read into
+  // effective_stats.hp.
+  const equipBonuses = computeEquipmentStatBonuses(
+    (inventoryRows ?? []) as LobbyInventoryRecord[],
+  )
+  const perkBonuses = computePerkStatBonuses(
+    character.perks as Record<string, number> | null,
+  )
+  const baseStats = (character.stats as CharacterStats) ?? {
+    hp: character.hp_max,
+    attack: 0,
+    defense: 0,
+    accuracy: 0,
+    evasion: 0,
+    speed: 0,
   }
-  const perkHpBonus = computePerkHpBonus(character.perks as Record<string, number> | null)
-  const hpMaxEffective = character.hp_max + equipHpBonus + perkHpBonus
+  const effectiveStats: CharacterStats = {
+    hp: character.hp_max + equipBonuses.hp + perkBonuses.hp,
+    attack: baseStats.attack + equipBonuses.attack + perkBonuses.attack,
+    defense: baseStats.defense + equipBonuses.defense + perkBonuses.defense,
+    accuracy: baseStats.accuracy + equipBonuses.accuracy + perkBonuses.accuracy,
+    evasion: baseStats.evasion + equipBonuses.evasion + perkBonuses.evasion,
+    speed: baseStats.speed + equipBonuses.speed + perkBonuses.speed,
+  }
+  const hpMaxEffective = effectiveStats.hp
 
   return c.json({
     character: {
@@ -378,6 +401,7 @@ characters.get("/public/:id", async (c) => {
       resource_current: character.resource_current,
       resource_max: character.resource_max,
       stats: character.stats,
+      effective_stats: effectiveStats,
       skill_tree: character.skill_tree,
       perks: character.perks,
       status: character.status,

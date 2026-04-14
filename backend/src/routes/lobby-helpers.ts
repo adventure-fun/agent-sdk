@@ -274,16 +274,61 @@ export function computeEquipmentHpBonus(inventoryRows: LobbyInventoryRecord[]): 
   return bonus
 }
 
-export function computePerkHpBonus(perks: Record<string, number> | null | undefined): number {
-  if (!perks) return 0
-  let bonus = 0
+export type StatBonusKey = "hp" | "attack" | "defense" | "accuracy" | "evasion" | "speed"
+
+export type StatBonuses = Record<StatBonusKey, number>
+
+const EMPTY_STAT_BONUSES = (): StatBonuses => ({
+  hp: 0,
+  attack: 0,
+  defense: 0,
+  accuracy: 0,
+  evasion: 0,
+  speed: 0,
+})
+
+const STAT_KEYS: ReadonlySet<string> = new Set([
+  "hp",
+  "attack",
+  "defense",
+  "accuracy",
+  "evasion",
+  "speed",
+])
+
+export function computePerkStatBonuses(
+  perks: Record<string, number> | null | undefined,
+): StatBonuses {
+  const bonuses = EMPTY_STAT_BONUSES()
+  if (!perks) return bonuses
   for (const [perkId, stacks] of Object.entries(perks)) {
     if (stacks <= 0) continue
     const perk = PERKS[perkId]
-    if (!perk || perk.stat !== "hp") continue
-    bonus += perk.value_per_stack * stacks
+    if (!perk || !STAT_KEYS.has(perk.stat)) continue
+    bonuses[perk.stat as StatBonusKey] += perk.value_per_stack * stacks
   }
-  return bonus
+  return bonuses
+}
+
+export function computeEquipmentStatBonuses(inventoryRows: LobbyInventoryRecord[]): StatBonuses {
+  const bonuses = EMPTY_STAT_BONUSES()
+  for (const row of inventoryRows) {
+    if (!row.slot) continue
+    try {
+      const template = getItem(row.template_id)
+      const stats = template.stats
+      if (!stats) continue
+      for (const key of Object.keys(bonuses) as StatBonusKey[]) {
+        const value = stats[key]
+        if (typeof value === "number") bonuses[key] += value
+      }
+    } catch { /* skip */ }
+  }
+  return bonuses
+}
+
+export function computePerkHpBonus(perks: Record<string, number> | null | undefined): number {
+  return computePerkStatBonuses(perks).hp
 }
 
 export function computeEffectiveHpMax(
