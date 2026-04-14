@@ -48,6 +48,75 @@ export default function SpectatePage({ params }: Props) {
   const retryCountRef = useRef(0)
   const endedReasonRef = useRef<string | null>(null)
 
+  // Draggable splitter between the dungeon feed (left) and chat tabs
+  // (right) at the bottom of the spectate view. Stored as a percentage
+  // of the container width — viewport-independent so users who switch
+  // between laptop and external monitor don't get a layout that drifts.
+  // Clamped 15–85 so neither panel can ever be squeezed to nothing.
+  // Desktop-only: on mobile the layout stacks vertically and the drag
+  // handle is not rendered.
+  const FEED_SPLIT_KEY = "adventure_spectate_feed_split"
+  const FEED_SPLIT_MIN = 15
+  const FEED_SPLIT_MAX = 85
+  const [feedSplit, setFeedSplit] = useState(50)
+  const feedRowRef = useRef<HTMLDivElement>(null)
+  const draggingRef = useRef(false)
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const raw = window.localStorage.getItem(FEED_SPLIT_KEY)
+    if (!raw) return
+    const parsed = Number(raw)
+    if (Number.isFinite(parsed) && parsed >= FEED_SPLIT_MIN && parsed <= FEED_SPLIT_MAX) {
+      setFeedSplit(parsed)
+    }
+  }, [])
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!draggingRef.current) return
+      const row = feedRowRef.current
+      if (!row) return
+      const rect = row.getBoundingClientRect()
+      const pct = ((e.clientX - rect.left) / rect.width) * 100
+      const clamped = Math.min(FEED_SPLIT_MAX, Math.max(FEED_SPLIT_MIN, pct))
+      setFeedSplit(clamped)
+    }
+    const onUp = () => {
+      if (!draggingRef.current) return
+      draggingRef.current = false
+      document.body.style.cursor = ""
+      document.body.style.userSelect = ""
+      // Persist the last-known value. We read it from a ref-free
+      // closure by falling back to the DOM's computed basis; the
+      // simpler approach is to write directly from setFeedSplit's
+      // callback on the next tick via a read from state. Since we
+      // already setState inside onMove, we can just commit whatever
+      // the latest render shows by reading from the current DOM.
+      const row = feedRowRef.current
+      if (row) {
+        const left = row.querySelector<HTMLDivElement>("[data-feed-left]")
+        if (left) {
+          const pct = (left.getBoundingClientRect().width / row.getBoundingClientRect().width) * 100
+          window.localStorage.setItem(FEED_SPLIT_KEY, String(Math.round(pct)))
+        }
+      }
+    }
+    window.addEventListener("mousemove", onMove)
+    window.addEventListener("mouseup", onUp)
+    return () => {
+      window.removeEventListener("mousemove", onMove)
+      window.removeEventListener("mouseup", onUp)
+    }
+  }, [])
+
+  const beginDragSplit = (e: React.MouseEvent) => {
+    e.preventDefault()
+    draggingRef.current = true
+    document.body.style.cursor = "col-resize"
+    document.body.style.userSelect = "none"
+  }
+
   // Active live runs for the left sidebar. Was previously sourced from
   // the top-5 XP leaderboard (filtered alive-only) but that was still
   // showing characters you couldn't actually click to spectate. Now
@@ -568,15 +637,24 @@ export default function SpectatePage({ params }: Props) {
           </div>
         )}
 
-        {/* Bottom feeds: dungeon events + chat tabs */}
-        {/* On mobile we stack these vertically so neither is cramped.
-            The chat panel becomes the primary surface (most likely use)
-            and the dungeon feed collapses to a smaller fixed-height block
-            on top so chat still gets meaningful space. */}
-        <div className="grid grid-cols-1 md:grid-cols-2 md:h-72 bg-ob-surface-container-low border-t border-ob-outline-variant/15 shrink-0">
+        {/* Bottom feeds: dungeon events + chat tabs.
+            On mobile we stack vertically so neither is cramped. On
+            desktop (md+) we lay them side-by-side with a draggable
+            vertical splitter between them — the user picks whichever
+            ratio they prefer and the value is persisted to
+            localStorage. Mobile keeps the old fixed-height stack
+            because there's no vertical splitter to drag. */}
+        <div
+          ref={feedRowRef}
+          className="flex flex-col md:flex-row md:h-72 bg-ob-surface-container-low border-t border-ob-outline-variant/15 shrink-0"
+        >
 
           {/* Dungeon Feed */}
-          <div className="h-40 md:h-auto p-4 border-b md:border-b-0 md:border-r border-ob-outline-variant/15 overflow-y-auto ob-scrollbar">
+          <div
+            data-feed-left
+            style={{ flexBasis: `${feedSplit}%` }}
+            className="h-40 md:h-auto md:flex-none md:min-w-0 p-4 border-b md:border-b-0 border-ob-outline-variant/15 overflow-y-auto ob-scrollbar"
+          >
             <h4 className="ob-label text-[10px] text-ob-on-surface-variant tracking-widest mb-3 flex items-center gap-2 uppercase">
               <span className="w-1.5 h-1.5 bg-ob-secondary rounded-full" />
               DUNGEON FEED
@@ -605,8 +683,28 @@ export default function SpectatePage({ params }: Props) {
             </div>
           </div>
 
-          {/* Chat tabs (global + per-player) */}
-          <div className="h-80 md:h-auto min-h-0">
+          {/* Draggable splitter. Hidden on mobile (below md) because the
+              layout stacks vertically there. role="separator" +
+              aria-orientation exposes it to assistive tech; aria-valuenow
+              reflects the current split so screen readers see a number. */}
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-valuenow={Math.round(feedSplit)}
+            aria-valuemin={FEED_SPLIT_MIN}
+            aria-valuemax={FEED_SPLIT_MAX}
+            onMouseDown={beginDragSplit}
+            className="hidden md:flex w-1.5 items-center justify-center cursor-col-resize group bg-ob-outline-variant/15 hover:bg-ob-primary/40 transition-colors"
+            title="Drag to resize"
+          >
+            <div className="w-0.5 h-8 bg-ob-outline-variant/40 group-hover:bg-ob-primary/80 transition-colors" />
+          </div>
+
+          {/* Chat tabs (global + per-player). flex-1 makes it absorb
+              whatever's left after the dungeon feed's basis, so the
+              splitter drag feels natural: growing one side shrinks
+              the other. */}
+          <div className="h-80 md:h-auto md:flex-1 md:min-w-0 min-h-0">
             <ChatTabs characterId={characterId} characterName={charName} />
           </div>
         </div>
