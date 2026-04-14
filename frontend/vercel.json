@@ -3,5 +3,6 @@
   "framework": "nextjs",
   "buildCommand": "cd .. && bun run build --filter=@adventure-fun/web",
   "outputDirectory": ".next",
-  "installCommand": "cd .. && bun install"
+  "installCommand": "cd .. && bun install",
+  "ignoreCommand": "cd .. && bunx turbo-ignore @adventure-fun/web"
 }
