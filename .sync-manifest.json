@@ -81,7 +81,7 @@
   "engineWatchlist": [
     {
       "file": "shared/engine/src/turn.ts",
-      "hash": "67804e3378617f82f3dfc9f010eb578a3f7b302d0a528c6a5d0b2e085eb9520b",
+      "hash": "d9ea4cdb19b103d97495da3c99982400c202cf2555694e689c5c34ae65cda59f",
       "affectedModules": [
         "combat",
         "exploration",
@@ -280,8 +280,8 @@
     {
       "source": "shared/engine/src/turn.ts",
       "vendored": "agent-sdk/dev/engine/turn.ts",
-      "sourceHash": "67804e3378617f82f3dfc9f010eb578a3f7b302d0a528c6a5d0b2e085eb9520b",
-      "vendoredHash": "48dfdae8c0746a2baa725a410b96e12acb0e5ed1f2c386f1ecf3b0cf4fa254a8",
+      "sourceHash": "d9ea4cdb19b103d97495da3c99982400c202cf2555694e689c5c34ae65cda59f",
+      "vendoredHash": "af96cb62783029905e4a4f1544c71e5b0e8e13c5d3a579b06b24b3c9184e2ded",
       "affectedModules": [
         "dev-stack"
       ]
@@ -298,8 +298,8 @@
     {
       "source": "scripts/sync-dev-engine.ts",
       "vendored": "agent-sdk/dev/engine/content.ts",
-      "sourceHash": "a589b30b39d29c01998a1390054cde6c4d56be8ef3c9d598ea8ff21070ef5711",
-      "vendoredHash": "da93a077bfb499cb43f4548b0eea5c6de64292a49d47f4242ac0bbbe530a967f",
+      "sourceHash": "03281a6e6a31a585ce841f21e0f545ecfb7fd80e912f7f66ef386f62c6f3e53d",
+      "vendoredHash": "242e714d07622bccea48349b8bc852ba552d0af51ed0b59cf79f60c913937f9d",
       "affectedModules": [
         "dev-stack"
       ]
@@ -307,7 +307,7 @@
     {
       "source": "scripts/sync-dev-engine.ts",
       "vendored": "agent-sdk/dev/engine/index.ts",
-      "sourceHash": "a589b30b39d29c01998a1390054cde6c4d56be8ef3c9d598ea8ff21070ef5711",
+      "sourceHash": "03281a6e6a31a585ce841f21e0f545ecfb7fd80e912f7f66ef386f62c6f3e53d",
       "vendoredHash": "3d2575dc16cc48b9a6df9d3dc9e0cc98c9e13c7c44afedc12ea7e95830775a39",
       "affectedModules": [
         "dev-stack"
