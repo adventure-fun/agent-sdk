@@ -145,4 +145,27 @@ describe("AnthropicAdapter", () => {
 
     expect(adapter.decide(buildPrompt())).rejects.toThrow("Anthropic overloaded")
   })
+
+  it("generateText returns the first text block from a message response", async () => {
+    let capturedBody: Record<string, unknown> | null = null
+    globalThis.fetch = mock(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      capturedBody = JSON.parse(String(init?.body)) as Record<string, unknown>
+      return new Response(
+        JSON.stringify({ content: [{ type: "text", text: '  {"name":"Vex"}  ' }] }),
+      )
+    }) as typeof fetch
+
+    const adapter = new AnthropicAdapter({ apiKey: "test-key" })
+    const result = await adapter.generateText({
+      system: "Return JSON only.",
+      user: "Generate a rogue name.",
+      maxTokens: 128,
+      temperature: 0.7,
+    })
+
+    expect(result).toBe('{"name":"Vex"}')
+    expect(capturedBody?.system).toBe("Return JSON only.")
+    expect(capturedBody?.max_tokens).toBe(128)
+    expect(capturedBody?.temperature).toBe(0.7)
+  })
 })

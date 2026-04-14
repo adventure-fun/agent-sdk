@@ -72,12 +72,18 @@ export class LootPrioritizer implements AgentModule {
   }
 }
 
+// Treat empty env strings (e.g. `CHARACTER_NAME=` in a .env file) as unset so the agent
+// falls through to the LLM name provider instead of passing "" into createDefaultConfig.
+const envCharacterName = process.env.CHARACTER_NAME?.trim()
+const envCharacterFlavor = process.env.CHARACTER_FLAVOR?.trim()
+
 export const strategicConfig: AgentConfig = createDefaultConfig({
   apiUrl: process.env.API_URL ?? "http://localhost:3001",
   wsUrl: process.env.WS_URL ?? "ws://localhost:3001",
   ...(process.env.REALM_TEMPLATE ? { realmTemplateId: process.env.REALM_TEMPLATE } : {}),
   characterClass: process.env.CHARACTER_CLASS ?? "rogue",
-  characterName: process.env.CHARACTER_NAME ?? "Shade",
+  ...(envCharacterName ? { characterName: envCharacterName } : {}),
+  ...(envCharacterFlavor ? { characterFlavor: envCharacterFlavor } : {}),
   llm: {
     provider: "openrouter",
     apiKey: process.env.LLM_API_KEY ?? "",
@@ -212,13 +218,25 @@ export const strategicConfig: AgentConfig = createDefaultConfig({
     enabled: true,
     banterFrequency: 90,
     triggers: ["other_death", "own_extraction", "direct_mention", "idle"],
-    personality: {
-      name: process.env.CHARACTER_NAME ?? "Shade",
-      traits: ["sarcastic", "calculating", "loot-hungry"],
-      backstory: "A rogue who treats every dungeon like a heist and every ally like a temporary accomplice.",
-      responseStyle: "Dry, concise, and slightly smug.",
-      topics: ["rare loot", "near-death escapes", "bad tactical choices made by other adventurers"],
-    },
+    // Only pin the legacy "Shade" persona when the user explicitly sets CHARACTER_NAME.
+    // With no explicit name, leave personality unset so the LLM name provider can generate
+    // a fresh identity on every roll.
+    ...(envCharacterName
+      ? {
+          personality: {
+            name: envCharacterName,
+            traits: ["sarcastic", "calculating", "loot-hungry"],
+            backstory:
+              "A rogue who treats every dungeon like a heist and every ally like a temporary accomplice.",
+            responseStyle: "Dry, concise, and slightly smug.",
+            topics: [
+              "rare loot",
+              "near-death escapes",
+              "bad tactical choices made by other adventurers",
+            ],
+          },
+        }
+      : {}),
   },
   logging: {
     level: "info",

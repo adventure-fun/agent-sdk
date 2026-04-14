@@ -197,4 +197,29 @@ describe("OpenRouterAdapter", () => {
 
     expect(message).toBe("Nice run out there.")
   })
+
+  it("generateText returns the first choice message content", async () => {
+    let capturedBody: Record<string, unknown> | null = null
+    globalThis.fetch = mock(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      capturedBody = JSON.parse(String(init?.body)) as Record<string, unknown>
+      return new Response(
+        JSON.stringify({ choices: [{ message: { content: '  {"name":"Nyx"}  ' } }] }),
+      )
+    }) as typeof fetch
+
+    const adapter = new OpenRouterAdapter({ apiKey: "test-key" })
+    const result = await adapter.generateText({
+      system: "Return JSON only.",
+      user: "Generate an archer name.",
+      temperature: 0.9,
+      maxTokens: 128,
+    })
+
+    expect(result).toBe('{"name":"Nyx"}')
+    const messages = capturedBody?.messages as Array<{ role: string; content: string }>
+    expect(messages[0]).toEqual({ role: "system", content: "Return JSON only." })
+    expect(messages[1]).toEqual({ role: "user", content: "Generate an archer name." })
+    expect(capturedBody?.temperature).toBe(0.9)
+    expect(capturedBody?.max_tokens).toBe(128)
+  })
 })
