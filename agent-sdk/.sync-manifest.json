@@ -180,7 +180,7 @@
     },
     {
       "file": "backend/src/index.ts",
-      "hash": "7d39d478cd67f625fd3a3074bceda5fae7a13c6f55b4255efb90f2e790f47c27",
+      "hash": "d7770eb722ab741c76617aaa616429f7e12494f3c307e1f72eea8b54b0d2ef68",
       "affectedModules": [
         "dev-stack",
         "chat"
@@ -188,7 +188,7 @@
     },
     {
       "file": "backend/src/payments/x402.ts",
-      "hash": "68592d8dbdf71a1f5fe4b8a591ff377192b22085224e144c8f7fe8008734970a",
+      "hash": "db20c69b415114f8ce46b80dd9a050d5115ffa697dd1ffc9e907764841f076c6",
       "affectedModules": [
         "wallet-adapters",
         "x402-payment"

@@ -19,7 +19,6 @@ export const REALM_STATUS_LABELS: Record<string, string> = {
   boss_cleared: "Boss Cleared", realm_cleared: "Cleared", completed: "Completed", dead_end: "Lost",
 }
 
-export const REALM_REGEN_USDC_PRICE = "0.25"
 export const TUTORIAL_TEMPLATE_ID = "tutorial-cellar"
 
 export const EQUIP_SLOT_ORDER: EquipSlot[] = ["weapon", "armor", "helm", "hands", "accessory"]

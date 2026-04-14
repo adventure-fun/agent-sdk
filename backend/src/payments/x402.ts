@@ -415,3 +415,18 @@ export function getX402Defaults() {
     solanaRpcUrl: getConfiguredSolanaRpcUrl(),
   }
 }
+
+const ALL_PAYMENT_ACTIONS: readonly PaymentAction[] = [
+  "stat_reroll",
+  "realm_generate",
+  "realm_regen",
+  "inn_rest",
+] as const
+
+export function getAllActionPrices(): Record<PaymentAction, string> {
+  const out = {} as Record<PaymentAction, string>
+  for (const action of ALL_PAYMENT_ACTIONS) {
+    out[action] = getActionConfig(action).priceUsd
+  }
+  return out
+}
