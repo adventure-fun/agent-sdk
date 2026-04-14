@@ -116,6 +116,10 @@ export default function PlayPage() {
   } = useContent()
 
   const { prices: paymentPrices, fetchPaymentConfig } = usePaymentConfig()
+  const isFreePriced = (action: keyof typeof paymentPrices): boolean => {
+    const n = parseFloat(paymentPrices[action])
+    return Number.isFinite(n) && n <= 0
+  }
 
   const { createEvmEoaAccount } = useCreateEvmEoaAccount()
   const {
@@ -263,7 +267,7 @@ export default function PlayPage() {
     const hasTutorialRealm = loadedRealms.some((realm) => realm.template_id === TUTORIAL_TEMPLATE_ID)
     if (!hasTutorialRealm) {
       store.getState().setGeneratingTemplate(TUTORIAL_TEMPLATE_ID)
-      const result = await generateRealm(TUTORIAL_TEMPLATE_ID)
+      const result = await generateRealm(TUTORIAL_TEMPLATE_ID, { skipPayment: true })
       store.getState().setGeneratingTemplate(null)
       if (result.error) {
         store.getState().setCreateError(result.error)
@@ -658,6 +662,17 @@ export default function PlayPage() {
         return
       }
       store.getState().setPaymentError(null)
+      if (isFreePriced("stat_reroll")) {
+        const result = await rerollStats({ skipPayment: true })
+        if (result.message) {
+          store.getState().setRerollMessage(result.message)
+          store.getState().setRerollDisabled(true)
+        } else {
+          store.getState().setRerollMessage("Stats have been re-rolled.")
+          store.getState().setRerollDisabled(true)
+        }
+        return
+      }
       store.getState().setPendingPayment({ kind: "reroll" })
     }
 
@@ -966,7 +981,7 @@ export default function PlayPage() {
       store.getState().setRealmError(null)
       const templateName = realmTemplateMap[templateId]?.name ?? "Realm"
       const isTutorialTemplate = realmTemplateMap[templateId]?.is_tutorial === true
-      const shouldCharge = !isTutorialTemplate && (realms.length > 0 || account?.free_realm_used)
+      const shouldCharge = !isTutorialTemplate && (realms.length > 0 || account?.free_realm_used) && !isFreePriced("realm_generate")
 
       if (shouldCharge) {
         store.getState().setPaymentError(null)
@@ -975,16 +990,28 @@ export default function PlayPage() {
       }
 
       store.getState().setGeneratingTemplate(templateId)
-      const result = await generateRealm(templateId)
+      const result = await generateRealm(templateId, { skipPayment: !shouldCharge })
       store.getState().setGeneratingTemplate(null)
       if (result.error) {
         store.getState().setRealmError(result.error)
       }
     }
 
-    const handleRegenerateRealm = (realmId: string, realmName: string) => {
+    const handleRegenerateRealm = async (realmId: string, realmName: string) => {
       store.getState().setRealmError(null)
       store.getState().setPaymentError(null)
+      if (isFreePriced("realm_regen")) {
+        store.getState().setGeneratingTemplate(realmId)
+        const result = await regenerateRealm(realmId, { skipPayment: true })
+        store.getState().setGeneratingTemplate(null)
+        if (result.error) {
+          store.getState().setRealmError(result.error)
+          return
+        }
+        await Promise.all([fetchCharacter(), fetchRealms()])
+        store.getState().setPaymentToast(`${realmName} has been regenerated with a fresh layout, enemies, and loot.`)
+        return
+      }
       store.getState().setPendingPayment({ kind: "regenerate", realmId, realmName })
     }
 
@@ -1088,9 +1115,19 @@ export default function PlayPage() {
                 <button
                   type="button"
                   disabled={!canRestAtInn || innLoading}
-                  onClick={() => {
+                  onClick={async () => {
                     store.getState().setPaymentError(null)
                     store.getState().setInnMessage(null)
+                    if (isFreePriced("inn_rest")) {
+                      const result = await restAtInn({ skipPayment: true })
+                      if (!result.ok) {
+                        store.getState().setInnMessage(result.error)
+                        return
+                      }
+                      store.getState().setInnMessage(result.data.message)
+                      await fetchCharacter()
+                      return
+                    }
                     store.getState().setPendingPayment({ kind: "inn-rest" })
                   }}
                   className="w-full rounded bg-ob-primary px-4 py-2 text-sm font-bold text-black transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"

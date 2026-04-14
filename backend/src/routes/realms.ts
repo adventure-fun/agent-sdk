@@ -3,7 +3,7 @@ import { db } from "../db/client.js"
 import { requireAuth } from "../auth/middleware.js"
 import { REALMS } from "@adventure-fun/engine"
 import { cleanupRealmForRegeneration } from "./realm-helpers.js"
-import { getRequestedNetworks, logPayment, return402, verifyAndSettle } from "../payments/x402.js"
+import { getRequestedNetworks, isActionFree, logPayment, return402, verifyAndSettle } from "../payments/x402.js"
 
 const realms = new Hono()
 const TUTORIAL_TEMPLATE_ID = "tutorial-cellar"
@@ -91,7 +91,7 @@ realms.post("/generate", requireAuth, async (c) => {
     .eq("id", account_id)
     .single()
 
-  const isFree = isTutorialTemplate || !account?.free_realm_used
+  const isFree = isTutorialTemplate || !account?.free_realm_used || isActionFree("realm_generate")
 
   const networks = getRequestedNetworks(c)
   let settledPayment = null as Awaited<ReturnType<typeof verifyAndSettle>>
@@ -173,9 +173,12 @@ realms.post("/:id/regenerate", requireAuth, async (c) => {
   }
 
   const regenNetworks = getRequestedNetworks(c)
-  const settledPayment = await verifyAndSettle(c, "realm_regen", regenNetworks)
-  if (!settledPayment) {
-    return return402(c, "realm_regen", regenNetworks)
+  let settledPayment: Awaited<ReturnType<typeof verifyAndSettle>> = null
+  if (!isActionFree("realm_regen")) {
+    settledPayment = await verifyAndSettle(c, "realm_regen", regenNetworks)
+    if (!settledPayment) {
+      return return402(c, "realm_regen", regenNetworks)
+    }
   }
 
   const newSeed = Math.floor(Math.random() * 2 ** 32)
@@ -188,8 +191,10 @@ realms.post("/:id/regenerate", requireAuth, async (c) => {
 
   await cleanupRealmForRegeneration(db, realmId)
 
-  Object.entries(settledPayment.headers).forEach(([key, value]) => c.header(key, value))
-  await logPayment(account_id, settledPayment)
+  if (settledPayment) {
+    Object.entries(settledPayment.headers).forEach(([key, value]) => c.header(key, value))
+    await logPayment(account_id, settledPayment)
+  }
   return c.json(updated)
 })
 

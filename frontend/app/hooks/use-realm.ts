@@ -9,7 +9,7 @@ const API_URL = process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:3001"
 
 export function useRealm() {
   const { token } = useAdventureAuth()
-  const { fetchWithPayment } = useX402Payment()
+  const { fetchWithPayment, fetchUnpaid } = useX402Payment()
   const [realms, setRealms] = useState<RealmInstance[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -39,12 +39,13 @@ export function useRealm() {
   }, [token])
 
   const generateRealm = useCallback(
-    async (templateId: string): Promise<{ realm?: RealmInstance; paymentRequired?: boolean; error?: string }> => {
+    async (templateId: string, opts?: { skipPayment?: boolean }): Promise<{ realm?: RealmInstance; paymentRequired?: boolean; error?: string }> => {
       if (!token) return { error: "Not authenticated" }
       setIsLoading(true)
       setError(null)
       try {
-        const res = await fetchWithPayment(`${API_URL}/realms/generate`, {
+        const doFetch = opts?.skipPayment ? fetchUnpaid : fetchWithPayment
+        const res = await doFetch(`${API_URL}/realms/generate`, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
@@ -80,16 +81,17 @@ export function useRealm() {
         setIsLoading(false)
       }
     },
-    [token, fetchRealms, fetchWithPayment],
+    [token, fetchRealms, fetchWithPayment, fetchUnpaid],
   )
 
   const regenerateRealm = useCallback(
-    async (realmId: string): Promise<{ realm?: RealmInstance; paymentRequired?: boolean; error?: string }> => {
+    async (realmId: string, opts?: { skipPayment?: boolean }): Promise<{ realm?: RealmInstance; paymentRequired?: boolean; error?: string }> => {
       if (!token) return { error: "Not authenticated" }
       setIsLoading(true)
       setError(null)
       try {
-        const res = await fetchWithPayment(`${API_URL}/realms/${realmId}/regenerate`, {
+        const doFetch = opts?.skipPayment ? fetchUnpaid : fetchWithPayment
+        const res = await doFetch(`${API_URL}/realms/${realmId}/regenerate`, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
@@ -120,7 +122,7 @@ export function useRealm() {
         setIsLoading(false)
       }
     },
-    [fetchWithPayment, token],
+    [fetchWithPayment, fetchUnpaid, token],
   )
 
   return { realms, isLoading, error, fetchRealms, generateRealm, regenerateRealm }

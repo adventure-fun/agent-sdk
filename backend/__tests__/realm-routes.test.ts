@@ -31,6 +31,7 @@ async function importFreshRealmRoutes(
   const verifyAndSettle = mock(async () => options?.settledPayment ?? null)
   mock.module("../src/payments/x402.js", () => ({
     getRequestedNetworks: () => ["base"],
+    isActionFree: () => false,
     verifyAndSettle,
     return402: () =>
       new Response(JSON.stringify({ error: "Payment required" }), {

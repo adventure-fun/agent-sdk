@@ -430,3 +430,11 @@ export function getAllActionPrices(): Record<PaymentAction, string> {
   }
   return out
 }
+
+// A price of "0" (or any non-positive value) means the action is free — skip
+// x402 entirely. The facilitator can't settle a $0 payment, so we must not
+// return 402 for these actions.
+export function isActionFree(action: PaymentAction): boolean {
+  const n = parseFloat(getActionConfig(action).priceUsd)
+  return Number.isFinite(n) && n <= 0
+}

@@ -15,7 +15,7 @@ interface RerollError {
 
 export function useCharacter() {
   const { token, logout } = useAdventureAuth()
-  const { fetchWithPayment } = useX402Payment()
+  const { fetchWithPayment, fetchUnpaid } = useX402Payment()
   const [character, setCharacter] = useState<Character | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -94,11 +94,12 @@ export function useCharacter() {
   }, [headers])
 
   /** Attempt to re-roll stats. Returns the updated character, or an error message for 402/409. */
-  const rerollStats = useCallback(async (): Promise<{ character: Character | null; paymentRequired: boolean; message: string | null }> => {
+  const rerollStats = useCallback(async (opts?: { skipPayment?: boolean }): Promise<{ character: Character | null; paymentRequired: boolean; message: string | null }> => {
     setIsLoading(true)
     setError(null)
     try {
-      const res = await fetchWithPayment(`${API_URL}/characters/reroll-stats`, {
+      const doFetch = opts?.skipPayment ? fetchUnpaid : fetchWithPayment
+      const res = await doFetch(`${API_URL}/characters/reroll-stats`, {
         method: "POST",
         headers: headers(),
       })
@@ -125,7 +126,7 @@ export function useCharacter() {
     } finally {
       setIsLoading(false)
     }
-  }, [headers])
+  }, [headers, fetchWithPayment, fetchUnpaid])
 
   return {
     character,
