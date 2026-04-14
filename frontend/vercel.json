@@ -2,6 +2,6 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
   "buildCommand": "cd .. && bun run build --filter=@adventure-fun/web",
-  "outputDirectory": "frontend/.next",
-  "installCommand": "bun install"
+  "outputDirectory": ".next",
+  "installCommand": "cd .. && bun install"
 }
