@@ -148,7 +148,7 @@
     },
     {
       "file": "backend/src/routes/auth.ts",
-      "hash": "74acbf8f94b0449ea9bd054e51d91f00ba66172c89cc60f6ce852b0b12731993",
+      "hash": "37060c80da8939b08c57fd49b6468c165812a9d73e024fcce3746574879c674e",
       "affectedModules": [
         "dev-stack",
         "auth",
@@ -157,7 +157,7 @@
     },
     {
       "file": "backend/src/routes/characters.ts",
-      "hash": "b82ba713daac35aa7dee42d2847b7bcb1b071dff6e3877e8c3e64ae856c9eee2",
+      "hash": "2187fdc1d9020aa35ec44cfa8e3c290b6005e8d817911f8dddf71bb784d13bed",
       "affectedModules": [
         "dev-stack",
         "agent-lifecycle"
