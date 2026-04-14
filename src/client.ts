@@ -649,12 +649,33 @@ export class GameClient {
     })
   }
 
-  private openGameSocket(realmId: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const ws = new WebSocket(
-        `${this.wsUrl}/realms/${realmId}/enter`,
-        ["Bearer", this.token.token],
+  // Ticket auth: some reverse proxies (Railway's edge) strip Sec-WebSocket-Protocol
+  // during WS upgrades, which breaks the subprotocol-based token auth path. This
+  // mints a short-lived single-use ticket over plain HTTPS (where proxies leave
+  // the Authorization header alone) and then uses ?ticket= on the WS URL. Falls
+  // back to null if the backend doesn't know the endpoint (e.g. local stub API),
+  // so local dev keeps working on the subprotocol path below.
+  private async fetchWsTicket(): Promise<string | null> {
+    try {
+      const response = await this.request<{ ticket: string; expires_in: number }>(
+        "/auth/ws-ticket",
+        { method: "POST", body: JSON.stringify({}) },
       )
+      return response?.ticket ?? null
+    } catch {
+      return null
+    }
+  }
+
+  private async openGameSocket(realmId: string): Promise<void> {
+    const ticket = await this.fetchWsTicket()
+    return new Promise((resolve, reject) => {
+      const wsUrl = ticket
+        ? `${this.wsUrl}/realms/${realmId}/enter?ticket=${encodeURIComponent(ticket)}`
+        : `${this.wsUrl}/realms/${realmId}/enter`
+      const ws = ticket
+        ? new WebSocket(wsUrl)
+        : new WebSocket(wsUrl, ["Bearer", this.token.token])
       let opened = false
 
       this.ws = ws

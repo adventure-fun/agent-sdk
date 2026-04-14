@@ -148,7 +148,7 @@
     },
     {
       "file": "backend/src/routes/auth.ts",
-      "hash": "f512aba93829b7354f404a1cf0153815f742a5f6401204c93fe618319bfe879f",
+      "hash": "72f6886a9bb549b4b58e00d3dd673a6423871bedadf5c282a89d423b3a7d1f54",
       "affectedModules": [
         "dev-stack",
         "auth",
@@ -180,7 +180,7 @@
     },
     {
       "file": "backend/src/index.ts",
-      "hash": "d7770eb722ab741c76617aaa616429f7e12494f3c307e1f72eea8b54b0d2ef68",
+      "hash": "82488a36544908ab48a50597f84b48e280de448ecb026378db9d4b58e91881dc",
       "affectedModules": [
         "dev-stack",
         "chat"
