@@ -14,15 +14,16 @@ interface InnRestResponse {
 }
 
 export function useInn() {
-  const { fetchWithPayment } = useX402Payment()
+  const { fetchWithPayment, fetchUnpaid } = useX402Payment()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const restAtInn = useCallback(async () => {
+  const restAtInn = useCallback(async (opts?: { skipPayment?: boolean }) => {
     setIsLoading(true)
     setError(null)
     try {
-      const response = await fetchWithPayment(`${API_URL}/lobby/inn/rest`, {
+      const doFetch = opts?.skipPayment ? fetchUnpaid : fetchWithPayment
+      const response = await doFetch(`${API_URL}/lobby/inn/rest`, {
         method: "POST",
       })
       const body = await response.json()
@@ -39,7 +40,7 @@ export function useInn() {
     } finally {
       setIsLoading(false)
     }
-  }, [fetchWithPayment])
+  }, [fetchWithPayment, fetchUnpaid])
 
   return {
     isLoading,

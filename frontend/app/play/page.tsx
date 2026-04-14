@@ -12,6 +12,7 @@ import type { ClassTemplateSummary, RealmTemplateSummary } from "../hooks/use-co
 import { useProgression } from "../hooks/use-progression"
 import { useShop } from "../hooks/use-shop"
 import { useInn } from "../hooks/use-inn"
+import { usePaymentConfig } from "../hooks/use-payment-config"
 import { PaymentModal } from "../components/payment-modal"
 import { UiToast } from "../components/ui-toast"
 import { useUsdcBalance } from "../hooks/use-usdc-balance"
@@ -23,7 +24,7 @@ import {
 } from "@adventure-fun/schemas"
 
 import { usePlayStore, HubTab } from "./store"
-import { STAT_KEYS, STAT_LABELS, CLASS_ROLE_LABELS, REALM_STATUS_LABELS, REALM_REGEN_USDC_PRICE, TUTORIAL_TEMPLATE_ID, EQUIP_SLOT_ORDER, EQUIP_SLOT_LABELS } from "./constants"
+import { STAT_KEYS, STAT_LABELS, CLASS_ROLE_LABELS, REALM_STATUS_LABELS, TUTORIAL_TEMPLATE_ID, EQUIP_SLOT_ORDER, EQUIP_SLOT_LABELS } from "./constants"
 import { delay, friendlyPaymentError, formatLoreLabel, getCompletionBonusText } from "./utils"
 
 import { Shell } from "./components/shell"
@@ -114,6 +115,12 @@ export default function PlayPage() {
     fetchLoreEntries,
   } = useContent()
 
+  const { prices: paymentPrices, fetchPaymentConfig } = usePaymentConfig()
+  const isFreePriced = (action: keyof typeof paymentPrices): boolean => {
+    const n = parseFloat(paymentPrices[action])
+    return Number.isFinite(n) && n <= 0
+  }
+
   const { createEvmEoaAccount } = useCreateEvmEoaAccount()
   const {
     balanceLabel,
@@ -181,6 +188,7 @@ export default function PlayPage() {
     fetchItemTemplates()
     fetchLoreEntries()
     fetchShopCatalog()
+    fetchPaymentConfig()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Create EVM wallet if signed in but no wallet exists
@@ -259,7 +267,7 @@ export default function PlayPage() {
     const hasTutorialRealm = loadedRealms.some((realm) => realm.template_id === TUTORIAL_TEMPLATE_ID)
     if (!hasTutorialRealm) {
       store.getState().setGeneratingTemplate(TUTORIAL_TEMPLATE_ID)
-      const result = await generateRealm(TUTORIAL_TEMPLATE_ID)
+      const result = await generateRealm(TUTORIAL_TEMPLATE_ID, { skipPayment: true })
       store.getState().setGeneratingTemplate(null)
       if (result.error) {
         store.getState().setCreateError(result.error)
@@ -654,6 +662,17 @@ export default function PlayPage() {
         return
       }
       store.getState().setPaymentError(null)
+      if (isFreePriced("stat_reroll")) {
+        const result = await rerollStats({ skipPayment: true })
+        if (result.message) {
+          store.getState().setRerollMessage(result.message)
+          store.getState().setRerollDisabled(true)
+        } else {
+          store.getState().setRerollMessage("Stats have been re-rolled.")
+          store.getState().setRerollDisabled(true)
+        }
+        return
+      }
       store.getState().setPendingPayment({ kind: "reroll" })
     }
 
@@ -697,7 +716,7 @@ export default function PlayPage() {
               disabled={charLoading || rerollDisabled}
               className="px-4 py-1 border border-ob-outline-variant/30 text-ob-on-surface-variant text-sm rounded hover:border-ob-primary/40 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              {charLoading ? "Re-rolling..." : "Re-roll Stats ($0.10)"}
+              {charLoading ? "Re-rolling..." : `Re-roll Stats ($${paymentPrices.stat_reroll})`}
             </button>
             {rerollMessage && (
               <p className="text-ob-outline text-xs">{rerollMessage}</p>
@@ -719,8 +738,8 @@ export default function PlayPage() {
         <PaymentModal
           open={pendingPayment?.kind === "reroll"}
           title="Confirm Stat Re-roll"
-          description="Approve a 0.10 USDC x402 payment to re-roll this character's starting stats."
-          priceUsd="0.10"
+          description={`Approve a ${paymentPrices.stat_reroll} USDC x402 payment to re-roll this character's starting stats.`}
+          priceUsd={paymentPrices.stat_reroll}
           balanceLabel={balanceLabel}
           isProcessing={isProcessingPayment}
           successMessage={paymentSuccess}
@@ -962,7 +981,7 @@ export default function PlayPage() {
       store.getState().setRealmError(null)
       const templateName = realmTemplateMap[templateId]?.name ?? "Realm"
       const isTutorialTemplate = realmTemplateMap[templateId]?.is_tutorial === true
-      const shouldCharge = !isTutorialTemplate && (realms.length > 0 || account?.free_realm_used)
+      const shouldCharge = !isTutorialTemplate && (realms.length > 0 || account?.free_realm_used) && !isFreePriced("realm_generate")
 
       if (shouldCharge) {
         store.getState().setPaymentError(null)
@@ -971,16 +990,28 @@ export default function PlayPage() {
       }
 
       store.getState().setGeneratingTemplate(templateId)
-      const result = await generateRealm(templateId)
+      const result = await generateRealm(templateId, { skipPayment: !shouldCharge })
       store.getState().setGeneratingTemplate(null)
       if (result.error) {
         store.getState().setRealmError(result.error)
       }
     }
 
-    const handleRegenerateRealm = (realmId: string, realmName: string) => {
+    const handleRegenerateRealm = async (realmId: string, realmName: string) => {
       store.getState().setRealmError(null)
       store.getState().setPaymentError(null)
+      if (isFreePriced("realm_regen")) {
+        store.getState().setGeneratingTemplate(realmId)
+        const result = await regenerateRealm(realmId, { skipPayment: true })
+        store.getState().setGeneratingTemplate(null)
+        if (result.error) {
+          store.getState().setRealmError(result.error)
+          return
+        }
+        await Promise.all([fetchCharacter(), fetchRealms()])
+        store.getState().setPaymentToast(`${realmName} has been regenerated with a fresh layout, enemies, and loot.`)
+        return
+      }
       store.getState().setPendingPayment({ kind: "regenerate", realmId, realmName })
     }
 
@@ -1071,7 +1102,7 @@ export default function PlayPage() {
                     <h3 className="text-lg font-bold text-ob-primary">Hearth & Rest</h3>
                   </div>
                   <span className="rounded-full border border-ob-primary/30 bg-ob-primary/10 px-3 py-1 text-xs text-ob-primary">
-                    $0.05
+                    ${paymentPrices.inn_rest}
                   </span>
                 </div>
                 <p className="text-sm text-ob-on-surface-variant">
@@ -1084,9 +1115,19 @@ export default function PlayPage() {
                 <button
                   type="button"
                   disabled={!canRestAtInn || innLoading}
-                  onClick={() => {
+                  onClick={async () => {
                     store.getState().setPaymentError(null)
                     store.getState().setInnMessage(null)
+                    if (isFreePriced("inn_rest")) {
+                      const result = await restAtInn({ skipPayment: true })
+                      if (!result.ok) {
+                        store.getState().setInnMessage(result.error)
+                        return
+                      }
+                      store.getState().setInnMessage(result.data.message)
+                      await fetchCharacter()
+                      return
+                    }
                     store.getState().setPendingPayment({ kind: "inn-rest" })
                   }}
                   className="w-full rounded bg-ob-primary px-4 py-2 text-sm font-bold text-black transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
@@ -1226,7 +1267,7 @@ export default function PlayPage() {
                               >
                                 {isRegenerating
                                   ? "Regenerating..."
-                                  : `Regenerate ($${REALM_REGEN_USDC_PRICE})`}
+                                  : `Regenerate ($${paymentPrices.realm_regen})`}
                               </button>
                             )}
                           </div>
@@ -1255,7 +1296,7 @@ export default function PlayPage() {
                               )}
                             </div>
                             <span className={`text-xs px-2 py-0.5 rounded ${isFree ? "bg-ob-secondary/15 text-ob-secondary" : "text-ob-outline"}`}>
-                              {template.is_tutorial ? "Always Free" : isFree ? "Free" : "$0.25"}
+                              {template.is_tutorial ? "Always Free" : isFree ? "Free" : `$${paymentPrices.realm_generate}`}
                             </span>
                           </div>
                           <p className="text-ob-outline text-xs mb-3">{template.description}</p>
@@ -1483,17 +1524,17 @@ export default function PlayPage() {
           }
           description={
             pendingPayment?.kind === "inn-rest"
-              ? `Approve a 0.05 USDC x402 payment to rest at the inn and restore your HP and ${resourceLabel} to full.`
+              ? `Approve a ${paymentPrices.inn_rest} USDC x402 payment to rest at the inn and restore your HP and ${resourceLabel} to full.`
               : pendingPayment?.kind === "regenerate"
-                ? `Approve a ${REALM_REGEN_USDC_PRICE} USDC x402 payment to fully reset ${pendingPayment.realmName}. This creates a fresh layout with new enemies and loot for a new run.`
-                : `Approve a 0.25 USDC x402 payment to generate ${pendingPayment?.kind === "generate" ? pendingPayment.templateName : "this realm"}. The tutorial remains free, while advanced realms use your normal realm payment flow.`
+                ? `Approve a ${paymentPrices.realm_regen} USDC x402 payment to fully reset ${pendingPayment.realmName}. This creates a fresh layout with new enemies and loot for a new run.`
+                : `Approve a ${paymentPrices.realm_generate} USDC x402 payment to generate ${pendingPayment?.kind === "generate" ? pendingPayment.templateName : "this realm"}. The tutorial remains free, while advanced realms use your normal realm payment flow.`
           }
           priceUsd={
             pendingPayment?.kind === "inn-rest"
-              ? "0.05"
+              ? paymentPrices.inn_rest
               : pendingPayment?.kind === "regenerate"
-                ? REALM_REGEN_USDC_PRICE
-                : "0.25"
+                ? paymentPrices.realm_regen
+                : paymentPrices.realm_generate
           }
           balanceLabel={balanceLabel}
           isProcessing={isProcessingPayment || !!generatingTemplate || innLoading}

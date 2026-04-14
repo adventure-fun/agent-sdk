@@ -11,6 +11,7 @@ import { legendsRoutes } from "./routes/legends.js"
 import { spectateRoutes } from "./routes/spectate.js"
 import { userRoutes } from "./routes/users.js"
 import { contentRoutes } from "./routes/content.js"
+import { configRoutes } from "./routes/config.js"
 import { verifySession } from "./auth/jwt.js"
 import { db } from "./db/client.js"
 import { getRedis } from "./redis/client.js"
@@ -134,6 +135,7 @@ app.route("/legends", legendsRoutes)
 app.route("/spectate", spectateRoutes)
 app.route("/users", userRoutes)
 app.route("/content", contentRoutes)
+app.route("/config", configRoutes)
 
 const port = Number(process.env["PORT"] ?? 3001)
 console.log(`Adventure.fun server on :${port}`)

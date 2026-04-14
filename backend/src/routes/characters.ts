@@ -12,7 +12,7 @@ import {
   xpToNextLevel,
 } from "@adventure-fun/engine"
 import type { CharacterClass, CharacterStats } from "@adventure-fun/schemas"
-import { getRequestedNetworks, logPayment, return402, verifyAndSettle } from "../payments/x402.js"
+import { getRequestedNetworks, isActionFree, logPayment, return402, verifyAndSettle } from "../payments/x402.js"
 import {
   computeEquipmentStatBonuses,
   computePerkStatBonuses,
@@ -153,9 +153,12 @@ characters.post("/reroll-stats", requireAuth, async (c) => {
   }
 
   const networks = getRequestedNetworks(c)
-  const settledPayment = await verifyAndSettle(c, "stat_reroll", networks)
-  if (!settledPayment) {
-    return return402(c, "stat_reroll", networks)
+  let settledPayment: Awaited<ReturnType<typeof verifyAndSettle>> = null
+  if (!isActionFree("stat_reroll")) {
+    settledPayment = await verifyAndSettle(c, "stat_reroll", networks)
+    if (!settledPayment) {
+      return return402(c, "stat_reroll", networks)
+    }
   }
 
   const newStats = rerollStats(character.class as CharacterClass)
@@ -173,8 +176,10 @@ characters.post("/reroll-stats", requireAuth, async (c) => {
     .single()
 
   if (error) return c.json({ error: error.message }, 500)
-  Object.entries(settledPayment.headers).forEach(([key, value]) => c.header(key, value))
-  await logPayment(account_id, settledPayment)
+  if (settledPayment) {
+    Object.entries(settledPayment.headers).forEach(([key, value]) => c.header(key, value))
+    await logPayment(account_id, settledPayment)
+  }
   return c.json(data)
 })
 

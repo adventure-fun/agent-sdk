@@ -415,3 +415,26 @@ export function getX402Defaults() {
     solanaRpcUrl: getConfiguredSolanaRpcUrl(),
   }
 }
+
+const ALL_PAYMENT_ACTIONS: readonly PaymentAction[] = [
+  "stat_reroll",
+  "realm_generate",
+  "realm_regen",
+  "inn_rest",
+] as const
+
+export function getAllActionPrices(): Record<PaymentAction, string> {
+  const out = {} as Record<PaymentAction, string>
+  for (const action of ALL_PAYMENT_ACTIONS) {
+    out[action] = getActionConfig(action).priceUsd
+  }
+  return out
+}
+
+// A price of "0" (or any non-positive value) means the action is free — skip
+// x402 entirely. The facilitator can't settle a $0 payment, so we must not
+// return 402 for these actions.
+export function isActionFree(action: PaymentAction): boolean {
+  const n = parseFloat(getActionConfig(action).priceUsd)
+  return Number.isFinite(n) && n <= 0
+}

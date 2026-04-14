@@ -157,7 +157,7 @@
     },
     {
       "file": "backend/src/routes/characters.ts",
-      "hash": "3b30710cbdeb69eefc76b104238443046ddea08e819496c9a5c44b8f59165c7d",
+      "hash": "0c475384d275b4a1177f2ed8e256e4b4fcaca43e29dfe0cc4087a7a8fda6680e",
       "affectedModules": [
         "dev-stack",
         "agent-lifecycle"
@@ -165,7 +165,7 @@
     },
     {
       "file": "backend/src/routes/realms.ts",
-      "hash": "de299d18d1053d237b8c85874722805bf2aae919eb60135689c2877f264d2f03",
+      "hash": "db78e2e8951d15fe6daedb32f4836ced849ec169290fbc86b14042260e8c264b",
       "affectedModules": [
         "dev-stack",
         "agent-lifecycle"
@@ -180,7 +180,7 @@
     },
     {
       "file": "backend/src/index.ts",
-      "hash": "7d39d478cd67f625fd3a3074bceda5fae7a13c6f55b4255efb90f2e790f47c27",
+      "hash": "d7770eb722ab741c76617aaa616429f7e12494f3c307e1f72eea8b54b0d2ef68",
       "affectedModules": [
         "dev-stack",
         "chat"
@@ -188,7 +188,7 @@
     },
     {
       "file": "backend/src/payments/x402.ts",
-      "hash": "68592d8dbdf71a1f5fe4b8a591ff377192b22085224e144c8f7fe8008734970a",
+      "hash": "70c1a887e56294c68093b383c8f4f3397bcb3c74acf6347e00bc15fa6f813cb6",
       "affectedModules": [
         "wallet-adapters",
         "x402-payment"
@@ -204,7 +204,7 @@
     },
     {
       "file": "backend/src/routes/lobby.ts",
-      "hash": "01042b0eb4a610fbbaffb860af1767632529c22ec44b10e42f0b26eddd8e7528",
+      "hash": "41fbfebd3b0c36899b71f2909e4426316b981f50fefde6ff72cf6d0329cbc27b",
       "affectedModules": [
         "chat"
       ]
