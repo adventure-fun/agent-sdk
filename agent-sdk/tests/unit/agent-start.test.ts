@@ -317,6 +317,7 @@ describe("BaseAgent.start", () => {
     expect(harness.client.requests.map((entry) => entry.path)).toEqual([
       "/characters/me",
       "/characters/roll",
+      "/realms/mine",
       "/characters/me",
       "/lobby/shop/inventory",
       "/lobby/shops",
@@ -343,6 +344,7 @@ describe("BaseAgent.start", () => {
 
     expect(harness.client.requests.map((entry) => entry.path)).toEqual([
       "/characters/me",
+      "/realms/mine",
       "/characters/me",
       "/lobby/shop/inventory",
       "/lobby/shops",
@@ -351,6 +353,75 @@ describe("BaseAgent.start", () => {
       "/content/realms",
       "/realms/generate",
     ])
+
+    harness.client.handlers.onDeath?.({
+      cause: "test",
+      floor: 1,
+      room: "room-1",
+      turn: 1,
+    })
+    await startPromise
+  })
+
+  it("resumes a stuck paused realm instead of running hub prep", async () => {
+    const responses = new Map<string, () => unknown | Promise<unknown>>([
+      ["/characters/me", () => ({ id: "char-1", name: "Scout" })],
+      ["/lobby/shop/inventory", () => ({ gold: 0, inventory: [] })],
+      ["/lobby/shops", () => ({ sections: [], featured: [] })],
+      ["/content/items", () => ({ items: [] })],
+      ["/realms/mine", () => ({
+        realms: [{ id: "stuck-realm", template_id: "test-tutorial", status: "paused" }],
+      })],
+      ["/content/realms", () => ({ templates: [{ id: "test-tutorial", orderIndex: 1, name: "Tutorial" }] })],
+      ["/realms/generate", () => ({ id: "realm-new", template_id: "test-tutorial" })],
+    ])
+    const harness = createHarness({ responses })
+
+    const startPromise = harness.agent.start()
+    await flushAsyncWork()
+
+    // Agent should query /characters/me then /realms/mine, find the paused realm,
+    // skip the lobby phase entirely, and connect straight to the stuck realm id.
+    const paths = harness.client.requests.map((entry) => entry.path)
+    expect(paths).toEqual(["/characters/me", "/realms/mine"])
+    expect(paths).not.toContain("/lobby/inn/rest")
+    expect(paths).not.toContain("/lobby/shop/inventory")
+    expect(paths).not.toContain("/lobby/shops")
+    expect(paths).not.toContain("/realms/generate")
+    expect(harness.client.connectRealmIds).toEqual(["stuck-realm"])
+
+    harness.client.handlers.onDeath?.({
+      cause: "test",
+      floor: 1,
+      room: "room-1",
+      turn: 1,
+    })
+    await startPromise
+  })
+
+  it("resumes a stuck active realm even when its template does not match config", async () => {
+    const responses = new Map<string, () => unknown | Promise<unknown>>([
+      ["/characters/me", () => ({ id: "char-1", name: "Scout" })],
+      ["/lobby/shop/inventory", () => ({ gold: 0, inventory: [] })],
+      ["/lobby/shops", () => ({ sections: [], featured: [] })],
+      ["/content/items", () => ({ items: [] })],
+      // Paused realm uses a different template than configured ("test-tutorial").
+      // The normal ensureRealm path would skip it and generate a fresh realm,
+      // but the resume branch must force-use the stuck id to clear the lock.
+      ["/realms/mine", () => ({
+        realms: [{ id: "stuck-realm", template_id: "other-template", status: "active" }],
+      })],
+      ["/content/realms", () => ({ templates: [{ id: "test-tutorial", orderIndex: 1, name: "Tutorial" }] })],
+      ["/realms/generate", () => ({ id: "realm-new", template_id: "test-tutorial" })],
+    ])
+    const harness = createHarness({ responses })
+
+    const startPromise = harness.agent.start()
+    await flushAsyncWork()
+
+    const paths = harness.client.requests.map((entry) => entry.path)
+    expect(paths).not.toContain("/realms/generate")
+    expect(harness.client.connectRealmIds).toEqual(["stuck-realm"])
 
     harness.client.handlers.onDeath?.({
       cause: "test",
@@ -412,7 +483,10 @@ describe("BaseAgent.start", () => {
 
     const requestPaths = harness.client.requests.map((entry) => entry.path)
     expect(requestPaths).toContain("/lobby/inn/rest")
-    expect(requestPaths.indexOf("/lobby/inn/rest")).toBeLessThan(requestPaths.indexOf("/realms/mine"))
+    // /realms/mine is called twice per iteration now (findBlockingRealm + ensureRealm).
+    // The inn rest must happen before the second (ensureRealm) call — the first one is
+    // the stuck-realm check at the top of the loop.
+    expect(requestPaths.indexOf("/lobby/inn/rest")).toBeLessThan(requestPaths.lastIndexOf("/realms/mine"))
 
     harness.client.handlers.onDeath?.({
       cause: "test",

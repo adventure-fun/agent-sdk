@@ -103,4 +103,40 @@ describe("10.3 / 10.6 — auth routes", () => {
       args: ["id", "acct-1"],
     })
   })
+
+  it("mints a single-use WS ticket over the authed /auth/ws-ticket route", async () => {
+    const { authRoutes } = await importFreshAuthRoutes(mockDb)
+    // Intentionally NOT cache-busted: we need the same ws-tickets module
+    // instance that authRoutes imported internally, so the in-memory Map
+    // the route writes to is the same one this test reads from.
+    const tickets = await import("../src/game/ws-tickets.js")
+    tickets.__resetWsTicketsForTests()
+
+    const app = new Hono()
+    app.route("/auth", authRoutes)
+
+    const response = await app.request("http://example.test/auth/ws-ticket", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    })
+
+    expect(response.status).toBe(200)
+    const body = (await response.json()) as { ticket: string; expires_in: number }
+    expect(typeof body.ticket).toBe("string")
+    expect(body.ticket.length).toBeGreaterThan(0)
+    expect(body.expires_in).toBe(60)
+
+    // The ticket should resolve to the session injected by the mocked requireAuth.
+    const consumed = await tickets.consumeWsTicket(body.ticket)
+    expect(consumed).toEqual({
+      account_id: "acct-1",
+      wallet_address: "0xabc",
+      player_type: "human",
+    })
+
+    // Single-use — a second consume gets nothing.
+    const replay = await tickets.consumeWsTicket(body.ticket)
+    expect(replay).toBeNull()
+  })
 })

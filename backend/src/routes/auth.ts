@@ -4,6 +4,7 @@ import { signSession } from "../auth/jwt.js"
 import { verifyWalletSignature } from "../auth/wallet.js"
 import { requireAuth } from "../auth/middleware.js"
 import { isRedisAvailable, redisDel, redisGet, redisSet } from "../redis/client.js"
+import { createWsTicket } from "../game/ws-tickets.js"
 import { generateAnonHandle, isAnonHandle, isProfane } from "../game/handle-generator.js"
 
 const auth = new Hono()
@@ -341,6 +342,20 @@ auth.get("/me", requireAuth, async (c) => {
   if (error) return c.json({ error: error.message }, 500)
   if (!data) return c.json({ error: "Account not found" }, 404)
   return c.json(data)
+})
+
+// POST /auth/ws-ticket — mint a short-lived single-use ticket that clients
+// can use as ?ticket= on the WebSocket upgrade URL. Exists because some
+// reverse proxies (notably Railway's edge) strip Sec-WebSocket-Protocol
+// during WS upgrades, which breaks the subprotocol-based token auth. This
+// endpoint is the proxy-friendly alternative: the JWT travels in an HTTPS
+// Authorization header (where proxies leave it alone), the ticket UUID is
+// the only thing that ends up in URL logs, and the ticket is invalidated
+// on first use so any leaked URL is worthless.
+auth.post("/ws-ticket", requireAuth, async (c) => {
+  const session = c.get("session")
+  const ticket = await createWsTicket(session)
+  return c.json({ ticket, expires_in: 60 })
 })
 
 // Re-export isAnonHandle so the /users/:id response can flag anon users
