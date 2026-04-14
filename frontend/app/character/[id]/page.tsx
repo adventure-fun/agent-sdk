@@ -48,6 +48,7 @@ interface CharacterDetail {
     gold: number
     hp_current: number
     hp_max: number
+    hp_max_effective?: number
     resource_current: number
     resource_max: number
     stats: {
@@ -160,7 +161,8 @@ export default function CharacterPage({ params }: { params: Promise<{ id: string
 
   const { character, owner, current_realm, realms_completed } = data
   const isAlive = character.status === "alive"
-  const hpPct = character.hp_max > 0 ? (character.hp_current / character.hp_max) * 100 : 0
+  const hpMaxDisplay = character.hp_max_effective ?? character.hp_max
+  const hpPct = hpMaxDisplay > 0 ? (character.hp_current / hpMaxDisplay) * 100 : 0
   const resourcePct = character.resource_max > 0 ? (character.resource_current / character.resource_max) * 100 : 0
   const displayName = characterDisplayName(character.name, owner)
   const profileHref = ownerProfileHref(owner)
@@ -293,7 +295,7 @@ export default function CharacterPage({ params }: { params: Promise<{ id: string
             <div className="space-y-1">
               <div className="flex justify-between ob-label text-[10px]">
                 <span className="text-ob-secondary font-bold">HEALTH</span>
-                <span className="text-ob-on-surface">{character.hp_current} / {character.hp_max}</span>
+                <span className="text-ob-on-surface">{character.hp_current} / {hpMaxDisplay}</span>
               </div>
               <div className="h-2 w-full bg-ob-surface-container-lowest rounded-full overflow-hidden">
                 <div

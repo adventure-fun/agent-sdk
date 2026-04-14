@@ -18,7 +18,7 @@ import {
   validateLobbyUnequip,
   validateSellItem,
   validateLobbyUseConsumable,
-  computeEquipmentHpBonus,
+  computeEffectiveHpMax,
   VALID_EQUIP_SLOTS,
   type LobbyCharacterRecord,
   type LobbyInventoryRecord,
@@ -29,7 +29,7 @@ const lobby = new Hono()
 async function loadActiveCharacter(accountId: string) {
   return db
     .from("characters")
-    .select("id, class, gold, hp_current, hp_max, resource_current, resource_max")
+    .select("id, class, gold, hp_current, hp_max, resource_current, resource_max, perks")
     .eq("account_id", accountId)
     .eq("status", "alive")
     .maybeSingle()
@@ -282,9 +282,8 @@ lobby.post("/equip", requireAuth, async (c) => {
     return row
   })
 
-  // Cap hp_current if it now exceeds base hp_max + new equipment bonus
-  const hpBonus = computeEquipmentHpBonus(updatedInventory)
-  const effectiveMax = character.hp_max + hpBonus
+  // Cap hp_current if it now exceeds the effective max (base + equipment + perks)
+  const effectiveMax = computeEffectiveHpMax(character as LobbyCharacterRecord, updatedInventory)
   if (character.hp_current > effectiveMax) {
     await db.from("characters").update({ hp_current: effectiveMax }).eq("id", character.id)
   }
@@ -328,9 +327,8 @@ lobby.post("/unequip", requireAuth, async (c) => {
     row.id === validation.row.id ? { ...row, slot: null } : row,
   )
 
-  // Cap hp_current if it now exceeds base hp_max + remaining equipment bonus
-  const hpBonus = computeEquipmentHpBonus(updatedInventory)
-  const effectiveMax = character.hp_max + hpBonus
+  // Cap hp_current if it now exceeds the effective max (base + equipment + perks)
+  const effectiveMax = computeEffectiveHpMax(character as LobbyCharacterRecord, updatedInventory)
   if (character.hp_current > effectiveMax) {
     await db.from("characters").update({ hp_current: effectiveMax }).eq("id", character.id)
   }
@@ -359,17 +357,16 @@ lobby.post("/use-consumable", requireAuth, async (c) => {
   if (inventoryError) return c.json({ error: inventoryError.message }, 500)
 
   const inventory = (inventoryRows ?? []) as LobbyInventoryRecord[]
-  const hpBonus = computeEquipmentHpBonus(inventory)
+  const effectiveHpMax = computeEffectiveHpMax(character as LobbyCharacterRecord, inventory)
   const validation = validateLobbyUseConsumable(
     character as LobbyCharacterRecord,
     inventory,
     itemId,
-    hpBonus,
+    effectiveHpMax,
   )
   if (!validation.ok) return c.json({ error: validation.error }, 400)
 
   const { row, template, effect } = validation
-  const effectiveHpMax = character.hp_max + hpBonus
 
   // Apply effect
   if (effect.type === "heal-hp") {
@@ -440,10 +437,10 @@ lobby.post("/inn/rest", requireAuth, async (c) => {
     return c.json({ error: "Leave the dungeon before resting." }, 409)
   }
 
-  // Compute effective HP max including equipment bonuses
+  // Compute effective HP max including equipment AND perk bonuses
   const { data: inventoryRows } = await loadInventory(character.id)
-  const innHpBonus = computeEquipmentHpBonus((inventoryRows ?? []) as LobbyInventoryRecord[])
-  const effectiveHpMax = character.hp_max + innHpBonus
+  const innInventory = (inventoryRows ?? []) as LobbyInventoryRecord[]
+  const effectiveHpMax = computeEffectiveHpMax(character as LobbyCharacterRecord, innInventory)
 
   if (
     character.hp_current >= effectiveHpMax

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "lastSync": "2026-04-13",
+  "lastSync": "2026-04-14",
   "sources": [
     {
       "canonical": "shared/schemas/src/index.ts",
@@ -109,7 +109,7 @@
     },
     {
       "file": "shared/engine/src/realm.ts",
-      "hash": "68db9f94ef7962c4c38c97c16696300a451a75bcbfa5ce33fedc9953f9e160e7",
+      "hash": "53348c7f624aed7ee146390ac300a68bbf4a42170d4a64366eb2736270c9d368",
       "affectedModules": [
         "exploration",
         "portal"
@@ -140,7 +140,7 @@
     },
     {
       "file": "backend/src/game/session.ts",
-      "hash": "d087f5d0f6396fcaca240a24d21cd66cb498e01695d034cb26eadbdaa0673160",
+      "hash": "d0ed89a3b7143e874dd2a6e637c2ad78b6a9f77ba3d76815f0174a2f885d8c3e",
       "affectedModules": [
         "agent-lifecycle",
         "chat"
@@ -157,7 +157,7 @@
     },
     {
       "file": "backend/src/routes/characters.ts",
-      "hash": "e2ea98c32c7dbc34b0c7554a8e2228f9f0836839bb030365b274f1a998e84297",
+      "hash": "b82ba713daac35aa7dee42d2847b7bcb1b071dff6e3877e8c3e64ae856c9eee2",
       "affectedModules": [
         "dev-stack",
         "agent-lifecycle"
@@ -204,7 +204,7 @@
     },
     {
       "file": "backend/src/routes/lobby.ts",
-      "hash": "3c5988c9d75b0c501c2583c7b4a257bef849814c427d7947652c620d2a66d7f7",
+      "hash": "bd180e25bfc08003fc68a3c108fcbb9d01ef83f248b484025de0a61c984eec41",
       "affectedModules": [
         "chat"
       ]
@@ -271,8 +271,8 @@
     {
       "source": "shared/engine/src/realm.ts",
       "vendored": "agent-sdk/dev/engine/realm.ts",
-      "sourceHash": "68db9f94ef7962c4c38c97c16696300a451a75bcbfa5ce33fedc9953f9e160e7",
-      "vendoredHash": "d09a8eb9d2f0923e1a8ba4654743a56998346a8c984c21245460c0e8c80b5ab7",
+      "sourceHash": "53348c7f624aed7ee146390ac300a68bbf4a42170d4a64366eb2736270c9d368",
+      "vendoredHash": "5c17326255f0357943a16ce80b6c8151eace4aa27c68dfbbc929ce5e4de17805",
       "affectedModules": [
         "dev-stack"
       ]

@@ -3,7 +3,7 @@ import { db } from "../db/client.js"
 import { requireAuth } from "../auth/middleware.js"
 import { rollStats, rerollStats, getResourceMax } from "../game/stats.js"
 import { validatePerkAllocation, validateSkillAllocation } from "../game/skill-tree.js"
-import { CLASSES, PERK_LIST, SKILL_TREES } from "@adventure-fun/engine"
+import { CLASSES, PERK_LIST, SKILL_TREES, getItem } from "@adventure-fun/engine"
 import {
   computePerkPointsRemaining,
   computeTierChoicesAvailable,
@@ -12,6 +12,7 @@ import {
 } from "@adventure-fun/engine"
 import type { CharacterClass } from "@adventure-fun/schemas"
 import { getRequestedNetworks, logPayment, return402, verifyAndSettle } from "../payments/x402.js"
+import { computePerkHpBonus } from "./lobby-helpers.js"
 
 const characters = new Hono()
 
@@ -352,6 +353,17 @@ characters.get("/public/:id", async (c) => {
     .eq("character_id", id)
     .maybeSingle()
 
+  // Effective max HP = base hp_max + equipped item HP + perk HP bonuses.
+  // hp_max in DB is the base value; equipment and perks layer on top so
+  // every page sees the same cap the realm-gameplay path uses.
+  let equipHpBonus = 0
+  for (const row of inventoryRows ?? []) {
+    if (!row.slot) continue
+    try { equipHpBonus += getItem(row.template_id).stats?.hp ?? 0 } catch { /* skip */ }
+  }
+  const perkHpBonus = computePerkHpBonus(character.perks as Record<string, number> | null)
+  const hpMaxEffective = character.hp_max + equipHpBonus + perkHpBonus
+
   return c.json({
     character: {
       id: character.id,
@@ -362,6 +374,7 @@ characters.get("/public/:id", async (c) => {
       gold: character.gold,
       hp_current: character.hp_current,
       hp_max: character.hp_max,
+      hp_max_effective: hpMaxEffective,
       resource_current: character.resource_current,
       resource_max: character.resource_max,
       stats: character.stats,

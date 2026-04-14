@@ -421,3 +421,53 @@ function buildRoomTiles(width: number, height: number): Tile[][] {
   }
   return tiles
 }
+
+function findRoomTemplateForGeneratedRoom(generatedRoomId: string): RoomTemplate | null {
+  // Generated room IDs look like: f1_r0_tutorial-storeroom — template id is everything after the second underscore
+  const parts = generatedRoomId.split("_")
+  if (parts.length < 3) return null
+  const templateId = parts.slice(2).join("_")
+  return ROOMS[templateId] ?? null
+}
+
+/**
+ * Replays locked-exit unlocks against an already-generated realm so that the
+ * in-memory topology matches the unlock-door effects that have already fired
+ * for this realm instance. Must be called after generateRealm() and before
+ * any code that reads room.connections or room.tiles.
+ *
+ * Idempotent: guards against duplicate connections and re-door'ing a tile
+ * that is already a door, so it is safe to invoke more than once.
+ */
+export function replayLockedExitUnlocks(
+  realm: GeneratedRealm,
+  mutatedEntities: ReadonlySet<string> | readonly string[],
+): void {
+  const mutatedSet =
+    mutatedEntities instanceof Set
+      ? (mutatedEntities as ReadonlySet<string>)
+      : new Set<string>(mutatedEntities as readonly string[])
+
+  for (const floor of realm.floors) {
+    for (let i = 0; i < floor.rooms.length; i++) {
+      const genRoom = floor.rooms[i]!
+      const template = findRoomTemplateForGeneratedRoom(genRoom.id)
+      if (!template?.locked_exit) continue
+      if (!mutatedSet.has(template.locked_exit)) continue
+
+      const nextRoom = floor.rooms[i + 1]
+      if (!nextRoom) continue
+      if (genRoom.connections.includes(nextRoom.id)) continue
+
+      genRoom.connections.push(nextRoom.id)
+
+      const h = genRoom.tiles.length
+      const w = genRoom.tiles[0]?.length ?? 0
+      const midY = Math.floor(h / 2)
+      const row = genRoom.tiles[midY]
+      if (row && row[w - 1]?.type !== "door") {
+        row[w - 1] = { x: w - 1, y: midY, type: "door", entities: [] }
+      }
+    }
+  }
+}

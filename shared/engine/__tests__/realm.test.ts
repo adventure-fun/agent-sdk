@@ -1,5 +1,6 @@
 import { describe, it, expect } from "bun:test"
-import { generateRealm } from "../src/realm.js"
+import { generateRealm, replayLockedExitUnlocks } from "../src/realm.js"
+import { REALMS, ROOMS } from "../src/content.js"
 import type { RealmTemplate } from "@adventure-fun/schemas"
 
 const mockTemplate: RealmTemplate = {
@@ -146,5 +147,81 @@ describe("generateRealm", () => {
     const leftWall = entranceRoom?.tiles[midY]?.[0]
 
     expect(leftWall?.type).not.toBe("stairs_up")
+  })
+})
+
+describe("replayLockedExitUnlocks", () => {
+  // Use the real Collapsed Passage realm because it exercises the full
+  // handcrafted-realm path: cp-locked-gate has `locked_exit: "cp-iron-gate"`
+  // and cp-overseers-den is the room behind it.
+  const collapsedPassage = REALMS["collapsed-passage"]!
+  const lockedGateTemplate = ROOMS["cp-locked-gate"]!
+  const lockedExitId = lockedGateTemplate.locked_exit!
+
+  function findLockedGateRoom(realm: ReturnType<typeof generateRealm>) {
+    for (const floor of realm.floors) {
+      for (let i = 0; i < floor.rooms.length; i++) {
+        const room = floor.rooms[i]!
+        if (room.id.endsWith("_cp-locked-gate")) {
+          return { room, nextRoom: floor.rooms[i + 1] ?? null }
+        }
+      }
+    }
+    return null
+  }
+
+  it("test fixtures: collapsed-passage exposes a locked gate followed by another room", () => {
+    expect(collapsedPassage).toBeDefined()
+    expect(lockedExitId).toBe("cp-iron-gate")
+    const realm = generateRealm(collapsedPassage, 1)
+    const found = findLockedGateRoom(realm)
+    expect(found).not.toBeNull()
+    expect(found!.nextRoom).not.toBeNull()
+  })
+
+  it("fresh-generated realm leaves the locked gate room unconnected and walled east", () => {
+    const realm = generateRealm(collapsedPassage, 1)
+    const { room, nextRoom } = findLockedGateRoom(realm)!
+    expect(room.connections.includes(nextRoom!.id)).toBe(false)
+    const midY = Math.floor(room.tiles.length / 2)
+    const eastWall = room.tiles[midY]?.[room.tiles[0]!.length - 1]
+    expect(eastWall?.type).toBe("wall")
+  })
+
+  it("replays the unlock when the gate id is in mutatedEntities", () => {
+    const realm = generateRealm(collapsedPassage, 1)
+    replayLockedExitUnlocks(realm, [lockedExitId])
+    const { room, nextRoom } = findLockedGateRoom(realm)!
+    expect(room.connections.includes(nextRoom!.id)).toBe(true)
+    const midY = Math.floor(room.tiles.length / 2)
+    const eastWall = room.tiles[midY]?.[room.tiles[0]!.length - 1]
+    expect(eastWall?.type).toBe("door")
+  })
+
+  it("is idempotent — calling twice does not duplicate the connection", () => {
+    const realm = generateRealm(collapsedPassage, 1)
+    replayLockedExitUnlocks(realm, [lockedExitId])
+    const { room, nextRoom } = findLockedGateRoom(realm)!
+    const lengthAfterFirst = room.connections.length
+    replayLockedExitUnlocks(realm, [lockedExitId])
+    expect(room.connections.length).toBe(lengthAfterFirst)
+    expect(room.connections.filter((c) => c === nextRoom!.id).length).toBe(1)
+  })
+
+  it("is a no-op when mutatedEntities is empty", () => {
+    const realm = generateRealm(collapsedPassage, 1)
+    replayLockedExitUnlocks(realm, [])
+    const { room, nextRoom } = findLockedGateRoom(realm)!
+    expect(room.connections.includes(nextRoom!.id)).toBe(false)
+    const midY = Math.floor(room.tiles.length / 2)
+    const eastWall = room.tiles[midY]?.[room.tiles[0]!.length - 1]
+    expect(eastWall?.type).toBe("wall")
+  })
+
+  it("accepts a Set as well as an array", () => {
+    const realm = generateRealm(collapsedPassage, 1)
+    replayLockedExitUnlocks(realm, new Set([lockedExitId]))
+    const { room, nextRoom } = findLockedGateRoom(realm)!
+    expect(room.connections.includes(nextRoom!.id)).toBe(true)
   })
 })
