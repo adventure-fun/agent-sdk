@@ -296,9 +296,9 @@ export function DungeonView({
                 this split, every new event pushed the d-pad downward
                 and made it feel like the controls were jumping around
                 the screen. */}
-            <div className="mt-3 border-t border-white/5 pt-2 flex flex-col md:flex-row gap-4">
+            <div className="mt-3 border-t border-white/5 pt-2 flex flex-row gap-4">
               {/* LEFT: info + non-movement actions */}
-              <div className="md:w-2/3 flex flex-col">
+              <div className="w-2/3 flex flex-col min-w-0">
                 {/* Room text — reserves line-height even when empty so
                     the recent-events block below doesn't jump. */}
                 <p className="text-aw-on-surface-variant text-xs italic min-h-[1.25rem]">
@@ -519,7 +519,7 @@ export function DungeonView({
                   pinned to the same y as the room text in the left
                   column, so the d-pad never moves vertically when the
                   events list grows or shrinks. */}
-              <div className="md:w-1/3 flex justify-center md:justify-end self-start">
+              <div className="w-1/3 flex justify-center self-start">
                 {moveActions.length > 0 && (
                   <div
                     className="grid grid-cols-3 gap-1.5"
