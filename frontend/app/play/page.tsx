@@ -544,10 +544,10 @@ export default function PlayPage() {
       if (!isNameValid) return
       store.getState().setCreateError(null)
       const result = await rollCharacter(trimmedName, selectedClass)
-      if (result) {
+      if (result.character) {
         store.getState().setStep("stat-reveal")
       } else {
-        store.getState().setCreateError(charError ?? "Failed to create character")
+        store.getState().setCreateError(result.error ?? "Something went wrong creating your character. Please try again.")
       }
     }
 

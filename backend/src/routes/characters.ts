@@ -74,8 +74,9 @@ characters.post("/roll", requireAuth, async (c) => {
   if (!VALID_CLASSES.includes(cls)) {
     return c.json({ error: `Invalid class. Choose: ${VALID_CLASSES.join(", ")}` }, 400)
   }
-  if (!body.name || body.name.length < 2 || body.name.length > 24) {
-    return c.json({ error: "Name must be 2-24 characters" }, 400)
+  const trimmedName = (body.name ?? "").trim()
+  if (trimmedName.length < 2 || trimmedName.length > 24) {
+    return c.json({ error: "Name must be 2–24 characters." }, 400)
   }
 
   const stats = rollStats(cls)
@@ -85,7 +86,7 @@ characters.post("/roll", requireAuth, async (c) => {
     .from("characters")
     .insert({
       account_id,
-      name: body.name.trim(),
+      name: trimmedName,
       class: cls,
       level: 1,
       xp: 0,
@@ -103,7 +104,18 @@ characters.post("/roll", requireAuth, async (c) => {
     .select()
     .single()
 
-  if (error) return c.json({ error: error.message }, 500)
+  if (error) {
+    // Map postgres unique-violation on (account_id, name) to a friendly 409
+    // so the UI can tell the player exactly why their pick was rejected
+    // instead of the generic "Failed to create character" fallback.
+    if (/duplicate key|unique/i.test(error.message)) {
+      // Constraint is on (account_id, name) and applies to dead characters
+      // too — reroll can't reuse a name, so the message has to cover that.
+      return c.json({ error: "You've already used that name on another character. Pick a different one." }, 409)
+    }
+    console.error("[characters/roll] insert failed", { account_id, error })
+    return c.json({ error: "Something went wrong creating your character. Please try again." }, 500)
+  }
   return c.json(data, 201)
 })
 

@@ -57,7 +57,10 @@ export function useCharacter() {
   }, [headers])
 
   /** Create a new character with the given name and class. Rolls stats server-side. */
-  const rollCharacter = useCallback(async (name: string, cls: CharacterClass): Promise<Character | null> => {
+  const rollCharacter = useCallback(async (
+    name: string,
+    cls: CharacterClass,
+  ): Promise<{ character: Character | null; error: string | null }> => {
     setIsLoading(true)
     setError(null)
     try {
@@ -68,23 +71,23 @@ export function useCharacter() {
       })
       if (res.status === 401) {
         logout()
-        throw new Error("Session expired — please sign in again")
-      }
-      if (res.status === 409) {
-        const body = await res.json()
-        throw new Error(body.error ?? "Character already exists")
+        const msg = "Session expired — please sign in again."
+        setError(msg)
+        return { character: null, error: msg }
       }
       if (!res.ok) {
-        const body = await res.json()
-        throw new Error(body.error ?? "Failed to create character")
+        const body = await res.json().catch(() => ({}))
+        const msg = body.error ?? "Something went wrong creating your character. Please try again."
+        setError(msg)
+        return { character: null, error: msg }
       }
       const data: Character = await res.json()
       setCharacter(data)
-      return data
+      return { character: data, error: null }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to create character"
+      const msg = err instanceof Error ? err.message : "Something went wrong creating your character. Please try again."
       setError(msg)
-      return null
+      return { character: null, error: msg }
     } finally {
       setIsLoading(false)
     }
