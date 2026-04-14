@@ -178,6 +178,21 @@ export function DungeonView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible_tiles])
 
+  // Tracks the d-pad direction the user just pressed (via key OR click)
+  // so we can flash ONLY that button briefly. Without this, the previous
+  // implementation relied on `disabled:opacity-30` to communicate the
+  // in-flight state, which made all four arrows fade simultaneously
+  // every time a single move was issued — looked like the whole d-pad
+  // was blinking. Now we visually highlight the pressed direction only.
+  const [pressedDir, setPressedDir] = useState<"up" | "down" | "left" | "right" | null>(null)
+  const flashDir = (dir: "up" | "down" | "left" | "right") => {
+    setPressedDir(dir)
+    // Long enough to be perceptible, short enough to clear before the
+    // next turn rolls in for fast players. Matches the engine's typical
+    // turn-resolution latency loosely.
+    window.setTimeout(() => setPressedDir((prev) => (prev === dir ? null : prev)), 180)
+  }
+
   // Arrow key → movement mapping
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -201,6 +216,7 @@ export function DungeonView({
       const action = moveActions.find((a) => a.direction === direction)
       if (action) {
         e.preventDefault()
+        flashDir(direction)
         onAction(action)
       }
     }
@@ -271,112 +287,62 @@ export function DungeonView({
                 ))}
               </div>
             )}
-            {/* Room text — reserves its line-height even when no text so
-                the blocks below (recent events, action buttons) don't
-                jump up when moving between rooms. */}
-            <p className="text-aw-on-surface-variant text-xs mt-3 italic border-t border-white/5 pt-2 min-h-[1.25rem]">
-              {room_text ?? "\u00A0"}
-            </p>
+            {/* Info + d-pad row.
+                Layout: room text, recent events, action error, and all
+                non-movement action buttons live in the LEFT 2/3. The
+                d-pad lives in the RIGHT 1/3 with `self-start` so its
+                top edge always lines up with the top of the room text,
+                regardless of how tall the events list grows. Without
+                this split, every new event pushed the d-pad downward
+                and made it feel like the controls were jumping around
+                the screen. */}
+            <div className="mt-3 border-t border-white/5 pt-2 flex flex-row gap-4">
+              {/* LEFT: info + non-movement actions */}
+              <div className="w-2/3 flex flex-col min-w-0">
+                {/* Room text — reserves line-height even when empty so
+                    the recent-events block below doesn't jump. */}
+                <p className="text-aw-on-surface-variant text-xs italic min-h-[1.25rem]">
+                  {room_text ?? "\u00A0"}
+                </p>
 
-            {/* Recent events — fixed-height slot so the d-pad below it
-                never shifts. We show the last two events (the most
-                information-dense view given the vertical budget); older
-                events are visible in the dungeon feed side panel. The
-                container is always rendered so the layout is stable
-                regardless of whether events exist yet on turn 0. */}
-            <div className="mt-3 border-t border-white/5 pt-2 min-h-[5.5rem]">
-              <div className="text-[10px] text-aw-outline uppercase tracking-[0.2em] mb-1">RECENT_EVENTS</div>
-              {recent_events.length > 0 ? (
-                recent_events.slice(-2).map((e, i, arr) => (
-                  <div
-                    key={`${e.turn}-${i}`}
-                    className={`text-xs rounded border px-2 py-1 mb-1 ${
-                      getRecentEventPalette(e, i === arr.length - 1)
-                    }`}
-                  >
-                    {getRecentEventLead(e)} {e.detail}
-                  </div>
-                ))
-              ) : (
-                <div className="text-xs text-aw-outline italic">No events yet.</div>
-              )}
-            </div>
-
-            {/* Action error slot — also reserved so the d-pad doesn't
-                shift when a transient error appears/disappears. */}
-            <div className="min-h-[0.5rem]" />
-
-            {/* Action error toast — moved inside map column */}
-            {actionError && (
-              <button
-                onClick={onDismissError}
-                className="mt-2 w-full rounded border border-ob-error/30 bg-ob-error/15 px-4 py-2 text-sm text-ob-error text-left transition-opacity hover:bg-ob-error/20"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <span>{actionError}</span>
-                  <span className="text-ob-error text-xs shrink-0">dismiss</span>
+                {/* Recent events — fixed-height slot so vertical layout
+                    around it stays stable. Last two events shown; older
+                    ones are in the dungeon feed side panel. */}
+                <div className="mt-3 border-t border-white/5 pt-2 min-h-[5.5rem]">
+                  <div className="text-[10px] text-aw-outline uppercase tracking-[0.2em] mb-1">RECENT_EVENTS</div>
+                  {recent_events.length > 0 ? (
+                    recent_events.slice(-2).map((e, i, arr) => (
+                      <div
+                        key={`${e.turn}-${i}`}
+                        className={`text-xs rounded border px-2 py-1 mb-1 ${
+                          getRecentEventPalette(e, i === arr.length - 1)
+                        }`}
+                      >
+                        {getRecentEventLead(e)} {e.detail}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-xs text-aw-outline italic">No events yet.</div>
+                  )}
                 </div>
-              </button>
-            )}
 
-            {/* Action buttons — moved inside map column.
-                Removed the "RESOLVING..." line that caused layout jitter
-                whenever a turn took >0 ms; the "in-flight" state is now
-                communicated by the disabled + opacity-60 state on the
-                action buttons themselves. */}
-            <div className="mt-3 border-t border-white/5 pt-3 space-y-3">
-
-              {/* Movement — 3x3 d-pad with arrow glyphs. Always has a stable
-                  footprint (grid-cols-3 × 3 rows) even when a direction
-                  isn't legal, so the layout doesn't shift. Keyboard shortcuts
-                  (arrow keys + WASD) are still bound via the useEffect above.
-                  N/S/E/W compass labels sit as tiny subscripts under each
-                  glyph. */}
-              {moveActions.length > 0 && (
-                <div className="flex justify-center">
-                  <div
-                    className="grid grid-cols-3 gap-1.5"
-                    aria-label="Movement controls"
+                {/* Action error toast */}
+                {actionError && (
+                  <button
+                    onClick={onDismissError}
+                    className="mt-2 w-full rounded border border-ob-error/30 bg-ob-error/15 px-4 py-2 text-sm text-ob-error text-left transition-opacity hover:bg-ob-error/20"
                   >
-                    {([
-                      { pos: 0, dir: null },
-                      { pos: 1, dir: "up",    compass: "N" },
-                      { pos: 2, dir: null },
-                      { pos: 3, dir: "left",  compass: "W" },
-                      { pos: 4, dir: null },
-                      { pos: 5, dir: "right", compass: "E" },
-                      { pos: 6, dir: null },
-                      { pos: 7, dir: "down",  compass: "S" },
-                      { pos: 8, dir: null },
-                    ] as const).map((cell) => {
-                      if (!cell.dir) {
-                        return <div key={cell.pos} aria-hidden className="w-14 h-14" />
-                      }
-                      const action = moveActions.find((a) => a.direction === cell.dir)
-                      const disabled = !action || waitingForResponse
-                      const glyph = cell.dir === "up" ? "↑"
-                        : cell.dir === "down" ? "↓"
-                        : cell.dir === "left" ? "←"
-                        : "→"
-                      return (
-                        <button
-                          key={cell.pos}
-                          type="button"
-                          disabled={disabled}
-                          onClick={() => action && onAction(action)}
-                          className="w-14 h-14 bg-ob-surface-container hover:bg-ob-surface-container-high active:bg-ob-surface-container-highest text-ob-on-surface border border-ob-outline-variant/15 hover:border-ob-primary/30 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex flex-col items-center justify-center"
-                          title={`Move ${cell.compass}`}
-                        >
-                          <span className="text-xl leading-none">{glyph}</span>
-                          <span className="ob-label text-[9px] tracking-widest text-ob-outline mt-0.5">
-                            {cell.compass}
-                          </span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
+                    <div className="flex items-center justify-between gap-3">
+                      <span>{actionError}</span>
+                      <span className="text-ob-error text-xs shrink-0">dismiss</span>
+                    </div>
+                  </button>
+                )}
+
+                {/* Non-movement action buttons follow below. Wrapped in
+                    its own block so the d-pad column doesn't share their
+                    width budget. */}
+                <div className="mt-3 border-t border-white/5 pt-3 space-y-3">
 
               {/* Attack */}
               {attackActions.length > 0 && (
@@ -546,6 +512,80 @@ export function DungeonView({
               <p className="text-center text-[10px] text-aw-surface-bright tracking-wide">
                 Portal escape requires a portal scroll. Retreat works only from the first-floor entrance.
               </p>
+                </div>
+              </div>
+
+              {/* RIGHT: d-pad column. `self-start` keeps the top edge
+                  pinned to the same y as the room text in the left
+                  column, so the d-pad never moves vertically when the
+                  events list grows or shrinks. */}
+              <div className="w-1/3 flex justify-center self-start">
+                {moveActions.length > 0 && (
+                  <div
+                    className="grid grid-cols-3 gap-1.5"
+                    aria-label="Movement controls"
+                  >
+                    {([
+                      { pos: 0, dir: null },
+                      { pos: 1, dir: "up",    compass: "N" },
+                      { pos: 2, dir: null },
+                      { pos: 3, dir: "left",  compass: "W" },
+                      { pos: 4, dir: null },
+                      { pos: 5, dir: "right", compass: "E" },
+                      { pos: 6, dir: null },
+                      { pos: 7, dir: "down",  compass: "S" },
+                      { pos: 8, dir: null },
+                    ] as const).map((cell) => {
+                      if (!cell.dir) {
+                        return <div key={cell.pos} aria-hidden className="w-14 h-14" />
+                      }
+                      const action = moveActions.find((a) => a.direction === cell.dir)
+                      const isLegal = !!action
+                      const isPressed = pressedDir === cell.dir
+                      const glyph = cell.dir === "up" ? "↑"
+                        : cell.dir === "down" ? "↓"
+                        : cell.dir === "left" ? "←"
+                        : "→"
+                      return (
+                        <button
+                          key={cell.pos}
+                          type="button"
+                          // Still disable during waitingForResponse to
+                          // prevent queueing a second move, but DO NOT
+                          // rely on the disabled fade for visual
+                          // feedback — see pressedDir below.
+                          disabled={!isLegal || waitingForResponse}
+                          onClick={() => {
+                            if (action) {
+                              flashDir(cell.dir)
+                              onAction(action)
+                            }
+                          }}
+                          // Only the just-pressed direction lights up;
+                          // the others stay at full opacity (unless they
+                          // were never legal in this room, in which case
+                          // they're permanently dimmed). Previously the
+                          // global `disabled:opacity-30` made all four
+                          // arrows blink together each turn.
+                          className={`w-14 h-14 text-ob-on-surface border rounded-lg transition-colors flex flex-col items-center justify-center ${
+                            isPressed
+                              ? "bg-ob-primary/30 border-ob-primary text-ob-primary shadow-[0_0_12px_rgba(255,184,77,0.5)]"
+                              : isLegal
+                                ? "bg-ob-surface-container hover:bg-ob-surface-container-high active:bg-ob-surface-container-highest border-ob-outline-variant/15 hover:border-ob-primary/30"
+                                : "bg-ob-surface-container border-ob-outline-variant/10 opacity-30 cursor-not-allowed"
+                          }`}
+                          title={`Move ${cell.compass}`}
+                        >
+                          <span className="text-xl leading-none">{glyph}</span>
+                          <span className="ob-label text-[9px] tracking-widest text-ob-outline mt-0.5">
+                            {cell.compass}
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 

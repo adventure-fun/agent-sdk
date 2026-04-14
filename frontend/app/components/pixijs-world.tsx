@@ -1,10 +1,19 @@
 "use client"
 
-import { useRef, useEffect, useCallback, useMemo } from "react"
+import { useRef, useEffect, useCallback } from "react"
 import type { Tile, Entity, SpectatorEntity, CharacterClass } from "@adventure-fun/schemas"
 import { Application, AnimatedSprite, Assets, Graphics, Texture, Sprite, Container } from "pixi.js"
 
 const TILE_SIZE = 64
+// Largest room currently in shared/engine/content/rooms is 10 tiles tall
+// (sc-warden-chamber, cm-sentinel-chamber). We pin the canvas container
+// to that height so smaller rooms don't visually shrink the map area
+// and pull the d-pad / room text upward each turn. The PixiJS draw
+// function already centers tiles inside the canvas via offsetX/offsetY,
+// so smaller rooms render centered with empty black space around them.
+// Bump this if room content grows past 10 tiles tall.
+const MAX_ROOM_TILES = 10
+const CANVAS_RESERVED_HEIGHT_PX = MAX_ROOM_TILES * TILE_SIZE
 
 const COLORS: Record<string, number> = {
   wall: 0x3b3b3b,
@@ -219,12 +228,12 @@ export function PixiJSWorld({
   const interactableFramesRef = useRef<Record<string, Texture[]>>({})
   const notFoundFramesRef = useRef<Texture[] | null>(null)
 
-  const mapHeight = useMemo(() => {
-    const allTiles = [...visibleTiles, ...knownTiles]
-    if (allTiles.length === 0) return 280
-    const ys = allTiles.map((t) => t.y)
-    return (Math.max(...ys) - Math.min(...ys) + 1) * TILE_SIZE
-  }, [visibleTiles, knownTiles])
+  // Always reserve enough height for the tallest room in the content
+  // library (see CANVAS_RESERVED_HEIGHT_PX). This stops the dungeon
+  // viewport from collapsing when the player walks into a small room,
+  // which previously yanked the room text + d-pad upward and made the
+  // controls feel like they were jumping around the screen.
+  const mapHeight = CANVAS_RESERVED_HEIGHT_PX
 
   const draw = useCallback(
     (app: Application) => {
