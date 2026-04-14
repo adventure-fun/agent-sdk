@@ -157,7 +157,7 @@
     },
     {
       "file": "backend/src/routes/characters.ts",
-      "hash": "2187fdc1d9020aa35ec44cfa8e3c290b6005e8d817911f8dddf71bb784d13bed",
+      "hash": "3b30710cbdeb69eefc76b104238443046ddea08e819496c9a5c44b8f59165c7d",
       "affectedModules": [
         "dev-stack",
         "agent-lifecycle"
@@ -165,7 +165,7 @@
     },
     {
       "file": "backend/src/routes/realms.ts",
-      "hash": "d7753c5d0b38897177fc0f8eb216925f67eccf08bcf487c604e8c045d56e35c2",
+      "hash": "de299d18d1053d237b8c85874722805bf2aae919eb60135689c2877f264d2f03",
       "affectedModules": [
         "dev-stack",
         "agent-lifecycle"
@@ -180,7 +180,7 @@
     },
     {
       "file": "backend/src/index.ts",
-      "hash": "67d1211bca23fb60444f395b07b862b55acd4a04fd02d992f9da6b8f04877ed7",
+      "hash": "7d39d478cd67f625fd3a3074bceda5fae7a13c6f55b4255efb90f2e790f47c27",
       "affectedModules": [
         "dev-stack",
         "chat"
@@ -204,7 +204,7 @@
     },
     {
       "file": "backend/src/routes/lobby.ts",
-      "hash": "bd180e25bfc08003fc68a3c108fcbb9d01ef83f248b484025de0a61c984eec41",
+      "hash": "01042b0eb4a610fbbaffb860af1767632529c22ec44b10e42f0b26eddd8e7528",
       "affectedModules": [
         "chat"
       ]
