@@ -828,16 +828,13 @@ export default function SpectatePage({ params }: Props) {
             )}
           </div>
         </div>
-
-        <div className="mt-auto p-6 border-t border-ob-outline-variant/10">
-          <button
-            type="button"
-            onClick={requestReconnect}
-            className="w-full ob-label text-[10px] tracking-widest uppercase border border-ob-primary/30 text-ob-primary hover:bg-ob-primary/10 py-3 rounded-xl transition-colors"
-          >
-            Initialize Uplink
-          </button>
-        </div>
+        {/* Previously: a big "Initialize Uplink" button pinned to the
+            bottom of this sidebar that called requestReconnect. Removed
+            — it duplicated the action already exposed by the error
+            banner (only shown when relevant), the "session ended"
+            panel's Retry Connection button, and the feed header's SYNC
+            link. Contextual surfaces beat a permanent button in dead
+            space. */}
       </aside>
     </div>
   )
