@@ -15,6 +15,7 @@ import type {
 } from "@adventure-fun/schemas"
 import {
   generateRealm,
+  replayLockedExitUnlocks,
   REALMS,
   CLASSES,
   PERKS,
@@ -246,6 +247,13 @@ export class GameSession {
     const mutatedEntities = mutations.map(
       (m: Record<string, unknown>) => m.entity_id as string,
     )
+
+    // Replay locked-exit unlocks against the freshly-generated realm so that
+    // forward connections + door tiles patched by a prior unlock-door effect
+    // are restored. Only realm_mutations.entity_id is persisted, so without
+    // this step the regenerated topology drops those edits and the player
+    // can be left stranded on the wrong side of a "used" gate.
+    replayLockedExitUnlocks(generated, mutatedEntities)
 
     // Build discovered tiles from DB
     const discoveredTiles: Record<number, Array<{ x: number; y: number }>> = {}

@@ -1,4 +1,4 @@
-import { ITEMS, getItem } from "@adventure-fun/engine"
+import { ITEMS, PERKS, getItem } from "@adventure-fun/engine"
 import {
   getInventoryCapacity,
   type CharacterClass,
@@ -16,6 +16,7 @@ export interface LobbyCharacterRecord {
   hp_max: number
   resource_current: number
   resource_max: number
+  perks?: Record<string, number> | null
 }
 
 export interface LobbyInventoryRecord {
@@ -273,13 +274,81 @@ export function computeEquipmentHpBonus(inventoryRows: LobbyInventoryRecord[]): 
   return bonus
 }
 
+export type StatBonusKey = "hp" | "attack" | "defense" | "accuracy" | "evasion" | "speed"
+
+export type StatBonuses = Record<StatBonusKey, number>
+
+const EMPTY_STAT_BONUSES = (): StatBonuses => ({
+  hp: 0,
+  attack: 0,
+  defense: 0,
+  accuracy: 0,
+  evasion: 0,
+  speed: 0,
+})
+
+const STAT_KEYS: ReadonlySet<string> = new Set([
+  "hp",
+  "attack",
+  "defense",
+  "accuracy",
+  "evasion",
+  "speed",
+])
+
+export function computePerkStatBonuses(
+  perks: Record<string, number> | null | undefined,
+): StatBonuses {
+  const bonuses = EMPTY_STAT_BONUSES()
+  if (!perks) return bonuses
+  for (const [perkId, stacks] of Object.entries(perks)) {
+    if (stacks <= 0) continue
+    const perk = PERKS[perkId]
+    if (!perk || !STAT_KEYS.has(perk.stat)) continue
+    bonuses[perk.stat as StatBonusKey] += perk.value_per_stack * stacks
+  }
+  return bonuses
+}
+
+export function computeEquipmentStatBonuses(inventoryRows: LobbyInventoryRecord[]): StatBonuses {
+  const bonuses = EMPTY_STAT_BONUSES()
+  for (const row of inventoryRows) {
+    if (!row.slot) continue
+    try {
+      const template = getItem(row.template_id)
+      const stats = template.stats
+      if (!stats) continue
+      for (const key of Object.keys(bonuses) as StatBonusKey[]) {
+        const value = stats[key]
+        if (typeof value === "number") bonuses[key] += value
+      }
+    } catch { /* skip */ }
+  }
+  return bonuses
+}
+
+export function computePerkHpBonus(perks: Record<string, number> | null | undefined): number {
+  return computePerkStatBonuses(perks).hp
+}
+
+export function computeEffectiveHpMax(
+  character: { hp_max: number; perks?: Record<string, number> | null },
+  inventoryRows: LobbyInventoryRecord[],
+): number {
+  return (
+    character.hp_max
+    + computeEquipmentHpBonus(inventoryRows)
+    + computePerkHpBonus(character.perks ?? null)
+  )
+}
+
 const LOBBY_USABLE_EFFECTS = new Set(["heal-hp", "restore-resource"])
 
 export function validateLobbyUseConsumable(
   character: LobbyCharacterRecord,
   inventory: LobbyInventoryRecord[],
   itemId: string,
-  equipmentHpBonus: number,
+  effectiveHpMax: number,
 ):
   | { ok: true; row: LobbyInventoryRecord; template: ItemTemplate; effect: ItemEffect }
   | { ok: false; error: string } {
@@ -303,7 +372,6 @@ export function validateLobbyUseConsumable(
     return { ok: false, error: "This item can only be used inside a dungeon." }
   }
 
-  const effectiveHpMax = character.hp_max + equipmentHpBonus
   if (effect.type === "heal-hp" && character.hp_current >= effectiveHpMax) {
     return { ok: false, error: "Already at full HP." }
   }

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "lastSync": "2026-04-13",
+  "lastSync": "2026-04-14",
   "sources": [
     {
       "canonical": "shared/schemas/src/index.ts",
@@ -81,7 +81,7 @@
   "engineWatchlist": [
     {
       "file": "shared/engine/src/turn.ts",
-      "hash": "67804e3378617f82f3dfc9f010eb578a3f7b302d0a528c6a5d0b2e085eb9520b",
+      "hash": "d9ea4cdb19b103d97495da3c99982400c202cf2555694e689c5c34ae65cda59f",
       "affectedModules": [
         "combat",
         "exploration",
@@ -109,7 +109,7 @@
     },
     {
       "file": "shared/engine/src/realm.ts",
-      "hash": "68db9f94ef7962c4c38c97c16696300a451a75bcbfa5ce33fedc9953f9e160e7",
+      "hash": "53348c7f624aed7ee146390ac300a68bbf4a42170d4a64366eb2736270c9d368",
       "affectedModules": [
         "exploration",
         "portal"
@@ -140,7 +140,7 @@
     },
     {
       "file": "backend/src/game/session.ts",
-      "hash": "d087f5d0f6396fcaca240a24d21cd66cb498e01695d034cb26eadbdaa0673160",
+      "hash": "d0ed89a3b7143e874dd2a6e637c2ad78b6a9f77ba3d76815f0174a2f885d8c3e",
       "affectedModules": [
         "agent-lifecycle",
         "chat"
@@ -148,7 +148,7 @@
     },
     {
       "file": "backend/src/routes/auth.ts",
-      "hash": "74acbf8f94b0449ea9bd054e51d91f00ba66172c89cc60f6ce852b0b12731993",
+      "hash": "37060c80da8939b08c57fd49b6468c165812a9d73e024fcce3746574879c674e",
       "affectedModules": [
         "dev-stack",
         "auth",
@@ -157,7 +157,7 @@
     },
     {
       "file": "backend/src/routes/characters.ts",
-      "hash": "e2ea98c32c7dbc34b0c7554a8e2228f9f0836839bb030365b274f1a998e84297",
+      "hash": "2187fdc1d9020aa35ec44cfa8e3c290b6005e8d817911f8dddf71bb784d13bed",
       "affectedModules": [
         "dev-stack",
         "agent-lifecycle"
@@ -204,7 +204,7 @@
     },
     {
       "file": "backend/src/routes/lobby.ts",
-      "hash": "3c5988c9d75b0c501c2583c7b4a257bef849814c427d7947652c620d2a66d7f7",
+      "hash": "bd180e25bfc08003fc68a3c108fcbb9d01ef83f248b484025de0a61c984eec41",
       "affectedModules": [
         "chat"
       ]
@@ -271,8 +271,8 @@
     {
       "source": "shared/engine/src/realm.ts",
       "vendored": "agent-sdk/dev/engine/realm.ts",
-      "sourceHash": "68db9f94ef7962c4c38c97c16696300a451a75bcbfa5ce33fedc9953f9e160e7",
-      "vendoredHash": "d09a8eb9d2f0923e1a8ba4654743a56998346a8c984c21245460c0e8c80b5ab7",
+      "sourceHash": "53348c7f624aed7ee146390ac300a68bbf4a42170d4a64366eb2736270c9d368",
+      "vendoredHash": "5c17326255f0357943a16ce80b6c8151eace4aa27c68dfbbc929ce5e4de17805",
       "affectedModules": [
         "dev-stack"
       ]
@@ -280,8 +280,8 @@
     {
       "source": "shared/engine/src/turn.ts",
       "vendored": "agent-sdk/dev/engine/turn.ts",
-      "sourceHash": "67804e3378617f82f3dfc9f010eb578a3f7b302d0a528c6a5d0b2e085eb9520b",
-      "vendoredHash": "48dfdae8c0746a2baa725a410b96e12acb0e5ed1f2c386f1ecf3b0cf4fa254a8",
+      "sourceHash": "d9ea4cdb19b103d97495da3c99982400c202cf2555694e689c5c34ae65cda59f",
+      "vendoredHash": "af96cb62783029905e4a4f1544c71e5b0e8e13c5d3a579b06b24b3c9184e2ded",
       "affectedModules": [
         "dev-stack"
       ]
@@ -298,8 +298,8 @@
     {
       "source": "scripts/sync-dev-engine.ts",
       "vendored": "agent-sdk/dev/engine/content.ts",
-      "sourceHash": "a589b30b39d29c01998a1390054cde6c4d56be8ef3c9d598ea8ff21070ef5711",
-      "vendoredHash": "da93a077bfb499cb43f4548b0eea5c6de64292a49d47f4242ac0bbbe530a967f",
+      "sourceHash": "03281a6e6a31a585ce841f21e0f545ecfb7fd80e912f7f66ef386f62c6f3e53d",
+      "vendoredHash": "242e714d07622bccea48349b8bc852ba552d0af51ed0b59cf79f60c913937f9d",
       "affectedModules": [
         "dev-stack"
       ]
@@ -307,7 +307,7 @@
     {
       "source": "scripts/sync-dev-engine.ts",
       "vendored": "agent-sdk/dev/engine/index.ts",
-      "sourceHash": "a589b30b39d29c01998a1390054cde6c4d56be8ef3c9d598ea8ff21070ef5711",
+      "sourceHash": "03281a6e6a31a585ce841f21e0f545ecfb7fd80e912f7f66ef386f62c6f3e53d",
       "vendoredHash": "3d2575dc16cc48b9a6df9d3dc9e0cc98c9e13c7c44afedc12ea7e95830775a39",
       "affectedModules": [
         "dev-stack"

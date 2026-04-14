@@ -112,6 +112,20 @@ const allSkillTrees = Object.values(CLASSES).map((classTemplate) => ({
 export const SKILL_TREES: Record<string, { id: string; tiers: ClassTemplate["skill_tree"]["tiers"] }> =
   Object.fromEntries(allSkillTrees.map((tree) => [tree.id, tree]))
 
+// Shared perks. Dev-stack content has none today — turn.ts imports the
+// registry to layer perk bonuses into effective_stats; an empty record is
+// the correct dev-mode fallback (no perks defined => no bonuses applied).
+export interface PerkTemplate {
+  id: string
+  name: string
+  description: string
+  stat: string
+  value_per_stack: number
+  max_stacks: number
+}
+
+export const PERKS: Record<string, PerkTemplate> = {}
+
 export function getClass(id: string): ClassTemplate {
   const classTemplate = CLASSES[id]
   if (!classTemplate) {

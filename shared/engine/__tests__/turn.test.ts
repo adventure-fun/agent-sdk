@@ -2313,3 +2313,248 @@ describe("Group 13 — interactables, inventory, visits, and lore", () => {
     expect(result.summary).toContain("Cellar Warning 01")
   })
 })
+
+// ── effective_stats: perks + skill-tree passives must survive recalc ──────────
+//
+// These tests pin the recalcStats behavior. Before the fix at turn.ts:2784,
+// recalcStats rebuilt effective_stats from `{...stats}` plus equipment and
+// buffs only — silently wiping perks and skill-tree passive-stat unlocks.
+// Combat reads s.character.effective_stats, so the bug meant any character
+// with stat perks (or skill-tree passives) lost those bonuses on the very
+// first action of a realm and fought the rest of the dungeon at reduced
+// stats. The Bruce regression in particular: base accuracy 11 + 2 from
+// perk-keen-eye + 3 from gear-tomb-ring should always be 16, not 14.
+
+describe("recalcStats preserves perks and skill-tree passives", () => {
+  function makePerkState(overrides?: Partial<GameState>): GameState {
+    const baseState = makeState()
+    return makeState({
+      character: {
+        ...baseState.character,
+        stats: {
+          hp: 39,
+          attack: 12,
+          defense: 8,
+          accuracy: 11,
+          evasion: 10,
+          speed: 10,
+        },
+        // Hydrate-equivalent: perks already layered in, hp.max already
+        // includes the +6 from 2 stacks of perk-toughness.
+        effective_stats: {
+          hp: 45,
+          attack: 12,
+          defense: 8,
+          accuracy: 13,
+          evasion: 10,
+          speed: 10,
+        },
+        hp: { current: 45, max: 45 },
+        perks: { "perk-keen-eye": 2, "perk-toughness": 2 },
+      },
+      ...overrides,
+    })
+  }
+
+  it("perk stat bonuses survive a wait turn (Bruce regression)", () => {
+    const state = makePerkState()
+    const result = resolveTurn(state, { type: "wait" }, makeRealm(), new SeededRng(1))
+
+    // 11 (base) + 2 (perk-keen-eye x2) — no equipment in this case
+    expect(result.newState.character.effective_stats.accuracy).toBe(13)
+    // hp.max should not drift from effective_stats.hp
+    expect(result.newState.character.effective_stats.hp).toBe(result.newState.character.hp.max)
+    expect(result.newState.character.hp.max).toBe(45)
+  })
+
+  it("perk + equipment stack correctly across a wait turn (full Bruce case)", () => {
+    // gear-tomb-ring: accessory, +3 accuracy, +2 evasion
+    const state = makePerkState({
+      equipment: {
+        weapon: null,
+        armor: null,
+        helm: null,
+        hands: null,
+        accessory: {
+          id: "inv-tomb-ring",
+          template_id: "gear-tomb-ring",
+          name: "Tomb Ring",
+          quantity: 1,
+          modifiers: {},
+          owner_type: "character",
+          owner_id: "player-1",
+          slot: "accessory",
+        },
+      },
+    })
+    // The hydrate snapshot needs the equipment bonus pre-applied so
+    // resolveTurn's first recalcStats produces the same values.
+    state.character.effective_stats = {
+      ...state.character.effective_stats,
+      accuracy: 16,
+      evasion: 12,
+    }
+
+    const result = resolveTurn(state, { type: "wait" }, makeRealm(), new SeededRng(1))
+
+    // 11 base + 2 perks + 3 equipment = 16 (Bruce's expected total)
+    expect(result.newState.character.effective_stats.accuracy).toBe(16)
+    // 10 base + 2 equip evasion = 12
+    expect(result.newState.character.effective_stats.evasion).toBe(12)
+    // hp.max stays at 45 (perks already baked); effective_stats.hp pinned to it
+    expect(result.newState.character.effective_stats.hp).toBe(45)
+    expect(result.newState.character.hp.max).toBe(45)
+  })
+
+  it("perks survive multiple consecutive turns (catches the every-tick wipe)", () => {
+    let state = makePerkState()
+    for (let i = 0; i < 5; i++) {
+      const result = resolveTurn(state, { type: "wait" }, makeRealm(), new SeededRng(i + 1))
+      state = result.newState
+      expect(state.character.effective_stats.accuracy).toBe(13)
+    }
+  })
+
+  it("perks survive an equip action (catches the resolveEquip wipe)", () => {
+    const state = makePerkState({
+      inventory: [
+        {
+          id: "inv-tomb-ring",
+          template_id: "gear-tomb-ring",
+          name: "Tomb Ring",
+          quantity: 1,
+          modifiers: {},
+          owner_type: "character",
+          owner_id: "player-1",
+          slot: null,
+        },
+      ],
+    })
+
+    const result = resolveTurn(
+      state,
+      { type: "equip", item_id: "inv-tomb-ring" },
+      makeRealm(),
+      new SeededRng(1),
+    )
+
+    // After equip, accuracy = 11 base + 2 perks + 3 equip = 16
+    expect(result.newState.character.effective_stats.accuracy).toBe(16)
+    expect(result.newState.equipment.accessory?.template_id).toBe("gear-tomb-ring")
+  })
+
+  it("perks survive an unequip action", () => {
+    const state = makePerkState({
+      equipment: {
+        weapon: null,
+        armor: null,
+        helm: null,
+        hands: null,
+        accessory: {
+          id: "inv-tomb-ring",
+          template_id: "gear-tomb-ring",
+          name: "Tomb Ring",
+          quantity: 1,
+          modifiers: {},
+          owner_type: "character",
+          owner_id: "player-1",
+          slot: "accessory",
+        },
+      },
+    })
+
+    const result = resolveTurn(
+      state,
+      { type: "unequip", slot: "accessory" },
+      makeRealm(),
+      new SeededRng(1),
+    )
+
+    // After unequip, accuracy = 11 base + 2 perks = 13 (no more +3 from ring)
+    expect(result.newState.character.effective_stats.accuracy).toBe(13)
+  })
+
+  it("perks survive a level-up (catches the level-up effective_stats reset)", () => {
+    const state = makePerkState({
+      character: {
+        ...makePerkState().character,
+        xp: xpForLevel(2) - 10,
+      },
+      activeFloor: {
+        rooms: [
+          {
+            id: "f1_r1_test-room",
+            tiles: makeTiles(6, 4),
+            enemies: [makeEnemy({ hp: 1, hp_max: 15 })],
+            items: [],
+          },
+        ],
+      },
+    })
+
+    // Force a hit so the level-up trigger runs deterministically
+    state.character.stats = { ...state.character.stats, accuracy: 999 }
+    state.character.effective_stats = {
+      ...state.character.effective_stats,
+      accuracy: 999 + 2, // base + perk
+    }
+
+    const result = resolveTurn(
+      state,
+      { type: "attack", target_id: "enemy-1", ability_id: "knight-slash" },
+      makeRealm(),
+      new SeededRng(1),
+    )
+
+    expect(result.newState.character.level).toBe(2)
+    // After level-up, base.accuracy grew by some amount. The perk bonus must
+    // still be present in effective_stats.
+    const newBaseAccuracy = result.newState.character.stats.accuracy
+    expect(result.newState.character.effective_stats.accuracy).toBe(newBaseAccuracy + 2)
+    // HP perk also survives — effective_stats.hp pinned to hp.max
+    expect(result.newState.character.effective_stats.hp).toBe(result.newState.character.hp.max)
+  })
+
+  it("skill-tree passive-stat unlocks survive recalc", () => {
+    // Discover the first passive-stat node in the knight tree at runtime —
+    // hardcoding a node id would couple this test to content shape. Skip
+    // gracefully if the knight tree has no passive-stat unlocks today
+    // (a content-level guarantee, not an engine one).
+    const knight = CLASSES.knight!
+    const tree = knight.skill_tree
+    let nodeId: string | null = null
+    let stat: keyof GameState["character"]["stats"] | null = null
+    let value = 0
+    if (tree?.tiers) {
+      outer: for (const tier of tree.tiers) {
+        for (const choice of tier.choices) {
+          const eff = choice.effect as { type?: string; stat?: string; value?: number }
+          if (eff.type === "passive-stat" && eff.stat && typeof eff.value === "number") {
+            nodeId = choice.id
+            stat = eff.stat as keyof GameState["character"]["stats"]
+            value = eff.value
+            break outer
+          }
+        }
+      }
+    }
+    if (!nodeId || !stat) return // content has no passive-stat nodes — nothing to test
+
+    const baseState = makeState()
+    const state = makeState({
+      character: {
+        ...baseState.character,
+        skill_tree: { [nodeId]: true },
+        perks: {},
+        effective_stats: {
+          ...baseState.character.effective_stats,
+          [stat]: baseState.character.stats[stat] + value,
+        },
+      },
+    })
+
+    const result = resolveTurn(state, { type: "wait" }, makeRealm(), new SeededRng(1))
+    const baseAfter = result.newState.character.stats[stat]
+    expect(result.newState.character.effective_stats[stat]).toBe(baseAfter + value)
+  })
+})

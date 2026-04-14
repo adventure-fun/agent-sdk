@@ -10,8 +10,13 @@ import {
   xpForLevel,
   xpToNextLevel,
 } from "@adventure-fun/engine"
-import type { CharacterClass } from "@adventure-fun/schemas"
+import type { CharacterClass, CharacterStats } from "@adventure-fun/schemas"
 import { getRequestedNetworks, logPayment, return402, verifyAndSettle } from "../payments/x402.js"
+import {
+  computeEquipmentStatBonuses,
+  computePerkStatBonuses,
+  type LobbyInventoryRecord,
+} from "./lobby-helpers.js"
 
 const characters = new Hono()
 
@@ -352,6 +357,36 @@ characters.get("/public/:id", async (c) => {
     .eq("character_id", id)
     .maybeSingle()
 
+  // Effective stats = base stats + equipped-item bonuses + perk bonuses for
+  // all 6 stats (hp, attack, defense, accuracy, evasion, speed). hp_max in
+  // DB is the base value; equipment and perks layer on top so every page
+  // sees the same caps the realm-gameplay path uses. hp_max_effective is
+  // kept as a parallel field so HP-bar consumers don't need to read into
+  // effective_stats.hp.
+  const equipBonuses = computeEquipmentStatBonuses(
+    (inventoryRows ?? []) as LobbyInventoryRecord[],
+  )
+  const perkBonuses = computePerkStatBonuses(
+    character.perks as Record<string, number> | null,
+  )
+  const baseStats = (character.stats as CharacterStats) ?? {
+    hp: character.hp_max,
+    attack: 0,
+    defense: 0,
+    accuracy: 0,
+    evasion: 0,
+    speed: 0,
+  }
+  const effectiveStats: CharacterStats = {
+    hp: character.hp_max + equipBonuses.hp + perkBonuses.hp,
+    attack: baseStats.attack + equipBonuses.attack + perkBonuses.attack,
+    defense: baseStats.defense + equipBonuses.defense + perkBonuses.defense,
+    accuracy: baseStats.accuracy + equipBonuses.accuracy + perkBonuses.accuracy,
+    evasion: baseStats.evasion + equipBonuses.evasion + perkBonuses.evasion,
+    speed: baseStats.speed + equipBonuses.speed + perkBonuses.speed,
+  }
+  const hpMaxEffective = effectiveStats.hp
+
   return c.json({
     character: {
       id: character.id,
@@ -362,9 +397,11 @@ characters.get("/public/:id", async (c) => {
       gold: character.gold,
       hp_current: character.hp_current,
       hp_max: character.hp_max,
+      hp_max_effective: hpMaxEffective,
       resource_current: character.resource_current,
       resource_max: character.resource_max,
       stats: character.stats,
+      effective_stats: effectiveStats,
       skill_tree: character.skill_tree,
       perks: character.perks,
       status: character.status,
