@@ -12,7 +12,8 @@ import { spectateRoutes } from "./routes/spectate.js"
 import { userRoutes } from "./routes/users.js"
 import { contentRoutes } from "./routes/content.js"
 import { configRoutes } from "./routes/config.js"
-import { verifySession } from "./auth/jwt.js"
+import { verifySession, type SessionPayload } from "./auth/jwt.js"
+import { consumeWsTicket } from "./game/ws-tickets.js"
 import { db } from "./db/client.js"
 import { getRedis } from "./redis/client.js"
 import { getPubSub } from "./redis/pubsub.js"
@@ -153,30 +154,46 @@ export default {
     if (match?.[1] && req.headers.get("upgrade") === "websocket") {
       const realmId = match[1]
 
-      // Auth check — support Authorization header, ?token= query param,
-      // and Sec-WebSocket-Protocol subprotocol pair ["Bearer", <token>]
-      let token = ""
+      // Auth check — four supported paths, in priority order:
+      //   1) ?ticket= — single-use short-lived ticket minted via POST /auth/ws-ticket.
+      //      Proxy-friendly (no Sec-WebSocket-Protocol header shenanigans) and the
+      //      JWT itself never hits a URL, so Railway's edge logs only ever see
+      //      opaque UUIDs that are worthless after consumption.
+      //   2) Authorization: Bearer <jwt>
+      //   3) ?token=<jwt>
+      //   4) Sec-WebSocket-Protocol: "Bearer, <jwt>" — browser WS workaround.
+      //      Broken on Railway today because the edge strips the header, but kept
+      //      for local dev and clients behind other proxies.
+      let session: SessionPayload | null = null
       let wsSubprotocol = false
-      const authHeader = req.headers.get("Authorization")
-      if (authHeader?.startsWith("Bearer ")) {
-        token = authHeader.slice(7)
-      } else if (url.searchParams.get("token")) {
-        token = url.searchParams.get("token")!
-      } else {
-        const proto = req.headers.get("Sec-WebSocket-Protocol") ?? ""
-        const parts = proto.split(/,\s*/)
-        const bearerIdx = parts.indexOf("Bearer")
-        if (bearerIdx !== -1 && parts[bearerIdx + 1]) {
-          token = parts[bearerIdx + 1]
-          wsSubprotocol = true
-        }
+
+      const ticket = url.searchParams.get("ticket")
+      if (ticket) {
+        session = await consumeWsTicket(ticket)
       }
 
-      let session
-      try {
-        session = await verifySession(token)
-      } catch {
-        return new Response("Unauthorized", { status: 401 })
+      if (!session) {
+        let token = ""
+        const authHeader = req.headers.get("Authorization")
+        if (authHeader?.startsWith("Bearer ")) {
+          token = authHeader.slice(7)
+        } else if (url.searchParams.get("token")) {
+          token = url.searchParams.get("token")!
+        } else {
+          const proto = req.headers.get("Sec-WebSocket-Protocol") ?? ""
+          const parts = proto.split(/,\s*/)
+          const bearerIdx = parts.indexOf("Bearer")
+          if (bearerIdx !== -1 && parts[bearerIdx + 1]) {
+            token = parts[bearerIdx + 1]
+            wsSubprotocol = true
+          }
+        }
+
+        try {
+          session = await verifySession(token)
+        } catch {
+          return new Response("Unauthorized", { status: 401 })
+        }
       }
 
       if (!canOpenWebSocket(session.account_id)) {
