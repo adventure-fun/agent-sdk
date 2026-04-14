@@ -155,6 +155,11 @@ export interface AgentConfig {
   realmTemplateId?: string
   characterClass?: string
   characterName?: string
+  /**
+   * Optional free-form personality / style hint passed to a `CharacterNameProvider` when the
+   * agent rolls a new character. Ignored when `characterName` is set explicitly.
+   */
+  characterFlavor?: string
   rerollStats?: StatRerollConfig
   realmProgression?: RealmProgressionConfig
   profile?: AgentProfileConfig
@@ -248,6 +253,10 @@ export function createDefaultConfig(
 
   if (overrides.characterName !== undefined) {
     config.characterName = overrides.characterName
+  }
+
+  if (overrides.characterFlavor !== undefined) {
+    config.characterFlavor = overrides.characterFlavor
   }
 
   if (llmOverrides.model !== undefined) {

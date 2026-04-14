@@ -135,4 +135,31 @@ describe("OpenAIAdapter", () => {
 
     expect(adapter.decide(buildPrompt())).rejects.toThrow("OpenAI request failed")
   })
+
+  it("generateText returns the first choice message content", async () => {
+    let capturedBody: Record<string, unknown> | null = null
+    globalThis.fetch = mock(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      capturedBody = JSON.parse(String(init?.body)) as Record<string, unknown>
+      return new Response(
+        JSON.stringify({
+          choices: [{ message: { content: '  {"name":"Kael"}  ' } }],
+        }),
+      )
+    }) as typeof fetch
+
+    const adapter = new OpenAIAdapter({ apiKey: "test-key" })
+    const result = await adapter.generateText({
+      system: "Return JSON only.",
+      user: "Generate a knight name.",
+      temperature: 0.8,
+      maxTokens: 64,
+    })
+
+    expect(result).toBe('{"name":"Kael"}')
+    const messages = capturedBody?.messages as Array<{ role: string; content: string }>
+    expect(messages[0]).toEqual({ role: "system", content: "Return JSON only." })
+    expect(messages[1]).toEqual({ role: "user", content: "Generate a knight name." })
+    expect(capturedBody?.temperature).toBe(0.8)
+    expect(capturedBody?.max_tokens).toBe(64)
+  })
 })

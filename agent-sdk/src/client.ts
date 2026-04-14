@@ -254,6 +254,7 @@ class TypedEventEmitter<Events extends object> {
 export class GameClientError extends Error {
   status: number | undefined
   paymentRequired: PaymentRequired402 | null | undefined
+  bodyText: string | undefined
   override cause: unknown
 
   constructor(
@@ -262,6 +263,7 @@ export class GameClientError extends Error {
     options: {
       status?: number
       paymentRequired?: PaymentRequired402 | null
+      bodyText?: string
       cause?: unknown
     } = {},
   ) {
@@ -269,6 +271,7 @@ export class GameClientError extends Error {
     this.name = "GameClientError"
     this.status = options.status
     this.paymentRequired = options.paymentRequired
+    this.bodyText = options.bodyText
     this.cause = options.cause
   }
 }
@@ -603,10 +606,12 @@ export class GameClient {
     }
 
     if (!res.ok) {
+      const bodyText = await res.text().catch(() => "")
+      const suffix = bodyText ? ` — ${bodyText.slice(0, 300)}` : ""
       throw new GameClientError(
         "game",
-        `Request failed: ${options.method ?? "GET"} ${path} → ${res.status} ${res.statusText}`,
-        { status: res.status },
+        `Request failed: ${options.method ?? "GET"} ${path} → ${res.status} ${res.statusText}${suffix}`,
+        { status: res.status, bodyText },
       )
     }
 

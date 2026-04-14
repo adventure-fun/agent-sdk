@@ -63,11 +63,19 @@ export interface ChatPrompt {
   systemPrompt?: string
 }
 
+export interface GenerateTextPrompt {
+  system?: string
+  user: string
+  maxTokens?: number
+  temperature?: number
+}
+
 export interface LLMAdapter {
   name: string
   decide(prompt: DecisionPrompt): Promise<DecisionResult>
   plan?(prompt: PlanningPrompt): Promise<ActionPlan>
   chat?(prompt: ChatPrompt): Promise<string>
+  generateText?(prompt: GenerateTextPrompt): Promise<string>
 }
 export type {
   ActionToolSchema,

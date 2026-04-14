@@ -14,6 +14,7 @@ import type {
   ChatPrompt,
   DecisionPrompt,
   DecisionResult,
+  GenerateTextPrompt,
   LLMAdapter,
   PlanningPrompt,
 } from "./index.js"
@@ -160,6 +161,26 @@ export class OpenRouterAdapter implements LLMAdapter {
       ],
     })
 
+    return response.choices?.[0]?.message?.content?.trim() ?? ""
+  }
+
+  async generateText(prompt: GenerateTextPrompt): Promise<string> {
+    const messages: Array<{ role: string; content: string }> = []
+    if (prompt.system) {
+      messages.push({ role: "system", content: prompt.system })
+    }
+    messages.push({ role: "user", content: prompt.user })
+
+    const body: Record<string, unknown> = {
+      model: this.model,
+      temperature: prompt.temperature ?? this.temperature,
+      messages,
+    }
+    if (prompt.maxTokens !== undefined) {
+      body.max_tokens = prompt.maxTokens
+    }
+
+    const response = await this.postChatCompletion(body)
     return response.choices?.[0]?.message?.content?.trim() ?? ""
   }
 

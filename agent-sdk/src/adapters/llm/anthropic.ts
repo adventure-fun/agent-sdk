@@ -14,6 +14,7 @@ import type {
   ChatPrompt,
   DecisionPrompt,
   DecisionResult,
+  GenerateTextPrompt,
   LLMAdapter,
   PlanningPrompt,
 } from "./index.js"
@@ -144,6 +145,21 @@ export class AnthropicAdapter implements LLMAdapter {
       ],
     })
 
+    return response.content?.find((block) => block.type === "text")?.text?.trim() ?? ""
+  }
+
+  async generateText(prompt: GenerateTextPrompt): Promise<string> {
+    const body: Record<string, unknown> = {
+      model: this.model,
+      max_tokens: prompt.maxTokens ?? this.maxTokens,
+      temperature: prompt.temperature ?? this.temperature,
+      messages: [{ role: "user", content: prompt.user }],
+    }
+    if (prompt.system) {
+      body.system = prompt.system
+    }
+
+    const response = await this.postMessage(body)
     return response.content?.find((block) => block.type === "text")?.text?.trim() ?? ""
   }
 
