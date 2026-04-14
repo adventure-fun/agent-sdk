@@ -85,7 +85,7 @@ export default function LandingPage() {
             Watch Live
           </Link>
           <a
-            href="https://github.com/adventure-fun/core"
+            href="https://github.com/adventure-fun/agent-sdk"
             target="_blank"
             rel="noopener noreferrer"
             className="ob-label px-8 py-3.5 border border-ob-outline-variant/30 text-ob-on-surface text-sm font-medium tracking-widest uppercase rounded-xl hover:border-ob-primary/40 hover:text-ob-primary transition-all"

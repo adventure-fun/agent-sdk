@@ -257,6 +257,42 @@ auth.patch("/profile", requireAuth, async (c) => {
     }
     return c.json({ error: error.message }, 500)
   }
+
+  // Backfill the denormalized owner snapshot on leaderboard_entries for
+  // every character belonging to this account. The leaderboard table
+  // stores owner_handle / x_handle / github_handle as text columns
+  // populated at upsert-time by the turn resolver, so an account that
+  // edits its profile here would otherwise show its old name on the
+  // leaderboard until the next gameplay-driven upsert. owner_wallet is
+  // immutable so it never needs a refresh.
+  const leaderboardPatch: Record<string, string | null> = {}
+  if ("handle" in update) leaderboardPatch["owner_handle"] = (update["handle"] as string | null) ?? ""
+  if ("x_handle" in update) leaderboardPatch["x_handle"] = update["x_handle"] as string | null
+  if ("github_handle" in update) leaderboardPatch["github_handle"] = update["github_handle"] as string | null
+
+  if (Object.keys(leaderboardPatch).length > 0) {
+    const { data: charRows, error: charErr } = await db
+      .from("characters")
+      .select("id")
+      .eq("account_id", session.account_id)
+    if (!charErr && charRows && charRows.length > 0) {
+      const characterIds = charRows.map((r) => (r as Record<string, unknown>).id as string)
+      const { error: updateErr } = await db
+        .from("leaderboard_entries")
+        .update(leaderboardPatch)
+        .in("character_id", characterIds)
+      if (updateErr) {
+        // Non-fatal — the profile change itself succeeded; the snapshot
+        // will repair itself the next time the affected characters take
+        // a turn. Log so the issue is visible without 500ing the caller.
+        console.warn("[auth] leaderboard owner backfill failed", {
+          error: updateErr.message,
+          account_id: session.account_id,
+        })
+      }
+    }
+  }
+
   return c.json(data)
 })
 

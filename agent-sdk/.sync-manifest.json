@@ -148,7 +148,7 @@
     },
     {
       "file": "backend/src/routes/auth.ts",
-      "hash": "37060c80da8939b08c57fd49b6468c165812a9d73e024fcce3746574879c674e",
+      "hash": "f512aba93829b7354f404a1cf0153815f742a5f6401204c93fe618319bfe879f",
       "affectedModules": [
         "dev-stack",
         "auth",
