@@ -308,6 +308,24 @@ export class BaseAgent {
         }
 
         let character = await this.ensureCharacter(client)
+
+        // If a previous run crashed mid-realm the backend still has that realm
+        // marked active/paused, which blocks every hub action (inn rest, shop,
+        // equip, reroll, skill/perk spend). Resume and play it out before any
+        // hub prep so the next iteration starts clean.
+        const blockingRealm = await this.findBlockingRealm(client)
+        if (blockingRealm?.id) {
+          console.log(
+            `[agent] Resuming stuck realm ${blockingRealm.id} (status=${blockingRealm.status}). `
+              + "Skipping hub prep this iteration.",
+          )
+          outcome = await this.playRealm(client, blockingRealm.id)
+          if (outcome !== "stopped") {
+            realmCount += 1
+          }
+          continue
+        }
+
         character = await this.maybeRerollStats(client, character)
         if (!this.isRunning) {
           break
@@ -821,6 +839,22 @@ export class BaseAgent {
         }
       }
     }
+  }
+
+  // Backend's hasLockedRealm blocks hub actions (inn rest, shop, equip, reroll,
+  // skill/perk spend) whenever a realm_instances row exists with status "active"
+  // or "paused". That happens when a previous run crashed mid-realm. We resume
+  // and finish the stuck realm before any hub prep so the normal flow isn't 409'd.
+  private async findBlockingRealm(client: AgentClient): Promise<RealmRecord | null> {
+    const mine = await this.getMyRealms(client)
+    const realms = mine.realms ?? []
+    for (const realm of realms) {
+      if (!realm.id) continue
+      if (realm.status === "active" || realm.status === "paused") {
+        return realm
+      }
+    }
+    return null
   }
 
   private async ensureRealm(client: AgentClient): Promise<string> {
