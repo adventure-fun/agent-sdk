@@ -48,7 +48,7 @@ import {
   mergeDiscoveredTiles,
   type Position,
 } from "./visibility.js"
-import { getAbility, getEnemy, getEnemySafe, getItem, CLASSES, ROOMS, REALMS, SKILL_TREES } from "./content.js"
+import { getAbility, getEnemy, getEnemySafe, getItem, CLASSES, ROOMS, REALMS, SKILL_TREES, PERKS } from "./content.js"
 import { SeededRng, deriveSeed } from "./rng.js"
 import { applyStatGrowth, checkLevelUp, xpToNextLevel } from "./leveling.js"
 
@@ -1258,7 +1258,9 @@ function handleEnemyDefeat(
         s.character.hp.current + appliedGrowth.statGains.hp,
         s.character.hp.max,
       )
-      s.character.effective_stats = { ...s.character.stats }
+      // Rebuild effective_stats through the full layering pipeline so the
+      // new base picks up perks, skill-tree passives, equipment, and buffs.
+      recalcStats(s)
     }
     s.character.level = newLevel
     events.push({
@@ -2781,12 +2783,55 @@ function applyResourceRegen(
   }
 }
 
-function recalcStats(s: GameState) {
-  // Start from base stats
-  const base = { ...s.character.stats }
-  const effective: CharacterStats = { ...base }
+/**
+ * Mutates `effective` to add skill-tree passive-stat unlocks and shared
+ * perk stat bonuses. Mirrors the layering in session.ts hydrate so that
+ * any rebuild of effective_stats — at hydrate, mid-turn recalcStats, or
+ * after a level-up — produces the same layered total.
+ */
+function applyPassiveStatBonuses(s: GameState, effective: CharacterStats): void {
+  const classTemplate = CLASSES[s.character.class]
+  if (classTemplate) {
+    const treeId = (classTemplate as unknown as { skill_tree_id?: string }).skill_tree_id
+    const tree = treeId ? SKILL_TREES[treeId] : classTemplate.skill_tree
+    if (tree) {
+      const unlocked = s.character.skill_tree ?? {}
+      for (const tier of tree.tiers) {
+        for (const choice of tier.choices) {
+          if (!unlocked[choice.id]) continue
+          const eff = choice.effect as { type?: string; stat?: string; value?: number }
+          if (eff.type === "passive-stat" && eff.stat && typeof eff.value === "number") {
+            if (isCharacterStatKey(eff.stat)) {
+              effective[eff.stat] += eff.value
+            }
+          }
+        }
+      }
+    }
+  }
 
-  // Add equipment bonuses
+  const perks = s.character.perks ?? {}
+  for (const [perkId, stacks] of Object.entries(perks)) {
+    if (stacks <= 0) continue
+    const perk = PERKS[perkId]
+    if (!perk) continue
+    if (isCharacterStatKey(perk.stat)) {
+      effective[perk.stat] += perk.value_per_stack * stacks
+    }
+  }
+}
+
+function recalcStats(s: GameState) {
+  // Start from raw base stats
+  const effective: CharacterStats = { ...s.character.stats }
+
+  // Layer skill-tree passives + perks BEFORE equipment so the order matches
+  // session.ts hydrate. Without this, any recalcStats mid-realm silently
+  // wipes perks and skill-tree passives — causing combat to use incorrect
+  // accuracy/attack/defense values from the first action onward.
+  applyPassiveStatBonuses(s, effective)
+
+  // Equipment bonuses
   for (const slot of Object.values(s.equipment)) {
     if (!slot) continue
     try {
@@ -2803,11 +2848,17 @@ function recalcStats(s: GameState) {
     }
   }
 
-  // Add buff bonuses
+  // Buff bonuses
   for (const buff of s.character.buffs) {
     if (buff.type === "buff-attack") effective.attack += buff.magnitude
     if (buff.type === "buff-defense") effective.defense += buff.magnitude
   }
+
+  // hp.max is the canonical capacity (maintained at hydrate with perks +
+  // equipment baked in, then tracked across equip/unequip via
+  // adjustHpMaxForEquipmentChange). Pin effective.hp to it so the two never
+  // drift after a recalc.
+  effective.hp = s.character.hp.max
 
   s.character.effective_stats = effective
 }
