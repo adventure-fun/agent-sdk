@@ -5,18 +5,11 @@ import type { ItemTemplate } from "@adventure-fun/schemas"
 import { formatItemStats, getItemRarityBadgePalette } from "../utils"
 import { EQUIP_SLOT_LABELS } from "../constants"
 
-const RARITY_BORDER: Record<string, string> = {
-  common: "border-ob-outline-variant/30",
-  uncommon: "border-emerald-700/70",
-  rare: "border-blue-700/70",
-  epic: "border-violet-700/70",
-}
-
-const RARITY_BG: Record<string, string> = {
-  common: "bg-ob-surface-container-high/40",
-  uncommon: "bg-emerald-950/30",
-  rare: "bg-blue-950/30",
-  epic: "bg-violet-950/30",
+const RARITY_RING: Record<string, string> = {
+  common: "",
+  uncommon: "ring-1 ring-emerald-500/70",
+  rare: "ring-1 ring-blue-500/70",
+  epic: "ring-1 ring-violet-500/70",
 }
 
 export function ItemGridSlot({
@@ -41,7 +34,6 @@ export function ItemGridSlot({
   // Position tooltip so it doesn't overflow viewport
   useEffect(() => {
     if (!hovered || !tooltipRef.current || !slotRef.current) return
-    const slot = slotRef.current.getBoundingClientRect()
     const tip = tooltipRef.current
     // Reset position
     tip.style.left = "50%"
@@ -59,8 +51,8 @@ export function ItemGridSlot({
 
   const empty = !item
   const rarity = template?.rarity ?? "common"
-  const borderColor = empty ? "border-ob-outline-variant/15" : (RARITY_BORDER[rarity] ?? "border-ob-outline-variant/30")
-  const bgColor = empty ? "bg-ob-surface-container-low/30" : (RARITY_BG[rarity] ?? "bg-ob-surface-container-high/40")
+  const isEquipment = template?.type === "equipment"
+  const rarityRing = empty ? "" : (RARITY_RING[rarity] ?? "")
 
   return (
     <div
@@ -70,21 +62,48 @@ export function ItemGridSlot({
       onMouseLeave={() => setHovered(false)}
     >
       <div
-        className={`relative flex h-16 w-16 flex-col items-center justify-center rounded border text-center transition-colors ${borderColor} ${bgColor} ${
+        className={`relative h-16 w-16 ${rarityRing} ${
           empty ? "opacity-40" : "hover:brightness-125 cursor-default"
         }`}
       >
+        {/* Backdrop */}
+        <img
+          src={empty ? "/hud/item-backdrop-inactive.png" : "/hud/item-backdrop-active.png"}
+          alt=""
+          className="absolute inset-0 h-full w-full"
+          draggable={false}
+        />
+
+        {/* Content */}
         {item ? (
-          <>
-            <span className="text-[10px] leading-tight text-ob-on-surface line-clamp-2 px-0.5">
-              {item.name}
-            </span>
-            {quantityLabel ? (
-              <span className="text-[9px] text-ob-outline">{quantityLabel}</span>
-            ) : null}
-          </>
+          isEquipment && template ? (
+            <>
+              <img
+                src={`/sprites/equipment/${template.id}.png`}
+                alt={item.name}
+                className="absolute inset-1.5 h-[calc(100%-12px)] w-[calc(100%-12px)] object-contain drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]"
+                draggable={false}
+              />
+              {quantityLabel ? (
+                <span className="absolute bottom-0.5 right-1 text-[9px] text-ob-outline drop-shadow-[0_1px_1px_rgba(0,0,0,1)]">
+                  {quantityLabel}
+                </span>
+              ) : null}
+            </>
+          ) : (
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+              <span className="text-[10px] leading-tight text-ob-on-surface line-clamp-2 px-1">
+                {item.name}
+              </span>
+              {quantityLabel ? (
+                <span className="text-[9px] text-ob-outline">{quantityLabel}</span>
+              ) : null}
+            </div>
+          )
         ) : (
-          <span className="text-[9px] text-ob-outline uppercase">{label}</span>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="text-[9px] text-ob-outline uppercase">{label}</span>
+          </div>
         )}
         {badge}
       </div>

@@ -274,6 +274,8 @@ export function DungeonView({
               entities={visible_entities}
               realmTemplateId={realm_info.template_id}
               playerClass={character.class}
+              recentEvents={recent_events}
+              turn={observation.turn}
             />
             {visibleInteractables.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-2 border-t border-white/5 pt-2">
