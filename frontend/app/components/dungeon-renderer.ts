@@ -250,7 +250,7 @@ export class DungeonRenderer {
 
     // -- Tiles --
     const tileGfx = new Graphics()
-    for (const [key, tile] of tileMap) {
+    for (const [, tile] of tileMap) {
       const color = COLORS[tile.type] ?? COLORS.floor
       const px = (tile.x - minX) * TILE_SIZE
       const py = (tile.y - minY) * TILE_SIZE

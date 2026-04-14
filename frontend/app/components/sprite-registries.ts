@@ -11,14 +11,6 @@ export const COLORS: Record<string, number> = {
   entrance: 0x4a90d9,
 }
 
-export const COLORS_DIM: Record<string, number> = {
-  wall: 0x2a2a2a,
-  floor: 0x111122,
-  door: 0x5a4510,
-  stairs: 0x2e5a8a,
-  stairs_up: 0x2e5a8a,
-  entrance: 0x2e5a8a,
-}
 
 export const PLAYER_COLOR = 0x2ecc71
 
