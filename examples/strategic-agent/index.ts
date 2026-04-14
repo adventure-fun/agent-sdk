@@ -1,4 +1,9 @@
-import { BaseAgent, createLLMAdapter, createWalletAdapter } from "../../src/index.js"
+import {
+  BaseAgent,
+  createLLMAdapter,
+  createWalletAdapter,
+  LLMNameProvider,
+} from "../../src/index.js"
 import { createStrategicModules, strategicConfig } from "./config.js"
 
 const strategicLLM = createLLMAdapter(strategicConfig.llm)
@@ -9,11 +14,19 @@ const tacticalLLM = createLLMAdapter({
     : {}),
 })
 
+const nameProvider = strategicConfig.characterName
+  ? undefined
+  : new LLMNameProvider({
+      llm: strategicLLM,
+      ...(strategicConfig.characterFlavor ? { flavor: strategicConfig.characterFlavor } : {}),
+    })
+
 const agent = new BaseAgent(strategicConfig, {
   llmAdapter: strategicLLM,
   tacticalLLMAdapter: tacticalLLM,
   walletAdapter: await createWalletAdapter(strategicConfig.wallet),
   modules: createStrategicModules(),
+  ...(nameProvider ? { characterNameProvider: nameProvider } : {}),
 })
 
 let terminalState: "extracted" | "death" | "stopped" | null = null

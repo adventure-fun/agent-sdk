@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test"
 import { BaseAgent, type BaseAgentOptions } from "../../src/agent.js"
+import type { CharacterNameProvider } from "../../src/character-name-provider.js"
 import type { PlannerDecision } from "../../src/planner.js"
 import { createDefaultConfig, type AgentConfig } from "../../src/config.js"
 import type {
@@ -217,6 +218,7 @@ function createHarness(options: {
   plannerFactory?: BaseAgentOptions["plannerFactory"]
   llmAdapter?: LLMAdapter
   tacticalLLMAdapter?: LLMAdapter
+  characterNameProvider?: CharacterNameProvider
 } = {}) {
   const config = options.config ?? createConfig()
   const llmAdapter = options.llmAdapter ?? createLLM("strategic")
@@ -248,6 +250,9 @@ function createHarness(options: {
     llmAdapter,
     tacticalLLMAdapter: options.tacticalLLMAdapter,
     walletAdapter,
+    ...(options.characterNameProvider
+      ? { characterNameProvider: options.characterNameProvider }
+      : {}),
     authenticateFn:
       options.authenticateFn ??
       (async () => ({
@@ -498,5 +503,164 @@ describe("BaseAgent.start", () => {
     const [strategicAdapter, tacticalAdapter] = harness.getPlannerFactoryArgs()
     expect(strategicAdapter).not.toBe(tacticalAdapter)
     expect(tacticalAdapter).toBe(tacticalLLMAdapter)
+  })
+
+  it("uses the characterNameProvider when characterName is unset and persists name + personality", async () => {
+    const config = createConfig({
+      characterName: undefined,
+      chat: { enabled: true },
+    })
+    const providerCalls: Array<{ attempt: number; previousName?: string }> = []
+    const nameProvider: CharacterNameProvider = {
+      name: "stub",
+      async generate(ctx) {
+        providerCalls.push({
+          attempt: ctx.attempt,
+          ...(ctx.previousName ? { previousName: ctx.previousName } : {}),
+        })
+        return {
+          name: "Vexrin",
+          personality: {
+            name: "Vexrin",
+            traits: ["grim", "clever"],
+            backstory: "A rogue of few words.",
+            responseStyle: "Clipped and dry.",
+          },
+        }
+      },
+    }
+    const rollBodies: unknown[] = []
+    const responses = new Map<string, () => unknown | Promise<unknown>>([
+      [
+        "/characters/me",
+        () => {
+          const error = new Error("No living character") as Error & { status?: number }
+          error.status = 404
+          throw error
+        },
+      ],
+      [
+        "/characters/roll",
+        () => ({ id: "char-1", name: "Vexrin", class: "rogue" }),
+      ],
+      ["/lobby/shop/inventory", () => ({ gold: 0, inventory: [] })],
+      ["/lobby/shops", () => ({ sections: [], featured: [] })],
+      ["/realms/mine", () => ({ realms: [] })],
+      [
+        "/content/realms",
+        () => ({ templates: [{ id: "test-tutorial", orderIndex: 1, name: "Tutorial" }] }),
+      ],
+      ["/realms/generate", () => ({ id: "realm-1", template_id: "test-tutorial" })],
+    ])
+    const harness = createHarness({ config, responses, characterNameProvider: nameProvider })
+
+    harness.client.request = new Proxy(harness.client.request, {
+      apply(target, thisArg, args: [string, RequestInit?]) {
+        if (args[0] === "/characters/roll" && args[1]?.body) {
+          rollBodies.push(JSON.parse(String(args[1].body)))
+        }
+        return Reflect.apply(target, thisArg, args)
+      },
+    })
+
+    const startPromise = harness.agent.start()
+    await flushAsyncWork()
+
+    expect(providerCalls).toEqual([{ attempt: 0 }])
+    expect(rollBodies).toEqual([{ class: "rogue", name: "Vexrin" }])
+    expect(harness.config.characterName).toBe("Vexrin")
+    expect(harness.config.chat?.personality?.name).toBe("Vexrin")
+    expect(harness.config.chat?.personality?.traits).toEqual(["grim", "clever"])
+    expect(harness.config.chat?.personality?.backstory).toContain("rogue")
+
+    harness.client.handlers.onDeath?.({
+      cause: "test",
+      floor: 1,
+      room: "room-1",
+      turn: 1,
+    })
+    await startPromise
+  })
+
+  it("retries rollNewPlayerCharacter on 500 when the body hints at a name conflict", async () => {
+    let attempt = 0
+    const responses = new Map<string, () => unknown | Promise<unknown>>([
+      [
+        "/characters/me",
+        () => {
+          const error = new Error("No living character") as Error & { status?: number }
+          error.status = 404
+          throw error
+        },
+      ],
+      [
+        "/characters/roll",
+        () => {
+          attempt += 1
+          if (attempt === 1) {
+            const error = new Error(
+              "Request failed: POST /characters/roll → 500 Internal Server Error — Character name already taken",
+            ) as Error & { status?: number; bodyText?: string }
+            error.status = 500
+            error.bodyText = "Character name already taken"
+            throw error
+          }
+          return { id: "char-1", name: "Scout2", class: "rogue" }
+        },
+      ],
+      ["/lobby/shop/inventory", () => ({ gold: 0, inventory: [] })],
+      ["/lobby/shops", () => ({ sections: [], featured: [] })],
+      ["/realms/mine", () => ({ realms: [] })],
+      [
+        "/content/realms",
+        () => ({ templates: [{ id: "test-tutorial", orderIndex: 1, name: "Tutorial" }] }),
+      ],
+      ["/realms/generate", () => ({ id: "realm-1", template_id: "test-tutorial" })],
+    ])
+    const harness = createHarness({ responses })
+
+    const startPromise = harness.agent.start()
+    await flushAsyncWork()
+
+    expect(attempt).toBe(2)
+    expect(harness.config.characterName).toBe("Scout2")
+
+    harness.client.handlers.onDeath?.({
+      cause: "test",
+      floor: 1,
+      room: "room-1",
+      turn: 1,
+    })
+    await startPromise
+  })
+
+  it("does not retry on 500 without a name-conflict hint", async () => {
+    let attempt = 0
+    const responses = new Map<string, () => unknown | Promise<unknown>>([
+      [
+        "/characters/me",
+        () => {
+          const error = new Error("No living character") as Error & { status?: number }
+          error.status = 404
+          throw error
+        },
+      ],
+      [
+        "/characters/roll",
+        () => {
+          attempt += 1
+          const error = new Error(
+            "Request failed: POST /characters/roll → 500 Internal Server Error — database is down",
+          ) as Error & { status?: number; bodyText?: string }
+          error.status = 500
+          error.bodyText = "database is down"
+          throw error
+        },
+      ],
+    ])
+    const harness = createHarness({ responses })
+
+    await expect(harness.agent.start()).rejects.toThrow(/500/)
+    expect(attempt).toBe(1)
   })
 })

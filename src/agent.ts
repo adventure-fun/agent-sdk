@@ -53,6 +53,8 @@ import {
   type ModuleRegistry,
 } from "./modules/index.js"
 import { computeCharacterRollNameForAttempt } from "./character-roll-name.js"
+import type { CharacterNameProvider } from "./character-name-provider.js"
+import type { ChatPersonality } from "./chat/personality.js"
 import { SpendingTracker } from "./spending-tracker.js"
 
 const DEFAULT_MODULES: AgentModule[] = [
@@ -156,6 +158,7 @@ export interface BaseAgentOptions {
   llmAdapter: LLMAdapter
   tacticalLLMAdapter?: LLMAdapter
   walletAdapter: WalletAdapter
+  characterNameProvider?: CharacterNameProvider
   modules?: AgentModule[]
   authenticateFn?: (baseUrl: string, wallet: WalletAdapter) => Promise<SessionToken>
   clientFactory?: (args: {
@@ -193,6 +196,7 @@ export class BaseAgent {
   private readonly wallet: WalletAdapter
   private readonly registry: ModuleRegistry
   private readonly planner: AgentPlanner
+  private readonly nameProvider: CharacterNameProvider | null
   private readonly authenticateFn: (baseUrl: string, wallet: WalletAdapter) => Promise<SessionToken>
   private readonly clientFactory: BaseAgentOptions["clientFactory"]
   private readonly history: HistoryEntry[] = []
@@ -218,6 +222,7 @@ export class BaseAgent {
     this.config = config
     this.llm = options.llmAdapter
     this.wallet = options.walletAdapter
+    this.nameProvider = options.characterNameProvider ?? null
     this.authenticateFn = options.authenticateFn ?? authenticate
     this.clientFactory = options.clientFactory
     this.context = createAgentContext(config)
@@ -568,28 +573,78 @@ export class BaseAgent {
 
   /**
    * Creates a new living character (e.g. first session or after death when `/characters/me` is
-   * absent or non-alive). Retries `POST /characters/roll` on 409 with incremented / suffixed names.
+   * absent or non-alive). Retries `POST /characters/roll` on name conflicts with fresh names.
+   *
+   * Name source precedence:
+   *   1. Explicit `config.characterName` — always wins, retries use the deterministic suffix.
+   *   2. Configured `characterNameProvider` — called per attempt; result persisted to config.
+   *   3. Deterministic fallback on "Agent" if neither is available (throws if no class).
+   *
+   * After a successful roll, the chosen name is written back onto `this.config.characterName`
+   * (and any returned personality into `this.config.chat.personality` if the user hasn't set
+   * one) so downstream system prompts, chat manager, and banter engine read the fresh identity.
    */
   private async rollNewPlayerCharacter(client: AgentClient): Promise<CharacterRecord> {
     const characterClass = this.config.characterClass
-    const baseName = this.config.characterName
-    if (!characterClass || !baseName) {
+    if (!characterClass) {
       throw new Error(
-        "characterClass and characterName are required to roll a character when none exists",
+        "characterClass is required to roll a character when none exists",
+      )
+    }
+
+    const hasExplicitName = typeof this.config.characterName === "string"
+      && this.config.characterName.trim().length > 0
+    const fallbackBase = hasExplicitName ? this.config.characterName! : "Agent"
+    const provider = hasExplicitName ? null : this.nameProvider
+
+    if (!provider && !hasExplicitName) {
+      throw new Error(
+        "characterName or characterNameProvider is required to roll a character when none exists",
       )
     }
 
     const maxAttempts = 40
+    let lastName: string | undefined
+
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      const name = computeCharacterRollNameForAttempt(baseName, attempt)
+      let name: string
+      let personality: Partial<ChatPersonality> | undefined
+
+      if (provider) {
+        try {
+          const result = await provider.generate({
+            characterClass: characterClass as CharacterClass,
+            attempt,
+            ...(lastName ? { previousName: lastName } : {}),
+            ...(this.config.characterFlavor ? { flavor: this.config.characterFlavor } : {}),
+          })
+          name = result.name
+          personality = result.personality
+        } catch {
+          // Provider (e.g. LLM) is unavailable or returned garbage. Fall back to the
+          // deterministic suffix so the run doesn't die purely because naming failed.
+          name = computeCharacterRollNameForAttempt(fallbackBase, attempt)
+        }
+      } else {
+        name = computeCharacterRollNameForAttempt(fallbackBase, attempt)
+      }
+
+      lastName = name
+
       try {
-        return await client.request<CharacterRecord>("/characters/roll", {
+        const character = await client.request<CharacterRecord>("/characters/roll", {
           method: "POST",
           body: JSON.stringify({
             class: characterClass,
             name,
           }),
         })
+
+        this.config.characterName = character.name
+        if (personality) {
+          this.applyGeneratedPersonality(personality, character.name)
+        }
+        return character
       } catch (error) {
         if (isRetryableCharacterRollConflict(error)) {
           continue
@@ -601,6 +656,21 @@ export class BaseAgent {
     throw new Error(
       `Could not roll a new character after ${maxAttempts} attempts (last name conflict or invalid name).`,
     )
+  }
+
+  private applyGeneratedPersonality(
+    partial: Partial<ChatPersonality>,
+    name: string,
+  ): void {
+    if (!this.config.chat) return
+    if (this.config.chat.personality) return
+    this.config.chat.personality = {
+      name,
+      traits: partial.traits && partial.traits.length > 0 ? partial.traits : ["observant"],
+      ...(partial.backstory ? { backstory: partial.backstory } : {}),
+      ...(partial.responseStyle ? { responseStyle: partial.responseStyle } : {}),
+      ...(partial.topics ? { topics: partial.topics } : {}),
+    }
   }
 
   private async maybeRerollStats(
@@ -1560,21 +1630,41 @@ function isStatusError(error: unknown, status: number): boolean {
   return false
 }
 
-/** Name / uniqueness conflicts from `POST /characters/roll` (dev API uses 409). */
+/**
+ * Name / uniqueness conflicts from `POST /characters/roll`. The dev API returns 409; the
+ * production API has been observed returning 400 and 500 for per-account unique-name
+ * collisions. We fast-path 409, then fall back to scanning the error message and the raw
+ * response body for a name-conflict hint on 400/500 so we can still retry with a fresh name.
+ * A bare 500 with no conflict hint is NOT retried — that keeps real server outages failing
+ * fast instead of burning 40 retries.
+ */
 function isRetryableCharacterRollConflict(error: unknown): boolean {
   if (isStatusError(error, 409)) {
     return true
   }
-  if (!isStatusError(error, 400)) {
-    return false
-  }
+
   const message = error instanceof Error ? error.message.toLowerCase() : ""
-  return (
-    message.includes("name")
-    || message.includes("unique")
-    || message.includes("taken")
-    || message.includes("exists")
-  )
+  const body = extractGameClientBodyText(error).toLowerCase()
+  const haystack = `${message} ${body}`
+  const nameConflictHint =
+    haystack.includes("name")
+    || haystack.includes("unique")
+    || haystack.includes("taken")
+    || haystack.includes("exists")
+    || haystack.includes("conflict")
+    || haystack.includes("duplicate")
+
+  if (isStatusError(error, 400) && nameConflictHint) return true
+  if (isStatusError(error, 500) && nameConflictHint) return true
+  return false
+}
+
+function extractGameClientBodyText(error: unknown): string {
+  if (typeof error === "object" && error !== null && "bodyText" in error) {
+    const value = (error as { bodyText?: unknown }).bodyText
+    return typeof value === "string" ? value : ""
+  }
+  return ""
 }
 
 /**
