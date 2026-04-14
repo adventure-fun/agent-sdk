@@ -13,6 +13,7 @@ export class CombatFlashManager {
   private intervalId: ReturnType<typeof setInterval> | null = null
   private lastFlashedTurn = -1
   private sprites: AnimatedSprite[] = []
+  private baseTints = new Map<AnimatedSprite, number>()
   private startTime = 0
   private active = false
   // Store which entities are flashing so we can rebuild refs after a redraw
@@ -29,11 +30,18 @@ export class CombatFlashManager {
   ) {
     if (!this.active) return
     const fresh: AnimatedSprite[] = []
+    this.baseTints.clear()
     for (const id of this.hitEnemyIds) {
       const s = enemySpriteMap.get(id)
-      if (s) fresh.push(s)
+      if (s) {
+        this.baseTints.set(s, s.tint)
+        fresh.push(s)
+      }
     }
-    if (this.playerHit && playerSprite) fresh.push(playerSprite)
+    if (this.playerHit && playerSprite) {
+      this.baseTints.set(playerSprite, playerSprite.tint)
+      fresh.push(playerSprite)
+    }
     this.sprites = fresh
     // Apply the current tint so there's no gap frame
     const elapsed = Date.now() - this.startTime
@@ -72,11 +80,18 @@ export class CombatFlashManager {
     if (hitEnemyIds.size === 0 && !playerHit) return
 
     const targetSprites: AnimatedSprite[] = []
+    this.baseTints.clear()
     for (const id of hitEnemyIds) {
       const s = enemySpriteMap.get(id)
-      if (s) targetSprites.push(s)
+      if (s) {
+        this.baseTints.set(s, s.tint)
+        targetSprites.push(s)
+      }
     }
-    if (playerHit && playerSprite) targetSprites.push(playerSprite)
+    if (playerHit && playerSprite) {
+      this.baseTints.set(playerSprite, playerSprite.tint)
+      targetSprites.push(playerSprite)
+    }
     if (targetSprites.length === 0) return
 
     // New turn — start fresh flash
@@ -96,7 +111,7 @@ export class CombatFlashManager {
       const elapsed = Date.now() - this.startTime
       if (elapsed >= FLASH_DURATION) {
         for (const s of this.sprites) {
-          if (!s.destroyed) s.tint = 0xffffff
+          if (!s.destroyed) s.tint = this.baseTints.get(s) ?? 0xffffff
         }
         this.stop()
         return

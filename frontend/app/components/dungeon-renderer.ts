@@ -31,6 +31,7 @@ export interface RendererProps {
   entities: (Entity | SpectatorEntity)[]
   recentEvents: GameEvent[]
   turn: number
+  playerPoisoned: boolean
 }
 
 function getHpColor(pct: number): number {
@@ -88,6 +89,7 @@ export class DungeonRenderer {
   private itemFrames: Record<string, Texture[]> = {}
   private interactableFrames: Record<string, Texture[]> = {}
   private notFoundFrames: Texture[] | null = null
+  private killedEnemyFrames: Texture[] | null = null
 
   // Facing state
   private prevPlayerPos: { x: number; y: number } | null = null
@@ -95,11 +97,19 @@ export class DungeonRenderer {
   private prevEnemyPos = new Map<string, number>()
   private enemyFacing = new Map<string, "left" | "right">()
 
+  // Enemy position tracking for death effects
+  private lastEnemyGridPos = new Map<string, { x: number; y: number }>()
+
   // Realm tracking
   private loadedRealm: string | null = null
 
   // Combat flash
   private flashManager = new CombatFlashManager()
+
+  // Death effects — persistent container that survives redraws
+  private worldContainer: Container | null = null
+  private effectsContainer: Container | null = null
+  private lastDeathTurn = -1
 
   // Stash latest props so realm-load callback can redraw
   private lastProps: RendererProps | null = null
@@ -128,15 +138,19 @@ export class DungeonRenderer {
       this.lockedGateTexture = lockedGate
 
       const playerReg = playerClass ? PLAYER_SPRITE_REGISTRY[playerClass] : PLAYER_SPRITE_REGISTRY.knight
-      const [playerSheet, notFoundSheet] = await Promise.all([
+      const [playerSheet, notFoundSheet, killedEnemySheet] = await Promise.all([
         Assets.load(playerReg.json),
         Assets.load("/sprites/not-found.json"),
+        Assets.load("/sprites/world/killed-enemy.json"),
       ])
       if (playerSheet.animations?.[playerReg.animKey]) {
         this.playerFrames = playerSheet.animations[playerReg.animKey]
       }
       if (notFoundSheet.animations?.["not-found"]) {
         this.notFoundFrames = notFoundSheet.animations["not-found"]
+      }
+      if (killedEnemySheet.animations?.["killed-enemy"]) {
+        this.killedEnemyFrames = killedEnemySheet.animations["killed-enemy"]
       }
 
       // Items
@@ -218,9 +232,13 @@ export class DungeonRenderer {
 
   private draw(props: RendererProps) {
     const app = this.app!
-    const { visibleTiles, knownTiles, playerPosition, playerHpPercent, entities, recentEvents, turn } = props
+    const { visibleTiles, knownTiles, playerPosition, playerHpPercent, entities, recentEvents, turn, playerPoisoned } = props
 
-    app.stage.removeChildren()
+    // Tear down previous world container but keep effects
+    if (this.worldContainer) {
+      this.worldContainer.destroy({ children: true })
+      this.worldContainer = null
+    }
 
     const allTiles = [...visibleTiles, ...knownTiles]
     if (allTiles.length === 0) return
@@ -241,9 +259,18 @@ export class DungeonRenderer {
     const offsetX = Math.max(0, (containerWidth - mapWidth) / 2)
 
     const world = new Container()
+    this.worldContainer = world
     world.x = offsetX
     world.y = 0
     app.stage.addChild(world)
+
+    // Effects container persists across redraws
+    if (!this.effectsContainer) {
+      this.effectsContainer = new Container()
+      app.stage.addChild(this.effectsContainer)
+    }
+    this.effectsContainer.x = offsetX
+    app.stage.addChild(this.effectsContainer) // re-add to keep on top
 
     const visibleSet = new Set(visibleTiles.map((t) => `${t.x},${t.y}`))
     const tileMap = new Map(allTiles.map((t) => [`${t.x},${t.y}`, t]))
@@ -477,7 +504,8 @@ export class DungeonRenderer {
       if (entity.type !== "enemy") continue
       const px = (entity.position.x - minX) * TILE_SIZE
       const py = (entity.position.y - minY) * TILE_SIZE
-      const slug = entity.name.toLowerCase().replace(/\s+/g, "-")
+      const rawSlug = entity.name.toLowerCase().replace(/\s+/g, "-")
+      const slug = rawSlug.replace(/^the-/, "")
 
       const prevX = this.prevEnemyPos.get(entity.id)
       const defaultFacing = ENEMY_DEFAULT_FACING[slug] ?? "right"
@@ -489,6 +517,7 @@ export class DungeonRenderer {
         this.enemyFacing.set(entity.id, defaultFacing)
       }
       this.prevEnemyPos.set(entity.id, entity.position.x)
+      this.lastEnemyGridPos.set(entity.id, { x: entity.position.x, y: entity.position.y })
       const facing = this.enemyFacing.get(entity.id) ?? defaultFacing
       const shouldFlip = facing !== defaultFacing
 
@@ -503,6 +532,9 @@ export class DungeonRenderer {
         if (shouldFlip) sprite.scale.x *= -1
         sprite.animationSpeed = 0.12
         sprite.play()
+        if ("effects" in entity && entity.effects?.some((e) => e.type === "poison")) {
+          sprite.tint = 0x44ff44
+        }
         world.addChild(sprite)
         enemySpriteMap.set(entity.id, sprite)
       } else {
@@ -539,6 +571,7 @@ export class DungeonRenderer {
       playerSprite.width = TILE_SIZE
       playerSprite.height = TILE_SIZE
       if (playerShouldFlip) playerSprite.scale.x *= -1
+      if (playerPoisoned) playerSprite.tint = 0x44ff44
       playerSprite.animationSpeed = 0.12
       playerSprite.play()
       world.addChild(playerSprite)
@@ -557,11 +590,37 @@ export class DungeonRenderer {
     // Flash: refresh sprite refs first (handles mid-flash redraws), then check for new events
     this.flashManager.refreshSprites(enemySpriteMap, playerSprite)
     this.flashManager.processEvents(recentEvents, turn, enemySpriteMap, playerSprite)
+
+    // Death poof effects
+    if (turn > this.lastDeathTurn && this.killedEnemyFrames && this.effectsContainer) {
+      for (const e of recentEvents) {
+        if (e.type === "enemy_killed" && typeof e.data.enemy_id === "string") {
+          const pos = this.lastEnemyGridPos.get(e.data.enemy_id)
+          if (pos) {
+            const poof = new AnimatedSprite(this.killedEnemyFrames)
+            poof.anchor.set(0.5, 0.5)
+            poof.x = (pos.x - minX) * TILE_SIZE + TILE_SIZE / 2
+            poof.y = (pos.y - minY) * TILE_SIZE + TILE_SIZE / 2
+            poof.width = TILE_SIZE
+            poof.height = TILE_SIZE
+            poof.animationSpeed = 0.2
+            poof.loop = false
+            poof.onComplete = () => poof.destroy()
+            poof.play()
+            this.effectsContainer.addChild(poof)
+          }
+          this.lastEnemyGridPos.delete(e.data.enemy_id)
+        }
+      }
+      this.lastDeathTurn = turn
+    }
   }
 
   destroy() {
     this.destroyed = true
     this.flashManager.stop()
+    this.worldContainer = null
+    this.effectsContainer = null
     if (this.app) {
       this.app.destroy(true)
       this.app = null

@@ -18,6 +18,7 @@ interface PixiJSWorldProps {
   playerClass?: CharacterClass
   recentEvents?: GameEvent[]
   turn?: number
+  playerPoisoned?: boolean
 }
 
 export function PixiJSWorld({
@@ -30,6 +31,7 @@ export function PixiJSWorld({
   playerClass,
   recentEvents = [],
   turn = 0,
+  playerPoisoned = false,
 }: PixiJSWorldProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const rendererRef = useRef<DungeonRenderer | null>(null)
@@ -65,8 +67,9 @@ export function PixiJSWorld({
       entities,
       recentEvents,
       turn,
+      playerPoisoned,
     })
-  }, [visibleTiles, knownTiles, playerPosition, playerHpPercent, entities, recentEvents, turn])
+  }, [visibleTiles, knownTiles, playerPosition, playerHpPercent, entities, recentEvents, turn, playerPoisoned])
 
   // Load enemy spritesheets when realm changes
   useEffect(() => {

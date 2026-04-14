@@ -276,6 +276,7 @@ export function DungeonView({
               playerClass={character.class}
               recentEvents={recent_events}
               turn={observation.turn}
+              playerDebuffs={character.debuffs}
             />
             {visibleInteractables.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-2 border-t border-white/5 pt-2">

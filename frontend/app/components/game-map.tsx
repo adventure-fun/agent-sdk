@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, lazy, Suspense } from "react"
-import type { Tile, Entity, SpectatorEntity, CharacterClass, GameEvent } from "@adventure-fun/schemas"
+import type { Tile, Entity, SpectatorEntity, CharacterClass, GameEvent, ActiveEffect } from "@adventure-fun/schemas"
 import { AsciiMap } from "./ascii-map"
 
 const PixiJSWorld = lazy(() =>
@@ -18,9 +18,12 @@ interface GameMapProps {
   playerClass?: CharacterClass
   recentEvents?: GameEvent[]
   turn?: number
+  playerDebuffs?: ActiveEffect[]
 }
 
 export function GameMap(props: GameMapProps) {
+  const { playerDebuffs, ...rest } = props
+  const playerPoisoned = playerDebuffs?.some((d) => d.type === "poison") ?? false
   const [mode, setMode] = useState<"ascii" | "2d">("2d")
 
   return (
@@ -43,7 +46,7 @@ export function GameMap(props: GameMapProps) {
         </div>
       </div>
       {mode === "ascii" ? (
-        <AsciiMap {...props} />
+        <AsciiMap {...rest} />
       ) : (
         <Suspense
           fallback={
@@ -52,7 +55,7 @@ export function GameMap(props: GameMapProps) {
             </div>
           }
         >
-          <PixiJSWorld {...props} />
+          <PixiJSWorld {...rest} playerPoisoned={playerPoisoned} />
         </Suspense>
       )}
     </div>
