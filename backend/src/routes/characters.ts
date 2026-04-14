@@ -1,6 +1,7 @@
 import { Hono } from "hono"
 import { db } from "../db/client.js"
 import { requireAuth } from "../auth/middleware.js"
+import { hasLockedRealm } from "../game/active-sessions.js"
 import { rollStats, rerollStats, getResourceMax } from "../game/stats.js"
 import { validatePerkAllocation, validateSkillAllocation } from "../game/skill-tree.js"
 import { CLASSES, PERK_LIST, SKILL_TREES } from "@adventure-fun/engine"
@@ -73,8 +74,9 @@ characters.post("/roll", requireAuth, async (c) => {
   if (!VALID_CLASSES.includes(cls)) {
     return c.json({ error: `Invalid class. Choose: ${VALID_CLASSES.join(", ")}` }, 400)
   }
-  if (!body.name || body.name.length < 2 || body.name.length > 24) {
-    return c.json({ error: "Name must be 2-24 characters" }, 400)
+  const trimmedName = (body.name ?? "").trim()
+  if (trimmedName.length < 2 || trimmedName.length > 24) {
+    return c.json({ error: "Name must be 2–24 characters." }, 400)
   }
 
   const stats = rollStats(cls)
@@ -84,7 +86,7 @@ characters.post("/roll", requireAuth, async (c) => {
     .from("characters")
     .insert({
       account_id,
-      name: body.name.trim(),
+      name: trimmedName,
       class: cls,
       level: 1,
       xp: 0,
@@ -102,7 +104,18 @@ characters.post("/roll", requireAuth, async (c) => {
     .select()
     .single()
 
-  if (error) return c.json({ error: error.message }, 500)
+  if (error) {
+    // Map postgres unique-violation on (account_id, name) to a friendly 409
+    // so the UI can tell the player exactly why their pick was rejected
+    // instead of the generic "Failed to create character" fallback.
+    if (/duplicate key|unique/i.test(error.message)) {
+      // Constraint is on (account_id, name) and applies to dead characters
+      // too — reroll can't reuse a name, so the message has to cover that.
+      return c.json({ error: "You've already used that name on another character. Pick a different one." }, 409)
+    }
+    console.error("[characters/roll] insert failed", { account_id, error })
+    return c.json({ error: "Something went wrong creating your character. Please try again." }, 500)
+  }
   return c.json(data, 201)
 })
 
@@ -121,6 +134,22 @@ characters.post("/reroll-stats", requireAuth, async (c) => {
   if (!character) return c.json({ error: "No living character" }, 404)
   if (character.stat_rerolled) {
     return c.json({ error: "Stats already rerolled. Once per character." }, 409)
+  }
+  if (await hasLockedRealm(character.id)) {
+    return c.json({ error: "Leave the dungeon before re-rolling stats." }, 409)
+  }
+  // Reroll is only available before the character has entered any realm.
+  // "generated" means a realm was created but never played; any other status
+  // means the player has committed to their stats.
+  const { data: enteredRealms, error: enteredErr } = await db
+    .from("realm_instances")
+    .select("id")
+    .eq("character_id", character.id)
+    .neq("status", "generated")
+    .limit(1)
+  if (enteredErr) return c.json({ error: enteredErr.message }, 500)
+  if (enteredRealms && enteredRealms.length > 0) {
+    return c.json({ error: "Re-rolling is only available before your first run." }, 409)
   }
 
   const networks = getRequestedNetworks(c)
@@ -207,6 +236,9 @@ characters.post("/skill", requireAuth, async (c) => {
 
   if (fetchErr) return c.json({ error: fetchErr.message }, 500)
   if (!character) return c.json({ error: "No living character" }, 404)
+  if (await hasLockedRealm(character.id)) {
+    return c.json({ error: "Leave the dungeon before spending skill points." }, 409)
+  }
 
   const body = await c.req.json<{ node_id: string }>()
   if (!body.node_id || typeof body.node_id !== "string") {
@@ -250,6 +282,9 @@ characters.post("/perk", requireAuth, async (c) => {
 
   if (fetchErr) return c.json({ error: fetchErr.message }, 500)
   if (!character) return c.json({ error: "No living character" }, 404)
+  if (await hasLockedRealm(character.id)) {
+    return c.json({ error: "Leave the dungeon before allocating perks." }, 409)
+  }
 
   const body = await c.req.json<{ perk_id: string }>()
   if (!body.perk_id || typeof body.perk_id !== "string") {

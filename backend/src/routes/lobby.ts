@@ -1,7 +1,7 @@
 import { Hono } from "hono"
 import { db } from "../db/client.js"
 import { requireAuth } from "../auth/middleware.js"
-import { hasActiveSession } from "../game/active-sessions.js"
+import { hasLockedRealm } from "../game/active-sessions.js"
 import { getRequestedNetworks, logPayment, return402, verifyAndSettle } from "../payments/x402.js"
 import { getPubSub } from "../redis/pubsub.js"
 import { publishChatMessage, validateChatMessage } from "../redis/publishers.js"
@@ -119,7 +119,7 @@ lobby.post("/shop/buy", requireAuth, async (c) => {
   const { data: character, error: characterError } = await loadActiveCharacter(account_id)
   if (characterError) return c.json({ error: characterError.message }, 500)
   if (!character) return c.json({ error: "No living character" }, 404)
-  if (hasActiveSession(character.id)) {
+  if (await hasLockedRealm(character.id)) {
     return c.json({ error: "Leave the dungeon before shopping." }, 409)
   }
 
@@ -191,7 +191,7 @@ lobby.post("/shop/sell", requireAuth, async (c) => {
   const { data: character, error: characterError } = await loadActiveCharacter(account_id)
   if (characterError) return c.json({ error: characterError.message }, 500)
   if (!character) return c.json({ error: "No living character" }, 404)
-  if (hasActiveSession(character.id)) {
+  if (await hasLockedRealm(character.id)) {
     return c.json({ error: "Leave the dungeon before shopping." }, 409)
   }
 
@@ -247,7 +247,7 @@ lobby.post("/equip", requireAuth, async (c) => {
   const { data: character, error: characterError } = await loadActiveCharacter(account_id)
   if (characterError) return c.json({ error: characterError.message }, 500)
   if (!character) return c.json({ error: "No living character" }, 404)
-  if (hasActiveSession(character.id)) {
+  if (await hasLockedRealm(character.id)) {
     return c.json({ error: "Leave the dungeon before changing equipment." }, 409)
   }
 
@@ -306,7 +306,7 @@ lobby.post("/unequip", requireAuth, async (c) => {
   const { data: character, error: characterError } = await loadActiveCharacter(account_id)
   if (characterError) return c.json({ error: characterError.message }, 500)
   if (!character) return c.json({ error: "No living character" }, 404)
-  if (hasActiveSession(character.id)) {
+  if (await hasLockedRealm(character.id)) {
     return c.json({ error: "Leave the dungeon before changing equipment." }, 409)
   }
 
@@ -349,7 +349,7 @@ lobby.post("/use-consumable", requireAuth, async (c) => {
   const { data: character, error: characterError } = await loadActiveCharacter(account_id)
   if (characterError) return c.json({ error: characterError.message }, 500)
   if (!character) return c.json({ error: "No living character" }, 404)
-  if (hasActiveSession(character.id)) {
+  if (await hasLockedRealm(character.id)) {
     return c.json({ error: "Leave the dungeon first." }, 409)
   }
 
@@ -405,7 +405,7 @@ lobby.post("/discard", requireAuth, async (c) => {
   const { data: character, error: characterError } = await loadActiveCharacter(account_id)
   if (characterError) return c.json({ error: characterError.message }, 500)
   if (!character) return c.json({ error: "No living character" }, 404)
-  if (hasActiveSession(character.id)) {
+  if (await hasLockedRealm(character.id)) {
     return c.json({ error: "Leave the dungeon before discarding items." }, 409)
   }
 
@@ -433,7 +433,7 @@ lobby.post("/inn/rest", requireAuth, async (c) => {
   const { data: character, error: characterError } = await loadActiveCharacter(account_id)
   if (characterError) return c.json({ error: characterError.message }, 500)
   if (!character) return c.json({ error: "No living character" }, 404)
-  if (hasActiveSession(character.id)) {
+  if (await hasLockedRealm(character.id)) {
     return c.json({ error: "Leave the dungeon before resting." }, 409)
   }
 

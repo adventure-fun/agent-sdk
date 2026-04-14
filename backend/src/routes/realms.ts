@@ -120,7 +120,10 @@ realms.post("/generate", requireAuth, async (c) => {
     .select()
     .single()
 
-  if (error) return c.json({ error: error.message }, 500)
+  if (error) {
+    console.error("[realms/generate] insert failed", { character_id: character.id, template_id: body.template_id, error })
+    return c.json({ error: "Something went wrong generating the realm. Please try again." }, 500)
+  }
 
   // Mark free realm as used
   if (isFree && !account?.free_realm_used) {

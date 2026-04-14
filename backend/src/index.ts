@@ -59,6 +59,23 @@ if (pubsub) {
   console.log("[lobby] Lobby live manager connected to Redis pub/sub")
 }
 
+// Sweep stale "active" realm rows left behind by a prior crash or hard restart.
+// At process boot there are zero in-memory sessions, so any row still marked
+// "active" is guaranteed to be orphaned. "paused" is the correct resting state
+// for an interrupted run — the next reconnect will rebuild it normally.
+{
+  const { data: sweptRows, error: sweepError } = await db
+    .from("realm_instances")
+    .update({ status: "paused" })
+    .eq("status", "active")
+    .select("id")
+  if (sweepError) {
+    console.error("[startup] Stuck-active realm sweep failed:", sweepError)
+  } else {
+    console.log(`[startup] Swept ${sweptRows?.length ?? 0} stuck-active realm(s) to paused`)
+  }
+}
+
 const app = new Hono()
 
 app.use("*", logger())

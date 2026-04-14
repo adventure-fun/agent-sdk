@@ -15,7 +15,7 @@ import { useInn } from "../hooks/use-inn"
 import { PaymentModal } from "../components/payment-modal"
 import { UiToast } from "../components/ui-toast"
 import { useUsdcBalance } from "../hooks/use-usdc-balance"
-import { useEffect, useMemo } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
   type CharacterClass,
   type EquipSlot,
@@ -144,6 +144,12 @@ export default function PlayPage() {
 
   const store = usePlayStore
 
+  // Realm id to restore on the "Unresolved Run" prompt. Set when the init
+  // useEffect detects an active/paused realm; consumed when the user clicks
+  // Resume Run. Kept as component state (not in the Zustand store) because it
+  // only lives between init and the resume click.
+  const [pendingResumeRealmId, setPendingResumeRealmId] = useState<string | null>(null)
+
   // Build lookup maps from fetched content
   const classMap = useMemo(() => {
     const m: Record<string, ClassTemplateSummary> = {}
@@ -191,17 +197,29 @@ export default function PlayPage() {
     }
   }, [isSignedIn, evmAddress, isAuthenticated, isConnecting, connect])
 
-  // Check for existing character once authenticated
+  // Check for existing character once authenticated. If the player has an
+  // unresolved run (realm with status active/paused), route to the resume
+  // prompt instead of the hub so they can't refresh-heal between runs.
   useEffect(() => {
     if (isAuthenticated) {
-      fetchCharacter().then((c) => {
-        if (c) {
-          fetchRealms()
-          fetchProgression()
-          fetchInventory()
-          store.getState().setStep("hub")
-        } else {
+      fetchCharacter().then(async (c) => {
+        if (!c) {
           store.getState().setStep("class-select")
+          return
+        }
+        const [loadedRealms] = await Promise.all([
+          fetchRealms(),
+          fetchProgression(),
+          fetchInventory(),
+        ])
+        const unresolved = loadedRealms.find(
+          (r) => r.status === "active" || r.status === "paused",
+        )
+        if (unresolved) {
+          setPendingResumeRealmId(unresolved.id)
+          store.getState().setStep("resume-prompt")
+        } else {
+          store.getState().setStep("hub")
         }
       })
     }
@@ -398,6 +416,46 @@ export default function PlayPage() {
     )
   }
 
+  // Unresolved-run prompt: shown when the init useEffect detected a realm with
+  // status "active" or "paused" on boot. The server-side guard rejects hub
+  // mutations in this state, so routing the player anywhere else would just
+  // produce confusing errors. The only exit is to resume and resolve the run.
+  if (step === "resume-prompt") {
+    const resumeRealm = pendingResumeRealmId
+      ? realms.find((r) => r.id === pendingResumeRealmId)
+      : null
+    const resumeTemplate = resumeRealm ? realmTemplateMap[resumeRealm.template_id] : null
+    return (
+      <Shell>
+        <h1 className="text-2xl font-bold text-ob-primary">Unresolved Run</h1>
+        <p className="text-ob-on-surface-variant">
+          {resumeRealm
+            ? (
+              <>
+                You left a run in progress in{" "}
+                <span className="text-ob-on-surface font-semibold">
+                  {resumeTemplate?.name ?? "your realm"}
+                </span>
+                {" "}on floor {resumeRealm.floor_reached ?? 1}. Resume it to continue.
+              </>
+            )
+            : "You have a run in progress. Resume it to continue."}
+        </p>
+        <button
+          onClick={() => {
+            if (!pendingResumeRealmId) return
+            gameSession.connect(pendingResumeRealmId)
+            store.getState().setStep("dungeon")
+          }}
+          disabled={!pendingResumeRealmId}
+          className="px-6 py-2 bg-ob-primary hover:brightness-110 text-ob-on-primary font-bold rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Resume Run
+        </button>
+      </Shell>
+    )
+  }
+
   // Class selection
   if (step === "class-select") {
     return (
@@ -486,10 +544,10 @@ export default function PlayPage() {
       if (!isNameValid) return
       store.getState().setCreateError(null)
       const result = await rollCharacter(trimmedName, selectedClass)
-      if (result) {
+      if (result.character) {
         store.getState().setStep("stat-reveal")
       } else {
-        store.getState().setCreateError(charError ?? "Failed to create character")
+        store.getState().setCreateError(result.error ?? "Something went wrong creating your character. Please try again.")
       }
     }
 
