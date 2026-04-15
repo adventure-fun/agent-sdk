@@ -185,6 +185,14 @@ export function getRollQualityTone(fillPct: number) {
   return "bg-rose-400"
 }
 
+export function getItemIconSrc(type: string | undefined, templateId: string): string | null {
+  if (type === "equipment") return `/sprites/equipment/${templateId}.png`
+  if (type === "consumable") return `/sprites/consumables/${templateId}.png`
+  if (type === "loot") return `/sprites/loot/${templateId}.png`
+  if (type === "key-item") return `/sprites/keys/${templateId}.png`
+  return null
+}
+
 export function xpThresholdForLevel(level: number): number {
   if (level <= 1) return 0
   const n = level - 1

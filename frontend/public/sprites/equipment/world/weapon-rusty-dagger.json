@@ -1,0 +1,36 @@
+{
+  "frames": {
+    "weapon-rusty-dagger-0": {
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 128,
+        "h": 128
+      },
+      "sourceSize": {
+        "w": 128,
+        "h": 128
+      },
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 128,
+        "h": 128
+      }
+    }
+  },
+  "animations": {
+    "weapon-rusty-dagger": [
+      "weapon-rusty-dagger-0"
+    ]
+  },
+  "meta": {
+    "image": "../weapon-rusty-dagger.png",
+    "format": "RGBA8888",
+    "size": {
+      "w": 128,
+      "h": 128
+    },
+    "scale": "1"
+  }
+}

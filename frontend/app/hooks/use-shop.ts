@@ -15,6 +15,7 @@ export interface ShopCatalogSection {
 interface ShopInventoryResponse {
   gold: number
   inventory: InventoryItem[]
+  templates?: Record<string, ItemTemplate>
 }
 
 export function useShop() {
@@ -22,6 +23,7 @@ export function useShop() {
   const [sections, setSections] = useState<ShopCatalogSection[]>([])
   const [featured, setFeatured] = useState<ItemTemplate[]>([])
   const [inventory, setInventory] = useState<InventoryItem[]>([])
+  const [inventoryTemplates, setInventoryTemplates] = useState<Record<string, ItemTemplate>>({})
   const [gold, setGold] = useState<number | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -63,6 +65,7 @@ export function useShop() {
       if (!response.ok) throw new Error(body.error ?? "Failed to load inventory")
       const payload = body as ShopInventoryResponse
       setInventory(payload.inventory ?? [])
+      setInventoryTemplates(payload.templates ?? {})
       setGold(payload.gold ?? null)
       return payload
     } catch (err) {
@@ -240,6 +243,7 @@ export function useShop() {
     sections,
     featured,
     inventory,
+    inventoryTemplates,
     gold,
     isLoading,
     error,

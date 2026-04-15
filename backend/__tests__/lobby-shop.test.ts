@@ -95,21 +95,23 @@ describe("11.2 — lobby shop routes", () => {
     const response = await app.request("http://example.test/lobby/shop/inventory")
 
     expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({
-      gold: 41,
-      inventory: [
-        {
-          id: "item-1",
-          template_id: "mana-potion",
-          name: "Mana Potion",
-          quantity: 2,
-          modifiers: {},
-          owner_type: "character",
-          owner_id: "char-1",
-          slot: null,
-        },
-      ],
-    })
+    const body = await response.json()
+    expect(body.gold).toBe(41)
+    expect(body.inventory).toEqual([
+      {
+        id: "item-1",
+        template_id: "mana-potion",
+        name: "Mana Potion",
+        quantity: 2,
+        modifiers: {},
+        owner_type: "character",
+        owner_id: "char-1",
+        slot: null,
+      },
+    ])
+    expect(body.templates).toBeDefined()
+    expect(body.templates["mana-potion"]).toBeDefined()
+    expect(body.templates["mana-potion"].id).toBe("mana-potion")
   })
 
   it("purchases an item into a new inventory slot", async () => {

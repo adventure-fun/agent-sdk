@@ -115,25 +115,6 @@ export function DungeonView({
   const inventoryNearlyFull = inventory_slots_used >= Math.max(1, inventory_capacity - 2)
   const floorCanAscend = realm_info.current_floor > 1
   const floorCanDescend = realm_info.current_floor < realm_info.floor_count
-  const adjacentStairHint = useMemo(() => {
-    const adjacentStair = visible_tiles.find((tile) => {
-      const distance = Math.abs(tile.x - position.tile.x) + Math.abs(tile.y - position.tile.y)
-      return distance === 1 && (tile.type === "stairs" || tile.type === "stairs_up")
-    })
-    if (!adjacentStair) return null
-
-    if (adjacentStair.type === "stairs_up") {
-      return {
-        label: `Stairs up lead back to floor ${Math.max(1, realm_info.current_floor - 1)}.`,
-        tone: "border-ob-tertiary/40 bg-ob-tertiary/10 text-ob-tertiary",
-      }
-    }
-
-    return {
-      label: `Stairs down lead to floor ${Math.min(realm_info.floor_count, realm_info.current_floor + 1)}.`,
-      tone: "border-cyan-800/70 bg-ob-tertiary/10 text-ob-tertiary",
-    }
-  }, [position.tile, realm_info.current_floor, realm_info.floor_count, visible_tiles])
   const newItemIds = useMemo(
     () => new Set(observationWithNewItems.new_item_ids ?? []),
     [observationWithNewItems.new_item_ids],
@@ -247,12 +228,6 @@ export function DungeonView({
               EXTRACTION_READY
             </div>
             <p className="text-aw-on-surface-variant">{extractionHint}</p>
-          </div>
-        )}
-        {adjacentStairHint && (
-          <div className={`rounded border px-4 py-3 text-sm ${adjacentStairHint.tone}`}>
-            <div className="font-semibold uppercase tracking-wide text-[11px]">Stairway Nearby</div>
-            <p className="mt-1">{adjacentStairHint.label}</p>
           </div>
         )}
 

@@ -204,7 +204,7 @@
     },
     {
       "file": "backend/src/routes/lobby.ts",
-      "hash": "41fbfebd3b0c36899b71f2909e4426316b981f50fefde6ff72cf6d0329cbc27b",
+      "hash": "c3acb102e1e985dbbb0625960c149ed0beb0bba7e65b2f298323d5b7792b8394",
       "affectedModules": [
         "chat"
       ]
