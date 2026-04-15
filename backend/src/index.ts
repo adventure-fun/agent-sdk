@@ -302,6 +302,17 @@ export default {
       return upgraded ? undefined as unknown as Response : new Response("WS upgrade failed", { status: 500 })
     }
 
+    // Diagnostic: if something that looks like a lobby WS upgrade fell through
+    // here, log the path + headers so we can trace proxy/header mutations that
+    // make the guard at line 273 miss. Fires only on edge-case misses — normal
+    // /lobby/live upgrades return from the block above and never reach this.
+    if (url.pathname.startsWith("/lobby/live")) {
+      console.warn(
+        `[lobby-ws] fallthrough to Hono: path=${url.pathname} `
+          + `upgrade=${req.headers.get("upgrade") ?? "none"} method=${req.method}`,
+      )
+    }
+
     // All other requests go through Hono
     return app.fetch(req)
   },
