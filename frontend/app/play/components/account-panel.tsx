@@ -1,18 +1,17 @@
 "use client"
 
 import { useState } from "react"
+import { CHAIN_FULL, CHAIN_NAME, IS_TESTNET } from "../../lib/chain"
 
 export function AccountPanel({
   walletAddress,
   handle,
   balanceLabel,
-  isTestnet,
   onLogout,
 }: {
   walletAddress: string | null | undefined
   handle: string | undefined
   balanceLabel: string
-  isTestnet: boolean
   onLogout: () => void
 }) {
   const shortWallet = walletAddress
@@ -26,9 +25,9 @@ export function AccountPanel({
         <div className="space-y-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-semibold text-ob-primary">{handle || "Adventurer"}</span>
-            {isTestnet ? (
+            {IS_TESTNET ? (
               <span className="rounded border border-ob-primary/30 bg-ob-primary/10 px-2 py-1 text-[10px] uppercase tracking-wide text-ob-primary">
-                Testnet
+                {CHAIN_FULL}
               </span>
             ) : null}
           </div>
@@ -52,7 +51,12 @@ export function AccountPanel({
               shortWallet
             )}
           </div>
-          <div className="text-ob-on-surface-variant">USDC: {balanceLabel}</div>
+          <div>
+            <div className="text-ob-on-surface-variant">USDC: {balanceLabel}</div>
+            <div className="ob-label text-[9px] uppercase tracking-[0.2em] text-ob-outline">
+              on {CHAIN_NAME}
+            </div>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           {walletAddress ? (

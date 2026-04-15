@@ -1,6 +1,10 @@
 "use client"
 
 import { AnimatePresence, motion } from "framer-motion"
+import { useState } from "react"
+import { CHAIN_NAME, USDC_CHAIN_LABEL } from "../lib/chain"
+import { GetUsdcModal } from "./get-usdc-modal"
+import { InfoTooltip } from "./info-tooltip"
 
 interface PaymentModalProps {
   open: boolean
@@ -8,11 +12,20 @@ interface PaymentModalProps {
   description: string
   priceUsd: string
   balanceLabel: string
+  /** The wallet address for the GetUsdcModal — surfaced via the tooltip link
+   *  and the insufficient-balance CTA so a user stuck on the wrong chain has
+   *  a path forward without leaving the payment flow. */
+  walletAddress: string | null | undefined
   isProcessing?: boolean
   successMessage?: string | null
   error?: string | null
   onConfirm: () => void
   onCancel: () => void
+}
+
+function isInsufficientBalanceError(error: string | null | undefined): boolean {
+  if (!error) return false
+  return /not enough|insufficient/i.test(error)
 }
 
 export function PaymentModal({
@@ -21,12 +34,15 @@ export function PaymentModal({
   description,
   priceUsd,
   balanceLabel,
+  walletAddress,
   isProcessing = false,
   successMessage,
   error,
   onConfirm,
   onCancel,
 }: PaymentModalProps) {
+  const [getUsdcOpen, setGetUsdcOpen] = useState(false)
+
   return (
     <AnimatePresence>
       {open ? (
@@ -48,19 +64,45 @@ export function PaymentModal({
                 <h2 className="font-display text-xl font-bold text-amber-300">{title}</h2>
                 <p className="mt-2 text-sm text-gray-300">{description}</p>
               </div>
-              <span className="rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-amber-200">
-                x402
-              </span>
+              <div className="flex shrink-0 flex-col items-end gap-1.5">
+                <span className="rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-amber-200">
+                  x402
+                </span>
+                <span className="rounded-full border border-ob-tertiary/30 bg-ob-tertiary/10 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-ob-tertiary">
+                  {CHAIN_NAME}
+                </span>
+              </div>
             </div>
 
             <div className="mt-4 rounded-2xl border border-gray-800 bg-gray-900 p-3 text-sm">
               <div className="flex items-center justify-between">
-                <span className="text-gray-500">Price</span>
+                <span className="flex items-center gap-2 text-gray-500">
+                  Price
+                  <InfoTooltip label={`USDC on ${CHAIN_NAME} only`}>
+                    <div className="space-y-2">
+                      <p>
+                        Adventure.fun settles payments in <b>{USDC_CHAIN_LABEL}</b> via x402. USDC on Ethereum, Polygon, or any other chain <b className="text-ob-error">will not work</b>.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setGetUsdcOpen(true)}
+                        className="ob-label inline-flex items-center gap-1 rounded border border-ob-primary/50 px-2 py-1 text-[10px] font-semibold uppercase tracking-widest text-ob-primary transition-colors hover:bg-ob-primary/10"
+                      >
+                        How do I get USDC on {CHAIN_NAME}? →
+                      </button>
+                    </div>
+                  </InfoTooltip>
+                </span>
                 <span className="font-semibold text-gray-100">{priceUsd} USDC</span>
               </div>
-              <div className="mt-2 flex items-center justify-between">
+              <div className="mt-2 flex items-start justify-between">
                 <span className="text-gray-500">Your balance</span>
-                <span className="text-gray-100">{balanceLabel}</span>
+                <div className="text-right">
+                  <div className="text-gray-100">{balanceLabel}</div>
+                  <div className="ob-label text-[9px] uppercase tracking-[0.2em] text-ob-outline">
+                    on {CHAIN_NAME}
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -84,7 +126,20 @@ export function PaymentModal({
               )}
             </div>
 
-            {error ? <p className="mt-3 text-sm text-red-400">{error}</p> : null}
+            {error ? (
+              <div className="mt-3 space-y-2">
+                <p className="text-sm text-red-400">{error}</p>
+                {isInsufficientBalanceError(error) ? (
+                  <button
+                    type="button"
+                    onClick={() => setGetUsdcOpen(true)}
+                    className="ob-label inline-flex items-center gap-1 rounded border border-ob-primary/50 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-ob-primary transition-colors hover:bg-ob-primary/10"
+                  >
+                    How do I get USDC on {CHAIN_NAME}? →
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
 
             <div className="mt-5 flex items-center justify-end gap-3">
               <button
@@ -105,6 +160,11 @@ export function PaymentModal({
               </button>
             </div>
           </motion.div>
+          <GetUsdcModal
+            open={getUsdcOpen}
+            onClose={() => setGetUsdcOpen(false)}
+            walletAddress={walletAddress}
+          />
         </motion.div>
       ) : null}
     </AnimatePresence>

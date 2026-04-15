@@ -234,6 +234,11 @@ export default function PlayPage() {
   // Check for existing character once authenticated. If the player has an
   // unresolved run (realm with status active/paused), route to the resume
   // prompt instead of the hub so they can't refresh-heal between runs.
+  //
+  // A "paused" row with `session_state == null` represents a clean exit via
+  // portal or entry-room retreat and is NOT unresolved — backend's
+  // hasLockedRealm uses the exact same discriminator. Without this check the
+  // player gets force-routed to the resume prompt after a normal extraction.
   useEffect(() => {
     if (isAuthenticated) {
       fetchCharacter().then(async (c) => {
@@ -247,7 +252,9 @@ export default function PlayPage() {
           fetchInventory(),
         ])
         const unresolved = loadedRealms.find(
-          (r) => r.status === "active" || r.status === "paused",
+          (r) =>
+            r.status === "active" ||
+            (r.status === "paused" && r.session_state != null),
         )
         if (unresolved) {
           setPendingResumeRealmId(unresolved.id)
@@ -767,6 +774,7 @@ export default function PlayPage() {
           description={`Approve a ${paymentPrices.stat_reroll} USDC x402 payment to re-roll this character's starting stats.`}
           priceUsd={paymentPrices.stat_reroll}
           balanceLabel={balanceLabel}
+          walletAddress={evmAddress}
           isProcessing={isProcessingPayment}
           successMessage={paymentSuccess}
           error={paymentError}
@@ -1594,6 +1602,7 @@ export default function PlayPage() {
                 : paymentPrices.realm_generate
           }
           balanceLabel={balanceLabel}
+          walletAddress={evmAddress}
           isProcessing={isProcessingPayment || !!generatingTemplate || innLoading}
           successMessage={paymentSuccess}
           error={paymentError}
