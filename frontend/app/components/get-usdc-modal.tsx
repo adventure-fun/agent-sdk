@@ -2,17 +2,23 @@
 
 import { AnimatePresence, motion } from "framer-motion"
 import { useEffect, useState } from "react"
+import { createPortal } from "react-dom"
 import { CHAIN_NAME, IS_TESTNET, TESTNET_FAUCET_URL } from "../lib/chain"
 import { UiToast } from "./ui-toast"
 
 // Explainer modal that opens when a user clicks "How do I get USDC on Base?"
 // from the payment-modal tooltip, the insufficient-balance error, or the
-// site-header account menu. Built on the same framer-motion backdrop +
-// portal pattern as PaymentModal and ShareMomentModal — no new primitive.
+// site-header account menu.
 //
 // On mainnet the modal is text-only (no outbound links) with the wallet
 // address + copy button as the single actionable affordance. On testnet
 // we link to the Circle faucet since that's the only free path.
+//
+// Rendered via createPortal into document.body so the modal escapes any
+// ancestor containing block. This matters because the site header has
+// `backdrop-blur-xl` which per the CSS spec creates a containing block for
+// fixed descendants — without the portal, a fixed-positioned modal would
+// snap to the 80px-tall header instead of the viewport.
 //
 // Stacks on top of PaymentModal when triggered from the payment flow:
 // z-[90] > PaymentModal's z-50 — dismissing returns the user to the still
@@ -26,6 +32,11 @@ interface GetUsdcModalProps {
 
 export function GetUsdcModal({ open, onClose, walletAddress }: GetUsdcModalProps) {
   const [toast, setToast] = useState<{ tone: "success" | "error"; message: string } | null>(null)
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   useEffect(() => {
     if (!toast) return
@@ -52,7 +63,10 @@ export function GetUsdcModal({ open, onClose, walletAddress }: GetUsdcModalProps
     }
   }
 
-  return (
+  // SSR-safe: document.body only exists after mount.
+  if (!mounted) return null
+
+  return createPortal(
     <>
       <AnimatePresence>
         {open ? (
@@ -202,6 +216,7 @@ export function GetUsdcModal({ open, onClose, walletAddress }: GetUsdcModalProps
         message={toast?.message ?? ""}
         onClose={() => setToast(null)}
       />
-    </>
+    </>,
+    document.body,
   )
 }
