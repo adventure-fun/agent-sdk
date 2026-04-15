@@ -51,6 +51,27 @@ export type SocketSessionData =
 import type { ServerWebSocket } from "bun"
 import { getActiveSession } from "./game/active-sessions.js"
 
+// Global safety nets so a single bad throw on the hot path can't tear the
+// server down and leave every live agent staring at a silent 1006. We
+// intentionally keep the process alive (log-and-continue) — the alternative
+// is crashing the session for every connected player whenever one of them
+// hits a bug. If the unrecoverable state is real, the per-session error
+// handling in handleGameMessage will close that one socket with a proper
+// code while everyone else keeps playing.
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("[fatal] unhandledRejection", {
+    reason: reason instanceof Error ? { message: reason.message, stack: reason.stack } : reason,
+    promise,
+  })
+})
+process.on("uncaughtException", (error, origin) => {
+  console.error("[fatal] uncaughtException", {
+    origin,
+    message: error?.message,
+    stack: error?.stack,
+  })
+})
+
 getRedis()
 
 // Initialize Redis pub/sub and lobby live manager

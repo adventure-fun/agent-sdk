@@ -38,7 +38,7 @@ export function createMockDb() {
   function makeChain(call: DbCall) {
     const chain: Record<string, unknown> = {}
 
-    const filterMethods = ["eq", "neq", "in", "not", "order", "limit"]
+    const filterMethods = ["eq", "neq", "in", "not", "or", "order", "limit"]
     for (const method of filterMethods) {
       chain[method] = (...args: unknown[]) => {
         call.filters.push({ method, args })

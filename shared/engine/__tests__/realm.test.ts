@@ -225,3 +225,197 @@ describe("replayLockedExitUnlocks", () => {
     expect(room.connections.includes(nextRoom!.id)).toBe(true)
   })
 })
+
+describe("locked_exit on a floor-exit room (handcrafted)", () => {
+  // The Sunken Crypt is a handcrafted realm (procedural: false) where
+  // sc-offering-room is the last room on floor 1 AND has a locked_exit.
+  // This exercises the code path where the locked gate isn't between two
+  // intra-floor rooms but between a floor's last room and the descent to
+  // the next floor — the case placeDoors + replayLockedExitUnlocks used to
+  // silently mishandle by always placing walkable stairs.
+  const sunkenCrypt = REALMS["sunken-crypt"]!
+  const offeringTemplate = ROOMS["sc-offering-room"]!
+  const lockedExitId = offeringTemplate.locked_exit!
+
+  function findOfferingRoom(realm: ReturnType<typeof generateRealm>) {
+    for (const floor of realm.floors) {
+      const room = floor.rooms.find((r) => r.id.endsWith("_sc-offering-room"))
+      if (room) return { room, floor }
+    }
+    return null
+  }
+
+  it("fixture sanity: sunken-crypt is handcrafted and places offering-room on a non-final floor", () => {
+    expect(sunkenCrypt).toBeDefined()
+    expect(sunkenCrypt.procedural).toBe(false)
+    expect(lockedExitId).toBe("sc-locked-door-f2")
+    const realm = generateRealm(sunkenCrypt, 1)
+    const found = findOfferingRoom(realm)
+    expect(found).not.toBeNull()
+    expect(found!.floor.exit_room_id).toBe(found!.room.id)
+    expect(found!.floor.floor_number).toBeLessThan(realm.floors.length)
+  })
+
+  it("fresh-generated realm walls off the floor descent until the lock is mutated", () => {
+    const realm = generateRealm(sunkenCrypt, 1)
+    const { room } = findOfferingRoom(realm)!
+    const midY = Math.floor(room.tiles.length / 2)
+    const eastWall = room.tiles[midY]?.[room.width - 1]
+    expect(eastWall?.type).toBe("wall")
+  })
+
+  it("replays the unlock by swapping the east wall to stairs", () => {
+    const realm = generateRealm(sunkenCrypt, 1)
+    replayLockedExitUnlocks(realm, [lockedExitId])
+    const { room } = findOfferingRoom(realm)!
+    const midY = Math.floor(room.tiles.length / 2)
+    const eastWall = room.tiles[midY]?.[room.width - 1]
+    expect(eastWall?.type).toBe("stairs")
+  })
+
+  it("is idempotent for the floor-exit case", () => {
+    const realm = generateRealm(sunkenCrypt, 1)
+    replayLockedExitUnlocks(realm, [lockedExitId])
+    replayLockedExitUnlocks(realm, [lockedExitId])
+    const { room } = findOfferingRoom(realm)!
+    const midY = Math.floor(room.tiles.length / 2)
+    const eastWall = room.tiles[midY]?.[room.width - 1]
+    expect(eastWall?.type).toBe("stairs")
+  })
+
+  it("never places walkable stairs at generation time (regression: pre-fix, placeDoors stamped stairs unconditionally on exit rooms)", () => {
+    // Run across multiple seeds so we catch any accidental branch that depends
+    // on room placement randomness. Sunken Crypt is handcrafted so the layout
+    // is fixed, but the same invariant should hold for every seed.
+    for (let seed = 0; seed < 20; seed++) {
+      const realm = generateRealm(sunkenCrypt, seed)
+      const { room } = findOfferingRoom(realm)!
+      const midY = Math.floor(room.tiles.length / 2)
+      const eastWall = room.tiles[midY]?.[room.width - 1]
+      expect(eastWall?.type).toBe("wall")
+    }
+  })
+})
+
+describe("locked_exit in procedural generation", () => {
+  // Build a procedural template that forces the generator through the
+  // type-matching path with both a lock room (cp-locked-gate, event, requires
+  // mine-key) and its key source (cp-flooded-chamber, treasure, grants
+  // mine-key via an interactable). If the solvability filter and the
+  // locked_exit-aware wiring are working, the lock room should only ever
+  // appear when the key room is already on the same floor at an earlier
+  // index — and the forward edge out of the lock room should stay unwired
+  // until the mutation is replayed.
+  const proceduralLockedTemplate: RealmTemplate = {
+    id: "test-procedural-locked",
+    name: "Test Procedural Locked",
+    description: "test fixture",
+    theme: "mine",
+    version: 1,
+    floor_count: { min: 1, max: 1 },
+    difficulty_tier: 1,
+    room_distribution: {
+      combat: 0.2,
+      treasure: 0.3,
+      trap: 0.0,
+      rest: 0.0,
+      event: 0.5,
+      boss: 0,
+    },
+    enemy_roster: ["hollow-rat"],
+    boss_id: null,
+    loot_tables: [{ id: "test", entries: [] }],
+    trap_types: [],
+    // No "rest" room here so the entrance hardcoded to "rest" falls through to
+    // the narrative-pool fallback. We only care about the middle rooms.
+    room_templates: [
+      "cp-flooded-chamber",
+      "cp-locked-gate",
+      "cp-overseers-den",
+      "cp-shaft-junction",
+      "cp-tool-storage",
+    ],
+    narrative: {
+      theme_description: "test",
+      room_text_pool: [{ text: "placeholder", type: "event" }],
+      lore_pool: [],
+      interactable_pool: [],
+    },
+    completion_rewards: { xp: 100, gold: 10 },
+  }
+
+  function findProceduralLockRoom(realm: ReturnType<typeof generateRealm>) {
+    for (const floor of realm.floors) {
+      for (let i = 0; i < floor.rooms.length; i++) {
+        const room = floor.rooms[i]!
+        if (room.id.endsWith("_cp-locked-gate")) {
+          const keyIdx = floor.rooms.findIndex((r) => r.id.endsWith("_cp-flooded-chamber"))
+          return {
+            floor,
+            room,
+            roomIdx: i,
+            keyIdx,
+            nextRoom: floor.rooms[i + 1] ?? null,
+          }
+        }
+      }
+    }
+    return null
+  }
+
+  it("solvability: when the lock room is placed, the key room is also on the same floor and earlier", () => {
+    let sawLockRoom = false
+    for (let seed = 0; seed < 200; seed++) {
+      const realm = generateRealm(proceduralLockedTemplate, seed)
+      const found = findProceduralLockRoom(realm)
+      if (!found) continue
+      sawLockRoom = true
+      expect(found.keyIdx).toBeGreaterThanOrEqual(0)
+      expect(found.keyIdx).toBeLessThan(found.roomIdx)
+    }
+    // The seed range is wide enough that the lock room should appear at
+    // least once — otherwise the filter is too aggressive and we've
+    // silently disabled the pattern.
+    expect(sawLockRoom).toBe(true)
+  })
+
+  it("wiring: the lock room does not forward-connect to its next intra-floor room", () => {
+    for (let seed = 0; seed < 200; seed++) {
+      const realm = generateRealm(proceduralLockedTemplate, seed)
+      const found = findProceduralLockRoom(realm)
+      if (!found) continue
+      if (!found.nextRoom) continue
+      expect(found.room.connections.includes(found.nextRoom.id)).toBe(false)
+      // Backward edge from next → lock is still present so the player can
+      // retreat to collect the key if they got dropped on the far side by a
+      // different mechanism (e.g. teleport). This mirrors the handcrafted
+      // wiring at generateHandcraftedRealm:101-105.
+      expect(found.nextRoom.connections.includes(found.room.id)).toBe(true)
+    }
+  })
+
+  it("placeDoors leaves the east wall as a wall for unmutated procedural lock rooms", () => {
+    for (let seed = 0; seed < 200; seed++) {
+      const realm = generateRealm(proceduralLockedTemplate, seed)
+      const found = findProceduralLockRoom(realm)
+      if (!found) continue
+      const midY = Math.floor(found.room.tiles.length / 2)
+      const eastWall = found.room.tiles[midY]?.[found.room.width - 1]
+      expect(eastWall?.type).toBe("wall")
+    }
+  })
+
+  it("replayLockedExitUnlocks wires procedural lock rooms once mutated", () => {
+    for (let seed = 0; seed < 200; seed++) {
+      const realm = generateRealm(proceduralLockedTemplate, seed)
+      const found = findProceduralLockRoom(realm)
+      if (!found || !found.nextRoom) continue
+      replayLockedExitUnlocks(realm, ["cp-iron-gate"])
+      expect(found.room.connections.includes(found.nextRoom.id)).toBe(true)
+      const midY = Math.floor(found.room.tiles.length / 2)
+      const eastWall = found.room.tiles[midY]?.[found.room.width - 1]
+      expect(eastWall?.type).toBe("door")
+      break // one successful replay is enough; this covers the branch
+    }
+  })
+})
