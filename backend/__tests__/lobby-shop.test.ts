@@ -33,6 +33,10 @@ async function importFreshLobbyRoutes(
     verifyAndSettle: async () => null,
     return402: () => new Response(),
     logPayment: async () => {},
+    mapPaymentError: (err: unknown) => ({
+      error: err instanceof Error ? err.message : String(err),
+      code: "unknown" as const,
+    }),
   }))
 
   return import(`../src/routes/lobby.js?cacheBust=${Date.now()}-${Math.random()}`)
