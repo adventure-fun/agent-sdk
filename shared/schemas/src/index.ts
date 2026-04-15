@@ -286,6 +286,13 @@ export interface RealmInstance {
   is_free: boolean
   completions: number
   created_at: string
+  // Serialized game state persisted on disconnect/refresh so a stuck run
+  // can be resumed. A "paused" row with `session_state == null` represents
+  // a clean extraction (portal/retreat) and must NOT be treated as an
+  // unresolved run — otherwise the player gets force-routed to the resume
+  // prompt after exiting normally. Kept as `unknown | null` because the
+  // shape is internal to the backend session serializer.
+  session_state?: unknown | null
 }
 
 // ---- Tiles & Map --------------------------------------------
