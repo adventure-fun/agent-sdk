@@ -196,6 +196,7 @@ export interface RunSummary {
 export function buildRunSummaryFromEvents(
   events: GameEvent[],
   context: { floor: number },
+  deathCause?: string | null,
 ): RunSummary {
   let enemiesKilled = 0
   let damageDealt = 0
@@ -224,6 +225,9 @@ export function buildRunSummaryFromEvents(
         if ((event.data.player_hp as number) <= 0) {
           causeOfDeath = event.detail
         }
+        break
+      case "trap_triggered":
+        damageTaken += (event.data.damage as number) ?? 0
         break
       case "interact":
         if (event.data.category === "chest") {
@@ -254,7 +258,7 @@ export function buildRunSummaryFromEvents(
     potions_consumed: potionsConsumed,
     turns_in_combat: turnsInCombat,
     turns_exploring: turnsExploring,
-    cause_of_death: causeOfDeath,
+    cause_of_death: deathCause ?? causeOfDeath,
     traps_disarmed: trapsDisarmed,
   }
 }

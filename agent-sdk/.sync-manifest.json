@@ -140,7 +140,7 @@
     },
     {
       "file": "backend/src/game/session.ts",
-      "hash": "69a1d0814ca4c6566f44f9ea4f4b3283284dbf47dbd4a765142d406398456507",
+      "hash": "787ce968c1b9e8921bcee3677141ffd594200249b2f182b4e33ead9493f5197d",
       "affectedModules": [
         "agent-lifecycle",
         "chat"

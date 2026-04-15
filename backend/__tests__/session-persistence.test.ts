@@ -374,6 +374,50 @@ describe("8.4 — categorizeRunEvents", () => {
     const summary = buildRunSummaryFromEvents(events, { floor: 1 })
     expect(summary.chests_opened).toBe(0)
   })
+
+  it("counts trap_triggered damage toward damage_taken", async () => {
+    const { buildRunSummaryFromEvents } = await import("../src/game/session-persistence.js")
+
+    const events: GameEvent[] = [
+      { turn: 1, type: "enemy_attack", detail: "Husk hits", data: { damage: 2, player_hp: 10 } },
+      { turn: 2, type: "trap_triggered", detail: "A hidden trap springs for 20 damage.", data: { damage: 20, applied: false } },
+    ]
+
+    const summary = buildRunSummaryFromEvents(events, { floor: 2 })
+    expect(summary.damage_taken).toBe(22)
+  })
+
+  it("prefers explicit deathCause override over computed enemy_attack", async () => {
+    const { buildRunSummaryFromEvents } = await import("../src/game/session-persistence.js")
+
+    const events: GameEvent[] = [
+      { turn: 5, type: "enemy_attack", detail: "Drowned Husk hit for 1 with Basic Slam.", data: { damage: 1, player_hp: 10 } },
+      { turn: 100, type: "trap_triggered", detail: "A hidden trap springs for 20 damage.", data: { damage: 20, applied: false } },
+    ]
+
+    const summary = buildRunSummaryFromEvents(
+      events,
+      { floor: 2 },
+      "A hidden trap springs for 20 damage.",
+    )
+    expect(summary.cause_of_death).toBe("A hidden trap springs for 20 damage.")
+  })
+
+  it("uses deathCause when there is no enemy_attack at all", async () => {
+    const { buildRunSummaryFromEvents } = await import("../src/game/session-persistence.js")
+
+    const events: GameEvent[] = [
+      { turn: 10, type: "trap_triggered", detail: "A hidden trap springs for 20 damage.", data: { damage: 20, applied: false } },
+    ]
+
+    const summary = buildRunSummaryFromEvents(
+      events,
+      { floor: 2 },
+      "A hidden trap springs for 20 damage.",
+    )
+    expect(summary.cause_of_death).toBe("A hidden trap springs for 20 damage.")
+    expect(summary.damage_taken).toBe(20)
+  })
 })
 
 // ── 8.5 — SeededRng state serialization ─────────────────────────────────────
