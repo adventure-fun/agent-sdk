@@ -767,6 +767,7 @@ export default function PlayPage() {
           description={`Approve a ${paymentPrices.stat_reroll} USDC x402 payment to re-roll this character's starting stats.`}
           priceUsd={paymentPrices.stat_reroll}
           balanceLabel={balanceLabel}
+          walletAddress={evmAddress}
           isProcessing={isProcessingPayment}
           successMessage={paymentSuccess}
           error={paymentError}
@@ -1594,6 +1595,7 @@ export default function PlayPage() {
                 : paymentPrices.realm_generate
           }
           balanceLabel={balanceLabel}
+          walletAddress={evmAddress}
           isProcessing={isProcessingPayment || !!generatingTemplate || innLoading}
           successMessage={paymentSuccess}
           error={paymentError}

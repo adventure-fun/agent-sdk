@@ -5,6 +5,8 @@ import { usePathname, useRouter } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
 import { useAdventureAuth } from "../hooks/use-adventure-auth"
 import { useUsdcBalance } from "../hooks/use-usdc-balance"
+import { CHAIN_FULL, CHAIN_NAME, IS_TESTNET } from "../lib/chain"
+import { GetUsdcModal } from "./get-usdc-modal"
 
 const API_URL = process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:3001"
 
@@ -18,10 +20,11 @@ export function SiteHeader() {
   const pathname = usePathname()
   const router = useRouter()
   const { account, evmAddress, isAuthenticated, logout, token, refreshAccount } = useAdventureAuth()
-  const { balanceLabel, isTestnet } = useUsdcBalance()
+  const { balanceLabel } = useUsdcBalance()
   const [copied, setCopied] = useState(false)
   const [open, setOpen] = useState(false)
   const [confirming, setConfirming] = useState(false)
+  const [getUsdcOpen, setGetUsdcOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
   // Private nudge: the user's handle was auto-assigned and they haven't
@@ -165,9 +168,9 @@ export function SiteHeader() {
                     <span className="ob-headline text-base text-ob-primary not-italic font-bold">
                       {account.handle}
                     </span>
-                    {isTestnet ? (
+                    {IS_TESTNET ? (
                       <span className="border border-ob-primary/40 px-1.5 py-0.5 text-[10px] uppercase tracking-widest text-ob-primary rounded">
-                        Testnet
+                        {CHAIN_FULL}
                       </span>
                     ) : null}
                   </div>
@@ -238,6 +241,16 @@ export function SiteHeader() {
                     Balance
                   </div>
                   <div className="text-xs text-ob-on-surface">{balanceLabel}</div>
+                  <div className="ob-label text-[9px] uppercase tracking-[0.2em] text-ob-outline">
+                    on {CHAIN_NAME}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { setGetUsdcOpen(true); setOpen(false) }}
+                    className="mt-1 ob-label text-[10px] uppercase tracking-widest text-ob-primary/80 hover:text-ob-primary transition-colors"
+                  >
+                    How do I get more? →
+                  </button>
                 </div>
 
                 <div className="border-t border-ob-outline-variant/15 pt-3">
@@ -256,6 +269,11 @@ export function SiteHeader() {
           <div className="hidden lg:block w-[140px]" />
         )}
       </div>
+      <GetUsdcModal
+        open={getUsdcOpen}
+        onClose={() => setGetUsdcOpen(false)}
+        walletAddress={evmAddress}
+      />
     </header>
   )
 }

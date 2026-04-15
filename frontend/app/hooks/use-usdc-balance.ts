@@ -4,12 +4,12 @@ import { useEffect, useMemo, useState } from "react"
 import { createPublicClient, erc20Abi, formatUnits, http } from "viem"
 import { base, baseSepolia } from "viem/chains"
 import { useEvmAddress } from "@coinbase/cdp-hooks"
+import { IS_TESTNET } from "../lib/chain"
 
-const TESTNET = (process.env["NEXT_PUBLIC_X402_TESTNET"] ?? "true").toLowerCase() !== "false"
 const BASE_RPC_URL = process.env["NEXT_PUBLIC_BASE_RPC_URL"]
-  ?? (TESTNET ? "https://sepolia.base.org" : "https://mainnet.base.org")
+  ?? (IS_TESTNET ? "https://sepolia.base.org" : "https://mainnet.base.org")
 const USDC_ADDRESS = (
-  TESTNET
+  IS_TESTNET
     ? "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
     : "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
 ) as `0x${string}`
@@ -23,7 +23,7 @@ export function useUsdcBalance() {
   const client = useMemo(
     () =>
       createPublicClient({
-        chain: TESTNET ? baseSepolia : base,
+        chain: IS_TESTNET ? baseSepolia : base,
         transport: http(BASE_RPC_URL),
       }),
     [],
@@ -92,6 +92,6 @@ export function useUsdcBalance() {
       }
     },
     rpcUrl: BASE_RPC_URL,
-    isTestnet: TESTNET,
+    isTestnet: IS_TESTNET,
   }
 }

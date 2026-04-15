@@ -1,4 +1,5 @@
 import type { ActiveEffect, ItemTemplate, Observation } from "@adventure-fun/schemas"
+import { USDC_CHAIN_LABEL } from "../lib/chain"
 import { STAT_LABELS, STAT_KEYS, EQUIP_SLOT_LABELS } from "./constants"
 
 export function delay(ms: number) {
@@ -11,7 +12,7 @@ export function friendlyPaymentError(message: string) {
     return "Payment was cancelled before settlement completed."
   }
   if (normalized.includes("insufficient")) {
-    return "There is not enough USDC available to settle this payment yet."
+    return `There is not enough ${USDC_CHAIN_LABEL} available to settle this payment yet.`
   }
   if (normalized.includes("network") || normalized.includes("timeout")) {
     return "The payment network is taking too long to respond. Please try again in a moment."
