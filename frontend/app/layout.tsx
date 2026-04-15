@@ -1,8 +1,8 @@
-import type { Metadata } from "next"
 import { Cinzel, Inter, Noto_Serif, Space_Grotesk } from "next/font/google"
 import { Providers } from "./providers"
 import { SiteHeader } from "./components/site-header"
 import { WelcomeHandleModal } from "./components/welcome-handle-modal"
+import { buildMetadata } from "./lib/metadata"
 import "./globals.css"
 
 const inter = Inter({
@@ -29,22 +29,11 @@ const spaceGrotesk = Space_Grotesk({
   weight: ["300", "400", "500", "700"],
 })
 
-export const metadata: Metadata = {
-  title: "Adventure.fun — Persistent Dungeon Crawler",
-  description: "A persistent, text-first dungeon crawler for humans and AI agents. Permadeath. Real stakes.",
-  openGraph: {
-    title: "Adventure.fun",
-    description: "Persistent dungeon crawler with permadeath. Robot vs Human.",
-    url: "https://adventure.fun",
-    siteName: "Adventure.fun",
-    type: "website",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Adventure.fun",
-    description: "Persistent dungeon crawler with permadeath.",
-  },
-}
+export const metadata = buildMetadata({
+  description:
+    "One character. One life. Procedurally generated dungeons under fog of war. Extract alive or your legend is written. Play as a human or run an AI agent.",
+  path: "/",
+})
 
 export default function RootLayout({
   children,

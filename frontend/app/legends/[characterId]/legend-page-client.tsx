@@ -3,10 +3,12 @@
 import { motion } from "framer-motion"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import type { LegendPage } from "@adventure-fun/schemas"
-import { UiToast } from "../../components/ui-toast"
+import { ShareCard } from "../../components/share-card"
+import { titleCase } from "../../lib/format"
 import { listItemReveal, pageEnter, sectionReveal } from "../../lib/motion"
 
 const API_URL = process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:3001"
+const SITE_URL = process.env["NEXT_PUBLIC_SITE_URL"] ?? "https://app.adventure.fun"
 
 const CLASS_TONES: Record<LegendPage["character"]["class"], string> = {
   knight: "border-blue-500/30 bg-blue-500/10 text-blue-200",
@@ -53,14 +55,7 @@ export function LegendPageClient({ characterId }: { characterId: string }) {
   const [legend, setLegend] = useState<LegendPage | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [toast, setToast] = useState<{ tone: "success" | "error"; message: string } | null>(null)
   const skillNodes = useMemo(() => Object.keys(legend?.character.skill_tree ?? {}), [legend])
-
-  useEffect(() => {
-    if (!toast) return
-    const timer = window.setTimeout(() => setToast(null), 2200)
-    return () => window.clearTimeout(timer)
-  }, [toast])
 
   const loadLegend = useCallback(async (signal?: AbortSignal) => {
     setIsLoading(true)
@@ -92,15 +87,6 @@ export function LegendPageClient({ characterId }: { characterId: string }) {
       controller.abort()
     }
   }, [loadLegend])
-
-  const handleCopyLink = async () => {
-    try {
-      await navigator.clipboard.writeText(window.location.href)
-      setToast({ tone: "success", message: "Legend link copied to your clipboard." })
-    } catch {
-      setToast({ tone: "error", message: "Unable to copy the legend link on this device." })
-    }
-  }
 
   if (isLoading) {
     return (
@@ -150,13 +136,6 @@ export function LegendPageClient({ characterId }: { characterId: string }) {
       animate="visible"
       className="min-h-screen bg-gradient-to-b from-gray-950 via-black to-gray-950 p-6 sm:p-8"
     >
-      <UiToast
-        open={!!toast}
-        tone={toast?.tone ?? "success"}
-        title={toast?.tone === "error" ? "Copy Failed" : "Link Ready"}
-        message={toast?.message ?? ""}
-        onClose={() => setToast(null)}
-      />
       <div className="mx-auto max-w-5xl space-y-6">
         <motion.section variants={sectionReveal} className="ambient-glow rounded-3xl border border-amber-500/20 bg-amber-500/5 p-6 shadow-[0_0_80px_rgba(245,158,11,0.08)]">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -171,6 +150,14 @@ export function LegendPageClient({ characterId }: { characterId: string }) {
                   Fallen on floor {legend.history.death_floor} in {legend.history.death_room}.
                 </p>
               </div>
+              <ShareCard
+                url={`${SITE_URL}/legends/${characterId}`}
+                title={`${legend.character.name} — Adventure.fun`}
+                text={`${legend.character.name} — ${titleCase(legend.character.class)}, fell on Floor ${legend.history.death_floor} to ${legend.history.cause_of_death}. Their legend lives on Adventure.fun.`}
+                hashtags={["AdventureFun", "Permadeath"]}
+                tone="error"
+                size="md"
+              />
             </div>
 
             <div className="rounded-2xl border border-gray-800 bg-gray-950/80 p-4 text-sm">
@@ -267,16 +254,7 @@ export function LegendPageClient({ characterId }: { characterId: string }) {
             </motion.div>
 
             <motion.div variants={sectionReveal} className="rounded-2xl border border-gray-800 bg-gray-900/70 p-5">
-              <div className="flex items-center justify-between gap-3">
-                <h2 className="text-sm font-bold uppercase tracking-wider text-gray-500">Skill Tree Snapshot</h2>
-                <button
-                  type="button"
-                  onClick={() => void handleCopyLink()}
-                  className="rounded-full border border-gray-700 px-3 py-1 text-xs text-gray-300 transition-colors hover:border-gray-500"
-                >
-                  Copy Link
-                </button>
-              </div>
+              <h2 className="text-sm font-bold uppercase tracking-wider text-gray-500">Skill Tree Snapshot</h2>
               <div className="mt-4 flex flex-wrap gap-2">
                 {skillNodes.length > 0 ? (
                   skillNodes.map((nodeId) => (
