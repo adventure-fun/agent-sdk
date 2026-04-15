@@ -1,0 +1,36 @@
+{
+  "frames": {
+    "loot-crypt-relic-0": {
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 128,
+        "h": 128
+      },
+      "sourceSize": {
+        "w": 128,
+        "h": 128
+      },
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 128,
+        "h": 128
+      }
+    }
+  },
+  "animations": {
+    "loot-crypt-relic": [
+      "loot-crypt-relic-0"
+    ]
+  },
+  "meta": {
+    "image": "../loot-crypt-relic.png",
+    "format": "RGBA8888",
+    "size": {
+      "w": 128,
+      "h": 128
+    },
+    "scale": "1"
+  }
+}

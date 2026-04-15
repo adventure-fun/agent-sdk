@@ -3,10 +3,13 @@
 import { useState, useMemo } from "react"
 import type { InventoryItem, ItemTemplate } from "@adventure-fun/schemas"
 import { getInventoryCapacity } from "@adventure-fun/schemas"
+import { getItemIconSrc } from "../utils"
+import { ShopItemIcon } from "./shop-item-icon"
 
 export function ShopPanel({
   sections,
   featured,
+  inventoryTemplates,
   inventory,
   gold,
   isLoading,
@@ -17,6 +20,7 @@ export function ShopPanel({
 }: {
   sections: Array<{ id: "consumable" | "equipment"; label: string; items: ItemTemplate[] }>
   featured: ItemTemplate[]
+  inventoryTemplates?: Record<string, ItemTemplate>
   inventory: InventoryItem[]
   gold: number
   isLoading: boolean
@@ -31,10 +35,10 @@ export function ShopPanel({
   const [confirmActionId, setConfirmActionId] = useState<string | null>(null)
 
   const templateMap = useMemo(() => {
-    const map: Record<string, ItemTemplate> = {}
+    const map: Record<string, ItemTemplate> = { ...inventoryTemplates }
     for (const s of sections) for (const item of s.items) map[item.id] = item
     return map
-  }, [sections])
+  }, [sections, inventoryTemplates])
 
   const allItems = sections.flatMap((s) => s.items)
   const filteredItems = category === "all"
@@ -123,8 +127,12 @@ export function ShopPanel({
                     key={item.id}
                     className="rounded border border-ob-outline-variant/15 bg-ob-bg/60 p-3 text-xs space-y-3"
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
+                    <div className="flex items-start gap-3">
+                      {(() => {
+                        const src = getItemIconSrc(item.type, item.id)
+                        return src ? <ShopItemIcon src={src} /> : null
+                      })()}
+                      <div className="flex-1 min-w-0">
                         {item.equip_slot ? (
                           <span className="mb-1 inline-block rounded border border-cyan-700/40 bg-cyan-950/30 px-2 py-0.5 text-[10px] font-bold uppercase text-ob-tertiary">
                             {item.equip_slot}
@@ -133,7 +141,7 @@ export function ShopPanel({
                         <p className="font-bold text-ob-on-surface">{item.name}</p>
                         <p className="mt-1 text-ob-outline">{item.description}</p>
                       </div>
-                      <span className="rounded-full border border-ob-primary/30 bg-ob-primary/10 px-2 py-1 text-[10px] text-ob-primary">
+                      <span className="shrink-0 rounded-full border border-ob-primary/30 bg-ob-primary/10 px-2 py-1 text-[10px] text-ob-primary">
                         {item.buy_price}g
                       </span>
                     </div>
@@ -229,8 +237,12 @@ export function ShopPanel({
 
                 return (
                   <div key={item.id} className="rounded border border-ob-outline-variant/15 bg-ob-bg/70 p-3 text-xs space-y-2">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
+                    <div className="flex items-start gap-2">
+                      {(() => {
+                        const src = getItemIconSrc(template?.type, item.template_id)
+                        return src ? <ShopItemIcon src={src} /> : null
+                      })()}
+                      <div className="flex-1 min-w-0">
                         <p className="font-bold text-ob-on-surface">{item.name}</p>
                         <p className="text-ob-outline">
                           {item.quantity} in bag

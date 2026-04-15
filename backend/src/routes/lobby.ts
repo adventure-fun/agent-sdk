@@ -103,10 +103,16 @@ lobby.get("/shop/inventory", requireAuth, async (c) => {
   const { data: inventoryRows, error: inventoryError } = await loadInventory(character.id)
   if (inventoryError) return c.json({ error: inventoryError.message }, 500)
 
-  return c.json({
-    gold: character.gold,
-    inventory: serializeInventory((inventoryRows ?? []) as LobbyInventoryRecord[]),
-  })
+  const inventory = serializeInventory((inventoryRows ?? []) as LobbyInventoryRecord[])
+  const templates: Record<string, ItemTemplate> = {}
+  for (const item of inventory) {
+    if (!templates[item.template_id]) {
+      const t = getItem(item.template_id)
+      if (t) templates[item.template_id] = t
+    }
+  }
+
+  return c.json({ gold: character.gold, inventory, templates })
 })
 
 // POST /lobby/shop/buy

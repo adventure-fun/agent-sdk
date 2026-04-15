@@ -85,6 +85,7 @@ export default function PlayPage() {
     sections: shopSections,
     featured: featuredShopItems,
     inventory: shopInventory,
+    inventoryTemplates: shopInventoryTemplates,
     gold: shopGold,
     isLoading: shopLoading,
     error: shopError,
@@ -1347,6 +1348,7 @@ export default function PlayPage() {
                 ) : hubTab === HubTab.ShopSell ? (
                   <ShopSellPanel
                     sections={shopSections}
+                    inventoryTemplates={shopInventoryTemplates}
                     inventory={shopInventory}
                     gold={displayedGold}
                     isLoading={shopLoading}

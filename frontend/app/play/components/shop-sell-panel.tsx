@@ -3,9 +3,12 @@
 import { useState, useMemo } from "react"
 import type { InventoryItem, ItemTemplate } from "@adventure-fun/schemas"
 import { getInventoryCapacity } from "@adventure-fun/schemas"
+import { getItemIconSrc } from "../utils"
+import { ShopItemIcon } from "./shop-item-icon"
 
 export function ShopSellPanel({
   sections,
+  inventoryTemplates,
   inventory,
   gold,
   isLoading,
@@ -13,6 +16,7 @@ export function ShopSellPanel({
   onDiscard,
 }: {
   sections: Array<{ id: "consumable" | "equipment"; label: string; items: ItemTemplate[] }>
+  inventoryTemplates?: Record<string, ItemTemplate>
   inventory: InventoryItem[]
   gold: number
   isLoading: boolean
@@ -23,10 +27,10 @@ export function ShopSellPanel({
   const [confirmActionId, setConfirmActionId] = useState<string | null>(null)
 
   const templateMap = useMemo(() => {
-    const map: Record<string, ItemTemplate> = {}
+    const map: Record<string, ItemTemplate> = { ...inventoryTemplates }
     for (const s of sections) for (const item of s.items) map[item.id] = item
     return map
-  }, [sections])
+  }, [sections, inventoryTemplates])
 
   const bagSlotsUsed = inventory.filter((item) => !item.slot).length
   const bagCapacity = getInventoryCapacity()
@@ -62,8 +66,12 @@ export function ShopSellPanel({
 
             return (
               <div key={item.id} className="rounded border border-ob-outline-variant/15 bg-ob-bg/70 p-3 text-xs space-y-2">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
+                <div className="flex items-start gap-2">
+                  {(() => {
+                    const src = getItemIconSrc(template?.type, item.template_id)
+                    return src ? <ShopItemIcon src={src} /> : null
+                  })()}
+                  <div className="flex-1 min-w-0">
                     <p className="font-bold text-ob-on-surface">{item.name}</p>
                     <p className="text-ob-outline">
                       {item.quantity} in bag

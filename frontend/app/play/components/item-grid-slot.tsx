@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react"
 import type { ItemTemplate } from "@adventure-fun/schemas"
-import { formatItemStats, getItemRarityBadgePalette } from "../utils"
+import { formatItemStats, getItemRarityBadgePalette, getItemIconSrc } from "../utils"
 import { EQUIP_SLOT_LABELS } from "../constants"
 
 const RARITY_RING: Record<string, string> = {
@@ -51,8 +51,8 @@ export function ItemGridSlot({
 
   const empty = !item
   const rarity = template?.rarity ?? "common"
-  const isEquipment = template?.type === "equipment"
   const rarityRing = empty ? "" : (RARITY_RING[rarity] ?? "")
+  const iconSrc = template ? getItemIconSrc(template.type, template.id) : null
 
   return (
     <div
@@ -76,16 +76,16 @@ export function ItemGridSlot({
 
         {/* Content */}
         {item ? (
-          isEquipment && template ? (
+          iconSrc ? (
             <>
               <img
-                src={`/sprites/equipment/${template.id}.png`}
+                src={iconSrc}
                 alt={item.name}
                 className="absolute inset-1.5 h-[calc(100%-12px)] w-[calc(100%-12px)] object-contain drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]"
                 draggable={false}
               />
               {quantityLabel ? (
-                <span className="absolute bottom-0.5 right-1 text-[9px] text-ob-outline drop-shadow-[0_1px_1px_rgba(0,0,0,1)]">
+                <span className="absolute bottom-0.5 right-1 text-[11px] font-bold text-white drop-shadow-[0_1px_1px_rgba(0,0,0,1)]">
                   {quantityLabel}
                 </span>
               ) : null}
