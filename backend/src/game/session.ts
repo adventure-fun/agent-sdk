@@ -597,7 +597,7 @@ export class GameSession {
       // client's next loop iteration (reroll character + generate new realm) can race the
       // still-in-flight DB updates and observe the dead character as still "alive" via
       // /characters/me, leading to a later 404 "No living character" on /realms/generate.
-      await this.endSession("death")
+      await this.endSession("death", cause)
       this.ws.send(
         JSON.stringify({
           type: "death",
@@ -644,6 +644,7 @@ export class GameSession {
 
   async endSession(
     reason: "death" | "extraction" | "disconnect",
+    causeOfDeath?: string | null,
   ): Promise<void> {
     if (this.ended) return
     this.ended = true
@@ -658,7 +659,7 @@ export class GameSession {
         end_reason: reason,
         total_turns: this.turn,
         events: this.eventBuffer,
-        summary: this.buildRunSummary(),
+        summary: this.buildRunSummary(causeOfDeath ?? null),
       })
 
       // 2. Save character state
@@ -722,7 +723,7 @@ export class GameSession {
       }
 
       // 5. Update leaderboard
-      await this.updateLeaderboard(reason)
+      await this.updateLeaderboard(reason, causeOfDeath ?? null)
 
       // 6. Handle death specifics (corpse + inventory transfer)
       if (reason === "death") {
@@ -798,7 +799,10 @@ export class GameSession {
     }
   }
 
-  private async updateLeaderboard(reason: string): Promise<void> {
+  private async updateLeaderboard(
+    reason: string,
+    causeOfDeath: string | null,
+  ): Promise<void> {
     const [{ data: character }, realmsCompleted] = await Promise.all([
       db
         .from("characters")
@@ -825,11 +829,7 @@ export class GameSession {
       deepest_floor: this.gameState.position.floor,
       realms_completed: realmsCompleted,
       status: reason === "death" ? "dead" : "alive",
-      cause_of_death:
-        reason === "death"
-          ? ([...this.eventBuffer].reverse().find((e: GameEvent) => e.type === "enemy_attack")
-              ?.detail ?? "Unknown")
-          : null,
+      cause_of_death: reason === "death" ? (causeOfDeath ?? "Unknown") : null,
       owner_handle: (account?.handle as string) ?? "",
       owner_wallet: (account?.wallet_address as string) ?? "",
       x_handle: (account?.x_handle as string) ?? null,
@@ -958,10 +958,12 @@ export class GameSession {
     }
   }
 
-  private buildRunSummary(): Record<string, unknown> {
-    return buildRunSummaryFromEvents(this.eventBuffer, {
-      floor: this.gameState.position.floor,
-    })
+  private buildRunSummary(causeOfDeath: string | null): Record<string, unknown> {
+    return buildRunSummaryFromEvents(
+      this.eventBuffer,
+      { floor: this.gameState.position.floor },
+      causeOfDeath,
+    )
   }
 }
 
