@@ -15,6 +15,10 @@ import { useInn } from "../hooks/use-inn"
 import { usePaymentConfig } from "../hooks/use-payment-config"
 import { PaymentModal } from "../components/payment-modal"
 import { UiToast } from "../components/ui-toast"
+import { ShareCard } from "../components/share-card"
+import { ShareMomentModal } from "../components/share-moment-modal"
+
+const SITE_URL = process.env["NEXT_PUBLIC_SITE_URL"] ?? "https://app.adventure.fun"
 import { useUsdcBalance } from "../hooks/use-usdc-balance"
 import { useEffect, useMemo, useState } from "react"
 import {
@@ -157,6 +161,27 @@ export default function PlayPage() {
   // Resume Run. Kept as component state (not in the Zustand store) because it
   // only lives between init and the resume click.
   const [pendingResumeRealmId, setPendingResumeRealmId] = useState<string | null>(null)
+
+  // Share moment modal — auto-opens once per death so users who just lost a
+  // character see a preview of their legend card and a share bar. Deduped
+  // per character id via sessionStorage so dismissing and re-rendering the
+  // death screen doesn't re-pop the modal.
+  const [shareModalOpen, setShareModalOpen] = useState(false)
+  useEffect(() => {
+    if (!gameSession.isDead || !gameSession.deathData) return
+    const deadId = gameSession.observation?.character.id
+    if (!deadId) return
+    try {
+      const key = `death-share-shown:${deadId}`
+      if (typeof window !== "undefined" && !window.sessionStorage.getItem(key)) {
+        setShareModalOpen(true)
+        window.sessionStorage.setItem(key, "1")
+      }
+    } catch {
+      // sessionStorage can throw in private browsing — fall back to showing once per mount.
+      setShareModalOpen(true)
+    }
+  }, [gameSession.isDead, gameSession.deathData, gameSession.observation?.character.id])
 
   // Build lookup maps from fetched content
   const classMap = useMemo(() => {
@@ -756,6 +781,13 @@ export default function PlayPage() {
   if (step === "dungeon") {
     // Death screen
     if (gameSession.isDead && gameSession.deathData) {
+      const fallenId = gameSession.observation?.character.id ?? character?.id ?? null
+      const fallenName = character?.name ?? "This adventurer"
+      const fallenClass = gameSession.observation?.character.class ?? character?.class ?? "knight"
+      const fallenShareUrl = fallenId ? `${SITE_URL}/legends/${fallenId}` : SITE_URL
+      const fallenClassTitleChar = fallenClass.charAt(0).toUpperCase()
+      const fallenClassTitle = `${fallenClassTitleChar}${fallenClass.slice(1)}`
+      const fallenShareText = `My ${fallenClassTitle} ${fallenName} just fell on Floor ${gameSession.deathData.floor} to ${gameSession.deathData.cause} in Adventure.fun. One life. Real stakes.`
       return (
         <Shell>
           <h1 className="text-3xl font-bold text-ob-error">YOU HAVE FALLEN</h1>
@@ -779,9 +811,9 @@ export default function PlayPage() {
           </div>
           <p className="text-ob-outline text-sm italic">Your legend has been written.</p>
           <div className="flex flex-wrap items-center justify-center gap-3">
-            {gameSession.observation?.character.id ? (
+            {fallenId ? (
               <Link
-                href={`/legends/${gameSession.observation.character.id}`}
+                href={`/legends/${fallenId}`}
                 className="rounded border border-ob-primary/50 px-6 py-2 text-sm font-semibold text-ob-primary transition-colors hover:border-ob-primary hover:bg-ob-primary/10"
               >
                 View your legend
@@ -794,6 +826,29 @@ export default function PlayPage() {
               Return to Hub
             </button>
           </div>
+          {fallenId ? (
+            <>
+              <div className="flex justify-center">
+                <ShareCard
+                  url={fallenShareUrl}
+                  title={`${fallenName} — Adventure.fun`}
+                  text={fallenShareText}
+                  hashtags={["AdventureFun", "Permadeath"]}
+                  tone="error"
+                  size="sm"
+                />
+              </div>
+              <ShareMomentModal
+                open={shareModalOpen}
+                onClose={() => setShareModalOpen(false)}
+                characterId={fallenId}
+                characterName={fallenName}
+                characterClass={fallenClass}
+                floor={gameSession.deathData.floor}
+                cause={gameSession.deathData.cause}
+              />
+            </>
+          ) : null}
         </Shell>
       )
     }
