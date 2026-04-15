@@ -2,7 +2,7 @@ import { Hono } from "hono"
 import { db } from "../db/client.js"
 import { requireAuth } from "../auth/middleware.js"
 import { hasLockedRealm } from "../game/active-sessions.js"
-import { getRequestedNetworks, isActionFree, logPayment, return402, verifyAndSettle } from "../payments/x402.js"
+import { getRequestedNetworks, isActionFree, logPayment, mapPaymentError, return402, verifyAndSettle } from "../payments/x402.js"
 import { getPubSub } from "../redis/pubsub.js"
 import { publishChatMessage, validateChatMessage } from "../redis/publishers.js"
 import { getLobbyManager } from "../game/lobby-live.js"
@@ -458,7 +458,12 @@ lobby.post("/inn/rest", requireAuth, async (c) => {
   const networks = getRequestedNetworks(c)
   let settledPayment: Awaited<ReturnType<typeof verifyAndSettle>> = null
   if (!isActionFree("inn_rest")) {
-    settledPayment = await verifyAndSettle(c, "inn_rest", networks)
+    try {
+      settledPayment = await verifyAndSettle(c, "inn_rest", networks)
+    } catch (err) {
+      console.error("[lobby/rest] verifyAndSettle failed", err)
+      return c.json(mapPaymentError(err), 400)
+    }
     if (!settledPayment) {
       return return402(c, "inn_rest", networks)
     }

@@ -3,7 +3,7 @@ import { db } from "../db/client.js"
 import { requireAuth } from "../auth/middleware.js"
 import { REALMS } from "@adventure-fun/engine"
 import { cleanupRealmForRegeneration } from "./realm-helpers.js"
-import { getRequestedNetworks, isActionFree, logPayment, return402, verifyAndSettle } from "../payments/x402.js"
+import { getRequestedNetworks, isActionFree, logPayment, mapPaymentError, return402, verifyAndSettle } from "../payments/x402.js"
 
 const realms = new Hono()
 const TUTORIAL_TEMPLATE_ID = "tutorial-cellar"
@@ -96,7 +96,12 @@ realms.post("/generate", requireAuth, async (c) => {
   const networks = getRequestedNetworks(c)
   let settledPayment = null as Awaited<ReturnType<typeof verifyAndSettle>>
   if (!isFree) {
-    settledPayment = await verifyAndSettle(c, "realm_generate", networks)
+    try {
+      settledPayment = await verifyAndSettle(c, "realm_generate", networks)
+    } catch (err) {
+      console.error("[realms/generate] verifyAndSettle failed", err)
+      return c.json(mapPaymentError(err), 400)
+    }
     if (!settledPayment) {
       return return402(c, "realm_generate", networks)
     }
@@ -175,7 +180,12 @@ realms.post("/:id/regenerate", requireAuth, async (c) => {
   const regenNetworks = getRequestedNetworks(c)
   let settledPayment: Awaited<ReturnType<typeof verifyAndSettle>> = null
   if (!isActionFree("realm_regen")) {
-    settledPayment = await verifyAndSettle(c, "realm_regen", regenNetworks)
+    try {
+      settledPayment = await verifyAndSettle(c, "realm_regen", regenNetworks)
+    } catch (err) {
+      console.error("[realms/regenerate] verifyAndSettle failed", err)
+      return c.json(mapPaymentError(err), 400)
+    }
     if (!settledPayment) {
       return return402(c, "realm_regen", regenNetworks)
     }

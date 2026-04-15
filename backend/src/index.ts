@@ -12,6 +12,7 @@ import { spectateRoutes } from "./routes/spectate.js"
 import { userRoutes } from "./routes/users.js"
 import { contentRoutes } from "./routes/content.js"
 import { configRoutes } from "./routes/config.js"
+import { walletRoutes } from "./routes/wallet.js"
 import { verifySession, type SessionPayload } from "./auth/jwt.js"
 import { consumeWsTicket } from "./game/ws-tickets.js"
 import { db } from "./db/client.js"
@@ -144,6 +145,27 @@ app.use("/spectate/active", createRateLimiter({
   maxRequests: 60,
   keyFn: getClientIp,
 }))
+// Withdraw is rate-limited tighter than other paid actions because each call
+// is a real on-chain transfer. Both limiters run before requireAuth, so they
+// must fall back to IP if the session isn't on the context yet.
+app.use("/wallet/withdraw", createRateLimiter({
+  label: "wallet-withdraw-hour",
+  windowMs: 3_600_000,
+  maxRequests: 5,
+  keyFn: (c) => {
+    const session = c.get("session")
+    return session?.account_id ?? getClientIp(c)
+  },
+}))
+app.use("/wallet/withdraw", createRateLimiter({
+  label: "wallet-withdraw-burst",
+  windowMs: 60_000,
+  maxRequests: 2,
+  keyFn: (c) => {
+    const session = c.get("session")
+    return session?.account_id ?? getClientIp(c)
+  },
+}))
 
 app.get("/health", (c) => c.json({ status: "ok", ts: new Date().toISOString() }))
 
@@ -158,6 +180,7 @@ app.route("/spectate", spectateRoutes)
 app.route("/users", userRoutes)
 app.route("/content", contentRoutes)
 app.route("/config", configRoutes)
+app.route("/wallet", walletRoutes)
 
 const port = Number(process.env["PORT"] ?? 3001)
 console.log(`Adventure.fun server on :${port}`)
