@@ -312,7 +312,14 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
                 rel="noopener noreferrer"
                 className="flex items-center gap-2 bg-ob-surface-container-low border border-ob-outline-variant/15 hover:border-ob-primary/30 px-4 py-2 rounded-lg transition-colors"
               >
-                <span className="material-symbols-outlined text-sm text-ob-primary">alternate_email</span>
+                <svg
+                  viewBox="0 0 1200 1227"
+                  aria-hidden="true"
+                  fill="currentColor"
+                  className="h-3 w-3 text-ob-primary"
+                >
+                  <path d="M714.163 519.284L1160.89 0H1055.03L667.137 450.887L357.328 0H0L468.492 681.821L0 1226.37H105.866L515.491 750.218L842.672 1226.37H1200L714.163 519.284ZM569.165 687.828L521.697 619.934L144.011 79.6944H306.615L611.412 515.685L658.88 583.579L1055.08 1150.3H892.476L569.165 687.854V687.828Z" />
+                </svg>
                 <span className="text-xs text-ob-on-surface">@{data.user.x_handle}</span>
               </a>
             ) : null}
