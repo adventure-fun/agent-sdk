@@ -1,6 +1,8 @@
 import { Cinzel, Inter, Noto_Serif, Space_Grotesk } from "next/font/google"
 import { Providers } from "./providers"
 import { SiteHeader } from "./components/site-header"
+import { SiteFooter } from "./components/site-footer"
+import { FooterGate } from "./components/footer-gate"
 import { WelcomeHandleModal } from "./components/welcome-handle-modal"
 import { buildMetadata } from "./lib/metadata"
 import "./globals.css"
@@ -57,6 +59,9 @@ export default function RootLayout({
           <Providers>
             <SiteHeader />
             {children}
+            <FooterGate>
+              <SiteFooter />
+            </FooterGate>
             <WelcomeHandleModal />
           </Providers>
         </div>
