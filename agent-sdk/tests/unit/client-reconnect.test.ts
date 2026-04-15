@@ -153,71 +153,26 @@ describe("GameClient reconnection flow", () => {
     client.disconnect()
   })
 
-  it("retries connectLobby on initial failure and resolves once a socket opens", async () => {
-    // The first two sockets fail pre-open; the third opens. connectLobby should
-    // retry through them and resolve once the third attempt succeeds.
+  it("rejects connectLobby immediately on initial failure without blocking on retries", async () => {
+    // connectLobby intentionally does not retry the initial attempt — the
+    // agent's per-realm loop is the retry cadence. A single pre-open failure
+    // must propagate to the caller so the agent can log + move on.
     const client = makeClient()
-    const reconnecting: ReconnectingEvent[] = []
-    const connected: ConnectEvent[] = []
-
-    const connectPromise = client.connectLobby({
-      onError: () => {},
-    })
-    client.on("reconnecting", (event) => reconnecting.push(event))
-    client.on("connected", (event) => connected.push(event))
-
-    // Fail the first two sockets pre-open.
-    for (let i = 0; i < 2; i++) {
-      // Wait a tick for connectLobby to create the next socket.
-      while (MockWebSocket.instances.length <= i) {
-        await new Promise((r) => setTimeout(r, 0))
-      }
-      const attempt = MockWebSocket.instances[i]!
-      attempt.fireError()
-      attempt.fireClose(1006, "down")
-    }
-
-    // Wait for connectLobby's retry setTimeout to fire (backoffMs=1) and create
-    // the third socket, then open it.
-    while (MockWebSocket.instances.length < 3) {
-      await new Promise((r) => setTimeout(r, 5))
-    }
-    MockWebSocket.instances[2]!.fireOpen()
-
-    await connectPromise
-
-    expect(MockWebSocket.instances.length).toBeGreaterThanOrEqual(3)
-    // reconnecting fired before each retry attempt (not before the first).
-    expect(reconnecting.length).toBeGreaterThanOrEqual(2)
-    expect(reconnecting[0]!.scope).toBe("lobby")
-    // connected fired once, marked as a reconnect.
-    const lobbyConnected = connected.find((event) => event.scope === "lobby")
-    expect(lobbyConnected).toBeDefined()
-    expect(lobbyConnected!.reconnected).toBe(true)
-
-    client.disconnectLobby()
-  })
-
-  it("rejects connectLobby after exhausting every retry attempt", async () => {
-    const client = makeClient({ reconnect: { maxRetries: 2, backoffMs: 1, maxDelayMs: 2 } })
 
     const connectPromise = client.connectLobby().catch((error: unknown) => error)
 
-    // Drain each attempt: wait for socket creation, fire error + close to
-    // simulate pre-open failure, then let the retry setTimeout fire.
-    for (let i = 0; i < 4; i++) {
-      await new Promise((r) => setTimeout(r, 10))
-      const latest = MockWebSocket.instances[MockWebSocket.instances.length - 1]
-      if (!latest || latest.readyState === 1) break
-      latest.fireError()
-      latest.fireClose(1006, "still down")
+    // Wait a tick for the socket to be constructed, then fire a pre-open error.
+    while (MockWebSocket.instances.length < 1) {
+      await new Promise((r) => setTimeout(r, 0))
     }
+    MockWebSocket.instances[0]!.fireError()
+    MockWebSocket.instances[0]!.fireClose(1006, "down")
 
     const result = await connectPromise
     expect(result).toBeDefined()
     expect((result as Error).message).toContain("Lobby WebSocket connection failed")
-    // Initial attempt + 2 retries = 3 sockets total.
-    expect(MockWebSocket.instances.length).toBe(3)
+    // Exactly one socket attempt — no inline retries.
+    expect(MockWebSocket.instances.length).toBe(1)
   })
 
   it("ignores late error events from a lobby socket after disconnectLobby", async () => {
