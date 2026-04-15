@@ -219,6 +219,12 @@ export class BaseAgent {
       }
     | null = null
   private isRunning = false
+  // Tracks consecutive "empty" extractions — runs where the agent retreated
+  // or timed out with gold=0, xp=0, completed=false. A streak of these usually
+  // means the character is stuck at low HP with no way to heal (e.g. inn rest
+  // disabled + wallet empty) and will emergency-retreat forever. The main
+  // loop bails when the streak exceeds a threshold to avoid infinite loops.
+  private emptyExtractionStreak = 0
 
   constructor(config: AgentConfig, options: BaseAgentOptions) {
     if (!config.llm.apiKey) {
@@ -319,6 +325,8 @@ export class BaseAgent {
       let consecutivePlayFailures = 0
       const MAX_SAME_BLOCKING_RESUMES = 3
       const MAX_CONSECUTIVE_PLAY_FAILURES = 3
+      const MAX_EMPTY_EXTRACTION_STREAK = 3
+      this.emptyExtractionStreak = 0
       do {
         if (this.hasReachedActivityLimits(startedAt, realmCount)) {
           break
@@ -365,6 +373,14 @@ export class BaseAgent {
             }
             await new Promise<void>((r) => setTimeout(r, 2_000))
             continue
+          }
+          if (this.emptyExtractionStreak >= MAX_EMPTY_EXTRACTION_STREAK) {
+            console.error(
+              `[agent] Aborting: ${this.emptyExtractionStreak} consecutive empty extractions `
+                + `(gold=0 xp=0 completed=false). Character is likely stuck at low HP with `
+                + `no healing available — fund the wallet or heal manually and restart.`,
+            )
+            break
           }
           if (outcome !== "stopped") {
             realmCount += 1
@@ -413,6 +429,14 @@ export class BaseAgent {
           }
           await new Promise<void>((r) => setTimeout(r, 2_000))
           continue
+        }
+        if (this.emptyExtractionStreak >= MAX_EMPTY_EXTRACTION_STREAK) {
+          console.error(
+            `[agent] Aborting: ${this.emptyExtractionStreak} consecutive empty extractions `
+              + `(gold=0 xp=0 completed=false). Character is likely stuck at low HP with `
+              + `no healing available — fund the wallet or heal manually and restart.`,
+          )
+          break
         }
         if (outcome !== "stopped") {
           realmCount += 1
@@ -477,6 +501,18 @@ export class BaseAgent {
 
   async handleExtraction(data: ExtractionPayload): Promise<void> {
     this.emit("extracted", data)
+    // Track "empty" extractions — retreats with no loot and no completion.
+    // The main loop uses this to detect retreat-loops (character stuck at low
+    // HP, can't heal, keeps emergency-retreating from every realm it enters).
+    if (
+      !data.realm_completed
+      && (data.gold_gained ?? 0) === 0
+      && (data.xp_gained ?? 0) === 0
+    ) {
+      this.emptyExtractionStreak += 1
+    } else {
+      this.emptyExtractionStreak = 0
+    }
     await this.banterEngine?.notifyOwnExtraction({
       realm_completed: data.realm_completed,
       gold_gained: data.gold_gained,
@@ -1224,10 +1260,11 @@ export class BaseAgent {
     //      fresh character no longer needs healing, we're done.
     //   2) "Leave the dungeon before resting" — session cleanup hasn't finished yet; we wait
     //      and retry until the session drops off server-side.
-    // Either way we must NOT silently give up and enter the next realm unhealed.
+    // Non-409 errors (e.g. 500 from x402 payment failure when the wallet has no USDC)
+    // are now logged and swallowed. The agent continues to lobby phase; the main loop's
+    // pre-realm HP check will stop the agent cleanly if HP is still critically low.
     const maxAttempts = 5
     const baseBackoffMs = 500
-    let lastError: unknown
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       try {
@@ -1236,9 +1273,14 @@ export class BaseAgent {
         return refreshed ?? state
       } catch (error) {
         if (!isStatusError(error, 409)) {
-          throw error
+          const message = error instanceof Error ? error.message : String(error)
+          console.warn(
+            `[agent] inn rest failed (${message}); continuing without healing. `
+              + "Set lobby.disableInnRest=true to skip inn rest entirely, or fund the wallet.",
+          )
+          // Return the freshest state we can so downstream logic sees real HP.
+          return (await this.loadLobbyState(client)) ?? state
         }
-        lastError = error
         // Re-fetch character state. If the server already healed us, accept and proceed.
         const refreshed = await this.loadLobbyState(client)
         if (refreshed && !shouldHealAtInn(refreshed.character, lobbyConfig)) {
@@ -1255,11 +1297,12 @@ export class BaseAgent {
       }
     }
 
-    throw new Error(
-      `Inn rest failed after ${maxAttempts} retries; refusing to enter the next realm unhealed. Last error: ${
-        lastError instanceof Error ? lastError.message : String(lastError)
-      }`,
+    // Ran out of 409 retries — probably session cleanup is genuinely stuck.
+    // Log and return the latest state; the main loop's HP check will decide.
+    console.warn(
+      `[agent] inn rest still 409ing after ${maxAttempts} attempts; continuing anyway`,
     )
+    return (await this.loadLobbyState(client)) ?? state
   }
 
   private async loadLobbyState(client: AgentClient): Promise<LobbyState | null> {
@@ -1873,11 +1916,21 @@ function canUseInn(character: CharacterRecord): boolean {
 }
 
 function shouldHealAtInn(character: CharacterRecord, lobbyConfig: LobbyConfig): boolean {
+  if (lobbyConfig.disableInnRest) {
+    return false
+  }
   if (!canUseInn(character)) {
     return false
   }
 
   const threshold = lobbyConfig.innHealThreshold ?? 1
+  // `threshold <= 0` means "never heal". Treating it explicitly instead of
+  // relying on the math (0.22 < 0 → false) makes the intent obvious to anyone
+  // reading the config: set `innHealThreshold: 0` or `disableInnRest: true` to
+  // opt out when the wallet can't afford the x402 fee.
+  if (threshold <= 0) {
+    return false
+  }
   return (character.hp_current ?? 0) / Math.max(character.hp_max ?? 1, 1) < threshold
 }
 
