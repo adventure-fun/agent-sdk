@@ -124,6 +124,12 @@ type RealmRecord = {
   id: string
   template_id?: string
   status?: string
+  // Mirrors realm_instances.session_state from the backend. A "paused" row
+  // with session_state=null represents a clean exit (portal/retreat) that
+  // should NOT block hub actions — findBlockingRealm must match the server's
+  // hasLockedRealm semantics, otherwise the agent gets stuck re-entering a
+  // realm it already cleanly left and the planner emergency-retreats forever.
+  session_state?: unknown
 }
 
 type CharacterProgressionResponse = {
@@ -302,6 +308,17 @@ export class BaseAgent {
       const startedAt = Date.now()
       let realmCount = 0
       let outcome: RunOutcome = "stopped"
+      // Loop-detection + crash-resilience bookkeeping. See the try/catch around
+      // playRealm below: we use these to (a) bail out if we keep resuming the
+      // same stuck realm (belt-and-suspenders for the findBlockingRealm fix in
+      // case any edge case still slips through), and (b) survive transient
+      // network failures (e.g. /realms/:id/enter 404s from Railway edge
+      // weirdness) without crashing the process.
+      let lastBlockingRealmId: string | null = null
+      let sameBlockingRealmStreak = 0
+      let consecutivePlayFailures = 0
+      const MAX_SAME_BLOCKING_RESUMES = 3
+      const MAX_CONSECUTIVE_PLAY_FAILURES = 3
       do {
         if (this.hasReachedActivityLimits(startedAt, realmCount)) {
           break
@@ -315,16 +332,50 @@ export class BaseAgent {
         // hub prep so the next iteration starts clean.
         const blockingRealm = await this.findBlockingRealm(client)
         if (blockingRealm?.id) {
+          if (blockingRealm.id === lastBlockingRealmId) {
+            sameBlockingRealmStreak += 1
+          } else {
+            sameBlockingRealmStreak = 1
+            lastBlockingRealmId = blockingRealm.id
+          }
+          if (sameBlockingRealmStreak >= MAX_SAME_BLOCKING_RESUMES) {
+            console.error(
+              `[agent] Aborting: realm ${blockingRealm.id} has blocked hub prep for `
+                + `${sameBlockingRealmStreak} consecutive iterations. This usually means a `
+                + `retreat loop on a character with too-low HP. Manual intervention required.`,
+            )
+            break
+          }
           console.log(
             `[agent] Resuming stuck realm ${blockingRealm.id} (status=${blockingRealm.status}). `
               + "Skipping hub prep this iteration.",
           )
-          outcome = await this.playRealm(client, blockingRealm.id)
+          try {
+            outcome = await this.playRealm(client, blockingRealm.id)
+            consecutivePlayFailures = 0
+          } catch (error) {
+            consecutivePlayFailures += 1
+            const message = error instanceof Error ? error.message : String(error)
+            console.warn(
+              `[agent] playRealm failed (${consecutivePlayFailures}/${MAX_CONSECUTIVE_PLAY_FAILURES}): ${message}`,
+            )
+            if (consecutivePlayFailures >= MAX_CONSECUTIVE_PLAY_FAILURES) {
+              console.error("[agent] Aborting: too many consecutive playRealm failures.")
+              break
+            }
+            await new Promise<void>((r) => setTimeout(r, 2_000))
+            continue
+          }
           if (outcome !== "stopped") {
             realmCount += 1
           }
           continue
         }
+
+        // No blocking realm this iteration — reset loop-detection state so
+        // future stuck-realm streaks are measured from scratch.
+        lastBlockingRealmId = null
+        sameBlockingRealmStreak = 0
 
         character = await this.maybeRerollStats(client, character)
         if (!this.isRunning) {
@@ -347,7 +398,22 @@ export class BaseAgent {
         }
 
         const realmId = await this.ensureRealm(client)
-        outcome = await this.playRealm(client, realmId)
+        try {
+          outcome = await this.playRealm(client, realmId)
+          consecutivePlayFailures = 0
+        } catch (error) {
+          consecutivePlayFailures += 1
+          const message = error instanceof Error ? error.message : String(error)
+          console.warn(
+            `[agent] playRealm failed (${consecutivePlayFailures}/${MAX_CONSECUTIVE_PLAY_FAILURES}): ${message}`,
+          )
+          if (consecutivePlayFailures >= MAX_CONSECUTIVE_PLAY_FAILURES) {
+            console.error("[agent] Aborting: too many consecutive playRealm failures.")
+            break
+          }
+          await new Promise<void>((r) => setTimeout(r, 2_000))
+          continue
+        }
         if (outcome !== "stopped") {
           realmCount += 1
         }
@@ -841,16 +907,22 @@ export class BaseAgent {
     }
   }
 
-  // Backend's hasLockedRealm blocks hub actions (inn rest, shop, equip, reroll,
-  // skill/perk spend) whenever a realm_instances row exists with status "active"
-  // or "paused". That happens when a previous run crashed mid-realm. We resume
-  // and finish the stuck realm before any hub prep so the normal flow isn't 409'd.
+  // Backend's hasLockedRealm (backend/src/game/active-sessions.ts) blocks hub
+  // actions only when a realm_instances row is "active" OR "paused" AND
+  // session_state is non-null. A paused row with null session_state is a clean
+  // exit (portal extraction / retreat) that the agent just finished, and hub
+  // actions will work against it. Mirroring that logic here is critical: the
+  // old "any paused row blocks hub" heuristic caused the agent to re-enter a
+  // realm it just cleanly left and emergency-retreat forever in a loop.
   private async findBlockingRealm(client: AgentClient): Promise<RealmRecord | null> {
     const mine = await this.getMyRealms(client)
     const realms = mine.realms ?? []
     for (const realm of realms) {
       if (!realm.id) continue
-      if (realm.status === "active" || realm.status === "paused") {
+      if (realm.status === "active") {
+        return realm
+      }
+      if (realm.status === "paused" && realm.session_state != null) {
         return realm
       }
     }
