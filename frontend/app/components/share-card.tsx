@@ -115,12 +115,37 @@ export function ShareCard({
           <span>Share on X</span>
         </button>
         <button type="button" onClick={() => void handleCopy()} className={btnBase} aria-label="Copy link">
-          <span className="material-symbols-outlined text-sm" aria-hidden="true">link</span>
+          <svg
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="h-3 w-3"
+          >
+            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+          </svg>
           <span>Copy</span>
         </button>
         {hasNativeShare ? (
           <button type="button" onClick={() => void handleNativeShare()} className={btnBase} aria-label="Share">
-            <span className="material-symbols-outlined text-sm" aria-hidden="true">ios_share</span>
+            <svg
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-3 w-3"
+            >
+              <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+              <polyline points="16 6 12 2 8 6" />
+              <line x1="12" y1="2" x2="12" y2="15" />
+            </svg>
             <span>Share</span>
           </button>
         ) : null}
