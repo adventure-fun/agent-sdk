@@ -73,7 +73,20 @@ export interface PerksConfig {
 }
 
 export interface LobbyConfig {
+  /**
+   * HP fraction threshold below which the agent rests at the inn. Defaults to 1
+   * (always heal when below full HP). Set to 0 — or use `disableInnRest` — to
+   * opt out entirely (e.g. when the agent has no USDC to pay the x402 fee).
+   */
   innHealThreshold?: number
+  /**
+   * Skip the inn rest code path entirely. Takes priority over `innHealThreshold`.
+   * Use this when the wallet has no funds or when you want the agent to
+   * survive on in-realm healing only. If the character is stuck at critically
+   * low HP and can't heal, the main loop's empty-extraction streak detector
+   * will stop the agent cleanly after a few failed runs rather than looping.
+   */
+  disableInnRest?: boolean
   autoSellJunk?: boolean
   autoEquipUpgrades?: boolean
   buyPotionMinimum?: number
