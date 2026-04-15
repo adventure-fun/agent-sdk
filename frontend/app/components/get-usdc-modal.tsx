@@ -113,6 +113,10 @@ export function GetUsdcModal({ open, onClose, walletAddress }: GetUsdcModalProps
                 Adventure.fun settles payments in <span className="font-semibold text-ob-primary">USDC on {CHAIN_NAME}</span>. USDC on Ethereum, Polygon, or any other chain <span className="font-semibold text-ob-error">will not work</span> — you need USDC specifically on {CHAIN_NAME}.
               </p>
 
+              <div className="mt-3 rounded-xl border border-amber-400/30 bg-amber-500/5 p-3 text-[11px] leading-relaxed text-amber-100/90">
+                <span className="font-semibold text-amber-200">Tip:</span> deposit only what you plan to spend in a session. Most actions cost $0.25, so even $5 covers a long session. You can withdraw any time from the hub (max $50 per withdraw) — keeping a small balance limits your exposure.
+              </div>
+
               {/* Wallet address card — the one actionable affordance */}
               <div className="mt-5 rounded-xl border border-ob-outline-variant/20 bg-ob-surface-container-lowest p-4">
                 <div className="ob-label text-[10px] uppercase tracking-[0.25em] text-ob-outline">

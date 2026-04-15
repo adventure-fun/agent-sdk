@@ -1,4 +1,5 @@
 import type { ActiveEffect, ItemTemplate, Observation } from "@adventure-fun/schemas"
+import { parseUnits } from "viem"
 import { USDC_CHAIN_LABEL } from "../lib/chain"
 import { STAT_LABELS, STAT_KEYS, EQUIP_SLOT_LABELS } from "./constants"
 
@@ -6,17 +7,104 @@ export function delay(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms))
 }
 
-export function friendlyPaymentError(message: string) {
-  const normalized = message.toLowerCase()
-  if (normalized.includes("rejected") || normalized.includes("cancelled")) {
+// Returns true while balance is loading (rawBalance === null) so the UI doesn't
+// flash "insufficient" before the on-chain read returns.
+export function hasEnoughUsdc(rawBalance: bigint | null, priceUsd: string): boolean {
+  if (rawBalance === null) return true
+  const n = Number.parseFloat(priceUsd)
+  if (!Number.isFinite(n) || n <= 0) return true
+  try {
+    const needed = parseUnits(priceUsd, 6)
+    return rawBalance >= needed
+  } catch {
+    return true
+  }
+}
+
+// Maps an x402 / CDP / backend error message into a user-readable string.
+// Strategy:
+//   1. If the message is JSON, extract a meaningful field (code | message | error)
+//      and recurse with it as the new candidate.
+//   2. Match a known x402 reason code or CDP wallet rejection pattern.
+//   3. Match the legacy substring patterns (insufficient, rejected, network).
+//   4. Fall back to a friendly generic — never expose raw JSON or stack traces.
+const X402_REASON_MESSAGES: Record<string, string> = {
+  insufficient_funds: `There is not enough ${USDC_CHAIN_LABEL} in your wallet to settle this payment.`,
+  invalid_signature: "The payment signature could not be verified. Try again.",
+  invalid_exact_evm_payload_signature: "The payment signature could not be verified. Try again.",
+  invalid_exact_evm_payload_authorization_value: "The payment amount didn't match what was requested. Try again.",
+  invalid_exact_evm_payload_authorization_valid_after: "Your wallet's clock is off. Refresh and try again.",
+  invalid_exact_evm_payload_authorization_valid_before: "The payment authorization expired before settlement. Try again.",
+  invalid_exact_evm_payload_recipient: "The payment destination didn't match. Try again.",
+  invalid_payload: "The payment payload was malformed. Refresh and try again.",
+  invalid_scheme: "Unsupported payment scheme. Refresh and try again.",
+  invalid_network: "Unsupported network. Make sure you're on Base.",
+  nonce_already_used: "This payment was already submitted. Refresh and try again.",
+  authorization_expired: "The payment authorization expired before settlement. Try again.",
+  facilitator_unreachable: "The payment network is taking too long to respond. Please try again in a moment.",
+  unexpected_verify_error: "Payment verification failed. Please try again.",
+  unexpected_settle_error: "Payment settlement failed. Please try again.",
+  verification_failed: "Payment verification failed. Please try again.",
+  settlement_failed: "Payment settlement failed. Please try again.",
+}
+
+const FRIENDLY_FALLBACK = "Payment could not be completed. Please try again, or contact support if this keeps happening."
+
+function tryParseJsonMessage(message: string): string | null {
+  const trimmed = message.trim()
+  if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) return null
+  try {
+    const parsed = JSON.parse(trimmed) as unknown
+    if (typeof parsed !== "object" || parsed === null) return null
+    const obj = parsed as Record<string, unknown>
+    // Prefer code (stable identifier), then message, then error.
+    if (typeof obj["code"] === "string") return obj["code"] as string
+    if (typeof obj["message"] === "string") return obj["message"] as string
+    if (typeof obj["error"] === "string") return obj["error"] as string
+    if (typeof obj["reason"] === "string") return obj["reason"] as string
+    return null
+  } catch {
+    return null
+  }
+}
+
+export function friendlyPaymentError(message: string | null | undefined): string {
+  if (!message) return FRIENDLY_FALLBACK
+
+  // Recurse once if the message is itself a JSON blob.
+  const unwrapped = tryParseJsonMessage(message)
+  if (unwrapped && unwrapped !== message) return friendlyPaymentError(unwrapped)
+
+  const normalized = message.toLowerCase().trim()
+
+  // Exact / substring x402 reason codes.
+  for (const [code, friendly] of Object.entries(X402_REASON_MESSAGES)) {
+    if (normalized === code || normalized.includes(code)) return friendly
+  }
+
+  // CDP wallet rejection patterns.
+  if (
+    normalized.includes("user rejected")
+    || normalized.includes("user denied")
+    || normalized.includes("popup closed")
+    || normalized.includes("rejected") && !normalized.includes("rejected by")  // keep "rejected by network" out of this branch
+    || normalized.includes("cancelled")
+    || normalized.includes("canceled")
+  ) {
     return "Payment was cancelled before settlement completed."
   }
+
+  // Legacy substring matches.
   if (normalized.includes("insufficient")) {
-    return `There is not enough ${USDC_CHAIN_LABEL} available to settle this payment yet.`
+    return `There is not enough ${USDC_CHAIN_LABEL} in your wallet to settle this payment.`
   }
   if (normalized.includes("network") || normalized.includes("timeout")) {
     return "The payment network is taking too long to respond. Please try again in a moment."
   }
+
+  // If the message looks like a normal sentence (no JSON braces, no error_code_format),
+  // pass it through; otherwise use the friendly fallback.
+  if (/[{}]|^[a-z_]+$/.test(message.trim())) return FRIENDLY_FALLBACK
   return message
 }
 

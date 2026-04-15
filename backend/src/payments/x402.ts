@@ -32,7 +32,7 @@ interface PaymentActionConfig {
 }
 
 export interface SettledPayment {
-  action: PaymentAction
+  action: PaymentAction | "withdraw"
   txHash: string
   network: string
   amountUsd: string
@@ -391,9 +391,132 @@ export async function verifyAndSettle(
   }
 }
 
+// ── Withdraw flow ───────────────────────────────────────────────────────────
+// A withdraw is a user-initiated x402 payment with a dynamic amount and a
+// dynamic payTo (the user's chosen destination). EIP-3009's
+// transferWithAuthorization cryptographically binds {from, to, value, nonce},
+// so the backend cannot redirect funds or alter the amount after the user
+// signs. The facilitator pays the gas, making the transfer gasless.
+
+export async function buildWithdrawRequirements(
+  amountUsd: string,
+  destination: string,
+): Promise<PaymentRequired402> {
+  await ensureInitialized()
+
+  const network = getBaseNetwork()
+  const requirements = await resourceServer.buildPaymentRequirements({
+    scheme: "exact",
+    network,
+    price: `$${amountUsd}`,
+    payTo: destination,
+    maxTimeoutSeconds: 300,
+    extra: {
+      action: "withdraw",
+      displayPriceUsd: amountUsd,
+      description: `Withdraw ${amountUsd} USDC`,
+      baseRpcUrl: getConfiguredBaseRpcUrl(),
+    },
+  })
+
+  const [requirement] = requirements as PaymentAcceptOption402[]
+  if (!requirement) {
+    throw new Error("Failed to build withdraw payment requirements")
+  }
+
+  return {
+    x402Version: 2,
+    accepts: [requirement],
+    description: `Withdraw ${amountUsd} USDC`,
+    mimeType: "application/json",
+  }
+}
+
+export async function return402Withdraw(
+  c: Context,
+  amountUsd: string,
+  destination: string,
+): Promise<Response> {
+  const paymentRequired = await buildWithdrawRequirements(amountUsd, destination)
+  const headers = ((httpResourceServer as unknown as {
+    createHTTPPaymentRequiredResponse: (paymentRequired: PaymentRequired402) => { headers: Record<string, string> }
+  }).createHTTPPaymentRequiredResponse(paymentRequired).headers)
+  Object.entries(headers).forEach(([key, value]) => c.header(key as string, value))
+
+  const resource = c.req.url
+
+  const accepts = paymentRequired.accepts.map((opt) => ({
+    ...opt,
+    network: CAIP2_TO_FRIENDLY[opt.network] ?? opt.network,
+    maxAmountRequired: (opt as unknown as Record<string, unknown>).amount as string,
+    resource,
+    description: paymentRequired.description,
+    mimeType: paymentRequired.mimeType,
+  }))
+
+  return c.json(
+    {
+      x402Version: paymentRequired.x402Version,
+      accepts,
+      error: "Payment required",
+      action: "withdraw",
+      price_usd: amountUsd,
+    },
+    402,
+  )
+}
+
+export async function verifyAndSettleWithdraw(
+  c: Context,
+  amountUsd: string,
+  destination: string,
+): Promise<SettledPayment | null> {
+  await ensureInitialized()
+
+  const paymentPayload = extractPaymentPayload(c)
+  if (!paymentPayload) return null
+
+  const paymentRequired = await buildWithdrawRequirements(amountUsd, destination)
+
+  const payloadScheme = paymentPayload.accepted?.scheme ?? (paymentPayload as Record<string, unknown>).scheme as string
+  const payloadNetwork = paymentPayload.accepted?.network ?? (paymentPayload as Record<string, unknown>).network as string
+  const requirements = paymentRequired.accepts.find(
+    (opt) => opt.scheme === payloadScheme && opt.network === payloadNetwork,
+  )
+
+  if (!requirements) {
+    throw new Error("Payment requirements did not match the submitted payment signature")
+  }
+
+  paymentPayload.x402Version = 2
+  paymentPayload.accepted = requirements
+
+  const verifyResult = await resourceServer.verifyPayment(paymentPayload as never, requirements as never)
+  if (!verifyResult.isValid) {
+    throw new Error(verifyResult.invalidMessage ?? verifyResult.invalidReason ?? "Payment verification failed")
+  }
+
+  const settleResult = await resourceServer.settlePayment(paymentPayload as never, requirements as never)
+  if (!settleResult.success) {
+    throw new Error(settleResult.errorMessage ?? settleResult.errorReason ?? "Payment settlement failed")
+  }
+
+  const headers = (httpResourceServer as unknown as {
+    createSettlementHeaders: (settleResponse: unknown) => Record<string, string>
+  }).createSettlementHeaders(settleResult)
+  return {
+    action: "withdraw",
+    txHash: settleResult.transaction,
+    network: settleResult.network,
+    amountUsd,
+    headers,
+  }
+}
+
 export async function logPayment(
   accountId: string,
-  payment: Pick<SettledPayment, "action" | "amountUsd" | "network" | "txHash">,
+  payment: { action: PaymentAction | "withdraw"; amountUsd: string; network: string; txHash: string },
+  destination?: string,
 ): Promise<void> {
   await db.from("payment_log").insert({
     account_id: accountId,
@@ -401,6 +524,7 @@ export async function logPayment(
     amount_usd: payment.amountUsd,
     chain: payment.network,
     tx_hash: payment.txHash,
+    destination: destination ?? null,
   })
 }
 
@@ -437,4 +561,57 @@ export function getAllActionPrices(): Record<PaymentAction, string> {
 export function isActionFree(action: PaymentAction): boolean {
   const n = parseFloat(getActionConfig(action).priceUsd)
   return Number.isFinite(n) && n <= 0
+}
+
+// Stable error codes surfaced by paid routes. Frontend's `friendlyPaymentError`
+// matches on these, so don't rename without coordinating both sides.
+export type PaymentErrorCode =
+  | "insufficient_funds"
+  | "invalid_signature"
+  | "nonce_already_used"
+  | "authorization_expired"
+  | "facilitator_unreachable"
+  | "verification_failed"
+  | "settlement_failed"
+  | "invalid_payload"
+  | "invalid_network"
+  | "unknown"
+
+export interface PaymentErrorResponse {
+  error: string
+  code: PaymentErrorCode
+}
+
+export function mapPaymentError(err: unknown): PaymentErrorResponse {
+  const raw = err instanceof Error ? err.message : String(err)
+  const lower = raw.toLowerCase()
+
+  if (lower.includes("insufficient")) {
+    return { error: "Not enough USDC in your wallet to settle this payment.", code: "insufficient_funds" }
+  }
+  if (lower.includes("nonce") && (lower.includes("used") || lower.includes("replay"))) {
+    return { error: "This payment was already submitted. Refresh and try again.", code: "nonce_already_used" }
+  }
+  if (lower.includes("expired") || lower.includes("valid_before") || lower.includes("valid_after")) {
+    return { error: "Payment authorization expired before settlement. Try again.", code: "authorization_expired" }
+  }
+  if (lower.includes("signature") || lower.includes("invalid_exact_evm_payload_signature")) {
+    return { error: "Payment signature could not be verified. Try again.", code: "invalid_signature" }
+  }
+  if (lower.includes("facilitator") || lower.includes("econnrefused") || lower.includes("etimedout") || lower.includes("network")) {
+    return { error: "Payment network is taking too long to respond. Try again in a moment.", code: "facilitator_unreachable" }
+  }
+  if (lower.includes("verification")) {
+    return { error: "Payment verification failed. Please try again.", code: "verification_failed" }
+  }
+  if (lower.includes("settlement") || lower.includes("settle")) {
+    return { error: "Payment settlement failed. Please try again.", code: "settlement_failed" }
+  }
+  if (lower.includes("invalid_payload") || lower.includes("malformed")) {
+    return { error: "Payment payload was malformed. Refresh and try again.", code: "invalid_payload" }
+  }
+  if (lower.includes("invalid_network") || lower.includes("unsupported network")) {
+    return { error: "Unsupported network. Make sure you're on Base.", code: "invalid_network" }
+  }
+  return { error: "Payment could not be completed. Please try again.", code: "unknown" }
 }

@@ -14,6 +14,8 @@ import { useShop } from "../hooks/use-shop"
 import { useInn } from "../hooks/use-inn"
 import { usePaymentConfig } from "../hooks/use-payment-config"
 import { PaymentModal } from "../components/payment-modal"
+import { GetUsdcModal } from "../components/get-usdc-modal"
+import { WithdrawModal } from "./components/withdraw-modal"
 import { UiToast } from "../components/ui-toast"
 import { ShareCard } from "../components/share-card"
 import { ShareMomentModal } from "../components/share-moment-modal"
@@ -29,7 +31,7 @@ import {
 
 import { usePlayStore, HubTab } from "./store"
 import { STAT_KEYS, STAT_LABELS, CLASS_ROLE_LABELS, REALM_STATUS_LABELS, TUTORIAL_TEMPLATE_ID, EQUIP_SLOT_ORDER, EQUIP_SLOT_LABELS } from "./constants"
-import { delay, friendlyPaymentError, formatLoreLabel, getCompletionBonusText } from "./utils"
+import { delay, friendlyPaymentError, formatLoreLabel, getCompletionBonusText, hasEnoughUsdc } from "./utils"
 
 import { Shell } from "./components/shell"
 import { StatRangeBar, StatValueBar } from "./components/stat-bars"
@@ -128,10 +130,15 @@ export default function PlayPage() {
 
   const { createEvmEoaAccount } = useCreateEvmEoaAccount()
   const {
+    rawBalance: rawUsdcBalance,
     balanceLabel,
     refetch: refetchUsdcBalance,
     isTestnet: isX402Testnet,
   } = useUsdcBalance()
+  const canAfford = (action: keyof typeof paymentPrices): boolean =>
+    isFreePriced(action) || hasEnoughUsdc(rawUsdcBalance, paymentPrices[action])
+  const [insufficientFundsModalOpen, setInsufficientFundsModalOpen] = useState(false)
+  const [withdrawModalOpen, setWithdrawModalOpen] = useState(false)
 
   // Zustand store
   const step = usePlayStore((s) => s.step)
@@ -746,11 +753,24 @@ export default function PlayPage() {
           <div className="space-y-2 text-center">
             <button
               onClick={handleReroll}
-              disabled={charLoading || rerollDisabled}
+              disabled={charLoading || rerollDisabled || !canAfford("stat_reroll")}
               className="px-4 py-1 border border-ob-outline-variant/30 text-ob-on-surface-variant text-sm rounded hover:border-ob-primary/40 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {charLoading ? "Re-rolling..." : `Re-roll Stats ($${paymentPrices.stat_reroll})`}
             </button>
+            {!canAfford("stat_reroll") && !rerollDisabled && (
+              <p className="text-ob-error text-xs">
+                Insufficient USDC.{" "}
+                <button
+                  type="button"
+                  onClick={() => setInsufficientFundsModalOpen(true)}
+                  className="underline decoration-dotted underline-offset-2 hover:text-ob-primary"
+                >
+                  Deposit to your wallet
+                </button>{" "}
+                to unlock.
+              </p>
+            )}
             {rerollMessage && (
               <p className="text-ob-outline text-xs">{rerollMessage}</p>
             )}
@@ -780,6 +800,11 @@ export default function PlayPage() {
           error={paymentError}
           onCancel={store.getState().closePaymentModal}
           onConfirm={confirmPendingPayment}
+        />
+        <GetUsdcModal
+          open={insufficientFundsModalOpen}
+          onClose={() => setInsufficientFundsModalOpen(false)}
+          walletAddress={evmAddress}
         />
       </>
     )
@@ -1159,6 +1184,19 @@ export default function PlayPage() {
           <div className="grid gap-6 xl:grid-cols-[1.9fr_1fr]">
             {/* Left column — Inn */}
             <div className="space-y-4">
+              <div className="flex items-center justify-between rounded border border-ob-outline-variant/20 bg-ob-surface-container-low/60 px-3 py-2 text-xs">
+                <div>
+                  <span className="text-ob-outline">USDC balance</span>
+                  <span className="ml-2 font-semibold text-ob-on-surface">{balanceLabel}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setWithdrawModalOpen(true)}
+                  className="rounded border border-amber-400/30 bg-amber-500/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-widest text-amber-200 transition-colors hover:bg-amber-500/15"
+                >
+                  Withdraw
+                </button>
+              </div>
               <div className="rounded border border-ob-primary/20 bg-gradient-to-br from-ob-primary/10 via-ob-surface-container-low to-ob-bg p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <div>
@@ -1176,9 +1214,22 @@ export default function PlayPage() {
                   <p className={`text-xs ${canRestAtInn ? "text-ob-secondary" : "text-ob-outline"}`}>{innMessage}</p>
                 ) : null}
                 {innError ? <p className="text-xs text-ob-error">{innError}</p> : null}
+                {canRestAtInn && !canAfford("inn_rest") && (
+                  <p className="text-xs text-ob-error">
+                    Insufficient USDC.{" "}
+                    <button
+                      type="button"
+                      onClick={() => setInsufficientFundsModalOpen(true)}
+                      className="underline decoration-dotted underline-offset-2 hover:text-ob-primary"
+                    >
+                      Deposit to your wallet
+                    </button>{" "}
+                    to rest at the inn.
+                  </p>
+                )}
                 <button
                   type="button"
-                  disabled={!canRestAtInn || innLoading}
+                  disabled={!canRestAtInn || innLoading || !canAfford("inn_rest")}
                   onClick={async () => {
                     store.getState().setPaymentError(null)
                     store.getState().setInnMessage(null)
@@ -1322,17 +1373,28 @@ export default function PlayPage() {
                               </button>
                             )}
                             {canRegenerate && (
-                              <button
-                                type="button"
-                                onClick={() => handleRegenerateRealm(realm.id, realmName)}
-                                disabled={isProcessingPayment || !!generatingTemplate}
-                                title="Reset this completed realm with a new seed."
-                                className="px-4 py-1 border border-ob-tertiary/40 bg-ob-tertiary/10 text-ob-tertiary text-sm font-bold rounded transition-colors hover:bg-ob-tertiary/20 disabled:border-ob-outline-variant/30 disabled:bg-transparent disabled:text-ob-outline disabled:cursor-not-allowed disabled:opacity-60"
-                              >
-                                {isRegenerating
-                                  ? "Regenerating..."
-                                  : `Regenerate ($${paymentPrices.realm_regen})`}
-                              </button>
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRegenerateRealm(realm.id, realmName)}
+                                  disabled={isProcessingPayment || !!generatingTemplate || !canAfford("realm_regen")}
+                                  title="Reset this completed realm with a new seed."
+                                  className="px-4 py-1 border border-ob-tertiary/40 bg-ob-tertiary/10 text-ob-tertiary text-sm font-bold rounded transition-colors hover:bg-ob-tertiary/20 disabled:border-ob-outline-variant/30 disabled:bg-transparent disabled:text-ob-outline disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  {isRegenerating
+                                    ? "Regenerating..."
+                                    : `Regenerate ($${paymentPrices.realm_regen})`}
+                                </button>
+                                {!canAfford("realm_regen") && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setInsufficientFundsModalOpen(true)}
+                                    className="text-[10px] text-ob-error underline decoration-dotted underline-offset-2 hover:text-ob-primary"
+                                  >
+                                    Insufficient USDC — deposit
+                                  </button>
+                                )}
+                              </>
                             )}
                           </div>
                         </div>
@@ -1371,11 +1433,24 @@ export default function PlayPage() {
                           )}
                           <button
                             onClick={() => handleGenerateRealm(template.id)}
-                            disabled={generatingTemplate !== null}
+                            disabled={generatingTemplate !== null || (!isFree && !canAfford("realm_generate"))}
                             className="px-4 py-1 bg-ob-primary hover:brightness-110 text-ob-on-primary font-bold text-sm rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                           >
                             {generatingTemplate === template.id ? "Generating..." : "Generate Realm"}
                           </button>
+                          {!isFree && !canAfford("realm_generate") && (
+                            <p className="mt-2 text-xs text-ob-error">
+                              Insufficient USDC.{" "}
+                              <button
+                                type="button"
+                                onClick={() => setInsufficientFundsModalOpen(true)}
+                                className="underline decoration-dotted underline-offset-2 hover:text-ob-primary"
+                              >
+                                Deposit to your wallet
+                              </button>{" "}
+                              to unlock paid realms.
+                            </p>
+                          )}
                         </div>
                       )
                     })}
@@ -1608,6 +1683,20 @@ export default function PlayPage() {
           error={paymentError}
           onCancel={store.getState().closePaymentModal}
           onConfirm={confirmPendingPayment}
+        />
+        <GetUsdcModal
+          open={insufficientFundsModalOpen}
+          onClose={() => setInsufficientFundsModalOpen(false)}
+          walletAddress={evmAddress}
+        />
+        <WithdrawModal
+          open={withdrawModalOpen}
+          onClose={() => setWithdrawModalOpen(false)}
+          balanceLabel={balanceLabel}
+          rawBalance={rawUsdcBalance}
+          onSuccess={() => {
+            void refetchUsdcBalance()
+          }}
         />
       </>
     )

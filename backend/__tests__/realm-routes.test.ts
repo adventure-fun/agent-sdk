@@ -39,6 +39,10 @@ async function importFreshRealmRoutes(
         headers: { "Content-Type": "application/json" },
       }),
     logPayment: async () => {},
+    mapPaymentError: (err: unknown) => ({
+      error: err instanceof Error ? err.message : String(err),
+      code: "unknown" as const,
+    }),
   }))
 
   const mod = await import(`../src/routes/realms.js?cacheBust=${Date.now()}-${Math.random()}`)
