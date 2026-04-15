@@ -403,53 +403,14 @@ export class GameClient {
     this.intentionalLobbyDisconnect = false
     this.lobbyReconnectAttempt = 0
 
-    // Try once — the common case. If the first attempt fails (pre-open failure
-    // such as a transient 404 during a Railway deploy window), retry with
-    // exponential backoff up to maxRetries before giving up. Chat is
-    // supplemental so the caller wraps this in a try/catch and keeps playing
-    // realms even if we ultimately fail, but mirroring the game socket's
-    // retry budget gives us a very high chance of healing through deploys.
-    try {
-      await this.openLobbySocket()
-      return
-    } catch (initialError) {
-      let lastError: unknown = initialError
-      while (
-        this.lobbyReconnectAttempt < this.reconnectConfig.maxRetries &&
-        !this.intentionalLobbyDisconnect
-      ) {
-        this.lobbyReconnectAttempt += 1
-        const baseDelay =
-          this.reconnectConfig.backoffMs * 2 ** (this.lobbyReconnectAttempt - 1)
-        const jittered = baseDelay * (0.5 + Math.random())
-        const delay = Math.min(jittered, this.reconnectConfig.maxDelayMs)
-
-        const reconnectingEvent: ReconnectingEvent = {
-          scope: "lobby",
-          attempt: this.lobbyReconnectAttempt,
-          maxAttempts: this.reconnectConfig.maxRetries,
-          delayMs: Math.round(delay),
-        }
-        this.eventEmitter.emit("reconnecting", reconnectingEvent)
-        console.log(
-          `[client] retrying lobby WS connect in ${Math.round(delay)}ms `
-            + `(attempt ${this.lobbyReconnectAttempt}/${this.reconnectConfig.maxRetries})`,
-        )
-
-        await new Promise<void>((r) => setTimeout(r, delay))
-        if (this.intentionalLobbyDisconnect) {
-          throw lastError
-        }
-
-        try {
-          await this.openLobbySocket()
-          return
-        } catch (error) {
-          lastError = error
-        }
-      }
-      throw lastError
-    }
+    // Single attempt. Inline retries used to run here but they blocked the
+    // agent's realm loop for ~60s on persistent failures; the agent already
+    // re-invokes connectLobby on every playRealm iteration, which is a far
+    // better retry cadence than any inline budget could be. If the first
+    // attempt opens successfully and then drops mid-session, scheduleLobbyReconnect
+    // (wired from openLobbySocket's onclose) still retries in the background
+    // with the same backoff budget as the game socket.
+    await this.openLobbySocket()
   }
 
   private openLobbySocket(): Promise<void> {

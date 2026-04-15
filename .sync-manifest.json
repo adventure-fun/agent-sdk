@@ -180,7 +180,7 @@
     },
     {
       "file": "backend/src/index.ts",
-      "hash": "4f60e9c0ac4cce6668409dbb6b527af436bd1eb5ef521bf113db8c56cf253b53",
+      "hash": "2d4e6311087037ef7cce33599a22bd9048a128bf287ac8cdc28aacc7ed973e7a",
       "affectedModules": [
         "dev-stack",
         "chat"
