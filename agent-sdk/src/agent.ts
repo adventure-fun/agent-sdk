@@ -1637,7 +1637,15 @@ export class BaseAgent {
     })
 
     if (this.config.chat?.enabled) {
-      await this.startChat(client)
+      // Chat is supplemental — a lobby WS failure must never kill the run. ChatManager's
+      // own connect() path unwires its listeners on failure, so there's nothing to
+      // unwind here. The next realm iteration will attempt startChat again.
+      try {
+        await this.startChat(client)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        console.warn(`[agent] chat unavailable this run: ${message}`)
+      }
     }
 
     return completion

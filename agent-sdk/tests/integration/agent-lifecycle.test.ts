@@ -867,4 +867,78 @@ describe("BaseAgent lifecycle enhancements", () => {
       "perk-toughness",
     ])
   })
+
+  it("survives a failing chat connect — logs and keeps playing realms", async () => {
+    // Chat is supplemental. If connectLobby throws (e.g. transient 404 during
+    // a deploy window), the agent must log and continue — not crash.
+    let connectLobbyCalls = 0
+    const client = new StubClient({
+      connectPlan: [{ outcome: "extracted" }],
+      requestHandler: async (path) => {
+        switch (path) {
+          case "/characters/me":
+            return {
+              id: "char-1",
+              class: "rogue",
+              name: "Shade",
+              stat_rerolled: false,
+              stats: {
+                hp: 40,
+                attack: 10,
+                defense: 10,
+                accuracy: 10,
+                evasion: 10,
+                speed: 10,
+              },
+            }
+          case "/realms/mine":
+            return {
+              realms: [{ id: "realm-1", template_id: "test-tutorial", status: "generated" }],
+            }
+          default:
+            throw new Error(`Unexpected request path: ${path}`)
+        }
+      },
+    })
+    // Override connectLobby to simulate a total lobby outage. StubClient's
+    // other methods remain usable.
+    client.connectLobby = async () => {
+      connectLobbyCalls += 1
+      throw new Error("simulated lobby WS outage")
+    }
+
+    const agent = new BaseAgent(
+      createDefaultConfig({
+        apiUrl: "https://example.com",
+        wsUrl: "wss://example.com",
+        realmTemplateId: "test-tutorial",
+        realmProgression: { strategy: "auto", continueOnExtraction: false },
+        chat: {
+          enabled: true,
+          personality: {
+            name: "Shade",
+            traits: ["stoic"],
+          },
+        },
+        llm: { provider: "openai", apiKey: "test-key" },
+        wallet: { type: "env" },
+      }),
+      {
+        llmAdapter: new MockLLMAdapter(),
+        walletAdapter: new MockWalletAdapter(),
+        authenticateFn: async (): Promise<SessionToken> => ({
+          token: "session-token",
+          expires_at: Date.now() + 60_000,
+        }),
+        clientFactory: async () => client,
+      },
+    )
+
+    // Must not throw. The try/catch around startChat in playRealm swallows
+    // the connectLobby error, logs a warning, and lets the run complete.
+    await agent.start()
+
+    expect(connectLobbyCalls).toBe(1)
+    expect(client.connectedRealmIds).toEqual(["realm-1"])
+  })
 })

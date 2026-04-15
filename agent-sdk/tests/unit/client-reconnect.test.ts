@@ -153,6 +153,45 @@ describe("GameClient reconnection flow", () => {
     client.disconnect()
   })
 
+  it("rejects connectLobby immediately on initial failure without blocking on retries", async () => {
+    // connectLobby intentionally does not retry the initial attempt — the
+    // agent's per-realm loop is the retry cadence. A single pre-open failure
+    // must propagate to the caller so the agent can log + move on.
+    const client = makeClient()
+
+    const connectPromise = client.connectLobby().catch((error: unknown) => error)
+
+    // Wait a tick for the socket to be constructed, then fire a pre-open error.
+    while (MockWebSocket.instances.length < 1) {
+      await new Promise((r) => setTimeout(r, 0))
+    }
+    MockWebSocket.instances[0]!.fireError()
+    MockWebSocket.instances[0]!.fireClose(1006, "down")
+
+    const result = await connectPromise
+    expect(result).toBeDefined()
+    expect((result as Error).message).toContain("Lobby WebSocket connection failed")
+    // Exactly one socket attempt — no inline retries.
+    expect(MockWebSocket.instances.length).toBe(1)
+  })
+
+  it("ignores late error events from a lobby socket after disconnectLobby", async () => {
+    MockWebSocket.autoOpen = true
+    const client = makeClient()
+    const errors: unknown[] = []
+
+    await client.connectLobby({
+      onError: (error) => errors.push(error),
+    })
+    const lobbySocket = MockWebSocket.instances[0]!
+
+    client.disconnectLobby()
+
+    // A stale error arriving after disconnect must not reach the handler.
+    lobbySocket.fireError()
+    expect(errors).toHaveLength(0)
+  })
+
   it("fires onReconnectExhausted when every retry fails", async () => {
     // First socket auto-opens so the initial connect resolves; subsequent
     // sockets drop without opening to simulate the backend staying down.

@@ -197,8 +197,8 @@ export interface DisconnectEvent {
 }
 
 export interface ReconnectingEvent {
-  scope: "game"
-  realmId: string
+  scope: "game" | "lobby"
+  realmId?: string
   attempt: number
   maxAttempts: number
   delayMs: number
@@ -331,6 +331,7 @@ export class GameClient {
   private wallet: WalletAdapter | undefined
   private activeRealmId: string | null = null
   private reconnectAttempt = 0
+  private lobbyReconnectAttempt = 0
   private lastReconnectError: GameClientError | undefined
   private intentionalGameDisconnect = false
   private intentionalLobbyDisconnect = false
@@ -397,23 +398,56 @@ export class GameClient {
     return this.openGameSocket(realmId)
   }
 
-  connectLobby(handlers: LobbyHandlers = {}): Promise<void> {
+  async connectLobby(handlers: LobbyHandlers = {}): Promise<void> {
     this.lobbyHandlers = handlers
     this.intentionalLobbyDisconnect = false
+    this.lobbyReconnectAttempt = 0
 
+    // Single attempt. Inline retries used to run here but they blocked the
+    // agent's realm loop for ~60s on persistent failures; the agent already
+    // re-invokes connectLobby on every playRealm iteration, which is a far
+    // better retry cadence than any inline budget could be. If the first
+    // attempt opens successfully and then drops mid-session, scheduleLobbyReconnect
+    // (wired from openLobbySocket's onclose) still retries in the background
+    // with the same backoff budget as the game socket.
+    await this.openLobbySocket()
+  }
+
+  private openLobbySocket(): Promise<void> {
     return new Promise((resolve, reject) => {
-      const ws = new WebSocket(`${this.wsUrl}/lobby/live`)
+      const url = `${this.wsUrl}/lobby/live`
+      console.log(`[client] opening lobby WS: ${url}`)
+      const ws = new WebSocket(url)
       let opened = false
 
       this.lobbyWs = ws
 
       ws.onopen = () => {
         opened = true
-        this.eventEmitter.emit("connected", { scope: "lobby" })
+        const wasReconnecting = this.lobbyReconnectAttempt > 0
+        this.lobbyReconnectAttempt = 0
+        const connectEvent: ConnectEvent = {
+          scope: "lobby",
+          reconnected: wasReconnecting,
+        }
+        this.eventEmitter.emit("connected", connectEvent)
+        if (wasReconnecting) {
+          console.log("[client] lobby WS reconnected")
+        }
         resolve()
       }
 
       ws.onerror = (event) => {
+        // Stale-socket guard: ignore late error events from a WebSocket that has
+        // already been replaced by a newer attempt. Without this, a stale error
+        // would call handleError against the current handlers (possibly for a
+        // different connection state) and corrupt the next retry.
+        if (this.lobbyWs !== ws) {
+          return
+        }
+        const maybeMessage = (event as unknown as { message?: unknown }).message
+        const errMessage = typeof maybeMessage === "string" ? maybeMessage : "unknown"
+        console.warn(`[client] lobby WS error (opened=${opened}): ${errMessage}`)
         const error = new GameClientError(
           "network",
           "Lobby WebSocket connection failed",
@@ -426,20 +460,46 @@ export class GameClient {
       }
 
       ws.onclose = (event) => {
-        this.lobbyWs = null
+        // Same stale-socket guard as onerror — a previous attempt's WebSocket
+        // can fire its close event after we've already moved on.
+        if (this.lobbyWs !== ws) {
+          return
+        }
+
+        // Auto-reconnect post-open drops only. Pre-open failures bubble up to
+        // the caller via the rejected Promise from this openLobbySocket call,
+        // which the outer connectLobby retry loop handles with backoff.
+        const shouldReconnect =
+          opened &&
+          !this.intentionalLobbyDisconnect &&
+          this.lobbyReconnectAttempt < this.reconnectConfig.maxRetries
+
         const disconnectEvent: DisconnectEvent = {
           code: event.code,
           reason: event.reason,
           intentional: this.intentionalLobbyDisconnect,
           scope: "lobby",
-          // Lobby socket has no reconnect loop today; always terminal.
-          willReconnect: false,
+          willReconnect: shouldReconnect,
         }
+
+        this.lobbyWs = null
+        console.log(
+          `[client] lobby WS closed: code=${event.code} `
+            + `reason=${event.reason || "(none)"} willReconnect=${shouldReconnect}`,
+        )
         this.eventEmitter.emit("disconnected", disconnectEvent)
         this.lobbyHandlers.onClose?.(disconnectEvent)
+
+        if (shouldReconnect) {
+          this.scheduleLobbyReconnect()
+        }
       }
 
       ws.onmessage = (event) => {
+        // Stale-socket guard: drop messages buffered on a previous attempt's socket.
+        if (this.lobbyWs !== ws) {
+          return
+        }
         try {
           const message = JSON.parse(String(event.data)) as LobbyLiveMessage
           switch (message.type) {
@@ -472,6 +532,54 @@ export class GameClient {
         }
       }
     })
+  }
+
+  private scheduleLobbyReconnect(): void {
+    if (this.intentionalLobbyDisconnect) {
+      return
+    }
+
+    this.lobbyReconnectAttempt += 1
+    const baseDelay =
+      this.reconnectConfig.backoffMs * 2 ** (this.lobbyReconnectAttempt - 1)
+    const jittered = baseDelay * (0.5 + Math.random())
+    const delay = Math.min(jittered, this.reconnectConfig.maxDelayMs)
+
+    const reconnectingEvent: ReconnectingEvent = {
+      scope: "lobby",
+      attempt: this.lobbyReconnectAttempt,
+      maxAttempts: this.reconnectConfig.maxRetries,
+      delayMs: Math.round(delay),
+    }
+    this.eventEmitter.emit("reconnecting", reconnectingEvent)
+    console.log(
+      `[client] lobby reconnecting (attempt ${this.lobbyReconnectAttempt}`
+        + `/${this.reconnectConfig.maxRetries}, delay=${Math.round(delay)}ms)`,
+    )
+
+    setTimeout(() => {
+      if (this.intentionalLobbyDisconnect) {
+        return
+      }
+
+      void this.openLobbySocket().catch((error) => {
+        const normalized = error instanceof GameClientError
+          ? error
+          : new GameClientError(
+              "network",
+              "Failed to reconnect lobby WebSocket",
+              { cause: error },
+            )
+        this.handleError(normalized, this.lobbyHandlers)
+
+        // Cascade: if this reconnect attempt failed pre-open, onclose saw
+        // opened=false and did not schedule a follow-up. Retry manually here
+        // until we exhaust the retry budget.
+        if (this.lobbyReconnectAttempt < this.reconnectConfig.maxRetries) {
+          this.scheduleLobbyReconnect()
+        }
+      })
+    }, delay)
   }
 
   sendAction(action: Action): void {
