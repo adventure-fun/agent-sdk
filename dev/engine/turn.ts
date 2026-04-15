@@ -35,6 +35,7 @@ import type {
   AbilityTemplate,
 } from "./types.js"
 import type { GeneratedRealm, GeneratedFloor, GeneratedRoom } from "./realm.js"
+import { replayLockedExitUnlocks } from "./realm.js"
 import {
   resolveAttack,
   resolveStatusEffectTick,
@@ -2598,23 +2599,28 @@ function applyEffect(
     case "unlock-door": {
       const entityId = effect.entity_id as string
       s.mutatedEntities.push(entityId)
-      if (room && realm) {
-        // Find this room in the generated realm and connect it to the next room
-        const genFloor = realm.floors.find((f) => f.floor_number === s.position.floor)
-        if (genFloor) {
-          const roomIdx = genFloor.rooms.findIndex((r) => r.id === room.id)
-          const genRoom = genFloor.rooms[roomIdx]
-          const nextRoom = genFloor.rooms[roomIdx + 1]
-          if (genRoom && nextRoom && !genRoom.connections.includes(nextRoom.id)) {
-            // Create the forward connection in the generated realm
-            genRoom.connections.push(nextRoom.id)
-            // Place the door tile at right-wall center
+      if (realm) {
+        // Delegate to the single source of truth so the intra-floor and
+        // floor-exit unlock branches stay in sync with the session-rehydrate
+        // path. replayLockedExitUnlocks is idempotent, so calling it on every
+        // unlock is safe even though we only just added one entity.
+        replayLockedExitUnlocks(realm, s.mutatedEntities)
+        // Mirror the tile edit onto the live room state so the current turn's
+        // observation reflects the open passage. replayLockedExitUnlocks only
+        // mutates the GeneratedRealm's rooms, not the GameState.activeFloor
+        // copies used to compute this turn's visible tiles.
+        if (room) {
+          const genFloor = realm.floors.find((f) => f.floor_number === s.position.floor)
+          const genRoom = genFloor?.rooms.find((r) => r.id === room.id)
+          if (genRoom) {
             const h = room.tiles.length
             const w = room.tiles[0]?.length ?? 0
             const midY = Math.floor(h / 2)
-            const row = room.tiles[midY]
-            if (row) {
-              row[w - 1] = { x: w - 1, y: midY, type: "door", entities: [] }
+            const genRow = genRoom.tiles[midY]
+            const liveRow = room.tiles[midY]
+            const patchedTile = genRow?.[w - 1]
+            if (liveRow && patchedTile && liveRow[w - 1]?.type !== patchedTile.type) {
+              liveRow[w - 1] = { x: w - 1, y: midY, type: patchedTile.type, entities: [] }
             }
           }
         }

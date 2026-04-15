@@ -1596,9 +1596,43 @@ export class BaseAgent {
         }
       },
       onClose: (event) => {
-        if (!event.intentional && this.isRunning && this.runCompletion) {
-          this.failRun(new Error(`Game socket closed unexpectedly: ${event.code} ${event.reason}`))
+        // A single unexpected close used to kill the run immediately. We now
+        // defer to the client's reconnection loop: if willReconnect is true
+        // the client has scheduled another attempt, and we only give up when
+        // onReconnectExhausted fires (or the close was intentional to begin
+        // with). The server-side handleGameOpen sends a fresh initial
+        // observation on every successful reconnect, so the agent's planner
+        // automatically resyncs without needing a bespoke resume path.
+        if (event.intentional) return
+        if (event.willReconnect) {
+          console.log(
+            `[agent] game socket closed (code=${event.code} reason=${event.reason || "-"}), reconnect scheduled`,
+          )
+          return
         }
+        if (this.isRunning && this.runCompletion) {
+          this.failRun(
+            new Error(`Game socket closed unexpectedly: ${event.code} ${event.reason}`),
+          )
+        }
+      },
+      onReconnecting: (event) => {
+        console.log(
+          `[agent] reconnecting (attempt ${event.attempt}/${event.maxAttempts}, delay=${event.delayMs}ms)`,
+        )
+      },
+      onReconnectExhausted: (event) => {
+        if (this.isRunning && this.runCompletion) {
+          const reason = event.lastError?.message ?? "unknown"
+          this.failRun(
+            new Error(
+              `Game socket reconnection exhausted after ${event.attempts} attempts: ${reason}`,
+            ),
+          )
+        }
+      },
+      onReconnected: (_event) => {
+        console.log("[agent] game socket reconnected — awaiting fresh initial observation")
       },
     })
 

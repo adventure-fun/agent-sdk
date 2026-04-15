@@ -178,6 +178,7 @@ export interface GameClientOptions {
   reconnect?: {
     maxRetries?: number
     backoffMs?: number
+    maxDelayMs?: number
   }
   wallet?: WalletAdapter
   x402Client?: X402Client
@@ -188,11 +189,37 @@ export interface DisconnectEvent {
   reason: string
   intentional: boolean
   scope: "game" | "lobby"
+  // True when the client has scheduled another reconnect attempt after this
+  // close. Agents should typically treat these as transient and keep the run
+  // alive; the `reconnectExhausted` event fires separately once retries run
+  // out so that higher layers can fail the run on a single terminal signal.
+  willReconnect: boolean
+}
+
+export interface ReconnectingEvent {
+  scope: "game"
+  realmId: string
+  attempt: number
+  maxAttempts: number
+  delayMs: number
+}
+
+export interface ReconnectExhaustedEvent {
+  scope: "game"
+  realmId: string
+  attempts: number
+  lastError?: GameClientError
 }
 
 export interface ConnectEvent {
   scope: "game" | "lobby"
   realmId?: string
+  // True when this connect is the result of a successful reconnect attempt
+  // after an unexpected close, as opposed to the initial connect(). Agents
+  // can use this to reset per-run state that was in flight when the socket
+  // dropped (e.g. clear an action-in-flight flag and wait for a fresh
+  // initial observation from the server's handleGameOpen).
+  reconnected?: boolean
 }
 
 export interface GameSessionHandlers {
@@ -201,6 +228,19 @@ export interface GameSessionHandlers {
   onExtracted?: ExtractedHandler
   onError?: (error: GameClientError) => void
   onClose?: (event: DisconnectEvent) => void
+  // Fired while the client is retrying. onClose still fires with
+  // willReconnect: true for the same disconnect — this is the forward-looking
+  // notification agents use to pause action dispatch between attempts.
+  onReconnecting?: (event: ReconnectingEvent) => void
+  // Fired exactly once per realm connection when every reconnect attempt has
+  // failed and the client has given up. This is the terminal signal agents
+  // should wire their failRun() path to; treat onClose with
+  // willReconnect=false OR onReconnectExhausted as "session is over."
+  onReconnectExhausted?: (event: ReconnectExhaustedEvent) => void
+  // Fired on successful reconnect after an unexpected close. Agents can use
+  // this to clear any in-flight action state — the server sends a fresh
+  // initial observation on handleGameOpen, which will arrive shortly after.
+  onReconnected?: (event: ConnectEvent) => void
 }
 
 export interface LobbyHandlers {
@@ -223,6 +263,8 @@ export interface GameClientEvents {
   error: GameClientError
   connected: ConnectEvent
   disconnected: DisconnectEvent
+  reconnecting: ReconnectingEvent
+  reconnectExhausted: ReconnectExhaustedEvent
   chatMessage: SanitizedChatMessage
   lobbyEvent: LobbyEvent
 }
@@ -289,6 +331,7 @@ export class GameClient {
   private wallet: WalletAdapter | undefined
   private activeRealmId: string | null = null
   private reconnectAttempt = 0
+  private lastReconnectError: GameClientError | undefined
   private intentionalGameDisconnect = false
   private intentionalLobbyDisconnect = false
   private reconnectConfig: Required<NonNullable<GameClientOptions["reconnect"]>>
@@ -308,8 +351,15 @@ export class GameClient {
     this.wallet = options.wallet
     this.paymentClient = options.x402Client
     this.reconnectConfig = {
-      maxRetries: options.reconnect?.maxRetries ?? 3,
-      backoffMs: options.reconnect?.backoffMs ?? 500,
+      // 8 tries × 250ms base with exponential backoff + jitter caps out
+      // around 60s of total wait. That's enough to survive a backend
+      // restart, a brief Railway edge hiccup, or a DB blip without the
+      // agent giving up on the run. The old defaults (3 × 500ms ~ 3.5s)
+      // were too short to cover any of those and caused the agent to
+      // immediately failRun on transient closes.
+      maxRetries: options.reconnect?.maxRetries ?? 8,
+      backoffMs: options.reconnect?.backoffMs ?? 250,
+      maxDelayMs: options.reconnect?.maxDelayMs ?? 30_000,
     }
     // Cast through `Parameters<typeof wrapFetchWithPayment>[1]` so the call typechecks
     // against whichever copy of `@x402/core` `@x402/fetch` resolves at install time.
@@ -382,6 +432,8 @@ export class GameClient {
           reason: event.reason,
           intentional: this.intentionalLobbyDisconnect,
           scope: "lobby",
+          // Lobby socket has no reconnect loop today; always terminal.
+          willReconnect: false,
         }
         this.eventEmitter.emit("disconnected", disconnectEvent)
         this.lobbyHandlers.onClose?.(disconnectEvent)
@@ -682,8 +734,18 @@ export class GameClient {
 
       ws.onopen = () => {
         opened = true
+        const wasReconnecting = this.reconnectAttempt > 0
         this.reconnectAttempt = 0
-        this.eventEmitter.emit("connected", { scope: "game", realmId })
+        this.lastReconnectError = undefined
+        const connectEvent: ConnectEvent = {
+          scope: "game",
+          realmId,
+          reconnected: wasReconnecting,
+        }
+        this.eventEmitter.emit("connected", connectEvent)
+        if (wasReconnecting) {
+          this.gameHandlers.onReconnected?.(connectEvent)
+        }
         resolve()
       }
 
@@ -715,23 +777,37 @@ export class GameClient {
           return
         }
 
+        // Decide whether this close is going to be followed by a reconnect
+        // BEFORE firing onClose — the agent's onClose handler inspects
+        // willReconnect to decide whether to fail the run or just pause. The
+        // previous implementation fired onClose first and then scheduled the
+        // reconnect, which meant the agent immediately called failRun on any
+        // unexpected close even when a retry was in the pipeline.
+        const shouldReconnect =
+          !this.intentionalGameDisconnect &&
+          this.activeRealmId != null &&
+          this.reconnectAttempt < this.reconnectConfig.maxRetries
+
         const disconnectEvent: DisconnectEvent = {
           code: event.code,
           reason: event.reason,
           intentional: this.intentionalGameDisconnect,
           scope: "game",
+          willReconnect: shouldReconnect,
         }
 
         this.ws = null
         this.eventEmitter.emit("disconnected", disconnectEvent)
         this.gameHandlers.onClose?.(disconnectEvent)
 
-        if (
-          !this.intentionalGameDisconnect &&
-          this.activeRealmId &&
-          this.reconnectAttempt < this.reconnectConfig.maxRetries
-        ) {
+        if (shouldReconnect) {
           this.scheduleReconnect()
+        } else if (!this.intentionalGameDisconnect && this.reconnectAttempt > 0) {
+          // We were mid-reconnect and just used up our last attempt: fire
+          // the single terminal signal the agent waits on before failing
+          // the run. The reconnectAttempt > 0 guard avoids emitting on the
+          // very first unexpected close (which schedules a retry instead).
+          this.emitReconnectExhausted()
         }
       }
 
@@ -779,7 +855,22 @@ export class GameClient {
     }
 
     this.reconnectAttempt += 1
-    const delay = this.reconnectConfig.backoffMs * 2 ** (this.reconnectAttempt - 1)
+    // Exponential backoff with jitter, clamped to maxDelayMs. The jitter
+    // (±50% of base) prevents all agents in a fleet from slamming the
+    // server at the same wall-clock instant after a shared hiccup.
+    const baseDelay = this.reconnectConfig.backoffMs * 2 ** (this.reconnectAttempt - 1)
+    const jittered = baseDelay * (0.5 + Math.random())
+    const delay = Math.min(jittered, this.reconnectConfig.maxDelayMs)
+
+    const reconnectingEvent: ReconnectingEvent = {
+      scope: "game",
+      realmId: this.activeRealmId,
+      attempt: this.reconnectAttempt,
+      maxAttempts: this.reconnectConfig.maxRetries,
+      delayMs: Math.round(delay),
+    }
+    this.eventEmitter.emit("reconnecting", reconnectingEvent)
+    this.gameHandlers.onReconnecting?.(reconnectingEvent)
 
     setTimeout(() => {
       if (!this.activeRealmId || this.intentionalGameDisconnect) {
@@ -787,18 +878,38 @@ export class GameClient {
       }
 
       void this.openGameSocket(this.activeRealmId).catch((error) => {
-        this.handleError(
-          error instanceof GameClientError
-            ? error
-            : new GameClientError(
-                "network",
-                "Failed to reconnect WebSocket",
-                { cause: error },
-              ),
-          this.gameHandlers,
-        )
+        const normalized = error instanceof GameClientError
+          ? error
+          : new GameClientError(
+              "network",
+              "Failed to reconnect WebSocket",
+              { cause: error },
+            )
+        this.lastReconnectError = normalized
+        this.handleError(normalized, this.gameHandlers)
+
+        // If there are still retries left, onclose on the just-failed socket
+        // will have fired scheduleReconnect again — we've already handled the
+        // error above, so just return. If we've hit the cap, fire the
+        // terminal reconnectExhausted event so the agent can finally fail
+        // the run with a single meaningful signal.
+        if (this.reconnectAttempt >= this.reconnectConfig.maxRetries) {
+          this.emitReconnectExhausted()
+        }
       })
     }, delay)
+  }
+
+  private emitReconnectExhausted(): void {
+    if (!this.activeRealmId) return
+    const event: ReconnectExhaustedEvent = {
+      scope: "game",
+      realmId: this.activeRealmId,
+      attempts: this.reconnectAttempt,
+      ...(this.lastReconnectError ? { lastError: this.lastReconnectError } : {}),
+    }
+    this.eventEmitter.emit("reconnectExhausted", event)
+    this.gameHandlers.onReconnectExhausted?.(event)
   }
 
   private handleError(
