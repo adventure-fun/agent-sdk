@@ -370,7 +370,16 @@ describe("BaseAgent.start", () => {
       ["/lobby/shops", () => ({ sections: [], featured: [] })],
       ["/content/items", () => ({ items: [] })],
       ["/realms/mine", () => ({
-        realms: [{ id: "stuck-realm", template_id: "test-tutorial", status: "paused" }],
+        // A paused realm with non-null session_state is the "crashed mid-run" state
+        // the agent must resume. Paused rows with null session_state represent a
+        // clean exit (portal/retreat) and are NOT blocking per the server's
+        // hasLockedRealm semantics — findBlockingRealm mirrors that rule.
+        realms: [{
+          id: "stuck-realm",
+          template_id: "test-tutorial",
+          status: "paused",
+          session_state: { dirty: true },
+        }],
       })],
       ["/content/realms", () => ({ templates: [{ id: "test-tutorial", orderIndex: 1, name: "Tutorial" }] })],
       ["/realms/generate", () => ({ id: "realm-new", template_id: "test-tutorial" })],

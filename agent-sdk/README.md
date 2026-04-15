@@ -209,7 +209,8 @@ The `examples/strategic-agent` example exposes the lifecycle controls through en
 | `CONTINUE_ON_EXTRACTION` | `realmProgression.continueOnExtraction` | `true` keeps chaining after a successful extraction |
 | `REALM_ON_ALL_COMPLETED` | `regenerate-last` or `stop` | What `auto` does after every available template has been completed |
 | `LOBBY_USE_LLM` | Enable LLM-driven lobby planning | If `false`, the SDK uses heuristic lobby behavior only |
-| `INN_HEAL_THRESHOLD` | Lobby heal threshold as HP ratio | `1` means rest at the inn before every non-full run; `0.5` means only rest below 50%, and this check runs before the next realm even when lobby planning is LLM-driven |
+| `INN_HEAL_THRESHOLD` | Lobby heal threshold as HP ratio | `1` means rest at the inn before every non-full run; `0.5` means only rest below 50%, and this check runs before the next realm even when lobby planning is LLM-driven. `0` disables inn rest entirely (never heal). |
+| `DISABLE_INN_REST` | Skip the inn rest code path entirely | Set to `true` when the wallet has no USDC for x402 or you want the agent to survive on in-realm healing only. Takes priority over `INN_HEAL_THRESHOLD`. The empty-extraction streak detector will still stop the agent cleanly after 3 consecutive runs that end with `gold=0 xp=0 completed=false`, so a stuck low-HP character won't retreat-loop forever. |
 | `AUTO_SELL_JUNK` | Enable metadata-driven lobby cleanup | Sells/discards incompatible or obvious junk items after lobby planning; still keeps potions, portal scrolls, and key items |
 | `AUTO_EQUIP_UPGRADES` | Enable heuristic lobby equipping | Automatically equips better lobby gear in heuristic mode |
 | `BUY_POTION_MINIMUM` | Minimum healing consumables to keep | Buys up to this count if affordable |

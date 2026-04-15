@@ -175,6 +175,9 @@ export const strategicConfig: AgentConfig = createDefaultConfig({
   },
   lobby: {
     innHealThreshold: Number(process.env.INN_HEAL_THRESHOLD ?? "1"),
+    // DISABLE_INN_REST=true skips the inn rest code path entirely. Use when
+    // the wallet has no USDC for x402 or when you want in-realm-only healing.
+    disableInnRest: process.env.DISABLE_INN_REST === "true",
     autoSellJunk: process.env.AUTO_SELL_JUNK !== "false",
     autoEquipUpgrades: process.env.AUTO_EQUIP_UPGRADES !== "false",
     buyPotionMinimum: Number(process.env.BUY_POTION_MINIMUM ?? "2"),

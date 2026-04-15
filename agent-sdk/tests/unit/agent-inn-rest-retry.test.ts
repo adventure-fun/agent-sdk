@@ -178,10 +178,13 @@ describe("BaseAgent.ensureLobbyRecovery inn-rest retry", () => {
       itemTemplates: [],
     }
 
-    await expect(
-      (agent as unknown as {
-        ensureLobbyRecovery: (client: unknown, state: unknown) => Promise<unknown>
-      }).ensureLobbyRecovery(client, initialState),
-    ).rejects.toThrow(/Inn rest failed after/)
+    // ensureLobbyRecovery used to throw after exhausting retries, which would
+    // crash the agent mid-run. It now logs a warning and returns the freshest
+    // state; the main loop's empty-extraction streak detector stops the agent
+    // cleanly if the character keeps failing runs due to low HP.
+    const result = await (agent as unknown as {
+      ensureLobbyRecovery: (client: unknown, state: unknown) => Promise<unknown>
+    }).ensureLobbyRecovery(client, initialState)
+    expect(result).toBeDefined()
   }, 15000)
 })
