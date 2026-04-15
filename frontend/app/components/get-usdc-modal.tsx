@@ -147,9 +147,17 @@ export function GetUsdcModal({ open, onClose, walletAddress }: GetUsdcModalProps
                       </svg>
                       <span>Copy address</span>
                     </button>
-                    <p className="mt-3 text-[11px] italic text-ob-on-surface-variant">
-                      Send USDC on {CHAIN_NAME} to this address. Nothing else.
-                    </p>
+                    <div className="mt-3 flex items-start gap-2 rounded-xl border border-ob-error/40 bg-ob-error/10 p-3 text-[11px] leading-relaxed text-ob-error">
+                      <span className="material-symbols-outlined text-base leading-none">warning</span>
+                      <div>
+                        <div className="font-bold uppercase tracking-wider">
+                          USDC on {CHAIN_NAME} only
+                        </div>
+                        <p className="mt-1 text-ob-error/90">
+                          Sending any other token (ETH, other ERC-20s, or USDC on a different chain) to this address will result in <span className="font-semibold">permanent loss</span>. Only USDC on {CHAIN_NAME} can be used or withdrawn through Adventure.fun.
+                        </p>
+                      </div>
+                    </div>
                   </>
                 ) : (
                   <div className="mt-2 text-xs text-ob-on-surface-variant">
