@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "lastSync": "2026-04-14",
+  "lastSync": "2026-04-15",
   "sources": [
     {
       "canonical": "shared/schemas/src/index.ts",
@@ -81,7 +81,7 @@
   "engineWatchlist": [
     {
       "file": "shared/engine/src/turn.ts",
-      "hash": "802b3b9a9a792a236baa659170f642206ed39bf31affe063aa18cd11d8106fb8",
+      "hash": "2b37013f43b661f4c2e7fb97704d1b518dc7c58b30faffeafb0697d60f6c7095",
       "affectedModules": [
         "combat",
         "exploration",
@@ -109,7 +109,7 @@
     },
     {
       "file": "shared/engine/src/realm.ts",
-      "hash": "53348c7f624aed7ee146390ac300a68bbf4a42170d4a64366eb2736270c9d368",
+      "hash": "26153f4c139b5c849931b0f9d8e34b8feb21c205e3d767f02b3f9077a4168e16",
       "affectedModules": [
         "exploration",
         "portal"
@@ -140,7 +140,7 @@
     },
     {
       "file": "backend/src/game/session.ts",
-      "hash": "d0ed89a3b7143e874dd2a6e637c2ad78b6a9f77ba3d76815f0174a2f885d8c3e",
+      "hash": "69a1d0814ca4c6566f44f9ea4f4b3283284dbf47dbd4a765142d406398456507",
       "affectedModules": [
         "agent-lifecycle",
         "chat"
@@ -180,7 +180,7 @@
     },
     {
       "file": "backend/src/index.ts",
-      "hash": "82488a36544908ab48a50597f84b48e280de448ecb026378db9d4b58e91881dc",
+      "hash": "4f60e9c0ac4cce6668409dbb6b527af436bd1eb5ef521bf113db8c56cf253b53",
       "affectedModules": [
         "dev-stack",
         "chat"
@@ -271,8 +271,8 @@
     {
       "source": "shared/engine/src/realm.ts",
       "vendored": "agent-sdk/dev/engine/realm.ts",
-      "sourceHash": "53348c7f624aed7ee146390ac300a68bbf4a42170d4a64366eb2736270c9d368",
-      "vendoredHash": "5c17326255f0357943a16ce80b6c8151eace4aa27c68dfbbc929ce5e4de17805",
+      "sourceHash": "26153f4c139b5c849931b0f9d8e34b8feb21c205e3d767f02b3f9077a4168e16",
+      "vendoredHash": "b8e8db6b72c0128bf0691e16a3425ddeedb083e446c63b7e51c8c426d27a0a14",
       "affectedModules": [
         "dev-stack"
       ]
@@ -280,8 +280,8 @@
     {
       "source": "shared/engine/src/turn.ts",
       "vendored": "agent-sdk/dev/engine/turn.ts",
-      "sourceHash": "802b3b9a9a792a236baa659170f642206ed39bf31affe063aa18cd11d8106fb8",
-      "vendoredHash": "28438ddaf728ec6581fef6ca75b07d01ae8fb8bb216ce742124f2f0e3ffa75d7",
+      "sourceHash": "2b37013f43b661f4c2e7fb97704d1b518dc7c58b30faffeafb0697d60f6c7095",
+      "vendoredHash": "37bc35b1b34c97ce986895ceb38d0ebb2b2b83c6bf6214ad5da4e369a63726e5",
       "affectedModules": [
         "dev-stack"
       ]

@@ -199,33 +199,56 @@ function generateFloor(
 ): GeneratedFloor {
   const roomCount = rng.nextInt(4, 8)
   const rooms: GeneratedRoom[] = []
+  // Guaranteed key-items gained so far on this floor. Populated from
+  // grant-item interactable effects as rooms are placed and consulted when
+  // picking later rooms so a locked_exit candidate is only eligible once its
+  // key source is upstream. This is the procedural path's solvability guard.
+  const availableKeys = new Set<string>()
+
+  const recordRoomGrants = (room: GeneratedRoom) => {
+    const rt = findRoomTemplateForGeneratedRoom(room.id)
+    if (!rt) return
+    for (const item of collectGrantedItemTemplateIds(rt)) {
+      availableKeys.add(item)
+    }
+  }
+
+  const connectRooms = (prev: GeneratedRoom, next: GeneratedRoom) => {
+    const prevTemplate = findRoomTemplateForGeneratedRoom(prev.id)
+    if (prevTemplate?.locked_exit) {
+      // Previous room has a locked exit — don't create the forward edge.
+      // Backward traversal is still allowed so the player can retreat to
+      // pick up a missed key; the forward connection is added when the
+      // lock is mutated via replayLockedExitUnlocks.
+      next.connections.push(prev.id)
+    } else {
+      prev.connections.push(next.id)
+      next.connections.push(prev.id)
+    }
+  }
 
   // Entrance room is always a simple corridor/rest
-  const entranceRoom = generateRoom(template, rng, floorNumber, 0, "rest", isFinalFloor)
+  const entranceRoom = generateRoom(template, rng, floorNumber, 0, "rest", isFinalFloor, availableKeys)
   rooms.push(entranceRoom)
+  recordRoomGrants(entranceRoom)
 
   // Middle rooms
   for (let r = 1; r < roomCount - 1; r++) {
     const type = pickRoomType(template, rng, isFinalFloor)
-    const room = generateRoom(template, rng, floorNumber, r, type, isFinalFloor)
-    // Connect to previous room
+    const room = generateRoom(template, rng, floorNumber, r, type, isFinalFloor, availableKeys)
     const prevRoom = rooms[r - 1]
-    if (prevRoom) {
-      prevRoom.connections.push(room.id)
-      room.connections.push(prevRoom.id)
-    }
+    if (prevRoom) connectRooms(prevRoom, room)
     rooms.push(room)
+    recordRoomGrants(room)
   }
 
-  // Final room: boss on last floor, stairs otherwise
+  // Final room: boss on last floor, combat otherwise
   const finalType = isFinalFloor ? "boss" : "combat"
-  const finalRoom = generateRoom(template, rng, floorNumber, roomCount - 1, finalType, isFinalFloor)
+  const finalRoom = generateRoom(template, rng, floorNumber, roomCount - 1, finalType, isFinalFloor, availableKeys)
   const prevRoom = rooms[roomCount - 2]
-  if (prevRoom) {
-    prevRoom.connections.push(finalRoom.id)
-    finalRoom.connections.push(prevRoom.id)
-  }
+  if (prevRoom) connectRooms(prevRoom, finalRoom)
   rooms.push(finalRoom)
+  recordRoomGrants(finalRoom)
 
   const floorResult: GeneratedFloor = {
     floor_number: floorNumber,
@@ -239,6 +262,36 @@ function generateFloor(
   return floorResult
 }
 
+// Returns the set of item_template_ids that the room's interactables grant
+// via `grant-item` effects. Used by the procedural solvability filter —
+// loot_slot drops are intentionally excluded because they're probabilistic
+// and would make the solvability guarantee hollow.
+function collectGrantedItemTemplateIds(roomTemplate: RoomTemplate): Set<string> {
+  const out = new Set<string>()
+  for (const interactable of roomTemplate.interactables) {
+    for (const effect of interactable.effects) {
+      if (effect.type === "grant-item") {
+        out.add(effect.item_template_id)
+      }
+    }
+  }
+  return out
+}
+
+// Returns the item_id required by the room's locked_exit, or null if the
+// room has no locked exit or the lock does not have a has-item condition.
+function getLockedExitKeyRequirement(roomTemplate: RoomTemplate): string | null {
+  if (!roomTemplate.locked_exit) return null
+  const lockInteractable = roomTemplate.interactables.find(
+    (i) => i.id === roomTemplate.locked_exit,
+  )
+  if (!lockInteractable) return null
+  for (const cond of lockInteractable.conditions) {
+    if (cond.type === "has-item") return cond.item_id
+  }
+  return null
+}
+
 function generateRoom(
   template: RealmTemplate,
   rng: SeededRng,
@@ -246,11 +299,23 @@ function generateRoom(
   index: number,
   type: string,
   _isFinalFloor: boolean,
+  availableKeys: ReadonlySet<string> = new Set(),
 ): GeneratedRoom {
-  // For procedural generation, try to pick a matching room template by type
+  // For procedural generation, try to pick a matching room template by type.
+  // Solvability filter: drop any candidate whose locked_exit needs a key that
+  // hasn't been placed upstream on this floor yet. If the filter empties the
+  // pool we fall through to the narrative-text-pool fallback below rather
+  // than picking an unsolvable locked room — content-authored locked rooms
+  // are an opt-in pattern and "don't place it this run" is strictly safer
+  // than "place it and soft-lock the player."
   const matchingTemplates = template.room_templates
     .map((id) => ROOMS[id])
     .filter((rt): rt is RoomTemplate => rt != null && rt.type === type)
+    .filter((rt) => {
+      const requiredKey = getLockedExitKeyRequirement(rt)
+      if (requiredKey == null) return true
+      return availableKeys.has(requiredKey)
+    })
 
   if (matchingTemplates.length > 0) {
     const roomTemplate = rng.pick(matchingTemplates)
@@ -366,6 +431,14 @@ function pickRoomType(template: RealmTemplate, rng: SeededRng, isFinalFloor: boo
  * Linear chain: previous room ← left wall door | right wall door → next room.
  * Exit rooms (non-final floor) get a stairs tile instead of a right door.
  * Floors above 1 also get a stairs_up tile at the entrance room.
+ *
+ * Rooms whose template has a `locked_exit` get an east wall by default,
+ * regardless of whether the east neighbor is the next intra-floor room or
+ * the floor-descent stairs. replayLockedExitUnlocks is what swaps that wall
+ * to a door (intra-floor) or stairs (floor-exit) once the lock is mutated,
+ * so placeDoors leaving the wall in place here keeps the two code paths in
+ * sync and removes the landmine where a locked room at the tail of a floor
+ * would silently place walkable stairs that bypassed the gate.
  */
 function placeDoors(floor: GeneratedFloor): void {
   const rooms = floor.rooms
@@ -376,6 +449,8 @@ function placeDoors(floor: GeneratedFloor): void {
     if (h < 3 || w < 3) continue
 
     const midY = Math.floor(h / 2)
+    const template = findRoomTemplateForGeneratedRoom(room.id)
+    const hasLockedExit = template?.locked_exit != null
 
     // Floors above 1 get an up-stair at the entrance room's left wall.
     if (floor.floor_number > 1 && room.id === floor.entrance_room_id) {
@@ -390,18 +465,25 @@ function placeDoors(floor: GeneratedFloor): void {
       if (row) row[0] = { x: 0, y: midY, type: "door", entities: [] }
     }
 
-    // Door/stairs to next room → right wall center
+    // Door/stairs to next room → right wall center. Skipped for rooms with a
+    // locked_exit — the wiring loop does not add a forward connection in that
+    // case, so `connections.includes(next.id)` is already false, but we also
+    // never want an east door painted for a locked gate room since
+    // replayLockedExitUnlocks is the single source of truth for the swap.
     const next = rooms[i + 1]
-    if (next && room.connections.includes(next.id)) {
+    if (!hasLockedExit && next && room.connections.includes(next.id)) {
       const row = room.tiles[midY]
       // If this is the exit room, use stairs instead of door
       const tileType: TileType = room.id === floor.exit_room_id ? "stairs" : "door"
       if (row) row[w - 1] = { x: w - 1, y: midY, type: tileType, entities: [] }
     }
 
-    // If this is the exit room with no next room in the chain,
-    // place stairs on the right wall center for floor descent
-    if (room.id === floor.exit_room_id && !next) {
+    // If this is the exit room with no next room in the chain and the room
+    // does NOT have a locked_exit, place stairs on the right wall center
+    // for floor descent. A locked_exit on the floor-exit room gates those
+    // stairs: the wall stays until the lock is mutated and
+    // replayLockedExitUnlocks swaps wall → stairs.
+    if (!hasLockedExit && room.id === floor.exit_room_id && !next) {
       const row = room.tiles[midY]
       if (row) row[w - 1] = { x: w - 1, y: midY, type: "stairs", entities: [] }
     }
@@ -455,18 +537,27 @@ export function replayLockedExitUnlocks(
       if (!template?.locked_exit) continue
       if (!mutatedSet.has(template.locked_exit)) continue
 
-      const nextRoom = floor.rooms[i + 1]
-      if (!nextRoom) continue
-      if (genRoom.connections.includes(nextRoom.id)) continue
-
-      genRoom.connections.push(nextRoom.id)
-
       const h = genRoom.tiles.length
       const w = genRoom.tiles[0]?.length ?? 0
       const midY = Math.floor(h / 2)
       const row = genRoom.tiles[midY]
-      if (row && row[w - 1]?.type !== "door") {
-        row[w - 1] = { x: w - 1, y: midY, type: "door", entities: [] }
+
+      const nextRoom = floor.rooms[i + 1]
+      if (nextRoom) {
+        // Intra-floor locked connection: punch a door and wire forward.
+        if (!genRoom.connections.includes(nextRoom.id)) {
+          genRoom.connections.push(nextRoom.id)
+        }
+        if (row && row[w - 1]?.type !== "door") {
+          row[w - 1] = { x: w - 1, y: midY, type: "door", entities: [] }
+        }
+      } else if (genRoom.id === floor.exit_room_id) {
+        // Floor-exit locked stairs: swap the east-wall center to stairs so the
+        // player can descend. placeDoors deliberately leaves the wall in place
+        // for rooms with a locked_exit, so there is nothing to clean up first.
+        if (row && row[w - 1]?.type !== "stairs") {
+          row[w - 1] = { x: w - 1, y: midY, type: "stairs", entities: [] }
+        }
       }
     }
   }

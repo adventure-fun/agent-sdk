@@ -31,13 +31,20 @@ export function hasActiveSession(characterId: string): boolean {
 // heal exploit, where the WS has closed but realm_instances.status is still
 // "paused" because endSession persisted it on disconnect. Fails closed on DB
 // error — rejecting a legit action is recoverable; letting a cheat through is not.
+//
+// A "paused" row is only treated as locked when session_state is non-null.
+// endSession nulls session_state on clean extraction (portal/retreat) and
+// persists it only on the disconnect/refresh path, so a row with status
+// "paused" + null session_state represents a player who exited cleanly and
+// should be allowed to heal/shop/reroll. Tracking it on this column avoids
+// a schema migration while still making the two exit paths distinguishable.
 export async function hasLockedRealm(characterId: string): Promise<boolean> {
   if (activeSessions.has(characterId)) return true
   const { data, error } = await db
     .from("realm_instances")
     .select("id")
     .eq("character_id", characterId)
-    .in("status", ["active", "paused"])
+    .or("status.eq.active,and(status.eq.paused,session_state.not.is.null)")
     .limit(1)
     .maybeSingle()
   if (error) {

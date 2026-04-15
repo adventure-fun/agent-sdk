@@ -1027,7 +1027,39 @@ export async function handleGameMessage(
     return
   }
 
-  await session.processTurn(validation.action)
+  try {
+    await session.processTurn(validation.action)
+  } catch (error) {
+    // An uncaught throw anywhere in the turn pipeline used to bubble up to
+    // Bun's async WS handler, surface as an unhandled rejection, and either
+    // crash the process or leave the socket dangling until the runtime
+    // reaped it without a close frame — the client then saw a synthetic
+    // 1006 "connection ended" with no usable diagnostic. Catch it here so:
+    //   1) the error is logged with enough context to fix the root cause,
+    //   2) the client sees a real close code + reason it can react to,
+    //   3) other players' sessions don't go down with this one.
+    const err = error instanceof Error ? error : new Error(String(error))
+    console.error("[session] processTurn threw", {
+      realmId: ws.data.realmId,
+      characterId: ws.data.characterId,
+      actionType: validation.action.type,
+      message: err.message,
+      stack: err.stack,
+    })
+    try {
+      ws.send(
+        JSON.stringify({
+          type: "error",
+          message: "internal_turn_error",
+          code: "INTERNAL_TURN_ERROR",
+        }),
+      )
+    } catch { /* already tearing down */ }
+    try {
+      ws.close(4500, "internal_turn_error")
+    } catch { /* socket already closed */ }
+    return
+  }
 
   // If session ended (death/extraction), don't restart the timer
   if (!getActivePlayerSession(ws.data.characterId)) return
