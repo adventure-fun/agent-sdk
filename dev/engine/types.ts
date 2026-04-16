@@ -290,6 +290,10 @@ export interface SpectatorObservation {
     level: number
     hp_percent: number
     resource_percent: number
+    resource_type: ResourceType
+    resource_current: number
+    resource_max: number
+    abilities: AbilitySummary[]
     debuffs: ActiveEffect[]
   }
   position: {
@@ -300,6 +304,9 @@ export interface SpectatorObservation {
   visible_tiles: Tile[]
   known_map: KnownMapData
   visible_entities: SpectatorEntity[]
+  inventory: InventorySlot[]
+  inventory_capacity: number
+  equipment: Record<EquipSlot, InventoryItem | null>
   room_text: string | null
   recent_events: GameEvent[]
   realm_info: {

@@ -237,7 +237,7 @@ The fallback logic still does **not** try to do full economic optimization. Comp
 
 The browser viewer now has two modes:
 
-- `spectate` (default) uses the redacted public spectator feed, matching what a normal watcher should see.
+- `spectate` (default) uses the partially redacted public spectator feed. This now includes the player's equipment, bag inventory, and ability list (with `current_cooldown` + `range`) so the dev UI mirrors what live watchers see; exact HP numbers, gold, XP, skill tree, perks, buffs, base/effective stats, and legal actions remain redacted.
 - `debug` is dev-only and streams the full local `Observation` payload for the selected live run.
 
 Use `http://localhost:3002/?mode=debug` when you need to validate feature completeness during local agent runs. The debug inspector exposes:

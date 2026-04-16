@@ -204,7 +204,19 @@ export interface Observation {
   }
 }
 
-// ---- SpectatorObservation (redacted — public) ---------------
+// ---- SpectatorObservation (partially redacted — public) -----
+//
+// Spectators receive gear, inventory, and the abilities list so the watch
+// UI can mirror the player's own HUD. The following are still redacted:
+//   - exact HP / resource numbers (only percentages are exposed)
+//   - gold, XP, skill points, skill tree, perks
+//   - base_stats / effective_stats (raw numbers)
+//   - buffs (debuffs remain public so threats are visible)
+//   - legal_actions and the per-ability cooldowns map
+//
+// Resource current/max ARE exposed because the abilities panel renders a
+// coarse "Ready / Not Ready" status that requires comparing current
+// resource to each ability's cost.
 
 export type Action =
   | { type: "move"; direction: "up" | "down" | "left" | "right" }
