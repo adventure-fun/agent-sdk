@@ -186,4 +186,77 @@ describe("BanterEngine", () => {
     expect(source.sentMessages).toEqual(["Still breathing."])
     expect(cleared).toEqual([123])
   })
+
+  it("logs a warning with the trigger name when the LLM throws", async () => {
+    const source = new MockChatSource()
+    const llm: LLMAdapter = {
+      name: "test",
+      decide: async () => ({ action: { type: "wait" }, reasoning: "unused" }),
+      chat: async () => {
+        throw new Error("upstream 503")
+      },
+    }
+
+    const engine = new BanterEngine(
+      source,
+      llm,
+      { name: "Scout", traits: ["terse"] },
+      { triggers: ["other_death"] },
+    )
+
+    const warnings: string[] = []
+    const originalWarn = console.warn
+    console.warn = (...args: unknown[]) => {
+      warnings.push(args.map((value) => String(value)).join(" "))
+    }
+
+    try {
+      engine.start()
+      await source.emitLobbyEvent(buildEvent())
+    } finally {
+      console.warn = originalWarn
+    }
+
+    expect(source.sentMessages).toEqual([])
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toContain("other_death")
+    expect(warnings[0]).toContain("upstream 503")
+  })
+
+  it("logs a warning when sendMessage rejects (e.g. /lobby/chat 4xx)", async () => {
+    const source = new MockChatSource()
+    source.sendMessage = async () => {
+      throw new Error("Request failed: POST /lobby/chat \u2192 429 Too Many Requests")
+    }
+
+    const llm: LLMAdapter = {
+      name: "test",
+      decide: async () => ({ action: { type: "wait" }, reasoning: "unused" }),
+      chat: async () => "Tough crowd.",
+    }
+
+    const engine = new BanterEngine(
+      source,
+      llm,
+      { name: "Scout", traits: ["grim"] },
+      { triggers: ["other_death"] },
+    )
+
+    const warnings: string[] = []
+    const originalWarn = console.warn
+    console.warn = (...args: unknown[]) => {
+      warnings.push(args.map((value) => String(value)).join(" "))
+    }
+
+    try {
+      engine.start()
+      await source.emitLobbyEvent(buildEvent())
+    } finally {
+      console.warn = originalWarn
+    }
+
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toContain("other_death")
+    expect(warnings[0]).toContain("429")
+  })
 })

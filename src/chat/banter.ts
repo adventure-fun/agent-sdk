@@ -181,8 +181,13 @@ export class BanterEngine {
         return
       }
       await this.chatManager.sendMessage(message)
-    } catch {
-      // Banter failures should never break the agent's core game loop.
+    } catch (error) {
+      // Banter failures should never break the agent's core game loop — but they
+      // must not be invisible either. The entire chat path is send-only HTTP, so
+      // this warn is the only observability we have when /lobby/chat 4xx/5xxs,
+      // the LLM errors, or client-side rate-limiting rejects the send.
+      const detail = error instanceof Error ? error.message : String(error)
+      console.warn(`[banter] ${trigger} failed: ${detail}`)
     } finally {
       this.inFlight = false
     }

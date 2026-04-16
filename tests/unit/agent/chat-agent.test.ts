@@ -121,6 +121,59 @@ describe("BaseAgent chat lifecycle", () => {
     expect(client.requests[0]?.path).toBe("/lobby/chat")
   })
 
+  it("populates config.characterName from a reused character so banter still starts", async () => {
+    const client = new MockGameClient()
+    const agent = new BaseAgent(
+      // No characterName, no chat.personality — this is the dynamic-name agent
+      // flow that broke in prod after a process restart reused an alive character.
+      createDefaultConfig({
+        characterClass: "rogue",
+        llm: { provider: "openrouter", apiKey: "test-key" },
+        wallet: { type: "env" },
+        chat: {
+          enabled: true,
+          triggers: ["own_extraction"],
+        },
+      }),
+      {
+        llmAdapter: createLLMAdapter(async () => "Easy work."),
+        walletAdapter,
+      },
+    )
+
+    const reusedCharacterClient = {
+      request: async (path: string) => {
+        if (path === "/characters/me") {
+          return { id: "char-1", name: "Drifter", status: "alive" }
+        }
+        throw new Error(`Unexpected request: ${path}`)
+      },
+    }
+
+    await (
+      agent as unknown as {
+        ensureCharacter: (c: typeof reusedCharacterClient) => Promise<unknown>
+      }
+    ).ensureCharacter(reusedCharacterClient)
+
+    expect(
+      (agent as unknown as { config: { characterName?: string } }).config.characterName,
+    ).toBe("Drifter")
+
+    await agent.processObservation(buildObservation() as Observation)
+    await agent.startChat(client as never)
+    await agent.handleExtraction({
+      loot_summary: [],
+      xp_gained: 5,
+      gold_gained: 2,
+      realm_completed: false,
+    })
+
+    expect(client.connectLobbyCalls).toBe(1)
+    expect(client.requests).toHaveLength(1)
+    expect(client.requests[0]?.path).toBe("/lobby/chat")
+  })
+
   it("stops chat cleanly and disconnects the lobby socket", async () => {
     const client = new MockGameClient()
     const agent = new BaseAgent(

@@ -713,6 +713,18 @@ export class BaseAgent {
     }
 
     if (character !== null) {
+      // Reused character path: rollNewPlayerCharacter is the only other writer of
+      // config.characterName, so without this the dynamic-name flow ends up with
+      // characterName=undefined on every process restart. resolveChatPersonality then
+      // returns null and startChat skips BanterEngine creation, silently disabling
+      // banter until the character dies and gets re-rolled.
+      if (
+        !this.config.characterName
+        && typeof character.name === "string"
+        && character.name.trim().length > 0
+      ) {
+        this.config.characterName = character.name
+      }
       return character
     }
 
