@@ -1,0 +1,19 @@
+services:
+  super-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile.super-agent
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # Container-internal defaults. Override via .env for production.
+      WORLD_DB_PATH: /data/agent.db
+      AGENT_BACKOFF_BASE_MS: ${AGENT_BACKOFF_BASE_MS:-2000}
+      AGENT_BACKOFF_MAX_MS: ${AGENT_BACKOFF_MAX_MS:-60000}
+      LLM_MODEL: ${LLM_MODEL:-anthropic/claude-sonnet-4.6}
+      TACTICAL_LLM_MODEL: ${TACTICAL_LLM_MODEL:-anthropic/claude-haiku-4.5}
+    volumes:
+      - super-agent-data:/data
+
+volumes:
+  super-agent-data:

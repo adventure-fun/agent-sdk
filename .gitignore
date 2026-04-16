@@ -8,3 +8,11 @@ dist/
 .DS_Store
 Thumbs.db
 *.tsbuildinfo
+
+# super-agent WorldModel SQLite database — local runtime state, never commit.
+# (WAL mode creates -wal and -shm companion files next to the main db.)
+super-agent.db
+super-agent.db-shm
+super-agent.db-wal
+*.db-shm
+*.db-wal
