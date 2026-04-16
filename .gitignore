@@ -1,55 +1,18 @@
-# Dependencies
 node_modules/
-.pnp
-.pnp.js
-
-# Build outputs
 dist/
-.next/
-out/
-build/
-*.tsbuildinfo
-
-# Turbo
-.turbo/
-
-# Environment files — NEVER commit real secrets
-# Root .env has service keys — never commit
-/.env
-/.env.local
-/.env.*.local
-/.env.production
-/frontend/.env
-# Backend env (inherits from root .env at runtime)
-/backend/.env
-/backend/.env.local
-# frontend/.env is committed — only contains NEXT_PUBLIC_ vars (safe, client-side by design)
-frontend/.env
-frontend/.env.local
-frontend/.env.production
-
-# Bun
-bun.lockb
-
-# Logs
+.env
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Editor
+.docker/
 .vscode/
 .idea/
-*.swp
-*.swo
 .DS_Store
+Thumbs.db
+*.tsbuildinfo
 
-# Test coverage
-coverage/
-.nyc_output/
-
-# Vercel
-.vercel
-
-# Redis dump
-dump.rdb
+# super-agent WorldModel SQLite database — local runtime state, never commit.
+# (WAL mode creates -wal and -shm companion files next to the main db.)
+super-agent.db
+super-agent.db-shm
+super-agent.db-wal
+*.db-shm
+*.db-wal

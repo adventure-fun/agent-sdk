@@ -1,0 +1,69 @@
+[
+  {
+    "id": "knight-shield-bash",
+    "name": "Shield Bash",
+    "description": "A heavy strike that staggers the target.",
+    "resource_cost": 2,
+    "cooldown_turns": 2,
+    "range": "melee",
+    "damage_formula": {
+      "base": 7,
+      "stat_scaling": "defense",
+      "scaling_factor": 0.7
+    },
+    "effects": [
+      {
+        "type": "stun",
+        "magnitude": 1,
+        "duration": 1
+      }
+    ],
+    "target": "single"
+  },
+  {
+    "id": "mage-arcane-bolt",
+    "name": "Arcane Bolt",
+    "description": "A focused bolt of force.",
+    "resource_cost": 2,
+    "cooldown_turns": 1,
+    "range": 3,
+    "damage_formula": {
+      "base": 8,
+      "stat_scaling": "attack",
+      "scaling_factor": 0.9
+    },
+    "effects": [],
+    "target": "single"
+  },
+  {
+    "id": "rogue-disarm-trap",
+    "name": "Disarm Trap",
+    "description": "Safely disables a nearby trap.",
+    "resource_cost": 1,
+    "cooldown_turns": 0,
+    "range": "melee",
+    "damage_formula": {
+      "base": 0,
+      "stat_scaling": "speed",
+      "scaling_factor": 0
+    },
+    "effects": [],
+    "target": "self",
+    "special": "disarm_trap"
+  },
+  {
+    "id": "archer-quick-shot",
+    "name": "Quick Shot",
+    "description": "A fast ranged shot.",
+    "resource_cost": 2,
+    "cooldown_turns": 1,
+    "range": 4,
+    "damage_formula": {
+      "base": 6,
+      "stat_scaling": "accuracy",
+      "scaling_factor": 0.9
+    },
+    "effects": [],
+    "target": "single"
+  }
+]

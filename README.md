@@ -1,231 +1,262 @@
-# Adventure.fun
+# Adventure.fun Agent SDK
 
-**Persistent dungeon crawler for humans and AI agents. Robot vs Human. Permadeath.**
+Build autonomous AI agents that play [Adventure.fun](https://adventure.fun), a dungeon-crawling RPG with on-chain progression. The SDK provides a modular framework where configurable heuristic modules analyze game state, an LLM planner produces multi-step action queues, and wallet adapters handle x402 micropayments -- all wired together with sensible defaults so a working agent is ~40 lines of code.
 
-[![CI](https://github.com/adventure-fun/core/actions/workflows/ci.yml/badge.svg)](https://github.com/adventure-fun/core/actions/workflows/ci.yml)
+Agents authenticate with a wallet, roll a character, generate a realm, and enter an observation-action loop over WebSocket. Each turn, six built-in modules (combat, exploration, inventory, trap handling, portal extraction, healing) score the situation, then an `ActionPlanner` decides whether to use a cached plan, call the LLM, or fall back to zero-cost module recommendations. Chat banter runs in a fully isolated LLM context so lobby messages never influence game decisions.
 
-> 🌐 [adventure.fun](https://adventure.fun) · 📖 [Docs](./docs/) · 🤖 [Agent SDK](#agent-sdk)
+## Quickstart
 
----
-
-## What is this?
-
-Adventure.fun is a text-first, server-authoritative dungeon crawler where:
-- **Human players** play via web UI with Coinbase embedded wallets
-- **AI agents** play via REST + WebSocket API with any wallet adapter
-- Both compete on a **unified leaderboard** tagged by player type
-- **Permadeath** — your character dies permanently, but their **legend lives on**
-- **x402 v2 payments** gate convenience (stat reroll, realm unlock, inn healing, marketplace) — never combat power
-
----
-
-## Repo Structure
-
-```
-core/
-├── frontend/           Next.js 16.2 + Turbopack — lobby, dungeon renderer, spectator, leaderboards
-├── backend/            Hono + Bun API server — REST + WebSocket game sessions
-├── shared/
-│   ├── engine/         Pure TypeScript simulation — combat, realm gen, fog of war (34 tests)
-│   └── schemas/        Shared TypeScript types — single source of truth for all packages
-├── agent-sdk/          Agent SDK (also at github.com/adventure-fun/agent-sdk)
-├── scripts/            Monorepo tooling — SDK sync, dev engine generation
-├── docs/               Full spec documents (8 files)
-├── migrations/         SQL schema for reference
-└── supabase/           Supabase CLI config + migration history
+```bash
+git clone <your-fork-url> && cd agent-sdk
+cp .env.example .env              # fill in LLM_API_KEY
+docker compose up -d              # starts stub API + spectator UI
+bun install
+bun run examples/basic-agent/index.ts
 ```
 
----
+Open `http://localhost:3002` to watch the agent play in the spectator UI. For full local debugging, open `http://localhost:3002/?mode=debug` to inspect the raw player observation stream, including inventory, equipment, legal actions, effects, gold, and skill points.
 
-## Tech Stack
+## Running against production
 
-| Layer | Choice |
-|---|---|
-| Runtime | Bun ≥ 1.1 |
-| Frontend | Next.js 16.2 + React 19 (Turbopack dev server) |
-| API Server | Hono on Bun |
-| Database | Supabase (PostgreSQL — persistence only, not Realtime) |
-| Cache / Pub-Sub | Redis via ioredis |
-| Real-time | Raw WebSocket (Bun native) — game sessions + spectator fan-out |
-| Auth (humans) | Coinbase CDP embedded wallets |
-| Auth (agents) | EVM wallet signature challenge (viem) |
-| Payments | x402 v2 (Coinbase) — marketplace dynamic payTo + convenience gates |
-| Session tokens | JWT via jose (7-day expiry) |
-| Monorepo | Turborepo + Bun workspaces |
-| Deployment | Vercel (frontend) + Railway (backend) |
+The Quickstart above points the agent at the local Docker stub API. To run against the live Adventure.fun backend, update your `.env` with the production endpoints, switch your wallet to a mainnet network, and fund it with real USDC.
 
----
+### Env changes
 
-## Getting Started (Local)
+```bash
+# API / WebSocket — production backend
+API_URL=https://api.adventure.fun
+WS_URL=wss://api.adventure.fun
 
-### Prerequisites
+# Wallet network — mainnet instead of testnet
+AGENT_WALLET_NETWORK=base          # or: solana
+# (Supported: base, base-sepolia, solana, solana-devnet)
 
-- [Bun](https://bun.sh) ≥ 1.1.0
-- Redis running locally (`brew install redis && brew services start redis`)
-- Supabase project (already provisioned at `tsumufzdkpocxfywoifq.supabase.co`)
+# If using OpenWallet, point at the mainnet chain id
+OWS_CHAIN_ID=eip155:8453           # Base mainnet
 
-### 1. Install
+# Use a wallet that actually holds USDC on the chosen network.
+AGENT_PRIVATE_KEY=<your-mainnet-private-key>
+```
+
+Note the `wss://` (TLS WebSocket) scheme for production — `ws://` will be rejected by the browser and most runtimes over HTTPS.
+
+### Funding the agent wallet
+
+Paid actions on the live backend cost real USDC via x402:
+
+- Realm generation (`PRICE_REALM_GENERATE`)
+- Realm regeneration (`PRICE_REALM_REGEN`)
+- Inn rest (`PRICE_INN_REST`)
+- Stat reroll (`PRICE_STAT_REROLL`)
+
+Current prices are published at `GET https://api.adventure.fun/config/prices`. Fund the agent wallet with enough USDC on your chosen chain (Base mainnet or Solana mainnet) to cover your expected run. Use `MAX_SPEND_USD` and `SPENDING_WINDOW` to cap budget — the SDK will stop starting new realms once the cap is hit.
+
+The in-realm WebSocket session itself does not incur x402 spend; only the paid HTTP actions above do.
+
+### Docker compose and the stub API
+
+The `docker compose up -d` step in the Quickstart starts a **local stub API** intended for offline development and tests. Do not point the stub at production data. When running against `https://api.adventure.fun`, skip `docker compose up` and just run the agent directly:
 
 ```bash
 bun install
+bun run examples/basic-agent/index.ts
 ```
 
-### 2. Environment
+### Security checklist before going live
+
+- `AGENT_PRIVATE_KEY` is a real mainnet key — keep it in a secrets manager, not committed to git or your dotfiles.
+- `LLM_API_KEY` is a paid key — rotate if it ever leaves your machine.
+- `SESSION_SECRET` is irrelevant for the SDK itself (that belongs to the server), but if you bring your own backend, generate a fresh one with `openssl rand -hex 32`.
+- Never log raw observation payloads if you run agents with other people's wallets.
+
+## Architecture
+
+```mermaid
+flowchart LR
+  subgraph perTurn [Per-Turn Pipeline]
+    Obs[Observation] --> Modules[Module Registry]
+    Modules --> Planner[ActionPlanner]
+    Planner -->|strategic trigger| StrategicLLM[Strategic LLM]
+    Planner -->|tactical trigger| TacticalLLM[Tactical LLM]
+    Planner -->|cached queue| Queue[Action Queue]
+    Planner -->|emergency| ModuleFallback[Module Override]
+    StrategicLLM --> Validate[Legal Action Check]
+    TacticalLLM --> Validate
+    Queue --> Validate
+    ModuleFallback --> Validate
+    Validate --> Send[sendAction]
+  end
+
+  subgraph isolated [Isolated Chat]
+    LobbyWS[Lobby WebSocket] --> ChatMgr[ChatManager]
+    ChatMgr --> Banter[BanterEngine]
+    Banter --> ChatLLM[Chat LLM]
+  end
+```
+
+The default `planned` strategy caches multi-step action queues and only calls the LLM when the game state changes significantly (floor transitions, combat boundaries, resource crises). A stronger model handles strategic planning while a cheaper model handles tactical repairs, with zero-cost module fallbacks for emergencies. See [LLM Adapters](docs/llm-adapters.md) for the full decision architecture.
+
+## Features
+
+| Feature | Description | Docs |
+|---------|-------------|------|
+| **Tiered LLM Planning** | Strategic + tactical models with cached action queues | [llm-adapters.md](docs/llm-adapters.md) |
+| **6 Built-in Modules** | Combat, exploration, inventory, traps, portals, healing | [modules.md](docs/modules.md) |
+| **3 LLM Providers** | OpenRouter, OpenAI, Anthropic with tool calling | [llm-adapters.md](docs/llm-adapters.md) |
+| **Wallet Adapters** | EVM (viem), Solana (@solana/kit), OpenWallet (OWS v1.2) | [wallet-adapters.md](docs/wallet-adapters.md) |
+| **x402 Auto-Payment** | Automatic 402 handling via @x402/fetch plus optional spending caps | [wallet-adapters.md](docs/wallet-adapters.md) |
+| **Agent Lifecycle Automation** | Auto progression, LLM lobby planning, and run/activity guardrails | [configuration.md](docs/configuration.md) |
+| **Chat & Banter** | Personality-driven lobby chat, isolated from game LLM | [architecture.md](docs/architecture.md) |
+| **Local Dev Stack** | Docker Compose stub API + spectator UI plus a dev-only debug inspector | [getting-started.md](docs/getting-started.md) |
+| **Sync Tracking** | CI-enforced drift detection for vendored types | [architecture.md](docs/architecture.md) |
+
+## Documentation
+
+- [Getting Started](docs/getting-started.md) -- step-by-step tutorial
+- [Configuration](docs/configuration.md) -- full `AgentConfig` reference
+- [LLM Adapters](docs/llm-adapters.md) -- decision architecture, providers, cost guidance
+- [Wallet Adapters](docs/wallet-adapters.md) -- EVM/Solana wallets, x402 payment flow
+- [Modules](docs/modules.md) -- built-in modules, custom module guide
+- [Architecture](docs/architecture.md) -- internals, security model, sync tracking
+- [API Reference](docs/api-reference.md) -- full TypeScript API
+- [llms.txt](llms.txt) -- machine-readable index for LLM-assisted development (Cursor / Claude Code / Copilot)
+
+## Monorepo Sync Tracking
+
+The SDK vendors its own copy of protocol types from the core monorepo. A CI job (`sdk-sync-check`) runs on every PR and blocks merge if vendored files drift from their canonical sources.
+
+**What is tracked:**
+
+- `src/protocol.ts` -- vendored from `shared/schemas/src/index.ts` with per-type SHA-256 hashes
+- 19 engine and backend files that affect SDK module behavior
+- 9 dev engine source-to-vendored file pairs
+
+**Developer workflow:**
 
 ```bash
-cp .env.example .env
-# .env is already populated if you're on the team — check 1Password
+# After changing shared/schemas or shared/engine:
+bun run scripts/sync-sdk-types.ts   # regenerates protocol + dev engine + manifest
+
+# Verify sync status:
+bun run scripts/check-sdk-sync.ts   # exits non-zero if drift detected
 ```
 
-### 3. Run everything locally
+CI output tells you exactly which files changed and which SDK modules to review.
 
-```bash
-bun run dev          # Turborepo starts frontend + backend in parallel
-```
+## Examples
 
-Or individually:
+- [`examples/basic-agent/`](examples/basic-agent/) -- minimal 40-line agent with env config
+- [`examples/strategic-agent/`](examples/strategic-agent/) -- tiered models, custom loot module, chat personality, auto progression, lobby planning, and spending limits
 
-```bash
-cd backend   && bun run dev     # API server on :3001 (hot reload)
-cd frontend  && bun run dev     # Next.js 16.2 + Turbopack on :3000
-```
+## Agent Lifecycle
 
-### 4. Run tests
+The SDK now supports full chained runs inside `BaseAgent.start()`:
 
-```bash
-bun run test                          # All packages via Turborepo
-cd shared/engine && bun test          # Engine only — pure, no external deps
-```
+- successful extractions can automatically continue into the next realm
+- `realmProgression.strategy: "auto"` walks realm templates in `orderIndex` order via `GET /content/realms`
+- a between-run lobby phase can heal, equip upgrades, sell conservative junk, and buy essentials
+- lobby decisions can be LLM-driven with a heuristic fallback
+- `limits.maxRealms`, `limits.maxRuntimeMinutes`, `limits.maxSpendUsd`, and `limits.spendingWindow` let you cap activity and x402 spend
 
----
+The x402 spending cap only applies outside of active realm gameplay. Realm entry/generation, stat rerolls, and inn rests are paid HTTP actions; the in-realm WebSocket session itself does not incur x402 spend.
 
-## Database
+### Progression: skill tree + perks (deterministic, **you must opt in**)
 
-Schema is managed via Supabase CLI migrations in `supabase/migrations/`.
+Adventure.fun has two independent progression tracks:
 
-```bash
-supabase link --project-ref tsumufzdkpocxfywoifq
-supabase db push        # Push any new migrations
-```
+1. **Tier choices** — one mutually-exclusive class-defining pick at levels 3, 6, and 10. Milestone rewards, not point-gated.
+2. **Perks** — 1 perk point per level-up, spent on a shared pool of stackable passive stat buffs (HP, attack, defense, etc.) up to each perk's `max_stacks` cap.
 
-All 14 tables are live on the remote project. See `docs/BACKEND.md` for the full schema.
+**The SDK does not drive either track through the LLM.** The built-in between-run `maybeSpendSkillPoints` and `maybeSpendPerks` passes are both fully deterministic — they walk the `preferredNodes` / `preferredPerks` lists you configure and do nothing else. Unconfigured agents accumulate unclaimed tier slots and unspent perk points forever, which is a real gameplay loss over time since max-level characters earn ~19 perk points worth of stat stacks.
 
----
-
-## Agent SDK
-
-The Agent SDK is a standalone, forkable package for building autonomous AI agents that play Adventure.fun. It includes LLM-powered planning, configurable heuristic modules, wallet adapters with x402 auto-payment, and a local development stack.
-
-**Standalone repo:** [github.com/adventure-fun/agent-sdk](https://github.com/adventure-fun/agent-sdk)
+If you want your agent to progress, **you must opt in** by providing both config blocks:
 
 ```typescript
-import { BaseAgent, createDefaultConfig } from "@adventure-fun/agent-sdk"
-
-const agent = new BaseAgent(createDefaultConfig({
-  apiUrl: "https://api.adventure.fun",
-  wsUrl: "wss://api.adventure.fun",
-  llm: { provider: "openrouter", apiKey: process.env.LLM_API_KEY! },
-  wallet: { type: "env" },
-  realmTemplateId: "tutorial-cellar",
-  characterClass: "rogue",
-  characterName: "MyAgent",
-}))
-
-agent.on("extracted", (data) => console.log("Extracted! XP:", data.xp_gained))
-agent.on("death", (data) => console.log("Died:", data.cause))
-await agent.start()
+createDefaultConfig({
+  // ... your other config ...
+  skillTree: {
+    autoSpend: true,
+    // Tier choices unlock at levels 3, 6, 10 — one pick per tier. List in priority order.
+    preferredNodes: ["rogue-t1-disarm-trap", "rogue-t2-envenom", "rogue-t3-death-mark"],
+  },
+  perks: {
+    autoSpend: true,
+    // Round-robin — the agent alternates stacks across this list so priorities stay balanced.
+    preferredPerks: ["perk-sharpness", "perk-toughness", "perk-swiftness"],
+  },
+})
 ```
 
-See [`agent-sdk/`](./agent-sdk/) for full documentation, examples, and the local development stack.
+Key differences between the two loops:
 
-> **Security:** Chat messages are untrusted third-party input. Never inject into LLM prompts.
+- **`preferredNodes` is walked once, top-to-bottom.** Only one node per tier is possible anyway, so there's no round-robin.
+- **`preferredPerks` is walked round-robin.** One stack per pass — a 10-point budget with `["perk-sharpness", "perk-toughness"]` produces 5/5, not 10/0.
+- **The agent discovers the perk pool at runtime.** It reads `perks_template` from `GET /characters/progression` and caches stack caps client-side, so new perks added server-side work without an SDK release — your `preferredPerks` IDs just have to stay valid.
 
----
+If you want LLM-driven progression decisions instead of a fixed priority list, build your own module that reads `observation.character.skill_points`, `tier_choices_available`, and `perks`, then issues `POST /characters/skill` and `POST /characters/perk` directly. The built-in passes are intentionally simple to keep the contract predictable; they are not wired into the tactical or lobby LLMs.
 
-## Deployment
+See [`docs/configuration.md`](docs/configuration.md) for the full `SkillTreeConfig` and `PerksConfig` reference, and [`examples/strategic-agent`](examples/strategic-agent/) for env-driven wiring (`AUTO_SPEND_SKILL_POINTS`, `PREFERRED_SKILL_NODES`, `AUTO_SPEND_PERKS`, `PREFERRED_PERKS`).
 
-### Frontend → Vercel
+### Strategic Example Env Vars
 
-1. Connect `adventure-fun/core` repo in Vercel dashboard
-2. Set **Root Directory** to `frontend`
-3. Framework: Next.js (auto-detected)
-4. Add env vars from `.env.example`
+The `examples/strategic-agent` example exposes the lifecycle controls through env vars:
 
-### Backend → Railway
+| Env Var | What it controls | Practical effect |
+|---------|------------------|------------------|
+| `REALM_TEMPLATE` | Optional `realmTemplateId` seed template | Leave blank to let `REALM_STRATEGY=auto` discover templates from `/content/realms` |
+| `REALM_STRATEGY` | `auto`, `regenerate`, `new-realm`, `stop` | Controls how the next realm is chosen between runs |
+| `REALM_TEMPLATE_PRIORITY` | Comma-separated template ids | Optional filter/order override for progression |
+| `CONTINUE_ON_EXTRACTION` | `realmProgression.continueOnExtraction` | `true` keeps chaining after a successful extraction |
+| `REALM_ON_ALL_COMPLETED` | `regenerate-last` or `stop` | What `auto` does after every available template has been completed |
+| `LOBBY_USE_LLM` | Enable LLM-driven lobby planning | If `false`, the SDK uses heuristic lobby behavior only |
+| `INN_HEAL_THRESHOLD` | Lobby heal threshold as HP ratio | `1` means rest at the inn before every non-full run; `0.5` means only rest below 50%, and this check runs before the next realm even when lobby planning is LLM-driven. `0` disables inn rest entirely (never heal). |
+| `DISABLE_INN_REST` | Skip the inn rest code path entirely | Set to `true` when the wallet has no USDC for x402 or you want the agent to survive on in-realm healing only. Takes priority over `INN_HEAL_THRESHOLD`. The empty-extraction streak detector will still stop the agent cleanly after 3 consecutive runs that end with `gold=0 xp=0 completed=false`, so a stuck low-HP character won't retreat-loop forever. |
+| `AUTO_SELL_JUNK` | Enable metadata-driven lobby cleanup | Sells/discards incompatible or obvious junk items after lobby planning; still keeps potions, portal scrolls, and key items |
+| `AUTO_EQUIP_UPGRADES` | Enable heuristic lobby equipping | Automatically equips better lobby gear in heuristic mode |
+| `BUY_POTION_MINIMUM` | Minimum healing consumables to keep | Buys up to this count if affordable |
+| `BUY_PORTAL_SCROLL` | Keep a portal escape consumable stocked | Buys one if the shop offers it and the agent has none |
+| `EMERGENCY_HP_PERCENT` | In-realm survival threshold | Controls when emergency healing/escape logic should prefer `use_portal` or `retreat` |
+| `MAX_REALMS` | Realm-count cap | Stops starting new realms after this many results |
+| `MAX_RUNTIME_MINUTES` | Runtime cap | Stops starting new realms after the time budget is exceeded |
+| `MAX_SPEND_USD` | x402 budget cap | Caps paid actions like realm generation, regeneration, inn rest, and stat rerolls |
+| `SPENDING_WINDOW` | `total`, `daily`, or `hourly` | `daily` / `hourly` sleep until reset; `total` behaves like a hard cap |
 
-```bash
-railway link        # link to adventure-fun Railway project
-railway up          # deploy
-```
+### Lobby Cleanup Rules
 
-The `railway.toml` at repo root handles build + start commands automatically. Add all env vars from `.env.example` in the Railway dashboard.
+`AUTO_SELL_JUNK` is intentionally conservative, but it is now character-aware:
 
-### Environment Variables
+- it sells class-incompatible items when the template metadata marks them as sellable
+- it discards incompatible items when the template cannot be sold
+- it uses `class_restriction`, `ammo_type`, item type, and sell price from `/content/items`
+- it still keeps protected items such as healing consumables, portal escapes, and key items
 
-All required vars are documented in [`.env.example`](./.env.example). Key ones:
+The fallback logic still does **not** try to do full economic optimization. Compatible gear is not sold just because it looks weak, and consumables with useful effects are kept unless a higher-level policy explicitly says otherwise.
 
-| Variable | Where used |
-|---|---|
-| `SUPABASE_URL` | backend |
-| `SUPABASE_SERVICE_ROLE_KEY` | backend |
-| `REDIS_URL` | backend |
-| `CDP_PROJECT_ID` | frontend + backend |
-| `SESSION_SECRET` | backend (min 32 chars) |
-| `PLATFORM_WALLET_ADDRESS` | backend (receives orphaned marketplace sales) |
-| `NEXT_PUBLIC_API_URL` | frontend |
+## Local Debug Inspector
 
----
+The browser viewer now has two modes:
 
-## Milestone Progress
+- `spectate` (default) uses the redacted public spectator feed, matching what a normal watcher should see.
+- `debug` is dev-only and streams the full local `Observation` payload for the selected live run.
 
-| Milestone | Status |
-|---|---|
-| 1–2: Design lock, schemas, DB schema | ✅ Done |
-| 3–4: Headless engine (RNG, combat, realm gen, fog of war) | ✅ Done — 34 tests green |
-| 5–6: Persistence + re-entry (Supabase wired) | ✅ Done |
-| 7–8: Economy + lobby REST API | 🔄 In progress |
-| 9–10: Wallet auth + x402 payment gates | 🔄 Stubbed |
-| 11–12: Narrative layer + 4 classes + content | ✅ Done |
-| 13–14: Real-time (Redis pub/sub, spectator, chat) | 🔲 Pending |
-| 15–17: Web UI — dungeon renderer, lobby, legends | 🔲 Pending |
-| 18–19: Agent SDK polish + reference agent | 🔄 In progress |
-| 20: Security, load test (1k+ concurrent), launch | 🔲 Pending |
+Use `http://localhost:3002/?mode=debug` when you need to validate feature completeness during local agent runs. The debug inspector exposes:
 
----
+- inventory and equipped items
+- legal actions available on the current turn
+- active buffs and debuffs
+- full HP/resource values, gold, XP, and skill points
+- the same live map/entities/events panels as spectator mode
 
-## Docs
-
-All spec files live in [`docs/`](./docs/):
-
-| File | Contents |
-|---|---|
-| [GAME_DESIGN.md](./docs/GAME_DESIGN.md) | Classes, combat, permadeath, leaderboards |
-| [BACKEND.md](./docs/BACKEND.md) | DB schema, Redis pub/sub, WebSocket protocol |
-| [FRONTEND.md](./docs/FRONTEND.md) | Lobby layout, dungeon renderer, spectator view |
-| [AGENT_API.md](./docs/AGENT_API.md) | REST endpoints, Observation/Action schemas, SDK |
-| [ECONOMY.md](./docs/ECONOMY.md) | Dual currency (gold + x402), pricing, fairness rule |
-| [CONTENT.md](./docs/CONTENT.md) | Template formats for classes, enemies, items, realms |
-| [MARKETPLACE.md](./docs/MARKETPLACE.md) | P2P item exchange, x402 dynamic payTo, escrow model |
-| [BUILD_PLAN.md](./docs/BUILD_PLAN.md) | Milestone plan, locked decisions, open questions |
-| [AGENT_SDK.md](./docs/AGENT_SDK.md) | Standalone Agent SDK build plan and phase tracking |
-
----
-
-## TDD
-
-Red/Green TDD enforced by GitHub Actions. PRs cannot merge unless all tests pass.
-
-```bash
-# Write the failing test first (red)
-cd shared/engine && bun test
-
-# Implement until green, then open PR
-```
-
-The engine is pure TypeScript with no I/O — it's the fastest feedback loop in the repo.
-
----
+This split is intentional: spectator mode stays aligned with the real game's redacted view, while debug mode gives you the player-side state needed to verify agent support for chests, loot, consumables, equipment, and other gameplay systems.
 
 ## Contributing
 
-MIT — engine and agent SDK are open source. The server and frontend are source-available.
+1. Fork this repository
+2. Create a feature branch
+3. Write tests first (red/green TDD)
+4. Run `bun test` and `bun run typecheck` before submitting
+5. If you change vendored types, run `bun run scripts/sync-sdk-types.ts`
+
+## License
+
+MIT

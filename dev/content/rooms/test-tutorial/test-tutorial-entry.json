@@ -1,0 +1,32 @@
+{
+  "id": "test-tutorial-entry",
+  "type": "event",
+  "size": {
+    "width": 5,
+    "height": 5
+  },
+  "text_first_visit": "You arrive in a compact entry chamber. A satchel hangs beside the exit.",
+  "text_revisit": "The training chamber remains quiet.",
+  "interactables": [
+    {
+      "id": "tutorial-cache",
+      "name": "Travel Satchel",
+      "text_on_interact": "Inside are a portal scroll and a note about surviving the trial.",
+      "conditions": [],
+      "effects": [
+        {
+          "type": "grant-item",
+          "item_template_id": "portal-scroll"
+        },
+        {
+          "type": "show-text",
+          "text": "After you clear the trial, return to this first chamber when it is safe — you can retreat to town from here without using a portal. Keep the scroll for emergencies or deeper realms."
+        }
+      ],
+      "lore_entry_id": "tutorial-note"
+    }
+  ],
+  "enemy_slots": [],
+  "loot_slots": [],
+  "triggers": []
+}

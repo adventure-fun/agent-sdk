@@ -1,0 +1,86 @@
+[
+  {
+    "id": "weak-rat",
+    "name": "Weak Rat",
+    "stats": {
+      "hp": 12,
+      "attack": 3,
+      "defense": 1,
+      "accuracy": 45,
+      "evasion": 4,
+      "speed": 5
+    },
+    "abilities": [
+      "rat-bite"
+    ],
+    "behavior": "aggressive",
+    "loot_table": "tutorial-loot",
+    "xp_value": 6,
+    "difficulty_tier": 0
+  },
+  {
+    "id": "goblin",
+    "name": "Goblin",
+    "stats": {
+      "hp": 18,
+      "attack": 5,
+      "defense": 2,
+      "accuracy": 52,
+      "evasion": 8,
+      "speed": 10
+    },
+    "abilities": [
+      "basic-attack"
+    ],
+    "behavior": "aggressive",
+    "loot_table": "arena-loot",
+    "xp_value": 12,
+    "difficulty_tier": 1
+  },
+  {
+    "id": "skeleton",
+    "name": "Skeleton",
+    "stats": {
+      "hp": 24,
+      "attack": 7,
+      "defense": 4,
+      "accuracy": 40,
+      "evasion": 6,
+      "speed": 7
+    },
+    "abilities": [
+      "basic-attack"
+    ],
+    "behavior": "aggressive",
+    "loot_table": "arena-loot",
+    "xp_value": 16,
+    "difficulty_tier": 1
+  },
+  {
+    "id": "boss-troll",
+    "name": "Boss Troll",
+    "stats": {
+      "hp": 65,
+      "attack": 14,
+      "defense": 7,
+      "accuracy": 60,
+      "evasion": 4,
+      "speed": 6
+    },
+    "abilities": [
+      "boss-smash"
+    ],
+    "behavior": "boss",
+    "loot_table": "boss-loot",
+    "xp_value": 45,
+    "difficulty_tier": 2,
+    "boss_phases": [
+      {
+        "hp_threshold": 0.5,
+        "behavior_change": "enraged",
+        "abilities_added": [],
+        "abilities_removed": []
+      }
+    ]
+  }
+]

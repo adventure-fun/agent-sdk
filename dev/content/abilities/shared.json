@@ -1,0 +1,17 @@
+[
+  {
+    "id": "basic-attack",
+    "name": "Basic Attack",
+    "description": "A simple weapon attack. Always available, costs no resources.",
+    "resource_cost": 0,
+    "cooldown_turns": 0,
+    "range": "melee",
+    "damage_formula": {
+      "base": 5,
+      "stat_scaling": "attack",
+      "scaling_factor": 1
+    },
+    "effects": [],
+    "target": "single"
+  }
+]

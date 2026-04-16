@@ -1,9 +1,8 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
   "compilerOptions": {
-    "baseUrl": ".",
     "target": "ES2022",
-    "lib": ["ES2022"],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "strict": true,
@@ -16,10 +15,9 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "paths": {
-      "@adventure-fun/schemas": ["shared/schemas/src/index.ts"],
-      "@adventure-fun/engine": ["shared/engine/src/index.ts"],
-      "@adventure-fun/agent-sdk": ["agent-sdk/src/index.ts"]
-    }
-  }
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "types": ["bun", "node"]
+  },
+  "include": ["src/**/*.ts"]
 }

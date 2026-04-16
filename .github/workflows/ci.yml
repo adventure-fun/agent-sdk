@@ -1,52 +1,15 @@
-name: CI — Red/Green TDD
+name: CI
 
 on:
   push:
-    branches: ["main", "dev"]
+    branches: [main]
   pull_request:
-    branches: ["main"]
+    branches: [main]
 
 env:
   NODE_ENV: test
 
 jobs:
-  # ── Engine tests (pure, no I/O — must be green before anything else) ──────────
-  engine-tests:
-    name: Engine Tests (Red/Green)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Run engine tests
-        working-directory: shared/engine
-        run: bun test --reporter=dots
-
-  # ── TypeScript typecheck ───────────────────────────────────────────────────────
-  sdk-sync-check:
-    name: Agent SDK Sync Check
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Verify vendored SDK protocol is synced
-        run: bun run scripts/check-sdk-sync.ts
-
   typecheck:
     name: TypeScript Typecheck
     runs-on: ubuntu-latest
@@ -61,61 +24,11 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Typecheck shared/schemas
-        working-directory: shared/schemas
+      - name: Typecheck
         run: bun run typecheck
 
-      - name: Typecheck shared/engine
-        working-directory: shared/engine
-        run: bun run typecheck
-
-      - name: Typecheck agent-sdk
-        working-directory: agent-sdk
-        run: bun run typecheck
-
-  # ── Agent SDK tests ────────────────────────────────────────────────────────────
-  sdk-tests:
-    name: Agent SDK Tests
-    runs-on: ubuntu-latest
-    needs: engine-tests
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Run agent-sdk tests
-        working-directory: agent-sdk
-        run: bun test --reporter=dots
-
-  # ── Backend tests ──────────────────────────────────────────────────────────────
-  backend-tests:
-    name: Backend Tests
-    runs-on: ubuntu-latest
-    needs: engine-tests
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Run backend tests
-        working-directory: backend
-        run: bun test --reporter=dots
-
-  # ── Frontend typecheck ─────────────────────────────────────────────────────────
-  frontend-typecheck:
-    name: Frontend Typecheck
+  unit-tests:
+    name: Unit Tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -128,26 +41,38 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Typecheck frontend
-        working-directory: frontend
-        run: bun run typecheck
+      - name: Run unit tests
+        run: bun test tests/unit/
 
-  # ── Gate — all must pass to merge to main ──────────────────────────────────────
-  all-tests-pass:
-    name: All Tests Pass
+  build:
+    name: Build
     runs-on: ubuntu-latest
-    needs: [engine-tests, sdk-sync-check, typecheck, sdk-tests, backend-tests, frontend-typecheck]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build
+        run: bun run build
+
+  all-checks-pass:
+    name: All Checks Pass
+    runs-on: ubuntu-latest
+    needs: [typecheck, unit-tests, build]
     if: always()
     steps:
       - name: Check all jobs succeeded
         run: |
-          if [[ "${{ needs.engine-tests.result }}"       != "success" ]] || \
-             [[ "${{ needs.sdk-sync-check.result }}"      != "success" ]] || \
-             [[ "${{ needs.typecheck.result }}"           != "success" ]] || \
-             [[ "${{ needs.sdk-tests.result }}"           != "success" ]] || \
-             [[ "${{ needs.backend-tests.result }}"       != "success" ]] || \
-             [[ "${{ needs.frontend-typecheck.result }}"  != "success" ]]; then
-            echo "One or more jobs failed — PR cannot be merged"
+          if [[ "${{ needs.typecheck.result }}" != "success" ]] || \
+             [[ "${{ needs.unit-tests.result }}" != "success" ]] || \
+             [[ "${{ needs.build.result }}" != "success" ]]; then
+            echo "One or more jobs failed"
             exit 1
           fi
-          echo "All tests green ✓"
+          echo "All checks green"

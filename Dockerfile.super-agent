@@ -1,0 +1,21 @@
+FROM oven/bun:1
+WORKDIR /app
+
+# Install dependencies first for better layer caching.
+COPY package.json bun.lock* ./
+RUN bun install --production || bun install
+
+# Copy the SDK sources and the super-agent example.
+COPY tsconfig.json ./
+COPY src ./src
+COPY examples/super-agent ./examples/super-agent
+
+# WorldModel persistence directory. Mount a docker volume here in production.
+RUN mkdir -p /data
+ENV WORLD_DB_PATH=/data/agent.db
+ENV NODE_ENV=production
+
+# Supervisor loop is the container entrypoint. It wraps runOnce() with exponential backoff
+# so the container stays up across transient agent crashes; docker's outer restart policy
+# catches SIGKILL / OOM.
+CMD ["bun", "run", "examples/super-agent/supervisor.ts"]
