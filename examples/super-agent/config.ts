@@ -20,6 +20,7 @@ import {
   InteractableRouterModule,
   ItemMagnetModule,
   KeyHunterModule,
+  StuckEscapeModule,
 } from "./src/modules/index.js"
 import type { ClassProfileRegistry } from "./src/classes/profile.js"
 
@@ -154,6 +155,7 @@ export function createSuperConfig(
  *
  * Effective priority order (higher wins):
  *   100 PortalModule
+ *    98 StuckEscapeModule      (NEW) — force portal/retreat on active-play wander loop
  *    97 ExtractionRouterModule (NEW) — post-clear room-level BFS back to entrance
  *    95 HealingModule
  *    91 AbilityCombatModule    (NEW)
@@ -169,8 +171,20 @@ export function createSuperConfig(
  *    40 ExplorationModule
  */
 export function createSuperModules(profiles: ClassProfileRegistry): AgentModule[] {
+  const stuckEscapeOptions: {
+    activeStuckThreshold?: number
+    positionStuckThreshold?: number
+  } = {}
+  if (process.env.STUCK_ROOM_THRESHOLD) {
+    stuckEscapeOptions.activeStuckThreshold = Number(process.env.STUCK_ROOM_THRESHOLD)
+  }
+  if (process.env.STUCK_POSITION_THRESHOLD) {
+    stuckEscapeOptions.positionStuckThreshold = Number(process.env.STUCK_POSITION_THRESHOLD)
+  }
+
   return [
     new PortalModule(),
+    new StuckEscapeModule(stuckEscapeOptions),
     new ExtractionRouterModule(),
     new HealingModule(),
     new AbilityCombatModule(profiles),
