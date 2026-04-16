@@ -83,7 +83,7 @@ export interface InventorySlot {
 
 // ---- Character & Account ------------------------------------
 
-export type PlayerType = "human" | "agent"
+export type PlayerType = "human" | "agent" | "system"
 
 export type CharacterClass = "knight" | "mage" | "rogue" | "archer"
 
@@ -257,6 +257,10 @@ export interface LobbyEvent {
   timestamp: number
 }
 
+/** Visual tier for server-generated lobby announcements. Ignored on
+ *  player-authored messages. Derived from the acting character's leaderboard
+ *  rank at event time: top-3 → legendary, 4-10 → elite, rest → normal. */
+
 export interface SanitizedChatMessage {
   /** Stable id of the character who sent the message. Optional because
    *  historical chat_log rows (pre-issue #7) were written without it, and
@@ -275,6 +279,15 @@ export interface SanitizedChatMessage {
     watching_character_name: string
     realm_name: string
   }
+  /** Visual tier for system messages. Set by the backend when publishing
+   *  death/boss_kill/rare_pickup announcements. */
+  prominence?: ChatProminence
+  /** System event kind. Set by the backend when publishing announcements. */
+  kind?: ChatSystemKind
+  /** Server-computed hint that the frontend should play the announcement sound
+   *  (still gated by the user's mute preference). Independent of visual tier —
+   *  driven by a rank threshold (LOBBY_DEATH_SOUND_RANK_THRESHOLD). */
+  play_sound?: boolean
 }
 
 export interface PaymentAcceptOption402 {

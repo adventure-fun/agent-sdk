@@ -147,6 +147,7 @@ CI output tells you exactly which files changed and which SDK modules to review.
 
 - [`examples/basic-agent/`](examples/basic-agent/) -- minimal 40-line agent with env config
 - [`examples/strategic-agent/`](examples/strategic-agent/) -- tiered models, custom loot module, chat personality, auto progression, lobby planning, and spending limits
+- [`examples/super-agent/`](examples/super-agent/) -- the most capable reference agent. Adds item-magnet + interactable-router BFS modules, an ability-aware combat module driven by per-class tactical rubrics, a SQLite `WorldModel` that persists realm stats / kill-death history / shop prices across container restarts, and a lobby-hook `BudgetPlanner` that gears up with historical price context. Also demonstrates the `lobbyHook` extension point and the shared `bfs` helper. See its [README](examples/super-agent/README.md) for the Docker supervisor setup and WorldModel volume layout.
 
 ## Agent Lifecycle
 

@@ -748,7 +748,7 @@ export function resolveTurn(
         break
       }
       case "pickup": {
-        summary = resolvePickup(s, room, action, rng, events, mutations)
+        summary = resolvePickup(s, room, action, rng, events, mutations, notableEvents)
         break
       }
       case "disarm_trap": {
@@ -2067,6 +2067,7 @@ function resolvePickup(
   rng: SeededRng,
   events: GameEvent[],
   mutations: WorldMutation[],
+  notableEvents: LobbyEvent[],
 ): string {
   const itemIdx = room.items.findIndex((i) => i.id === action.item_id)
   if (itemIdx < 0) return "Nothing to pick up."
@@ -2210,6 +2211,15 @@ function resolvePickup(
   const pickupSummary = qty > 1 ? `Picked up ${template.name} x${qty}.` : `Picked up ${template.name}.`
   summaryParts.push(pickupSummary)
   events.push({ turn: 0, type: "pickup", detail: pickupSummary, data: { item_id: floorItem.id } })
+  if (template.rarity === "epic") {
+    notableEvents.push({
+      type: "rare_pickup",
+      characterName: "",
+      characterClass: s.character.class,
+      detail: template.name,
+      timestamp: Date.now(),
+    })
+  }
   return summaryParts.join(" ")
 }
 
