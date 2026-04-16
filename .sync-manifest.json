@@ -85,7 +85,7 @@
   "engineWatchlist": [
     {
       "file": "shared/engine/src/turn.ts",
-      "hash": "fab0df1acbec5ed8f06bf17f434064e6e947131b5a12116606e6580c0ea7b03e",
+      "hash": "b1d1edea71b63ad8b4505bac0c7ad0a01b29839a13e672baec8998ab56c03fe3",
       "affectedModules": [
         "combat",
         "exploration",
@@ -284,8 +284,8 @@
     {
       "source": "shared/engine/src/turn.ts",
       "vendored": "agent-sdk/dev/engine/turn.ts",
-      "sourceHash": "fab0df1acbec5ed8f06bf17f434064e6e947131b5a12116606e6580c0ea7b03e",
-      "vendoredHash": "5977f7977930655f36f1cbbcc307fc3b49d1f372c8e99fb38804ccaacde6164d",
+      "sourceHash": "b1d1edea71b63ad8b4505bac0c7ad0a01b29839a13e672baec8998ab56c03fe3",
+      "vendoredHash": "aaa8a727fdbccaed5e09680ff7de306a86f76a69a91578be81c9a6bdfb19ee81",
       "affectedModules": [
         "dev-stack"
       ]

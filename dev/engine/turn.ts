@@ -3579,7 +3579,16 @@ export function computeLegalActions(
       })
     }
 
-    if (targetType === "self") continue
+    // Self-only and heal/support abilities (single-or-self) never enumerate
+    // against enemies. `single-or-self` abilities (Healing Light, Purify,
+    // Restoration) are heal/support skills intended for the caster or an
+    // ally, NOT a way to damage an enemy. Surfacing them as legal
+    // enemy-target attacks misled the UI into listing healing spells in
+    // the attack popover and would likewise confuse any agent that
+    // reasoned about `legal_actions` as a menu of hostile options.
+    // Multiplayer ally-targeting, when it lands, should introduce a
+    // dedicated ally branch rather than re-enable this loop.
+    if (targetType === "self" || targetType === "single-or-self") continue
 
     for (const enemy of room.enemies) {
       if (enemy.hp <= 0) continue
