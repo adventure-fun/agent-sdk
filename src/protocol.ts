@@ -195,6 +195,11 @@ export interface Observation {
     current_floor: number
     /** Floor-1 entrance room id — legal `retreat` requires being here with no hostiles. */
     entrance_room_id: string
+    /**
+     * Geometric center of the floor-1 entrance room, in room-local coordinates.
+     * Clients use this as the EXIT waypoint / auto-walk goal when the realm is cleared.
+     */
+    entrance_tile: { x: number; y: number }
     status: "active" | "boss_floor" | "boss_cleared" | "realm_cleared"
   }
 }

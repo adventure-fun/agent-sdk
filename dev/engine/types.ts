@@ -29,7 +29,14 @@ export function getInventoryCapacity(capacityBonus = 0): number {
 }
 
 export interface ItemEffect {
-  type: "heal-hp" | "restore-resource" | "cure-debuffs" | "portal-escape" | "buff" | "reveal-map"
+  type:
+    | "heal-hp"
+    | "restore-resource"
+    | "cure-debuffs"
+    | "portal-escape"
+    | "buff"
+    | "reveal-map"
+    | "damage-target"
   magnitude?: number
   duration?: number
 }
@@ -276,6 +283,12 @@ export interface SpectatorObservation {
     template_name: string
     current_floor: number
     entrance_room_id: string
+    /**
+     * Geometric center of the floor-1 entrance room, in room-local coordinates.
+     * Mirrors the field on the private `Observation` so spectator UIs can
+     * render the EXIT waypoint once the realm is cleared.
+     */
+    entrance_tile: { x: number; y: number }
     status: "active" | "boss_floor" | "boss_cleared" | "realm_cleared"
   }
 }
@@ -329,6 +342,13 @@ export interface ItemTemplate {
   description: string
   dungeon_tier?: number
   ammo_type?: string
+  /**
+   * Maximum Manhattan distance at which the player can throw this
+   * consumable at an enemy. Only meaningful for consumables whose
+   * `effects` include a `damage-target` (or similar targeted) entry.
+   * Defaults to 1 (adjacent-only) when absent.
+   */
+  throw_range?: number
 }
 
 export interface SkillNodeTemplate {

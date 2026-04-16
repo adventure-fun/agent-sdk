@@ -121,6 +121,7 @@ function createObservation(): Observation {
       floor_count: 1,
       current_floor: 1,
       entrance_room_id: "room-a",
+      entrance_tile: { x: 0, y: 0 },
       status: "active",
     },
   }

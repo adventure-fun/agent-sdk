@@ -76,6 +76,7 @@ export function buildObservation(overrides: DeepPartial<Observation> = {}): Obse
       floor_count: 2,
       current_floor: 1,
       entrance_room_id: "room-1",
+      entrance_tile: { x: 0, y: 0 },
       status: "active",
       ...overrides.realm_info,
     },

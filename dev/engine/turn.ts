@@ -744,7 +744,9 @@ export function resolveTurn(
         break
       }
       case "use_item": {
-        summary = resolveUseItem(s, action, events, realm)
+        const r = resolveUseItem(s, room, action, realm, events, mutations)
+        summary = r.summary
+        if (r.notableEvent) notableEvents.push(r.notableEvent)
         break
       }
       case "pickup": {
@@ -1981,24 +1983,47 @@ function resolveBossPhase(
 
 function resolveUseItem(
   s: GameState,
+  room: RoomState,
   action: { type: "use_item"; item_id: string; target_id?: string },
-  events: GameEvent[],
   realm: GeneratedRealm,
-): string {
+  events: GameEvent[],
+  mutations: WorldMutation[],
+): { summary: string; notableEvent: LobbyEvent | null } {
   const itemIdx = s.inventory.findIndex((i) => i.id === action.item_id)
-  if (itemIdx < 0) return "Item not found in inventory."
+  if (itemIdx < 0) return { summary: "Item not found in inventory.", notableEvent: null }
 
   const item = s.inventory[itemIdx]!
   let template: ItemTemplate
   try {
     template = getItem(item.template_id)
   } catch {
-    return "Unknown item."
+    return { summary: "Unknown item.", notableEvent: null }
   }
 
-  if (template.type !== "consumable") return "That item cannot be used."
+  if (template.type !== "consumable") {
+    return { summary: "That item cannot be used.", notableEvent: null }
+  }
+
+  // Targeted consumables short-circuit with a pre-flight target check. We do
+  // NOT consume the item when the target is gone — that's the principle of
+  // least surprise for throwables: if the target died between click and
+  // resolution (e.g. a co-op ally killed it), the bomb stays in the pack.
+  const hasTargetedEffect = (template.effects ?? []).some((e) => e.type === "damage-target")
+  let targetEnemy: RoomState["enemies"][number] | undefined
+  if (hasTargetedEffect) {
+    if (!action.target_id) {
+      return { summary: "That item must be thrown at a target.", notableEvent: null }
+    }
+    targetEnemy = room.enemies.find((e) => e.id === action.target_id && e.hp > 0)
+    if (!targetEnemy) {
+      return { summary: "Target is gone.", notableEvent: null }
+    }
+  }
 
   const parts: string[] = []
+  let totalDamage = 0
+  let targetKilled = false
+  let notableEvent: LobbyEvent | null = null
 
   for (const effect of template.effects ?? []) {
     switch (effect.type) {
@@ -2045,10 +2070,38 @@ function resolveUseItem(
         )
         break
       }
+      case "damage-target": {
+        if (!targetEnemy) break
+        const damage = Math.max(1, effect.magnitude ?? 1)
+        targetEnemy.hp -= damage
+        totalDamage += damage
+        const enemyTemplate = getEnemySafe(targetEnemy.template_id)
+        const enemyName = enemyTemplate?.name ?? targetEnemy.template_id
+        parts.push(`${template.name} hits ${enemyName} for ${damage} damage.`)
+        if (targetEnemy.hp <= 0 && !targetKilled) {
+          targetKilled = true
+          if (enemyTemplate) {
+            const defeatResult = handleEnemyDefeat(
+              s,
+              room,
+              realm,
+              targetEnemy,
+              enemyTemplate,
+              mutations,
+              events,
+            )
+            if (defeatResult.notableEvent) {
+              notableEvent = defeatResult.notableEvent
+            }
+          }
+        }
+        break
+      }
     }
   }
 
-  // Consume the item
+  // Consume the item (only if we actually did something — the pre-flight
+  // checks above already return early for gone targets without consuming).
   if (item.quantity > 1) {
     item.quantity -= 1
   } else {
@@ -2056,8 +2109,17 @@ function resolveUseItem(
   }
 
   const summary = `Used ${template.name}. ${parts.join(" ")}`
-  events.push({ turn: 0, type: "use_item", detail: summary, data: { item_id: item.id, template_id: item.template_id } })
-  return summary
+  events.push({
+    turn: 0,
+    type: "use_item",
+    detail: summary,
+    data: {
+      item_id: item.id,
+      template_id: item.template_id,
+      ...(action.target_id ? { target_id: action.target_id, damage: totalDamage } : {}),
+    },
+  })
+  return { summary, notableEvent }
 }
 
 function resolvePickup(
@@ -3398,8 +3460,27 @@ export function buildObservationFromState(
       floor_count: state.realm.total_floors,
       current_floor: state.position.floor,
       entrance_room_id: realm.floors[0]?.entrance_room_id ?? "",
+      entrance_tile: computeEntranceTile(realm),
       status: state.realmStatus,
     },
+  }
+}
+
+/**
+ * Geometric center of the floor-1 entrance room in room-local coordinates.
+ * Falls back to `{ x: 0, y: 0 }` defensively when the realm has no floors or
+ * the declared entrance room is missing — downstream UI treats the fallback
+ * as "no waypoint available" (realm_cleared gating protects the happy path).
+ */
+function computeEntranceTile(realm: GeneratedRealm): { x: number; y: number } {
+  const firstFloor = realm.floors[0]
+  if (!firstFloor) return { x: 0, y: 0 }
+  const entranceRoomId = firstFloor.entrance_room_id
+  const entranceRoom = firstFloor.rooms.find((room) => room.id === entranceRoomId)
+  if (!entranceRoom) return { x: 0, y: 0 }
+  return {
+    x: Math.floor(entranceRoom.width / 2),
+    y: Math.floor(entranceRoom.height / 2),
   }
 }
 
@@ -3568,24 +3649,50 @@ export function computeLegalActions(
   }
 
   // Use items from inventory (skip ammo — consumed automatically by abilities)
-  // Deduplicate by template_id so multiple stacks of the same item don't show separate buttons
-  // Skip items where all effects would do nothing
+  // Deduplicate by template_id so multiple stacks of the same item don't show separate buttons.
+  // Skip items where all effects would do nothing. For consumables whose effects require a
+  // target (currently `damage-target`), emit one action per legal enemy target instead of a
+  // single untargeted entry; Group 5.2 relies on this to decide whether to open a target
+  // picker in the UI.
   const seenUseTemplates = new Set<string>()
   for (const item of state.inventory) {
     if (seenUseTemplates.has(item.template_id)) continue
     try {
       const template = getItem(item.template_id)
-      if (template.type === "consumable" && template.effects && template.effects.length > 0) {
-        const allUseless = template.effects.every((e) => {
-          if (e.type === "heal-hp") return state.character.hp.current >= state.character.hp.max
-          if (e.type === "restore-resource") return state.character.resource.current >= state.character.resource.max
-          if (e.type === "cure-debuffs") return state.character.debuffs.length === 0
-          return false
-        })
-        if (allUseless) continue
-        seenUseTemplates.add(item.template_id)
-        actions.push({ type: "use_item", item_id: item.id })
+      if (template.type !== "consumable" || !template.effects || template.effects.length === 0) {
+        continue
       }
+
+      const hasTargetedEffect = template.effects.some((e) => e.type === "damage-target")
+
+      if (hasTargetedEffect) {
+        // Targeted consumables (e.g. fire bombs) need at least one enemy within throw range
+        // and line of sight. Emit one `use_item` per valid enemy so the UI can present a
+        // single action per target. Mark the template as "seen" whether or not we emit
+        // actions so a later stack of the same item doesn't double-enumerate enemies.
+        seenUseTemplates.add(item.template_id)
+        const throwRange = Math.max(1, template.throw_range ?? 1)
+        for (const enemy of room.enemies) {
+          if (enemy.hp <= 0) continue
+          const dist = getAbilityRangeDistance(state.position.tile, enemy.position)
+          if (dist > throwRange) continue
+          if (!hasLineOfSight(roomToVisibilityRoom(room), state.position.tile, enemy.position)) {
+            continue
+          }
+          actions.push({ type: "use_item", item_id: item.id, target_id: enemy.id })
+        }
+        continue
+      }
+
+      const allUseless = template.effects.every((e) => {
+        if (e.type === "heal-hp") return state.character.hp.current >= state.character.hp.max
+        if (e.type === "restore-resource") return state.character.resource.current >= state.character.resource.max
+        if (e.type === "cure-debuffs") return state.character.debuffs.length === 0
+        return false
+      })
+      if (allUseless) continue
+      seenUseTemplates.add(item.template_id)
+      actions.push({ type: "use_item", item_id: item.id })
     } catch {
       // skip
     }
