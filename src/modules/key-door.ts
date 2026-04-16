@@ -1,21 +1,13 @@
-import type { Action, Direction, Observation } from "../protocol.js"
+import type { Action, Observation } from "../protocol.js"
 import type {
   AgentContext,
   AgentModule,
   EncounteredDoor,
   ModuleRecommendation,
 } from "./index.js"
+import { bfsStep } from "./bfs.js"
 
-const PASSABLE_TILE_TYPES = new Set(["floor", "door", "stairs", "stairs_up", "entrance"])
 const COMPLETED_STATUSES = new Set(["boss_cleared", "realm_cleared"])
-const DIRECTIONS: Direction[] = ["up", "down", "left", "right"]
-
-const DIRECTION_DELTA: Record<Direction, { dx: number; dy: number }> = {
-  up: { dx: 0, dy: -1 },
-  down: { dx: 0, dy: 1 },
-  left: { dx: -1, dy: 0 },
-  right: { dx: 1, dy: 0 },
-}
 
 /**
  * Routes the agent back to a locked door when the matching key is in inventory.
@@ -129,85 +121,6 @@ export class KeyDoorModule implements AgentModule {
 
 function idle(reason: string): ModuleRecommendation {
   return { reasoning: reason, confidence: 0 }
-}
-
-function bfsStep(
-  observation: Observation,
-  context: AgentContext,
-  target: { x: number; y: number },
-): Extract<Action, { type: "move" }> | null {
-  const currentFloor = observation.position.floor
-  const start = observation.position.tile
-
-  const legalMoveDirections = new Set(
-    observation.legal_actions
-      .filter((action): action is Extract<Action, { type: "move" }> => action.type === "move")
-      .map((action) => action.direction),
-  )
-  if (legalMoveDirections.size === 0) return null
-
-  // Build a passability map from SDK-side knownTiles (real tile types) plus the current visible
-  // tiles. The SDK memory only holds the current floor's scanned tiles keyed by `${floor}:${x},${y}`.
-  const passable = new Map<string, boolean>()
-  for (const [key, tile] of context.mapMemory.knownTiles.entries()) {
-    if (!key.startsWith(`${currentFloor}:`)) continue
-    passable.set(`${tile.x},${tile.y}`, PASSABLE_TILE_TYPES.has(tile.type))
-  }
-  for (const tile of observation.visible_tiles) {
-    passable.set(`${tile.x},${tile.y}`, PASSABLE_TILE_TYPES.has(tile.type))
-  }
-
-  // The start tile itself may not be tagged (the agent stands on floor, but passable is derived
-  // from tile type). Force it passable so BFS can begin.
-  passable.set(`${start.x},${start.y}`, true)
-
-  const visited = new Set<string>()
-  visited.add(`${start.x},${start.y}`)
-
-  interface Node {
-    x: number
-    y: number
-    firstStep?: Direction
-    distance: number
-  }
-  const queue: Node[] = [{ x: start.x, y: start.y, distance: 0 }]
-  let head = 0
-
-  const MAX_NODES = 500 // cap cost per turn
-  let processed = 0
-
-  while (head < queue.length && processed < MAX_NODES) {
-    const current = queue[head]!
-    head += 1
-    processed += 1
-
-    if (current.x === target.x && current.y === target.y && current.firstStep) {
-      if (legalMoveDirections.has(current.firstStep)) {
-        return { type: "move", direction: current.firstStep }
-      }
-      return null
-    }
-
-    for (const direction of DIRECTIONS) {
-      const { dx, dy } = DIRECTION_DELTA[direction]
-      const nx = current.x + dx
-      const ny = current.y + dy
-      const key = `${nx},${ny}`
-      if (visited.has(key)) continue
-      // Allow stepping onto the exact target tile even if we haven't scanned it yet — that's
-      // how we reach the door position itself.
-      const isTargetTile = nx === target.x && ny === target.y
-      if (!isTargetTile && passable.get(key) !== true) continue
-      visited.add(key)
-      queue.push({
-        x: nx,
-        y: ny,
-        firstStep: current.firstStep ?? direction,
-        distance: current.distance + 1,
-      })
-    }
-  }
-  return null
 }
 
 // Re-export for tests that want to exercise BFS in isolation.

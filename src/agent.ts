@@ -80,7 +80,7 @@ type ExtractionPayload = {
 type DeathPayload = { cause: string; floor: number; room: string; turn: number }
 type RunOutcome = "death" | "extracted" | "stopped"
 
-type AgentClient = Pick<
+export type AgentClient = Pick<
   GameClient,
   | "connect"
   | "connectLobby"
@@ -105,7 +105,7 @@ type AgentClient = Pick<
   | "off"
 >
 
-type CharacterRecord = {
+export type LobbyCharacterRecord = {
   id: string
   class: CharacterClass
   name: string
@@ -119,6 +119,8 @@ type CharacterRecord = {
   stat_rerolled?: boolean
   stats?: CharacterStats
 }
+
+type CharacterRecord = LobbyCharacterRecord
 
 type RealmRecord = {
   id: string
@@ -140,13 +142,31 @@ type CharacterProgressionResponse = {
   perks_template?: Array<{ id: string; max_stacks: number }>
 }
 
-type LobbyState = {
+export type LobbyState = {
   character: CharacterRecord
   inventoryGold: number
   inventory: InventoryItem[]
   shops: ShopCatalogResponse
   itemTemplates: ItemTemplateSummary[]
 }
+
+/**
+ * Optional lobby-phase extension hook. Called from `runHeuristicLobbyPhase` after inventory
+ * cleanup and BEFORE the built-in equip/buy-potion/buy-portal passes, so custom shopping logic
+ * can act on fresh lobby state without overriding the defaults. Implementations may call
+ * `client.buyShopItem`, `client.sellShopItem`, `client.equipLobbyItem`, etc. The built-in
+ * passes run again against refreshed state after the hook returns, so partial progress is safe.
+ *
+ * Errors thrown from the hook are surfaced via the `error` event and swallowed — they do not
+ * abort the realm loop. Return `true` to indicate the hook fully handled shopping and the
+ * default equip/buy passes should be skipped.
+ */
+export type LobbyHook = (ctx: {
+  state: LobbyState
+  client: AgentClient
+  config: AgentConfig
+}) => Promise<void | boolean>
+
 
 class AgentStoppedError extends Error {
   constructor() {
@@ -179,6 +199,12 @@ export interface BaseAgentOptions {
     registry: ModuleRegistry,
     decision: DecisionConfig,
   ) => AgentPlanner
+  /**
+   * Optional lobby-phase extension. Called from `runHeuristicLobbyPhase` after inventory cleanup
+   * and before the built-in equip/buy-potion/buy-portal passes. Return `true` to signal the hook
+   * fully handled shopping and the default passes should be skipped.
+   */
+  lobbyHook?: LobbyHook
 }
 
 export interface AgentEvents {
@@ -205,6 +231,7 @@ export class BaseAgent {
   private readonly nameProvider: CharacterNameProvider | null
   private readonly authenticateFn: (baseUrl: string, wallet: WalletAdapter) => Promise<SessionToken>
   private readonly clientFactory: BaseAgentOptions["clientFactory"]
+  private readonly lobbyHook: LobbyHook | null
   private readonly history: HistoryEntry[] = []
   private lastObservation: Observation | null = null
   private chatManager: ChatManager | null = null
@@ -237,6 +264,7 @@ export class BaseAgent {
     this.nameProvider = options.characterNameProvider ?? null
     this.authenticateFn = options.authenticateFn ?? authenticate
     this.clientFactory = options.clientFactory
+    this.lobbyHook = options.lobbyHook ?? null
     this.context = createAgentContext(config)
 
     const modules = options.modules ?? DEFAULT_MODULES
@@ -1411,7 +1439,27 @@ export class BaseAgent {
       state = await this.runInventoryCleanupPhase(client, state)
     }
 
-    if (lobbyConfig.autoEquipUpgrades !== false) {
+    let hookFullyHandled = false
+    if (this.lobbyHook) {
+      try {
+        const hookResult = await this.lobbyHook({
+          state,
+          client,
+          config: this.config,
+        })
+        hookFullyHandled = hookResult === true
+        const refreshedState = await this.loadLobbyState(client)
+        if (!refreshedState) {
+          return
+        }
+        state = refreshedState
+      } catch (error) {
+        const normalizedError = error instanceof Error ? error : new Error(String(error))
+        this.emit("error", normalizedError)
+      }
+    }
+
+    if (!hookFullyHandled && lobbyConfig.autoEquipUpgrades !== false) {
       for (let attempt = 0; attempt < 5; attempt += 1) {
         const upgrade = findBestLobbyUpgrade(state.inventory)
         if (!upgrade) {
@@ -1430,7 +1478,7 @@ export class BaseAgent {
     const healingItems = getHealingShopItems(state.shops)
     const preferredHealingItem = healingItems[0]
     const desiredPotions = lobbyConfig.buyPotionMinimum ?? 2
-    if (preferredHealingItem && desiredPotions > 0) {
+    if (!hookFullyHandled && preferredHealingItem && desiredPotions > 0) {
       const ownedHealing = countInventoryTemplates(
         state.inventory,
         new Set(healingItems.map((item) => item.id)),
@@ -1452,7 +1500,7 @@ export class BaseAgent {
       }
     }
 
-    if (lobbyConfig.buyPortalScroll !== false) {
+    if (!hookFullyHandled && lobbyConfig.buyPortalScroll !== false) {
       const portalItem = getPortalShopItem(state.shops)
       if (portalItem) {
         const ownedPortals = countInventoryTemplates(state.inventory, new Set([portalItem.id]))
