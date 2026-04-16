@@ -5,7 +5,7 @@
     {
       "canonical": "shared/schemas/src/index.ts",
       "vendored": "agent-sdk/src/protocol.ts",
-      "canonicalHash": "487c4a29d9849cccaf0bb542ed7284c0c50b7315d641acd2019fd32363fe8618",
+      "canonicalHash": "0b0676d12cb5e0a4ec3a82d549f68e6a5743eb06d8e0ba2fef86183dec0b8611",
       "generatedHash": "71d8a1a3fa30e94cd48fb38bc5a6ef3213df8a2938fc7aeddc05c9e7099b6366",
       "types": [
         "Stats",
@@ -81,7 +81,7 @@
   "engineWatchlist": [
     {
       "file": "shared/engine/src/turn.ts",
-      "hash": "2b37013f43b661f4c2e7fb97704d1b518dc7c58b30faffeafb0697d60f6c7095",
+      "hash": "d0cc1b61c6e07a61148ff561f088e38de97e18ce43440aa3e102104b044533b1",
       "affectedModules": [
         "combat",
         "exploration",
@@ -235,8 +235,8 @@
     {
       "source": "shared/schemas/src/index.ts",
       "vendored": "agent-sdk/dev/engine/types.ts",
-      "sourceHash": "487c4a29d9849cccaf0bb542ed7284c0c50b7315d641acd2019fd32363fe8618",
-      "vendoredHash": "93a8986384bdcf3d29f2594e56dc6246159e6a10d2926d120b442a52ab760663",
+      "sourceHash": "0b0676d12cb5e0a4ec3a82d549f68e6a5743eb06d8e0ba2fef86183dec0b8611",
+      "vendoredHash": "024669d304729eecbe543e9d7fa698433f11c4252ff8e87f8e8fc788b07adfe1",
       "affectedModules": [
         "dev-stack"
       ]
@@ -280,8 +280,8 @@
     {
       "source": "shared/engine/src/turn.ts",
       "vendored": "agent-sdk/dev/engine/turn.ts",
-      "sourceHash": "2b37013f43b661f4c2e7fb97704d1b518dc7c58b30faffeafb0697d60f6c7095",
-      "vendoredHash": "37bc35b1b34c97ce986895ceb38d0ebb2b2b83c6bf6214ad5da4e369a63726e5",
+      "sourceHash": "d0cc1b61c6e07a61148ff561f088e38de97e18ce43440aa3e102104b044533b1",
+      "vendoredHash": "108052a9a00e1afe1a5afbd072e6c47aa72044882a939b6d091d9c9362f49a7a",
       "affectedModules": [
         "dev-stack"
       ]

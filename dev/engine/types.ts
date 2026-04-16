@@ -259,6 +259,7 @@ export interface SpectatorObservation {
     level: number
     hp_percent: number
     resource_percent: number
+    debuffs: ActiveEffect[]
   }
   position: {
     floor: number
