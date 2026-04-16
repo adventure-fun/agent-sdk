@@ -1,3 +1,4 @@
+import { setTimeout as sleep } from "node:timers/promises"
 import type {
   ActionPlan,
   ChatPrompt,
@@ -11,6 +12,62 @@ import type {
 } from "../../../../src/index.js"
 import type { ClassProfileRegistry } from "../classes/profile.js"
 import type { WorldModel } from "../world-model/world-model.js"
+
+const RATE_LIMIT_MAX_RETRIES = 3
+const RATE_LIMIT_BASE_DELAY_MS = 5_000
+const RATE_LIMIT_MAX_DELAY_MS = 120_000
+
+/**
+ * Parses a "Retry after Ns" suffix from an error message (OpenRouter adapter format) and
+ * returns the delay in milliseconds, or null when absent.
+ */
+function parseRetryAfterFromError(err: Error): number | null {
+  const match = err.message.match(/retry after (\d+)\s*s/i)
+  if (!match || !match[1]) return null
+  const seconds = Number.parseInt(match[1], 10)
+  if (!Number.isFinite(seconds) || seconds < 0) return null
+  return seconds * 1000
+}
+
+function isRateLimitError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false
+  const msg = err.message.toLowerCase()
+  return msg.includes("rate limit") || msg.includes("429")
+}
+
+/**
+ * Wraps an async LLM call with rate-limit-aware retry. Non-rate-limit errors propagate
+ * immediately so the supervisor / BaseAgent can abort a stuck run. Rate-limit errors sleep
+ * for the Retry-After value (or exponential backoff) and retry up to RATE_LIMIT_MAX_RETRIES
+ * times before giving up.
+ */
+async function withRateLimitBackoff<T>(label: string, fn: () => Promise<T>): Promise<T> {
+  let lastError: Error | null = null
+  for (let attempt = 0; attempt <= RATE_LIMIT_MAX_RETRIES; attempt += 1) {
+    try {
+      return await fn()
+    } catch (err) {
+      if (!isRateLimitError(err)) {
+        throw err
+      }
+      lastError = err as Error
+      if (attempt >= RATE_LIMIT_MAX_RETRIES) break
+      const retryAfter = parseRetryAfterFromError(lastError)
+      const fallbackDelay = Math.min(
+        RATE_LIMIT_BASE_DELAY_MS * 2 ** attempt,
+        RATE_LIMIT_MAX_DELAY_MS,
+      )
+      const delay = Math.min(retryAfter ?? fallbackDelay, RATE_LIMIT_MAX_DELAY_MS)
+      console.warn(
+        `[llm-wrapper] ${label}: rate limited (attempt ${attempt + 1}/${RATE_LIMIT_MAX_RETRIES + 1}); sleeping ${Math.round(
+          delay / 1000,
+        )}s before retry`,
+      )
+      await sleep(delay)
+    }
+  }
+  throw lastError ?? new Error("rate-limit retry exhausted")
+}
 
 /**
  * Wraps any `LLMAdapter` and appends three pieces of context to the system prompt on every
@@ -35,38 +92,46 @@ export class AbilityAwareLLMAdapter implements LLMAdapter {
   }
 
   async decide(prompt: DecisionPrompt): Promise<DecisionResult> {
-    return this.inner.decide({
-      ...prompt,
-      systemPrompt: this.augmentSystemPrompt(
-        prompt.systemPrompt,
-        prompt.observation,
-        prompt.memorySnapshot,
-      ),
-    })
+    const inner = this.inner
+    return withRateLimitBackoff(`${this.name}.decide`, () =>
+      inner.decide({
+        ...prompt,
+        systemPrompt: this.augmentSystemPrompt(
+          prompt.systemPrompt,
+          prompt.observation,
+          prompt.memorySnapshot,
+        ),
+      }),
+    )
   }
 
   async plan(prompt: PlanningPrompt): Promise<ActionPlan> {
     if (!this.inner.plan) {
       throw new Error(`Wrapped adapter ${this.inner.name} does not implement plan()`)
     }
-    return this.inner.plan({
-      ...prompt,
-      systemPrompt: this.augmentSystemPrompt(
-        prompt.systemPrompt,
-        prompt.observation,
-        prompt.memorySnapshot,
-      ),
-    })
+    const inner = this.inner
+    return withRateLimitBackoff(`${this.name}.plan`, () =>
+      inner.plan!({
+        ...prompt,
+        systemPrompt: this.augmentSystemPrompt(
+          prompt.systemPrompt,
+          prompt.observation,
+          prompt.memorySnapshot,
+        ),
+      }),
+    )
   }
 
   async chat(prompt: ChatPrompt): Promise<string> {
     if (!this.inner.chat) return ""
-    return this.inner.chat(prompt)
+    const inner = this.inner
+    return withRateLimitBackoff(`${this.name}.chat`, () => inner.chat!(prompt))
   }
 
   async generateText(prompt: GenerateTextPrompt): Promise<string> {
     if (!this.inner.generateText) return ""
-    return this.inner.generateText(prompt)
+    const inner = this.inner
+    return withRateLimitBackoff(`${this.name}.generateText`, () => inner.generateText!(prompt))
   }
 
   private augmentSystemPrompt(

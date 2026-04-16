@@ -341,6 +341,69 @@ describe("AbilityAwareLLMAdapter", () => {
     expect(injected).toContain("template_id=crypt-key")
   })
 
+  it("retries LLM decide() on rate-limit errors with short sleep between attempts", async () => {
+    const world = WorldModel.open(":memory:")
+
+    class FlakyAdapter implements LLMAdapter {
+      name = "flaky"
+      decideAttempts = 0
+      async decide(_prompt: DecisionPrompt): Promise<DecisionResult> {
+        this.decideAttempts += 1
+        if (this.decideAttempts < 2) {
+          throw new Error("OpenRouter rate limit exceeded. Retry after 0s.")
+        }
+        return { action: { type: "wait" }, reasoning: "ok" }
+      }
+      async plan(_prompt: PlanningPrompt): Promise<ActionPlan> {
+        return { strategy: "noop", actions: [] }
+      }
+    }
+
+    const inner = new FlakyAdapter()
+    const wrapper = new AbilityAwareLLMAdapter(inner, profiles, world)
+
+    const observation = buildObservation({ character: { class: "rogue", abilities: [] } })
+    const result = await wrapper.decide({
+      observation,
+      moduleRecommendations: [],
+      legalActions: [],
+      recentHistory: [],
+      systemPrompt: "",
+    })
+    expect(result.action).toEqual({ type: "wait" })
+    expect(inner.decideAttempts).toBe(2)
+    world.close()
+  })
+
+  it("propagates non-rate-limit errors immediately without retry", async () => {
+    const world = WorldModel.open(":memory:")
+
+    class ErrorAdapter implements LLMAdapter {
+      name = "error"
+      decideAttempts = 0
+      async decide(_prompt: DecisionPrompt): Promise<DecisionResult> {
+        this.decideAttempts += 1
+        throw new Error("some other error")
+      }
+    }
+
+    const inner = new ErrorAdapter()
+    const wrapper = new AbilityAwareLLMAdapter(inner, profiles, world)
+
+    const observation = buildObservation({ character: { class: "rogue", abilities: [] } })
+    await expect(
+      wrapper.decide({
+        observation,
+        moduleRecommendations: [],
+        legalActions: [],
+        recentHistory: [],
+        systemPrompt: "",
+      }),
+    ).rejects.toThrow("some other error")
+    expect(inner.decideAttempts).toBe(1)
+    world.close()
+  })
+
   it("does not inject UNPLACED KEY hint when the realm is already cleared", async () => {
     const world = WorldModel.open(":memory:")
     const inner = new RecordingAdapter()
