@@ -255,6 +255,30 @@ export interface SpectatorEntity {
  *
  *   - `"blocked"`: generic "path/action blocked" — existing, unchanged. `data.direction` for
  *      blocked movement, `data.action` for other blocked action types.
+ *
+ *   - `"attack_hit"`: player-originated hit (including riposte counter-attacks). `data` fields:
+ *       - `target: string` — enemy id, or `"self"` for self-target abilities
+ *       - `ability_id: string`
+ *       - `damage: number`
+ *       - `critical: boolean` — true when the attack rolled a critical hit
+ *       - `defender_hp?: number` — remaining HP on the target after the hit
+ *       - `source?: "riposte"` — set on knight-riposte counter-attacks
+ *
+ *   - `"attack_miss"`: player-originated whiff. `data` fields:
+ *       - `target: string` — enemy id
+ *       - `ability_id: string`
+ *
+ *   - `"enemy_attack"`: enemy-originated hit on the player. `data` fields:
+ *       - `enemy_id: string`
+ *       - `ability_id: string`
+ *       - `damage: number`
+ *       - `critical: boolean` — true when the attack rolled a critical hit
+ *       - `player_hp: number` — remaining HP on the player after the hit
+ *
+ *   - `"enemy_miss"`: enemy-originated whiff on the player. `data` fields:
+ *       - `enemy_id: string`
+ *       - `ability_id?: string` — absent when the miss was caused by stealth
+ *       - `reason?: string` — e.g. `"stealth"` when the player is hidden
  */
 
 export interface SpectatorObservation {
