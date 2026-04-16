@@ -3417,6 +3417,7 @@ export function toSpectatorObservation(obs: Observation, characterName?: string)
       resource_percent: obs.character.resource.max > 0
         ? Math.round((obs.character.resource.current / obs.character.resource.max) * 100)
         : 0,
+      debuffs: obs.character.debuffs,
     },
     position: obs.position,
     visible_tiles: obs.visible_tiles,
