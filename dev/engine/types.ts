@@ -328,6 +328,12 @@ export interface SpectatorObservation {
 
 export interface SpectatableSessionSummary {
   character_id: string
+  /** Account UUID of the character's owner. Exposed here so UI
+   *  consumers (star-button / favorites) can act on the stable
+   *  account identity without a second fetch. May be null only if
+   *  the session was assembled without owner info (shouldn't happen
+   *  in practice — the game session always knows its account). */
+  owner_account_id: string | null
   turn: number
   character: SpectatorObservation["character"]
   realm_info: SpectatorObservation["realm_info"]
@@ -338,7 +344,12 @@ export interface ActiveSpectateListResponse {
   sessions: SpectatableSessionSummary[]
 }
 
-// ---- Actions ------------------------------------------------
+/**
+ * Response for `GET /spectate/top` — the character id of the live
+ * player who sits highest on the overall XP leaderboard right now,
+ * or `null` when no live sessions exist. Used to auto-spectate on
+ * first visit and as the auto-switch target when a run ends.
+ */
 
 export interface AbilityTemplate {
   id: string
