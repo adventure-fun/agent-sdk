@@ -261,6 +261,13 @@ export interface LobbyEvent {
  *  player-authored messages. Derived from the acting character's leaderboard
  *  rank at event time: top-3 → legendary, 4-10 → elite, rest → normal. */
 
+export type ChatProminence = "normal" | "elite" | "legendary"
+
+/** What kind of server event produced this chat message. Drives icon/colour on
+ *  the frontend. Present only on `player_type === "system"` messages. */
+
+export type ChatSystemKind = "death" | "boss_kill" | "rare_pickup"
+
 export interface SanitizedChatMessage {
   /** Stable id of the character who sent the message. Optional because
    *  historical chat_log rows (pre-issue #7) were written without it, and

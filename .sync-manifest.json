@@ -6,7 +6,7 @@
       "canonical": "shared/schemas/src/index.ts",
       "vendored": "agent-sdk/src/protocol.ts",
       "canonicalHash": "dfe281ef02e9a0bffc9c2ab7b9d636ed91689d50299753235e6fa59d7a26f99c",
-      "generatedHash": "1c598e9c83b4ed9ea06f8e638ad74c8458a913e1bff0f7433109968abeb2ec80",
+      "generatedHash": "5f756c3def576f2a560b2499f8b9b51bbd7e3071dfb170136da5e55c92db3774",
       "types": [
         "Stats",
         "CharacterStats",
@@ -37,6 +37,8 @@
         "PerkTemplate",
         "EnemyBehavior",
         "LobbyEvent",
+        "ChatProminence",
+        "ChatSystemKind",
         "SanitizedChatMessage",
         "PaymentAcceptOption402",
         "PaymentRequired402"
@@ -71,6 +73,8 @@
         "PerkTemplate": "96bdf4d774a6a59630b715987186b802e9a08544299ee8e451b19002cfef6ccc",
         "EnemyBehavior": "cdb36c18e411f89c8638985f78893c057fab26de822acbe9d54dc8d847db2f09",
         "LobbyEvent": "ffc970d8cad54c4dacfda1a4a0d0131a52d784b1c2e46c2647d601cbeaba5bb6",
+        "ChatProminence": "0e6fa4315ca4a4052f176b18c1aa4a9ecbf6cb72a4d77664ae876bd78fa4755d",
+        "ChatSystemKind": "0fc6e4153de1ad061ceb16293cfb558c72759f5f26927b9ea69d6320a3fcdf0c",
         "SanitizedChatMessage": "d6131130f94ea956c1d0761183f2e7d2c399868fe26eb6728ca7338322b0dd7c",
         "PaymentAcceptOption402": "86a1a8d8da52cf034e8913a64594a113c05ef71ba472ecaee0528b9fb3ab732b",
         "PaymentRequired402": "34adaea55f3c77154aa9b1a1a57761a2b7e68a0d547347907446f102fc4d9a71"
