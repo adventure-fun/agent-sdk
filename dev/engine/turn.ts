@@ -2202,6 +2202,17 @@ function resolvePickup(
         applied: effectApplied,
       },
     })
+
+    // If the trap killed the player, short-circuit the pickup so we don't
+    // append a misleading `pickup` event after the `trap_triggered` event.
+    // resolveTurn attributes the death to `events.at(-1)?.detail`, so leaving
+    // the trap event as the last one makes the announcement read "A hidden
+    // trap springs for X damage…" instead of "Picked up <item>."
+    // Semantically the player died *from* the trap before completing the
+    // pickup — the floor item stays on the tile and inventory is untouched.
+    if (s.character.hp.current <= 0) {
+      return summaryParts.join(" ")
+    }
   }
 
   // Gold coins go straight to gold total, not inventory
@@ -3321,28 +3332,17 @@ export function buildObservationFromState(
       }
     }
 
-    // Interactables from room template
+    // Interactables from room template.
+    //
+    // Bug 4c: we used to emit a lingering `trap_visible` entity named
+    // "Triggered Trap" here for every tripped loot-slot trap, visible to
+    // every class regardless of `canSenseTraps`. Once the trap fires the
+    // item is gone, there's nothing to disarm, and clicking the marker
+    // only surfaced a confusing "Only a Rogue in range can disarm" toast.
+    // The mutation is still recorded on the server for analytics/history;
+    // the client-facing ghost is simply removed.
     const obsRoomTemplate = findRoomTemplate(room.id)
     if (obsRoomTemplate) {
-      for (let i = 0; i < obsRoomTemplate.loot_slots.length; i++) {
-        const lootSlot = obsRoomTemplate.loot_slots[i]
-        if (!lootSlot?.trapped) continue
-
-        const itemId = `${room.id}_loot_${String(i).padStart(2, "0")}`
-        const trapMarkerId = getTrapMarkerId(itemId)
-        if (!state.mutatedEntities.includes(trapMarkerId)) continue
-        if (!lootSlot.position || typeof lootSlot.position !== "object") continue
-        if (!visibleSet.has(tileKey(lootSlot.position))) continue
-        if (visibleEntities.some((entity) => entity.id === trapMarkerId)) continue
-
-        visibleEntities.push({
-          id: trapMarkerId,
-          type: "trap_visible",
-          name: "Triggered Trap",
-          position: { x: lootSlot.position.x, y: lootSlot.position.y },
-        })
-      }
-
       for (const inter of obsRoomTemplate.interactables) {
         if (state.mutatedEntities.includes(inter.id)) continue
         // Locked-exit interactables (gates/doors) go at the right wall; others at room center

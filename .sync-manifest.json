@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "lastSync": "2026-04-16",
+  "lastSync": "2026-04-17",
   "sources": [
     {
       "canonical": "shared/schemas/src/index.ts",
@@ -85,7 +85,7 @@
   "engineWatchlist": [
     {
       "file": "shared/engine/src/turn.ts",
-      "hash": "402489ed971af07123b2a27bd4e8949c77bb5f1872c19646cd10610ac4f1024b",
+      "hash": "868d5d6cc83f2333a3188dbcbfeb02de84157cf842fe3b2cabdef814ed111709",
       "affectedModules": [
         "combat",
         "exploration",
@@ -284,8 +284,8 @@
     {
       "source": "shared/engine/src/turn.ts",
       "vendored": "agent-sdk/dev/engine/turn.ts",
-      "sourceHash": "402489ed971af07123b2a27bd4e8949c77bb5f1872c19646cd10610ac4f1024b",
-      "vendoredHash": "157650ded71a8bc93ddf15f5c920ea741f5d7305258a8f10822b5c06787e0700",
+      "sourceHash": "868d5d6cc83f2333a3188dbcbfeb02de84157cf842fe3b2cabdef814ed111709",
+      "vendoredHash": "26e5a5e60964f344636214d6851f66e711d963722cf9989d853d409c2384aa35",
       "affectedModules": [
         "dev-stack"
       ]
