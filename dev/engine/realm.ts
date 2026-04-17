@@ -205,11 +205,25 @@ function generateFloor(
   // key source is upstream. This is the procedural path's solvability guard.
   const availableKeys = new Set<string>()
 
-  const recordRoomGrants = (room: GeneratedRoom) => {
-    const rt = findRoomTemplateForGeneratedRoom(room.id)
-    if (!rt) return
-    for (const item of collectGrantedItemTemplateIds(rt)) {
-      availableKeys.add(item)
+  // Re-scan every already-placed room's grants until the available-keys set
+  // stabilizes. This lets a conditional grant (e.g. workshop lockbox, which
+  // requires shaft-access-key to hand out shaft-master-key) activate once its
+  // dependency gets placed — even if the granting room itself was placed
+  // earlier than the dependency.
+  const recordRoomGrants = (_room: GeneratedRoom) => {
+    let changed = true
+    while (changed) {
+      changed = false
+      for (const placedRoom of rooms) {
+        const rt = findRoomTemplateForGeneratedRoom(placedRoom.id)
+        if (!rt) continue
+        for (const item of collectGrantedItemTemplateIds(rt, availableKeys)) {
+          if (!availableKeys.has(item)) {
+            availableKeys.add(item)
+            changed = true
+          }
+        }
+      }
     }
   }
 
@@ -266,9 +280,21 @@ function generateFloor(
 // via `grant-item` effects. Used by the procedural solvability filter —
 // loot_slot drops are intentionally excluded because they're probabilistic
 // and would make the solvability guarantee hollow.
-function collectGrantedItemTemplateIds(roomTemplate: RoomTemplate): Set<string> {
+function collectGrantedItemTemplateIds(
+  roomTemplate: RoomTemplate,
+  available: ReadonlySet<string>,
+): Set<string> {
   const out = new Set<string>()
   for (const interactable of roomTemplate.interactables) {
+    // An interactable only hands out its grants if any static has-item
+    // condition can be satisfied by the keys we already have. Other
+    // condition types (class-is, room-cleared, etc.) don't block solvability:
+    // class-restricted content is fine for that class, and progress-based
+    // conditions are satisfiable at runtime.
+    const blocked = interactable.conditions.some(
+      (c) => c.type === "has-item" && !available.has(c.item_id),
+    )
+    if (blocked) continue
     for (const effect of interactable.effects) {
       if (effect.type === "grant-item") {
         out.add(effect.item_template_id)

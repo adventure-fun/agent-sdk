@@ -482,6 +482,11 @@ export interface TrapTemplate {
 
 // ---- Room Templates -----------------------------------------
 
+/** Where an interactable sits in the room. Defaults to "center" when omitted.
+ *  String hints resolve to mid-span of the given wall at observation time.
+ *  An explicit `{x,y}` lets content authors place multiple interactables on
+ *  the same wall without collisions. */
+
 export interface InteractableTemplate {
   id: string
   name: string
@@ -489,6 +494,7 @@ export interface InteractableTemplate {
   conditions: Condition[]
   effects: Effect[]
   lore_entry_id: string | null
+  position?: InteractablePosition
 }
 
 export type Condition =

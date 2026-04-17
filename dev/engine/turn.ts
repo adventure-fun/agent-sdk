@@ -33,6 +33,8 @@ import type {
   RoomTemplate,
   AbilitySummary,
   AbilityTemplate,
+  InteractablePosition,
+  InteractableTemplate,
 } from "./types.js"
 import type { GeneratedRealm, GeneratedFloor, GeneratedRoom } from "./realm.js"
 import { replayLockedExitUnlocks } from "./realm.js"
@@ -576,6 +578,25 @@ function getLockedExitMapPosition(room: RoomState): Position {
   }
 }
 
+/** Resolve a position hint ({x,y} / "center" / "wall-*") to a tile. */
+export function resolveInteractablePosition(
+  pos: InteractablePosition | undefined,
+  room: RoomState,
+): Position {
+  if (!pos || pos === "center") return getInteractableMapPosition(room)
+  if (typeof pos === "object") return pos
+  const width = room.tiles[0]?.length ?? 1
+  const height = room.tiles.length
+  const midX = Math.floor(width / 2)
+  const midY = Math.floor(height / 2)
+  switch (pos) {
+    case "wall-north": return { x: midX, y: 0 }
+    case "wall-south": return { x: midX, y: Math.max(0, height - 1) }
+    case "wall-west": return { x: 0, y: midY }
+    case "wall-east": return { x: Math.max(0, width - 1), y: midY }
+  }
+}
+
 /**
  * Resolve the tile where an interactable is displayed on the map. Kept in one
  * place so observation rendering and bump-to-interact resolution agree on
@@ -583,14 +604,14 @@ function getLockedExitMapPosition(room: RoomState): Position {
  */
 function getInteractableDisplayPosition(
   room: RoomState,
-  interactableId: string,
+  interactable: InteractableTemplate,
   roomTemplate: RoomTemplate,
 ): Position {
-  const isLockedExit = roomTemplate.locked_exit === interactableId
-  return isLockedExit
-    ? getLockedExitMapPosition(room)
-    : getInteractableMapPosition(room)
+  const isLockedExit = roomTemplate.locked_exit === interactable.id
+  if (isLockedExit) return getLockedExitMapPosition(room)
+  return resolveInteractablePosition(interactable.position, room)
 }
+
 
 function revealCurrentFloorMap(
   state: GameState,
@@ -972,7 +993,7 @@ function resolveMove(
   if (moveRoomTemplate) {
     const interactable = moveRoomTemplate.interactables.find((inter) => {
       if (s.mutatedEntities.includes(inter.id)) return false
-      const pos = getInteractableDisplayPosition(room, inter.id, moveRoomTemplate)
+      const pos = getInteractableDisplayPosition(room, inter, moveRoomTemplate)
       return pos.x === nx && pos.y === ny
     })
     if (interactable) {
@@ -3449,7 +3470,7 @@ export function buildObservationFromState(
         if (state.mutatedEntities.includes(inter.id)) continue
         // Locked-exit interactables (gates/doors) go at the right wall; others at room center
         const isLockedExit = obsRoomTemplate.locked_exit === inter.id
-        const position = getInteractableDisplayPosition(room, inter.id, obsRoomTemplate)
+        const position = getInteractableDisplayPosition(room, inter, obsRoomTemplate)
         visibleEntities.push({
           id: inter.id,
           type: "interactable",
