@@ -106,6 +106,7 @@ export function buildSystemPrompt(config: AgentConfig): string {
     "",
     "Supported action shapes:",
     '- {"type":"move","direction":"up|down|left|right"}',
+    "Bump-to-act: a `move` whose target tile contains a live enemy resolves as a `basic-attack` against that enemy (position unchanged); a `move` whose target tile contains a floor item resolves as a `pickup` of that item (position unchanged); a `move` whose target tile contains a room interactable (the tile shown for the interactable entity) resolves as an `interact` against that interactable (position unchanged). Prefer the explicit `attack` (for a specific `ability_id`), `pickup`, or `interact` action whenever you want precise control; use plain `move` only when the target tile is empty or when the default bump resolution (basic attack / default pickup / default interact) is exactly what you want.",
     '- {"type":"attack","target_id":"<visible enemy id>","ability_id":"<optional ability id>"}',
     '- {"type":"disarm_trap","item_id":"<inventory item id>"}',
     '- {"type":"use_item","item_id":"<inventory item id>","target_id":"<optional target id>"}',

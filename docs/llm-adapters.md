@@ -286,6 +286,23 @@ const agent = new BaseAgent(config, {
 
 If your adapter does not implement `plan()`, the `ActionPlanner` wraps `decide()` into a single-action plan automatically.
 
+## Movement Semantics (Bump-to-Act)
+
+The engine resolves `{type: "move", direction}` with context-aware semantics:
+
+- Target tile empty → move onto the tile normally.
+- Target tile contains a live enemy → resolves as `basic-attack` against that enemy; the player does **not** change position.
+- Target tile contains a floor item → resolves as `pickup` of that item; the player does **not** change position. If the inventory is full, pickup is blocked and the player still stays put (no fallback move).
+- Target tile contains a room interactable (the tile shown for the `interactable` entity in `visible_entities`) → resolves as `interact` against that interactable; the player does **not** change position. If the interactable's conditions are unmet or it has already been used, the interact fails with an `interact_blocked` event and the player still stays put.
+
+This means a `move` toward an adjacent entity is always safe to issue: it never produces the old "An enemy blocks the way." no-op, it never leaves the agent standing on an item without picking it up, and it never leaves the agent standing on an interactable without triggering it. However, explicit `attack`, `pickup`, and `interact` actions remain first-class and should be preferred when:
+
+- The agent wants a specific `ability_id` (bump always uses `basic-attack`).
+- The agent wants to decline a pickup (not currently possible via bump; use `move` away from the item or an explicit non-`pickup` action).
+- The agent wants to target a specific interactable when multiple render at the same tile (rare — e.g. two center-positioned interactables in one room). Bump resolves the first non-mutated interactable whose display tile matches; explicit `interact` with `target_id` disambiguates.
+
+`computeLegalActions` still emits all four `move` directions plus explicit `attack` / `pickup` / `interact` entries when in range, so adapters that already prefer explicit actions (as `CombatModule` and `InventoryModule` do) require no behavior change.
+
 ## Shared Prompt Utilities
 
 The SDK exports prompt-building functions that custom adapters can reuse:

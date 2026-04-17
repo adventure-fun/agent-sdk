@@ -569,6 +569,29 @@ function getInteractableMapPosition(room: RoomState): Position {
   }
 }
 
+function getLockedExitMapPosition(room: RoomState): Position {
+  return {
+    x: (room.tiles[0]?.length ?? 1) - 1,
+    y: Math.floor(room.tiles.length / 2),
+  }
+}
+
+/**
+ * Resolve the tile where an interactable is displayed on the map. Kept in one
+ * place so observation rendering and bump-to-interact resolution agree on
+ * where the player must stand to trigger the interactable.
+ */
+function getInteractableDisplayPosition(
+  room: RoomState,
+  interactableId: string,
+  roomTemplate: RoomTemplate,
+): Position {
+  const isLockedExit = roomTemplate.locked_exit === interactableId
+  return isLockedExit
+    ? getLockedExitMapPosition(room)
+    : getInteractableMapPosition(room)
+}
+
 function revealCurrentFloorMap(
   state: GameState,
   realm: GeneratedRealm,
@@ -731,9 +754,20 @@ export function resolveTurn(
           events.push({ turn: 0, type: "status_slow", detail: summary, data: {} })
           break
         }
-        const r = resolveMove(s, room, action.direction, realm, events)
+        const r = resolveMove(
+          s,
+          room,
+          action.direction,
+          realm,
+          rng,
+          events,
+          mutations,
+          notableEvents,
+          preTurnDebuffs,
+        )
         summary = r.summary
         roomChanged = r.roomChanged
+        if (r.regenBonusEligible) regenBonusEligible = true
         break
       }
       case "attack": {
@@ -863,8 +897,12 @@ function resolveMove(
   room: RoomState,
   direction: Direction,
   realm: GeneratedRealm,
+  rng: SeededRng,
   events: GameEvent[],
-): { summary: string; roomChanged: boolean } {
+  mutations: WorldMutation[],
+  notableEvents: LobbyEvent[],
+  preTurnDebuffs: ActiveEffect[],
+): { summary: string; roomChanged: boolean; regenBonusEligible: boolean } {
   const delta = DIRECTION_DELTA[direction]
   const nx = s.position.tile.x + delta.dx
   const ny = s.position.tile.y + delta.dy
@@ -874,20 +912,80 @@ function resolveMove(
   // Out of bounds → blocked
   if (nx < 0 || ny < 0 || nx >= width || ny >= height) {
     events.push({ turn: 0, type: "blocked", detail: "Path blocked", data: { direction } })
-    return { summary: "The way is blocked.", roomChanged: false }
+    return { summary: "The way is blocked.", roomChanged: false, regenBonusEligible: false }
   }
 
   const targetTile = room.tiles[ny]?.[nx]
   if (!targetTile || targetTile.type === "wall") {
-    return { summary: "The way is blocked.", roomChanged: false }
+    return { summary: "The way is blocked.", roomChanged: false, regenBonusEligible: false }
   }
 
-  // Check if an enemy occupies the target tile
+  // Bump-to-attack: a live enemy on the target tile converts the move into a
+  // basic attack. The player does not change position.
   const blocking = room.enemies.find(
     (e) => e.hp > 0 && e.position.x === nx && e.position.y === ny,
   )
   if (blocking) {
-    return { summary: "An enemy blocks the way.", roomChanged: false }
+    const attackResult = resolvePlayerAttack(
+      s,
+      room,
+      { type: "attack", target_id: blocking.id, ability_id: "basic-attack" },
+      realm,
+      rng,
+      events,
+      mutations,
+      preTurnDebuffs,
+    )
+    if (attackResult.notableEvent) notableEvents.push(attackResult.notableEvent)
+    return {
+      summary: attackResult.summary,
+      roomChanged: false,
+      regenBonusEligible: attackResult.regenBonusEligible,
+    }
+  }
+
+  // Bump-to-pickup: a floor item on the target tile is picked up without
+  // moving onto the tile. `resolvePickup` handles inventory-full, trapped
+  // items, and gold, and will emit the appropriate event/summary.
+  const floorItem = room.items.find(
+    (item) => item.position.x === nx && item.position.y === ny,
+  )
+  if (floorItem) {
+    const pickupSummary = resolvePickup(
+      s,
+      room,
+      { type: "pickup", item_id: floorItem.id },
+      rng,
+      events,
+      mutations,
+      notableEvents,
+    )
+    return { summary: pickupSummary, roomChanged: false, regenBonusEligible: false }
+  }
+
+  // Bump-to-interact: an interactable whose display tile matches the target
+  // tile is interacted with without moving. Interactables do not live in
+  // `room.items`; their positions are synthesized from the room template, so
+  // we have to recompute them here. `resolveInteract` handles already-used
+  // and unmet-condition cases gracefully via `interact_blocked` events.
+  const moveRoomTemplate = findRoomTemplate(room.id)
+  if (moveRoomTemplate) {
+    const interactable = moveRoomTemplate.interactables.find((inter) => {
+      if (s.mutatedEntities.includes(inter.id)) return false
+      const pos = getInteractableDisplayPosition(room, inter.id, moveRoomTemplate)
+      return pos.x === nx && pos.y === ny
+    })
+    if (interactable) {
+      const interactSummary = resolveInteract(
+        s,
+        room,
+        { type: "interact", target_id: interactable.id },
+        realm,
+        events,
+        mutations,
+      )
+      return { summary: interactSummary, roomChanged: false, regenBonusEligible: false }
+    }
   }
 
   // Move the player onto the tile
@@ -899,23 +997,23 @@ function resolveMove(
     const transition = tryRoomTransition(s, room, direction, realm)
     if (transition) {
       events.push({ turn: 0, type: "room_change", detail: `Entered ${transition.roomId}`, data: { direction } })
-      return { summary: transition.summary, roomChanged: true }
+      return { summary: transition.summary, roomChanged: true, regenBonusEligible: false }
     }
   }
 
   // Stairs tile → floor transition
   if (targetTile.type === "stairs") {
     const ft = tryFloorTransition(s, realm, events)
-    if (ft) return { summary: ft.summary, roomChanged: true }
+    if (ft) return { summary: ft.summary, roomChanged: true, regenBonusEligible: false }
   }
 
   // Up-stairs tile → floor ascent
   if (targetTile.type === "stairs_up") {
     const ft = tryFloorAscent(s, realm, events)
-    if (ft) return { summary: ft.summary, roomChanged: true }
+    if (ft) return { summary: ft.summary, roomChanged: true, regenBonusEligible: false }
   }
 
-  return { summary: `You move ${direction}.`, roomChanged: false }
+  return { summary: `You move ${direction}.`, roomChanged: false, regenBonusEligible: false }
 }
 
 function tryRoomTransition(
@@ -1855,17 +1953,17 @@ function applyEnemySelfAbility(
 
 function moveEnemyToward(
   enemy: RoomState["enemies"][number],
-  target: { x: number; y: number },
+  playerTile: { x: number; y: number },
   room: RoomState,
 ) {
-  const currentDistance = getAbilityRangeDistance(enemy.position, target)
-  const candidates = getEnemyMoveCandidates(enemy, room).sort(
+  const currentDistance = getAbilityRangeDistance(enemy.position, playerTile)
+  const candidates = getEnemyMoveCandidates(enemy, room, playerTile).sort(
     (left, right) =>
-      getAbilityRangeDistance(left, target) - getAbilityRangeDistance(right, target),
+      getAbilityRangeDistance(left, playerTile) - getAbilityRangeDistance(right, playerTile),
   )
 
   const next = candidates[0]
-  if (!next || getAbilityRangeDistance(next, target) >= currentDistance) {
+  if (!next || getAbilityRangeDistance(next, playerTile) >= currentDistance) {
     return false
   }
 
@@ -1875,17 +1973,17 @@ function moveEnemyToward(
 
 function moveEnemyAway(
   enemy: RoomState["enemies"][number],
-  target: { x: number; y: number },
+  playerTile: { x: number; y: number },
   room: RoomState,
 ) {
-  const currentDistance = getAbilityRangeDistance(enemy.position, target)
-  const candidates = getEnemyMoveCandidates(enemy, room).sort(
+  const currentDistance = getAbilityRangeDistance(enemy.position, playerTile)
+  const candidates = getEnemyMoveCandidates(enemy, room, playerTile).sort(
     (left, right) =>
-      getAbilityRangeDistance(right, target) - getAbilityRangeDistance(left, target),
+      getAbilityRangeDistance(right, playerTile) - getAbilityRangeDistance(left, playerTile),
   )
 
   const next = candidates[0]
-  if (!next || getAbilityRangeDistance(next, target) <= currentDistance) {
+  if (!next || getAbilityRangeDistance(next, playerTile) <= currentDistance) {
     return false
   }
 
@@ -1896,6 +1994,7 @@ function moveEnemyAway(
 function getEnemyMoveCandidates(
   enemy: RoomState["enemies"][number],
   room: RoomState,
+  playerTile: { x: number; y: number },
 ) {
   const height = room.tiles.length
   const width = room.tiles[0]?.length ?? 0
@@ -1909,6 +2008,9 @@ function getEnemyMoveCandidates(
     if (x < 0 || y < 0 || x >= width || y >= height) return false
     const tile = room.tiles[y]?.[x]
     if (!tile || tile.type === "wall") return false
+    // Don't walk onto the player — prevents co-occupancy bugs where an enemy
+    // moves onto the player's tile after the player has already moved this turn.
+    if (playerTile.x === x && playerTile.y === y) return false
     // Don't walk onto other enemies
     if (room.enemies.some((e) => e.hp > 0 && e.id !== enemy.id && e.position.x === x && e.position.y === y))
       return false
@@ -3347,9 +3449,7 @@ export function buildObservationFromState(
         if (state.mutatedEntities.includes(inter.id)) continue
         // Locked-exit interactables (gates/doors) go at the right wall; others at room center
         const isLockedExit = obsRoomTemplate.locked_exit === inter.id
-        const position = isLockedExit
-          ? { x: (room.tiles[0]?.length ?? 1) - 1, y: Math.floor(room.tiles.length / 2) }
-          : getInteractableMapPosition(room)
+        const position = getInteractableDisplayPosition(room, inter.id, obsRoomTemplate)
         visibleEntities.push({
           id: inter.id,
           type: "interactable",

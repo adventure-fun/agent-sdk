@@ -85,7 +85,7 @@
   "engineWatchlist": [
     {
       "file": "shared/engine/src/turn.ts",
-      "hash": "868d5d6cc83f2333a3188dbcbfeb02de84157cf842fe3b2cabdef814ed111709",
+      "hash": "727056e8eb33fe3fc239be00772e543aadf1904e8740615fb9cf3a4b879a45a6",
       "affectedModules": [
         "combat",
         "exploration",
@@ -229,7 +229,7 @@
     },
     {
       "file": "agent-sdk/src/adapters/llm/shared.ts",
-      "hash": "cd043a5fe94b761e9d55fcce416bc6153a31a66a6de1e33429989cc972862f54",
+      "hash": "1ceabc46452a3f1cab2230adfe44160fe18e4562fc7cfcccdf2263d94a6daddc",
       "affectedModules": [
         "llm-adapters"
       ]
@@ -284,8 +284,8 @@
     {
       "source": "shared/engine/src/turn.ts",
       "vendored": "agent-sdk/dev/engine/turn.ts",
-      "sourceHash": "868d5d6cc83f2333a3188dbcbfeb02de84157cf842fe3b2cabdef814ed111709",
-      "vendoredHash": "26e5a5e60964f344636214d6851f66e711d963722cf9989d853d409c2384aa35",
+      "sourceHash": "727056e8eb33fe3fc239be00772e543aadf1904e8740615fb9cf3a4b879a45a6",
+      "vendoredHash": "1632eec3f003d66c5493e787c88e102fe19e3ae289c3ec67f49c5e26f1a8eba1",
       "affectedModules": [
         "dev-stack"
       ]

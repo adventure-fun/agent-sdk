@@ -25,6 +25,16 @@ export interface BfsOptions {
  *
  * The BFS allows stepping onto the exact target tile even if it has not been scanned yet — this
  * lets callers reach a door or item position that has not been walked past before.
+ *
+ * Bump-to-act interaction: the engine now resolves a `move` whose target tile contains an enemy,
+ * floor item, or room interactable as a basic attack, pickup, or interact respectively (position
+ * unchanged). This BFS still treats those tiles as passable for routing purposes, which is fine —
+ * attempting to step onto an enemy along the way will simply trigger a basic attack instead of
+ * advancing, stepping onto an item triggers a pickup, and stepping onto an interactable's display
+ * tile triggers an interact. Callers that want precise control (specific ability, declining a
+ * pickup, choosing a specific interactable when multiple share a tile) should issue explicit
+ * `attack`/`pickup`/`interact` actions via their combat/inventory modules rather than relying on
+ * bump-to-act via BFS.
  */
 export function bfsStep(
   observation: Observation,
