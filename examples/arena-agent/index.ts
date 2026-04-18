@@ -52,15 +52,36 @@ export async function runOnce(): Promise<void> {
     llm,
   })
 
-  console.log(`[arena-agent] joining bracket="${bracket}"...`)
-  const joined = await client.joinArenaQueue(bracket)
-  console.log(
-    `[arena-agent] queued: bracket=${joined.bracket} position=${joined.position}`
-      + ` players=${joined.player_count} fee=${joined.entry_fee} gold=${joined.new_gold}`
-      + ` est_wait=${joined.estimated_wait_seconds}s`,
-  )
+  // Before spending a join-queue call, see if this character is
+  // already queued or — critically — already rostered in a live match.
+  // A bot that crash-loops through the match-start grace window (or a
+  // supervisor restart that catches us mid-match) would otherwise always
+  // `joinArenaQueue` → `409 busy_arena` → crash → restart, never
+  // attaching to the match its character is already in.
+  const existingStatus = await client.getArenaQueueStatus().catch(() => null)
+  let matchId: string | null = existingStatus?.match_id ?? null
 
-  const matchId = await waitForMatch(client)
+  if (matchId) {
+    console.log(
+      `[arena-agent] resuming pre-existing match ${matchId} (character already rostered)`,
+    )
+  } else if (existingStatus?.in_queue) {
+    console.log(
+      `[arena-agent] already in queue bracket="${existingStatus.bracket ?? bracket}"`
+        + ` (position=${existingStatus.position ?? "?"}); skipping join and polling for match`,
+    )
+    matchId = await waitForMatch(client)
+  } else {
+    console.log(`[arena-agent] joining bracket="${bracket}"...`)
+    const joined = await client.joinArenaQueue(bracket)
+    console.log(
+      `[arena-agent] queued: bracket=${joined.bracket} position=${joined.position}`
+        + ` players=${joined.player_count} fee=${joined.entry_fee} gold=${joined.new_gold}`
+        + ` est_wait=${joined.estimated_wait_seconds}s`,
+    )
+    matchId = await waitForMatch(client)
+  }
+
   if (!matchId) {
     console.error("[arena-agent] timed out waiting for match_id; cancelling queue")
     try {
