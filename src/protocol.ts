@@ -319,6 +319,289 @@ export interface SanitizedChatMessage {
   play_sound?: boolean
 }
 
+export type ArenaBracket = "rookie" | "veteran" | "champion"
+
+/** Lifecycle phases for an arena match. */
+
+export type ArenaMatchPhase = "grace" | "active" | "sudden_death" | "finished"
+
+/** Whether an arena entity is a player character or a spawned NPC. */
+
+export type ArenaEntityKind = "player" | "npc"
+
+/**
+ * Unified entity record covering both human/agent players and spawned NPCs in
+ * an arena match. The arena engine operates on this shape directly and does
+ * not share state with the dungeon `GameState.character` or `activeFloor.enemies`
+ * trees.
+ */
+
+export interface ArenaEntity {
+  id: string
+  kind: ArenaEntityKind
+  /** Set for player entities; mirrors Account.id. */
+  account_id?: string
+  /** Set for player entities; mirrors Character.id. */
+  character_id?: string
+  /** Set for NPC entities; mirrors EnemyTemplate.id (e.g. "hollow-rat"). */
+  template_id?: string
+  name: string
+  class?: CharacterClass
+  level?: number
+  position: { x: number; y: number }
+  hp: { current: number; max: number }
+  resource?: { type: ResourceType; current: number; max: number }
+  stats: CharacterStats
+  /** Equipment + perk + skill-tree modified stats; falls back to `stats` when absent. */
+  effective_stats?: CharacterStats
+  active_effects: ActiveEffect[]
+  abilities: string[]
+  cooldowns: Record<string, number>
+  is_boss?: boolean
+  alive: boolean
+  /** True while the entity is untargetable by enemy AI (e.g. Rogue Vanish). */
+  stealth?: boolean
+  /** Player-only; NPCs do not carry an inventory. */
+  inventory?: InventoryItem[]
+  /** Player-only; equipment does not drop in arena but its stats still apply. */
+  equipment?: Record<EquipSlot, InventoryItem | null>
+  /** Match-scoped stats used for tiebreakers, leaderboards, and OG cards. */
+  session_stats?: {
+    /** Total damage dealt (PvP + PvE). Surfaced in placement rows / OG cards. */
+    damage_dealt: number
+    /**
+     * Damage dealt specifically against other player entities. Drives the
+     * ARENA_DESIGN.md §11 tiebreaker when the final round kills everyone
+     * simultaneously — "player who dealt the most total PvP damage wins".
+     */
+    damage_dealt_to_players: number
+    pvp_kills: number
+    npc_kills: number
+    damage_taken: number
+    turns_survived: number
+  }
+}
+
+/**
+ * Static arena map definition loaded from content JSON. Grid is row-major
+ * (grid[y][x]). `edge_tiles` are the walkable outermost tiles used by the
+ * wave spawner to place NPCs along N/S/E/W edges.
+ */
+
+export interface ArenaMap {
+  id: string
+  name: string
+  grid: TileType[][]
+  spawn_points: { x: number; y: number }[]
+  chest_positions: { x: number; y: number }[]
+  edge_tiles: { x: number; y: number }[]
+  description: string
+}
+
+/**
+ * Loot pile dropped on a player's tile when they are eliminated. Gold stays
+ * in the pot — only consumables drop. Any other player can claim items with
+ * the `interact` action targeting `source_player`'s death-pile entity id.
+ */
+
+export interface ArenaDeathDrop {
+  position: { x: number; y: number }
+  items: InventoryItem[]
+  /** Always 0 — gold is in the pot, not on the body. Kept for future extension. */
+  gold: number
+  source_player: string
+  turn_dropped: number
+}
+
+/** Arena reuses the existing `Action` discriminated union verbatim. */
+
+export type ArenaAction = Action
+
+/**
+ * Event emitted during arena turn resolution. Parallel to `GameEvent` but
+ * includes a `round` number so spectator UIs can group kill feed entries by
+ * round rather than by raw turn counter.
+ */
+
+export interface ArenaEvent {
+  turn: number
+  round: number
+  type: string
+  detail: string
+  data: Record<string, unknown>
+}
+
+/**
+ * Surfaced in observations once a player-player proximity counter reaches
+ * the "warning" threshold (>= 2). `turns_until_damage` = 3 - counter.
+ */
+
+export interface ProximityWarning {
+  player_a: string
+  player_b: string
+  turns_until_damage: number
+}
+
+/**
+ * Per-player arena observation. Unlike dungeon observations, arena has no fog
+ * of war — all entities and tiles are visible to every participant.
+ */
+
+export interface ArenaObservation {
+  match_id: string
+  round: number
+  turn: number
+  phase: ArenaMatchPhase
+  map_id: string
+  grid: TileType[][]
+  entities: ArenaEntity[]
+  you: ArenaEntity
+  /** Entity IDs in initiative order for the current round. */
+  turn_order: string[]
+  next_wave_turn: number | null
+  proximity_warnings: ProximityWarning[]
+  recent_events: ArenaEvent[]
+  legal_actions: Action[]
+  death_drops: ArenaDeathDrop[]
+}
+
+/**
+ * Full-fidelity spectator observation for arena matches (no percentage
+ * redaction — arena spectators see the exact numbers so the audience always
+ * has more info than any single competitor).
+ */
+
+export interface ArenaSpectatorObservation {
+  match_id: string
+  round: number
+  turn: number
+  phase: ArenaMatchPhase
+  map_id: string
+  grid: TileType[][]
+  entities: ArenaEntity[]
+  turn_order: string[]
+  /**
+   * Entity IDs that have already consumed their turn in the CURRENT
+   * round. Added in Phase 12 so the spectator turn-order sidebar can
+   * split initiative into "acting / acted / pending / eliminated"
+   * sections without the client having to diff consecutive frames.
+   * Participant observations do not need this (they already receive a
+   * dedicated `your_turn` prompt).
+   */
+  acted_this_round: string[]
+  next_wave_turn: number | null
+  proximity_warnings: ProximityWarning[]
+  recent_events: ArenaEvent[]
+  death_drops: ArenaDeathDrop[]
+  spectator_count: number
+}
+
+/** One row in the final match result placements array. */
+
+export interface ArenaMatchResultPlacement {
+  account_id: string
+  character_id: string
+  player_type: PlayerType
+  placement: 1 | 2 | 3 | 4
+  kills: number
+  damage_dealt: number
+  survived_rounds: number
+  gold_awarded: number
+}
+
+/** Immutable match outcome written to `arena_matches` at match end. */
+
+export interface ArenaMatchResult {
+  match_id: string
+  bracket: ArenaBracket
+  map_id: string
+  pot: number
+  placements: ArenaMatchResultPlacement[]
+  total_rounds: number
+  ended_reason: "last_standing" | "sudden_death" | "tie_break"
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Phase 13 — Arena match summary / share-card response shapes.
+// Returned by `GET /arena/match/:id` and consumed by the public summary
+// page + OG image routes. Placements are enriched server-side with
+// character_name/class/level (from `arena_leaderboard` with a
+// `characters+accounts` fallback) and with a derived `killer` object so
+// the death/victory cards can render without further joins.
+// ─────────────────────────────────────────────────────────────────────────
+
+/** Inferred killer for a non-winning placement; null for the match winner. */
+
+export interface ArenaState {
+  match_id: string
+  round: number
+  turn: number
+  phase: ArenaMatchPhase
+  map: ArenaMap
+  entities: ArenaEntity[]
+  /** Entity IDs in initiative order for the current round. */
+  turn_order: string[]
+  /** Entity IDs that have already consumed their turn this round. */
+  acted_this_round: string[]
+  /**
+   * Pair key -> consecutive-round proximity counter. Key format is
+   * `sortedIdA + ":" + sortedIdB` (alphabetical) for a stable lookup.
+   */
+  proximity_counters: Record<string, number>
+  next_wave_turn: number | null
+  death_drops: ArenaDeathDrop[]
+  events: ArenaEvent[]
+  /** Serialized SeededRng.getState() for crash-safe resumes. */
+  rng_state: number
+}
+
+// ---- Arena WebSocket Messages -------------------------------
+//
+// Arena WS uses a parallel protocol to dungeon `ServerMessage` /
+// `ClientMessage`. These unions match the exact payloads emitted by
+// `backend/src/game/arena-session.ts` (`sendObservationTo`, `awaitAction`,
+// `handleEntityDeath`, `endMatch`) so agent-sdk consumers can parse without
+// structural drift.
+
+/** Terminal reason for an arena match. "abandoned" is emitted when no
+ *  players ever attached before the inactivity cutoff and carries a null
+ *  result; all other reasons carry a full {@link ArenaMatchResult}. */
+
+export type ArenaMatchEndReason =
+  | "last_standing"
+  | "sudden_death"
+  | "tie_break"
+  | "abandoned"
+
+export type ArenaClientMessage = { type: "action"; data: ArenaAction }
+
+export type ArenaServerMessage =
+  | { type: "observation"; data: ArenaObservation }
+  | { type: "your_turn"; data: { entity_id: string; timeout_ms: number } }
+  | {
+      type: "arena_death"
+      data: {
+        entity_id: string
+        /** Killer entity id, or the sentinel "sudden_death" / "cowardice"
+         *  when the kill came from a global damage schedule rather than a
+         *  specific entity. Never null — arena kills always have a source. */
+        killer_entity_id: string
+        turn: number
+        round: number
+      }
+    }
+  | {
+      type: "arena_match_end"
+      data: {
+        match_id: string
+        reason: ArenaMatchEndReason
+        result: ArenaMatchResult | null
+      }
+    }
+  | { type: "error"; message: string }
+
+// ---- x402 Payment -------------------------------------------
+
 export interface PaymentAcceptOption402 {
   scheme: "exact"
   network: string

@@ -4,6 +4,13 @@ import type { WalletAdapter } from "./adapters/wallet/index.js"
 import type { SessionToken } from "./auth.js"
 import type {
   Action,
+  ArenaAction,
+  ArenaBracket,
+  ArenaClientMessage,
+  ArenaMatchEndReason,
+  ArenaMatchResult,
+  ArenaObservation,
+  ArenaServerMessage,
   CharacterClass,
   CharacterStats,
   ClientMessage,
@@ -250,6 +257,63 @@ export interface LobbyHandlers {
   onClose?: (event: DisconnectEvent) => void
 }
 
+export type ArenaObservationHandler = (obs: ArenaObservation) => void
+export type ArenaYourTurnHandler = (data: {
+  entity_id: string
+  timeout_ms: number
+}) => void
+export type ArenaDeathHandler = (data: {
+  entity_id: string
+  killer_entity_id: string
+  turn: number
+  round: number
+}) => void
+export type ArenaMatchEndHandler = (data: {
+  match_id: string
+  reason: ArenaMatchEndReason
+  result: ArenaMatchResult | null
+}) => void
+
+/**
+ * Parallel to `GameSessionHandlers` for arena match WS sessions. Matches are
+ * short-lived (minutes, not hours), have no server-side pause-on-reconnect
+ * semantics, and abandonment is handled via the backend's inactivity cutoff —
+ * so no reconnect fields are exposed here by design.
+ */
+export interface ArenaSessionHandlers {
+  onObservation?: ArenaObservationHandler
+  onYourTurn?: ArenaYourTurnHandler
+  onArenaDeath?: ArenaDeathHandler
+  onArenaMatchEnd?: ArenaMatchEndHandler
+  onError?: (error: GameClientError) => void
+  onClose?: (event: DisconnectEvent) => void
+}
+
+export interface ArenaQueueJoinResponse {
+  in_queue: boolean
+  bracket: ArenaBracket
+  position: number
+  player_count: number
+  entry_fee: number
+  new_gold: number
+  estimated_wait_seconds: number
+}
+
+export interface ArenaQueueStatusResponse {
+  in_queue: boolean
+  bracket?: ArenaBracket | null
+  position?: number | null
+  player_count?: number | null
+  estimated_wait_seconds?: number | null
+  match_id?: string | null
+}
+
+export interface ArenaQueueCancelResponse {
+  refunded: number
+  new_gold: number
+  bracket: ArenaBracket
+}
+
 export interface GameClientEvents {
   observation: Observation
   death: { cause: string; floor: number; room: string; turn: number }
@@ -327,6 +391,9 @@ type LobbyLiveMessage =
 export class GameClient {
   private ws: WebSocket | null = null
   private lobbyWs: WebSocket | null = null
+  private arenaWs: WebSocket | null = null
+  private activeArenaMatchId: string | null = null
+  private intentionalArenaDisconnect = false
   private token: SessionToken
   private wallet: WalletAdapter | undefined
   private activeRealmId: string | null = null
@@ -341,6 +408,7 @@ export class GameClient {
   private eventEmitter = new TypedEventEmitter<GameClientEvents>()
   private gameHandlers: GameSessionHandlers = {}
   private lobbyHandlers: LobbyHandlers = {}
+  private arenaHandlers: ArenaSessionHandlers = {}
 
   constructor(
     private baseUrl: string,
@@ -590,14 +658,75 @@ export class GameClient {
     this.ws.send(JSON.stringify(payload))
   }
 
+  /**
+   * Opens a WebSocket arena session against `/arena/match/:matchId/play`. Unlike
+   * realm connections, arena matches are short-lived and do not pause on
+   * disconnect — callers are expected to keep the socket open for the duration
+   * of the match. Abandonment is handled server-side via the inactivity cutoff.
+   */
+  connectArenaMatch(
+    matchId: string,
+    handlers: ArenaSessionHandlers = {},
+  ): Promise<void> {
+    this.activeArenaMatchId = matchId
+    this.arenaHandlers = handlers
+    this.intentionalArenaDisconnect = false
+    return this.openArenaSocket(matchId)
+  }
+
+  /** Sends an arena action on the active arena WebSocket. */
+  sendArenaAction(action: ArenaAction): void {
+    if (!this.arenaWs || this.arenaWs.readyState !== WebSocket.OPEN) {
+      throw new GameClientError("network", "Arena WebSocket not connected")
+    }
+    const payload: ArenaClientMessage = { type: "action", data: action }
+    this.arenaWs.send(JSON.stringify(payload))
+  }
+
+  /** Intentionally closes the active arena match WebSocket, if any. */
+  disconnectArena(): void {
+    this.intentionalArenaDisconnect = true
+    this.activeArenaMatchId = null
+    // Leave `this.arenaWs` pointing at the socket so the pending `onclose`
+    // handler can still fire `onClose` with `intentional: true` for callers
+    // that want to observe the terminal disconnect. The onclose handler
+    // itself nulls the field.
+    this.arenaWs?.close()
+  }
+
+  /** POST /arena/queue — joins the matchmaking queue for a bracket. */
+  async joinArenaQueue(bracket: ArenaBracket): Promise<ArenaQueueJoinResponse> {
+    return this.request("/arena/queue", {
+      method: "POST",
+      body: JSON.stringify({ bracket }),
+    })
+  }
+
+  /** POST /arena/queue/cancel — leaves the queue before a match pops. */
+  async cancelArenaQueue(): Promise<ArenaQueueCancelResponse> {
+    return this.request("/arena/queue/cancel", {
+      method: "POST",
+      body: JSON.stringify({}),
+    })
+  }
+
+  /** GET /arena/queue/status — returns queue position + match_id (if popped). */
+  async getArenaQueueStatus(): Promise<ArenaQueueStatusResponse> {
+    return this.request("/arena/queue/status")
+  }
+
   disconnect(): void {
     this.intentionalGameDisconnect = true
     this.intentionalLobbyDisconnect = true
+    this.intentionalArenaDisconnect = true
     this.activeRealmId = null
+    this.activeArenaMatchId = null
     this.ws?.close()
     this.lobbyWs?.close()
+    this.arenaWs?.close()
     this.ws = null
     this.lobbyWs = null
+    this.arenaWs = null
   }
 
   disconnectLobby(): void {
@@ -957,6 +1086,94 @@ export class GameClient {
     })
   }
 
+  private async openArenaSocket(matchId: string): Promise<void> {
+    const ticket = await this.fetchWsTicket()
+    return new Promise((resolve, reject) => {
+      const wsUrl = ticket
+        ? `${this.wsUrl}/arena/match/${matchId}/play?ticket=${encodeURIComponent(ticket)}`
+        : `${this.wsUrl}/arena/match/${matchId}/play`
+      const ws = ticket
+        ? new WebSocket(wsUrl)
+        : new WebSocket(wsUrl, ["Bearer", this.token.token])
+      let opened = false
+
+      this.arenaWs = ws
+
+      ws.onopen = () => {
+        opened = true
+        this.eventEmitter.emit("connected", {
+          scope: "game",
+          realmId: matchId,
+          reconnected: false,
+        })
+        resolve()
+      }
+
+      ws.onerror = (event) => {
+        if (this.arenaWs !== ws) return
+        const error = new GameClientError(
+          "network",
+          "Arena WebSocket connection failed",
+          { cause: event },
+        )
+        this.handleError(error, this.arenaHandlers)
+        if (!opened) reject(error)
+      }
+
+      ws.onclose = (event) => {
+        if (this.arenaWs !== ws) return
+
+        const disconnectEvent: DisconnectEvent = {
+          code: event.code,
+          reason: event.reason,
+          intentional: this.intentionalArenaDisconnect,
+          scope: "game",
+          willReconnect: false,
+        }
+
+        this.arenaWs = null
+        this.eventEmitter.emit("disconnected", disconnectEvent)
+        this.arenaHandlers.onClose?.(disconnectEvent)
+      }
+
+      ws.onmessage = (event) => {
+        if (this.arenaWs !== ws) return
+        try {
+          const msg = JSON.parse(String(event.data)) as ArenaServerMessage
+          switch (msg.type) {
+            case "observation":
+              this.arenaHandlers.onObservation?.(msg.data)
+              break
+            case "your_turn":
+              this.arenaHandlers.onYourTurn?.(msg.data)
+              break
+            case "arena_death":
+              this.arenaHandlers.onArenaDeath?.(msg.data)
+              break
+            case "arena_match_end":
+              this.arenaHandlers.onArenaMatchEnd?.(msg.data)
+              break
+            case "error":
+              this.handleError(
+                new GameClientError("game", msg.message),
+                this.arenaHandlers,
+              )
+              break
+          }
+        } catch (error) {
+          this.handleError(
+            new GameClientError(
+              "protocol",
+              "Failed to parse arena server message",
+              { cause: error },
+            ),
+            this.arenaHandlers,
+          )
+        }
+      }
+    })
+  }
+
   private scheduleReconnect(): void {
     if (!this.activeRealmId) {
       return
@@ -1022,7 +1239,10 @@ export class GameClient {
 
   private handleError(
     error: GameClientError,
-    handlers: Pick<GameSessionHandlers, "onError"> | Pick<LobbyHandlers, "onError">,
+    handlers:
+      | Pick<GameSessionHandlers, "onError">
+      | Pick<LobbyHandlers, "onError">
+      | Pick<ArenaSessionHandlers, "onError">,
   ): void {
     this.eventEmitter.emit("error", error)
     handlers.onError?.(error)
