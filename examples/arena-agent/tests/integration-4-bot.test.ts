@@ -35,6 +35,16 @@ import { createMockDb } from "../../../../backend/__tests__/helpers/mock-db.js"
 const mockDb = createMockDb()
 mock.module("../../../../backend/src/db/client.js", () => ({ db: mockDb.db }))
 
+// This suite runs ten full 4-bot matches end-to-end. The production
+// 15s match-start grace window + 1.2s per-round floor would push the
+// total run time well past the 60s test timeout (10 * 15s just for
+// the grace alone). Both constants are read lazily in
+// `backend/src/game/arena-session.ts`, so setting the env at module
+// load cleanly overrides them before `ArenaSession.create` is called
+// below.
+process.env["ARENA_MATCH_START_GRACE_MS"] = "0"
+process.env["ARENA_ROUND_MIN_MS"] = "0"
+
 // Import AFTER mock.module so the mocked `db/client.js` wins. Using
 // dynamic imports here so the module registry resolves the mocked
 // dependency before ArenaSession is evaluated.
