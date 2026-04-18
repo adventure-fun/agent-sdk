@@ -5,7 +5,7 @@
     {
       "canonical": "shared/schemas/src/index.ts",
       "vendored": "agent-sdk/src/protocol.ts",
-      "canonicalHash": "7eeeefe4466d3e82433de04019fb7e2be7a9aaab961ee40474b42d2b4336ff2a",
+      "canonicalHash": "328cffb44239142ef2af6a44bf14a2609cbfe09690ed93e334e9bb2f421888e2",
       "generatedHash": "cdc59863eb88e9c809da1d8a84cfedaa0e394f054fb9a08c0b7c90486bddbe91",
       "types": [
         "Stats",
@@ -239,7 +239,7 @@
     {
       "source": "shared/schemas/src/index.ts",
       "vendored": "agent-sdk/dev/engine/types.ts",
-      "sourceHash": "7eeeefe4466d3e82433de04019fb7e2be7a9aaab961ee40474b42d2b4336ff2a",
+      "sourceHash": "328cffb44239142ef2af6a44bf14a2609cbfe09690ed93e334e9bb2f421888e2",
       "vendoredHash": "bc29a9d8cf5a5e5a491e4bb7249f2a5146f1376123ce8d57d7e07238e651d4e5",
       "affectedModules": [
         "dev-stack"
