@@ -1,11 +1,11 @@
 {
   "version": 1,
-  "lastSync": "2026-04-17",
+  "lastSync": "2026-04-18",
   "sources": [
     {
       "canonical": "shared/schemas/src/index.ts",
       "vendored": "agent-sdk/src/protocol.ts",
-      "canonicalHash": "88b1835a45a4ca4c7a62382978fe851011af8867720fcb28a403a4e283ce26c2",
+      "canonicalHash": "80df78e5229e58355f112835c526b578b79e5f649eedf27ac0700b606e0f5b75",
       "generatedHash": "3ed3691b3f26271d0d252798c031ecf0a70d7cfcfce7f9675c4035255d995044",
       "types": [
         "Stats",
@@ -239,7 +239,7 @@
     {
       "source": "shared/schemas/src/index.ts",
       "vendored": "agent-sdk/dev/engine/types.ts",
-      "sourceHash": "88b1835a45a4ca4c7a62382978fe851011af8867720fcb28a403a4e283ce26c2",
+      "sourceHash": "80df78e5229e58355f112835c526b578b79e5f649eedf27ac0700b606e0f5b75",
       "vendoredHash": "27b883cc28f1f0119530cf6c4c593ebd09287c30f531f55f3041837161fb12b6",
       "affectedModules": [
         "dev-stack"
