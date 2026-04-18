@@ -3605,7 +3605,11 @@ function computeEntranceTile(realm: GeneratedRealm): { x: number; y: number } {
   }
 }
 
-export function toSpectatorObservation(obs: Observation, characterName?: string): SpectatorObservation {
+export function toSpectatorObservation(
+  obs: Observation,
+  characterName?: string,
+  sessionStats?: SpectatorObservation["session_stats"],
+): SpectatorObservation {
   return {
     turn: obs.turn,
     character: {
@@ -3613,6 +3617,8 @@ export function toSpectatorObservation(obs: Observation, characterName?: string)
       name: characterName ?? "",
       class: obs.character.class,
       level: obs.character.level,
+      hp_current: obs.character.hp.current,
+      hp_max: obs.character.hp.max,
       hp_percent: obs.character.hp.max > 0
         ? Math.round((obs.character.hp.current / obs.character.hp.max) * 100)
         : 0,
@@ -3635,6 +3641,12 @@ export function toSpectatorObservation(obs: Observation, characterName?: string)
     room_text: obs.room_text,
     recent_events: obs.recent_events,
     realm_info: obs.realm_info,
+    session_stats: sessionStats ?? {
+      damage_dealt: 0,
+      damage_taken: 0,
+      kills: 0,
+      turns_survived: 0,
+    },
   }
 }
 

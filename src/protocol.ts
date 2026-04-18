@@ -206,17 +206,22 @@ export interface Observation {
 
 // ---- SpectatorObservation (partially redacted — public) -----
 //
-// Spectators receive gear, inventory, and the abilities list so the watch
-// UI can mirror the player's own HUD. The following are still redacted:
-//   - exact HP / resource numbers (only percentages are exposed)
+// Spectators receive gear, inventory, the abilities list, exact HP /
+// resource numbers, and a session_stats block so the watch UI can mirror
+// the player's own HUD and surface match-scoped damage/kill numbers.
+// The following remain redacted:
 //   - gold, XP, skill points, skill tree, perks
 //   - base_stats / effective_stats (raw numbers)
 //   - buffs (debuffs remain public so threats are visible)
 //   - legal_actions and the per-ability cooldowns map
 //
-// Resource current/max ARE exposed because the abilities panel renders a
-// coarse "Ready / Not Ready" status that requires comparing current
-// resource to each ability's cost.
+// `hp_percent` / `resource_percent` stay on the payload alongside the
+// exact values for backwards compatibility with frontend consumers that
+// render HP bars directly off the percentage (see
+// `frontend/app/spectate/[characterId]/page.tsx`). The exact values were
+// promoted to public in Phase 8 of the arena plan so arena + dungeon
+// spectators always see at least as much HP / kill fidelity as any
+// single competitor.
 
 export type Action =
   | { type: "move"; direction: "up" | "down" | "left" | "right" }

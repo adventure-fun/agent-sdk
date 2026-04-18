@@ -288,6 +288,8 @@ export interface SpectatorObservation {
     name: string
     class: CharacterClass
     level: number
+    hp_current: number
+    hp_max: number
     hp_percent: number
     resource_percent: number
     resource_type: ResourceType
@@ -321,6 +323,19 @@ export interface SpectatorObservation {
      */
     entrance_tile: { x: number; y: number }
     status: "active" | "boss_floor" | "boss_cleared" | "realm_cleared"
+  }
+  /**
+   * Match-scoped cumulative stats for the current run, surfaced to
+   * spectators so the sidebar can show damage/kill counters that match
+   * the arena format. Values are sourced from the backend session's
+   * live event buffer; agents / tests that construct a spectator
+   * observation without a session default every field to 0.
+   */
+  session_stats: {
+    damage_dealt: number
+    damage_taken: number
+    kills: number
+    turns_survived: number
   }
 }
 
