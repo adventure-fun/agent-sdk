@@ -360,10 +360,14 @@ export interface ActiveSpectateListResponse {
 }
 
 /**
- * Response for `GET /spectate/top` — the character id of the live
- * player who sits highest on the overall XP leaderboard right now,
- * or `null` when no live sessions exist. Used to auto-spectate on
- * first visit and as the auto-switch target when a run ends.
+ * Which spectating surface the client should filter by when asking
+ * `/spectate/top` for the next auto-spectate target. Passed as the
+ * `?kind=` query parameter. `"any"` is the default and causes the
+ * backend to pick across both arenas and dungeons using a single
+ * priority rule — sudden-death arena > top-XP dungeon > active/grace
+ * arena — so the auto-switch preference delivers a continuous stream
+ * across surfaces rather than stranding viewers when their current
+ * surface goes quiet.
  */
 
 export interface AbilityTemplate {
