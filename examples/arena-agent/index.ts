@@ -96,7 +96,21 @@ export async function runOnce(): Promise<void> {
   console.log(`[arena-agent] matched into ${matchId}; connecting WS...`)
 
   agent.resetMatch()
+  // Server protocol (see `backend/src/game/arena-session.ts`):
+  //   1. `attachPlayerSocket` emits an initial observation.
+  //   2. Every entity's action produces ONE `broadcastObservations` fan-out
+  //      AFTER it resolves (`arena-session.ts` L855). The *next* entity's
+  //      turn then gets a bare `your_turn` with NO accompanying observation.
+  //
+  // That means when our `onYourTurn` fires we've already seen the most
+  // recent observation — we must latch it and act on `your_turn` rather
+  // than wait for a fresh observation that is never coming. Previously this
+  // runner keyed action dispatch off `onObservation` only, so bots sat on
+  // `your_turn` forever, the 15s server-side turn timer expired, and the
+  // server defaulted them to `wait` every turn (classic "stands still" bug
+  // visible in the kill feed as repeating "X waits and watches").
   let myTurnEntityId: string | null = null
+  let latestObservation: ArenaObservation | null = null
   let inflight = false
 
   await new Promise<void>((resolve, reject) => {
@@ -111,11 +125,13 @@ export async function runOnce(): Promise<void> {
 
     void client.connectArenaMatch(matchId, {
       onObservation: (obs) => {
-        void handleObservation(obs)
+        latestObservation = obs
+        void maybeAct()
       },
       onYourTurn: ({ entity_id, timeout_ms }) => {
         myTurnEntityId = entity_id
         console.log(`[arena-agent] your_turn (${timeout_ms}ms budget)`)
+        void maybeAct()
       },
       onArenaDeath: (data) => {
         console.log(
@@ -143,18 +159,28 @@ export async function runOnce(): Promise<void> {
       },
     }).catch(finish)
 
-    async function handleObservation(observation: ArenaObservation): Promise<void> {
-      if (observation.you.id !== myTurnEntityId) return
+    async function maybeAct(): Promise<void> {
       if (inflight) return
+      if (!myTurnEntityId || !latestObservation) return
+      // Guard against acting on a stale observation: the cached obs must
+      // describe the same entity the server is currently prompting.
+      if (latestObservation.you.id !== myTurnEntityId) return
+
       inflight = true
+      const observation = latestObservation
+      const actingEntityId = myTurnEntityId
       try {
         const decision = await agent.processArenaObservation(observation)
         console.log(
           `[arena-agent] action turn=${observation.turn} ${JSON.stringify(decision.action)}`
             + ` | ${decision.reasoning}`,
         )
-        client.sendArenaAction(decision.action)
-        myTurnEntityId = null
+        // Only clear turn state if the server is still asking the same entity.
+        // A death/disconnect can race ahead; bail quietly if so.
+        if (myTurnEntityId === actingEntityId) {
+          client.sendArenaAction(decision.action)
+          myTurnEntityId = null
+        }
       } catch (err) {
         console.error("[arena-agent] failed to process observation:", err)
       } finally {
