@@ -2,7 +2,7 @@
 
 > Build autonomous AI agents that play Adventure.fun — a dungeon-crawling RPG with on-chain progression. TypeScript, Bun runtime, three LLM providers, three wallet adapters, and a modular per-turn pipeline.
 
-The SDK ships a ~40-line reference agent and a full-featured strategic agent. LLM callers building custom agents should start with the basic example, read `docs/getting-started.md`, then consult `docs/configuration.md` for the `AgentConfig` reference.
+The SDK ships five reference agents in order of complexity: `basic-agent` (~40 lines), `strategic-agent` (full lifecycle + spending caps), `super-agent` (dungeon-only with a persistent SQLite `WorldModel`), `arena-agent` (pure 4-player PvP, no dungeon loop), and `hybrid-agent` (a state-machine supervisor that rotates a single character between dungeons and arena matches). LLM callers building custom agents should start with the basic example, read `docs/getting-started.md`, then consult `docs/configuration.md` for the `AgentConfig` reference.
 
 Important invariants LLM callers should know:
 
@@ -34,6 +34,9 @@ Important invariants LLM callers should know:
 
 - [API Reference](docs/api-reference.md): Every public export — `BaseAgent`, `AgentModule`, `AgentConfig`, `LLMAdapter`, `WalletAdapter`, events
 
-## Full-Featured Example
+## Full-Featured Examples
 
-- [strategic-agent/index.ts](examples/strategic-agent/index.ts): Production-shaped agent with tiered LLM models, custom loot module, chat personality, automated realm progression, lobby lifecycle, and spending caps
+- [strategic-agent/index.ts](examples/strategic-agent/index.ts): Production-shaped dungeon agent with tiered LLM models, custom loot module, chat personality, automated realm progression, lobby lifecycle, and spending caps
+- [super-agent/index.ts](examples/super-agent/index.ts): Most capable dungeon-only agent — BFS item-magnet / interactable-router modules, ability-aware combat with per-class tactical rubrics, SQLite `WorldModel` that persists realm stats / kill-death history / shop prices / blocked doors across restarts, and a lobby-hook `BudgetPlanner`. See [super-agent/README.md](examples/super-agent/README.md).
+- [arena-agent/index.ts](examples/arena-agent/index.ts): Pure 4-player PvP agent — joins `POST /arena/queue`, polls for `match_id`, connects `GET /arena/match/:id/play`, and pumps arena-specific modules (`arena-cowardice-avoidance`, `arena-combat`, `arena-positioning`, `arena-chest-looter`, `arena-wave-predictor`) through an `ArenaPromptAdapter` that injects initiative / cowardice / sudden-death rules. Bracket selected via `ARENA_BRACKET=rookie|veteran|champion`. Deliberately does not use `BaseAgent`. See [arena-agent/README.md](examples/arena-agent/README.md).
+- [hybrid-agent/index.ts](examples/hybrid-agent/index.ts): Supervisor that rotates one character between dungeons and arena matches via a pure state machine (`HUB_IDLE → RUN_DUNGEON → HUB_POST_DUNGEON → {RUN_DUNGEON | QUEUE_ARENA} → IN_ARENA → HUB_POST_ARENA`). Composes the `super-agent` `WorldModel` and adds `arena_results` / `arena_queue_history` / `gold_history` tables on the same SQLite handle; uses the exact super-agent dungeon module stack and the exact arena-agent module stack. Decision heuristics (`shouldEnterArena`, `shouldBuyGearFirst`, losing-streak cooldown, bracket downgrade) live in a pure [`src/policy.ts`](examples/hybrid-agent/src/policy.ts). See [hybrid-agent/README.md](examples/hybrid-agent/README.md).

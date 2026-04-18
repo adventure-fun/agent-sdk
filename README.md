@@ -145,9 +145,20 @@ CI output tells you exactly which files changed and which SDK modules to review.
 
 ## Examples
 
-- [`examples/basic-agent/`](examples/basic-agent/) -- minimal 40-line agent with env config
-- [`examples/strategic-agent/`](examples/strategic-agent/) -- tiered models, custom loot module, chat personality, auto progression, lobby planning, and spending limits
-- [`examples/super-agent/`](examples/super-agent/) -- the most capable reference agent. Adds item-magnet + interactable-router BFS modules, an ability-aware combat module driven by per-class tactical rubrics, a SQLite `WorldModel` that persists realm stats / kill-death history / shop prices across container restarts, and a lobby-hook `BudgetPlanner` that gears up with historical price context. Also demonstrates the `lobbyHook` extension point and the shared `bfs` helper. See its [README](examples/super-agent/README.md) for the Docker supervisor setup and WorldModel volume layout.
+Five reference agents, in increasing order of complexity. Each is self-contained — `config.ts` + `index.ts` + (optionally) `supervisor.ts` + a `tests/` directory — so you can copy a whole folder as the starting point for your own agent. The `super-agent` and `hybrid-agent` examples ship a `supervisor.ts` crash-loop wrapper (exponential backoff 2s → 60s, SIGTERM/SIGINT graceful shutdown) intended as the Docker entrypoint.
+
+### Dungeon agents
+
+- [`examples/basic-agent/`](examples/basic-agent/) -- minimal 40-line agent with env config.
+- [`examples/strategic-agent/`](examples/strategic-agent/) -- tiered models, custom loot module, chat personality, auto progression, lobby planning, and spending limits.
+- [`examples/super-agent/`](examples/super-agent/) -- the most capable dungeon-only reference agent. Adds item-magnet + interactable-router BFS modules, an ability-aware combat module driven by per-class tactical rubrics, a SQLite `WorldModel` that persists realm stats / kill-death history / shop prices / blocked-door memory across container restarts, and a lobby-hook `BudgetPlanner` that gears up with historical price context. Also demonstrates the `lobbyHook` extension point and the shared `bfs` helper. See its [README](examples/super-agent/README.md) for the Docker supervisor setup and WorldModel volume layout.
+
+### Arena agents (4-player PvP)
+
+- [`examples/arena-agent/`](examples/arena-agent/) -- pure arena example. Authenticates, calls `POST /arena/queue`, polls `GET /arena/queue/status` for a `match_id`, then connects to `GET /arena/match/:id/play` and pumps arena-specific modules (`arena-cowardice-avoidance`, `arena-combat`, `arena-positioning`, `arena-chest-looter`, `arena-wave-predictor`) through an `ArenaPromptAdapter` that injects the initiative / cowardice / sudden-death rules and a class-specific PvP rubric. Deliberately does **not** use `BaseAgent` — arena matches have no lobby / realm-progression loop, so the dungeon pipeline would be dead code. Bracket is selected via `ARENA_BRACKET=rookie|veteran|champion`. See its [README](examples/arena-agent/README.md) for the module priority ladder and prompt layout.
+- [`examples/hybrid-agent/`](examples/hybrid-agent/) -- the most capable reference agent overall. A supervisor that rotates a single character between dungeons and arena matches via a pure, test-covered state machine (`HUB_IDLE → RUN_DUNGEON → HUB_POST_DUNGEON → {RUN_DUNGEON | QUEUE_ARENA} → IN_ARENA → HUB_POST_ARENA → RUN_DUNGEON`). Composes — not extends — the super-agent `WorldModel` so dungeon runs use the exact module stack from `super-agent` while arena matches use the exact module stack from `arena-agent`; the hybrid layer only adds three tables (`arena_results`, `arena_queue_history`, `gold_history`) on the same SQLite handle. Decision heuristics (`shouldEnterArena`, `shouldBuyGearFirst`, bracket downgrade, losing-streak cooldown) live in a pure [`src/policy.ts`](examples/hybrid-agent/src/policy.ts) so every edge is covered without the network. See its [README](examples/hybrid-agent/README.md) for the state machine diagram, tunable thresholds, and the full env-var surface.
+
+All five examples share the same `.env` schema — switching between them is a one-line change to the `bun run …` target.
 
 ## Agent Lifecycle
 
