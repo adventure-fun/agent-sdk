@@ -184,7 +184,7 @@
     },
     {
       "file": "backend/src/index.ts",
-      "hash": "f0299a0482c46d65dc75ae0bd927ba02bf51574b03c8d79c04dca44e39d6320b",
+      "hash": "563f57a4982292638ac64b1eae0d846fd464498dc363da0a35fd3c4587646907",
       "affectedModules": [
         "dev-stack",
         "chat"
@@ -222,7 +222,7 @@
     },
     {
       "file": "backend/src/redis/publishers.ts",
-      "hash": "5bc61afbd1eb5ae35348e69f8f5273e613346e7ad1dbca51a027a2cf250387d3",
+      "hash": "7dd6896d931de905dfbccae7bd233ba34f539c7b28f5b2f290020540ba9c6541",
       "affectedModules": [
         "chat"
       ]
