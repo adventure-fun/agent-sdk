@@ -1,4 +1,9 @@
 export { AbilityCombatModule } from "./ability-combat.js"
+export {
+  AntiLoopExplorationModule,
+  __resetAntiLoopForTests,
+  __peekAntiLoopRoomStateForTests,
+} from "./anti-loop-exploration.js"
 export { AutoEquipModule, guessSlotExpanded } from "./auto-equip.js"
 export {
   InteractableRouterModule,

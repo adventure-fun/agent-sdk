@@ -14,6 +14,7 @@ import {
 } from "../../src/index.js"
 import {
   AbilityCombatModule,
+  AntiLoopExplorationModule,
   AutoEquipModule,
   ClassAwareTrapModule,
   ExtractionRouterModule,
@@ -168,6 +169,7 @@ export function createSuperConfig(
  *    65 KeyHunterModule        (NEW) — explore frontier while holding an unplaced key
  *    50 InventoryModule
  *    45 KeyDoorModule
+ *    42 AntiLoopExplorationModule (NEW) — tight ping-pong detection + forward bias
  *    40 ExplorationModule
  */
 export function createSuperModules(profiles: ClassProfileRegistry): AgentModule[] {
@@ -197,6 +199,7 @@ export function createSuperModules(profiles: ClassProfileRegistry): AgentModule[
     new KeyHunterModule(),
     new InventoryModule(),
     new KeyDoorModule(),
+    new AntiLoopExplorationModule(),
     new ExplorationModule(),
   ]
 }

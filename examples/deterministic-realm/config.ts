@@ -14,6 +14,7 @@ import {
 } from "../../src/index.js"
 import {
   AbilityCombatModule,
+  AntiLoopExplorationModule,
   AutoEquipModule,
   ClassAwareTrapModule,
   ExtractionRouterModule,
@@ -156,6 +157,7 @@ export function createDeterministicRealmModules(
     new KeyHunterModule(),
     new InventoryModule(),
     new KeyDoorModule(),
+    new AntiLoopExplorationModule(),
     new ExplorationModule(),
   ]
 }
