@@ -123,6 +123,7 @@ export interface ArenaObservationOverrides {
   entities?: ArenaEntity[]
   you?: ArenaEntity
   turn_order?: string[]
+  acted_this_round?: string[]
   next_wave_turn?: number | null
   proximity_warnings?: ProximityWarning[]
   recent_events?: ArenaEvent[]
@@ -161,6 +162,7 @@ export function buildArenaObservation(
     entities: resolvedEntities,
     you,
     turn_order: overrides.turn_order ?? resolvedEntities.map((e) => e.id),
+    acted_this_round: overrides.acted_this_round ?? [],
     next_wave_turn: overrides.next_wave_turn ?? null,
     proximity_warnings: overrides.proximity_warnings ?? [],
     recent_events: overrides.recent_events ?? [],
