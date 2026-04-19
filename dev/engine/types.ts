@@ -410,6 +410,13 @@ export interface ItemTemplate {
    * Defaults to 1 (adjacent-only) when absent.
    */
   throw_range?: number
+  /**
+   * Whether the player can discard this item mid-realm. When false, the
+   * in-game discard action rejects this item to prevent soft-locking runs
+   * (e.g. dropping a key needed to open a locked exit). Defaults to true
+   * when absent. The hub/shop discard path ignores this flag.
+   */
+  canDrop?: boolean
 }
 
 export interface SkillNodeTemplate {

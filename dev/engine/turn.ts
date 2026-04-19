@@ -31,6 +31,7 @@ import type {
   SpectatorEntity,
   ItemTemplate,
   RoomTemplate,
+  Effect,
   AbilitySummary,
   AbilityTemplate,
   InteractablePosition,
@@ -830,6 +831,10 @@ export function resolveTurn(
       }
       case "drop": {
         summary = resolveDrop(s, room, action, events)
+        break
+      }
+      case "discard": {
+        summary = resolveDiscard(s, action, events)
         break
       }
       case "wait": {
@@ -2605,6 +2610,72 @@ function resolveInteract(
     }
   }
 
+  // Inventory-full pre-check: collect every `grant-item` effect this
+  // interaction would actually apply (interactable effects + conditional
+  // triggers whose conditions are met) and confirm the bag has room for
+  // all of them. If any would fail, block the entire interaction before
+  // marking the entity used — otherwise the key/quest item would vanish
+  // and the chest would be consumed, soft-locking the run.
+  const grantItemEffects: Array<Extract<Effect, { type: "grant-item" }>> = []
+  for (const effect of interactable.effects) {
+    if (effect.type === "grant-item") grantItemEffects.push(effect)
+  }
+  for (const trigger of roomTemplate.triggers) {
+    if (trigger.target_id !== action.target_id) continue
+    if (trigger.trigger_on !== "interact") continue
+    let conditionsMet = true
+    for (const cond of trigger.conditions) {
+      if (cond.type === "class-is" && s.character.class !== cond.class) { conditionsMet = false; break }
+      if (cond.type === "enemy-defeated" && !s.mutatedEntities.includes(cond.entity_id)) { conditionsMet = false; break }
+      if (cond.type === "has-flag" && !s.questFlags?.includes(cond.flag)) { conditionsMet = false; break }
+      if (cond.type === "room-cleared" && room.enemies.some((e) => e.hp > 0)) { conditionsMet = false; break }
+    }
+    if (!conditionsMet) continue
+    for (const effect of trigger.effects) {
+      if (effect.type === "grant-item") grantItemEffects.push(effect)
+    }
+  }
+  if (grantItemEffects.length > 0) {
+    const simulatedStackQty = new Map<string, number>()
+    for (const item of s.inventory) {
+      simulatedStackQty.set(item.template_id, (simulatedStackQty.get(item.template_id) ?? 0) + item.quantity)
+    }
+    let simulatedUsed = s.inventory.length
+    const capacity = getEffectiveInventoryCapacity(s)
+    for (const grant of grantItemEffects) {
+      let template: ItemTemplate
+      try {
+        template = getItem(grant.item_template_id)
+      } catch {
+        continue // unknown template — applyEffect will skip it too
+      }
+      const qty = grant.quantity ?? 1
+      const existing = simulatedStackQty.get(grant.item_template_id) ?? 0
+      const canStack = template.stack_limit > 1 && existing > 0 && existing + qty <= template.stack_limit
+      if (canStack) {
+        simulatedStackQty.set(grant.item_template_id, existing + qty)
+        continue
+      }
+      if (simulatedUsed >= capacity) {
+        const detail = `Bag full (${simulatedUsed}/${capacity}) — discard something before opening ${interactable.name}.`
+        events.push({
+          turn: 0,
+          type: "interact_blocked",
+          detail,
+          data: {
+            target_id: action.target_id,
+            reason: "inventory-full",
+            required_template_id: grant.item_template_id,
+            ...(isLockedExit ? { is_locked_exit: true } : {}),
+          },
+        })
+        return detail
+      }
+      simulatedStackQty.set(grant.item_template_id, existing + qty)
+      simulatedUsed += 1
+    }
+  }
+
   // Apply interactable effects
   const parts: string[] = [interactable.text_on_interact]
   for (const effect of interactable.effects) {
@@ -2984,6 +3055,36 @@ function resolveDrop(
 
   const summary = `Dropped ${item.name}.`
   events.push({ turn: 0, type: "drop", detail: summary, data: { item_id: item.id } })
+  return summary
+}
+
+function resolveDiscard(
+  s: GameState,
+  action: { type: "discard"; item_id: string },
+  events: GameEvent[],
+): string {
+  const itemIdx = s.inventory.findIndex((i) => i.id === action.item_id)
+  if (itemIdx < 0) return "Item not found."
+
+  const item = s.inventory[itemIdx]!
+  if (item.slot) return "Unequip this item before discarding it."
+
+  let template: ItemTemplate | null = null
+  try {
+    template = getItem(item.template_id)
+  } catch {
+    template = null
+  }
+  if (template && template.canDrop === false) {
+    const summary = `${item.name} cannot be discarded — it may be required to complete this realm.`
+    events.push({ turn: 0, type: "blocked", detail: summary, data: { action: "discard", item_id: item.id } })
+    return summary
+  }
+
+  s.inventory.splice(itemIdx, 1)
+
+  const summary = `Discarded ${item.name}.`
+  events.push({ turn: 0, type: "discard", detail: summary, data: { item_id: item.id, template_id: item.template_id } })
   return summary
 }
 
@@ -3866,6 +3967,20 @@ export function computeLegalActions(
     if (state.equipment[slot]) {
       actions.push({ type: "unequip", slot })
     }
+  }
+
+  // Discard — unequipped inventory items whose template allows dropping.
+  // Items flagged `canDrop: false` (keys, quest items) are omitted to prevent
+  // soft-locks. Equipped items must be unequipped first.
+  for (const item of state.inventory) {
+    if (item.slot) continue
+    try {
+      const template = getItem(item.template_id)
+      if (template.canDrop === false) continue
+    } catch {
+      continue
+    }
+    actions.push({ type: "discard", item_id: item.id })
   }
 
   // Extraction — available when no enemies are alive in the room

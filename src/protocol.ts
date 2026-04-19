@@ -237,6 +237,7 @@ export type Action =
   | { type: "wait" }
   | { type: "pickup"; item_id: string }
   | { type: "drop"; item_id: string }
+  | { type: "discard"; item_id: string }
 
 // ---- WebSocket Messages -------------------------------------
 

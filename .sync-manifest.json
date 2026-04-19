@@ -1,12 +1,12 @@
 {
   "version": 1,
-  "lastSync": "2026-04-18",
+  "lastSync": "2026-04-19",
   "sources": [
     {
       "canonical": "shared/schemas/src/index.ts",
       "vendored": "agent-sdk/src/protocol.ts",
-      "canonicalHash": "354e947a8d34f55143ccf8fd7fa1bcccd243ec4a8de36c6154150ce3fab69e27",
-      "generatedHash": "965c4b04fb2557c91692d52103f8cfda61f14217fde1acb7a6a33363d1b2a0ae",
+      "canonicalHash": "9b01c3f0752bd0ad9e2b5cddf453d3325ae1b11a9027ec463796f2e43f3acda6",
+      "generatedHash": "e550427e8ecb598974e465bcc4988d169c8c95878acd50b65778c78ac2791e66",
       "types": [
         "Stats",
         "CharacterStats",
@@ -84,7 +84,7 @@
         "Entity": "39d4eb2444adeeaf3da02e1d4cfee769d35efdb281d931c75b34552e60ac2065",
         "GameEvent": "c9a2fc99f5d4ab9904d13ac72af246cb309c04da7389709220dfd6d42f868641",
         "Observation": "be0951fdfbdc782f848198cef2623ee2cf5dd9a1543f41453135693be2b9e9b9",
-        "Action": "1b8446abb59ebda082b8ca36485fad21d6253450a9aefbe8f948ca03fb854eed",
+        "Action": "fb3077fc2cf41c860df9cfeb180e71a3327049ad8973adfc208c2196e292ac47",
         "ServerMessage": "b7c8e60ebd6df37993ee28cc03bba4241717384a80d9143c78558f9ac614f151",
         "ClientMessage": "79a054df95ff262378c7651b58be1cfa38b5e8310e7366f2a648373a1a706859",
         "PerkTemplate": "96bdf4d774a6a59630b715987186b802e9a08544299ee8e451b19002cfef6ccc",
@@ -119,7 +119,7 @@
   "engineWatchlist": [
     {
       "file": "shared/engine/src/turn.ts",
-      "hash": "473701c1ef7a21d6d431d4185bcf85dd9f74ce92175d186cb8ec08984dbc48bb",
+      "hash": "04ae44612ee27ca3b10bbf8a83f22b4ad9245017aa64fcac7217a33b8299a6c3",
       "affectedModules": [
         "combat",
         "exploration",
@@ -171,7 +171,7 @@
     },
     {
       "file": "backend/src/game/action-validator.ts",
-      "hash": "a07df92d316ce3fd1449211cff23f424de50df96a91fedeec03529ea6e114038",
+      "hash": "78ad527ee9d2710cfa3bf42d61dc2a7c20617f7d21538c6a464825221338c738",
       "affectedModules": [
         "dev-stack"
       ]
@@ -273,8 +273,8 @@
     {
       "source": "shared/schemas/src/index.ts",
       "vendored": "agent-sdk/dev/engine/types.ts",
-      "sourceHash": "354e947a8d34f55143ccf8fd7fa1bcccd243ec4a8de36c6154150ce3fab69e27",
-      "vendoredHash": "5a79300b51feeeed3068dfa73c5082815f10c4a53e5032bcf17d44aca9fdadf1",
+      "sourceHash": "9b01c3f0752bd0ad9e2b5cddf453d3325ae1b11a9027ec463796f2e43f3acda6",
+      "vendoredHash": "cc97f560aff64bd37d91f0906f65d19a53111d42464ca13dcdf8dbe4eb8c9112",
       "affectedModules": [
         "dev-stack"
       ]
@@ -318,8 +318,8 @@
     {
       "source": "shared/engine/src/turn.ts",
       "vendored": "agent-sdk/dev/engine/turn.ts",
-      "sourceHash": "473701c1ef7a21d6d431d4185bcf85dd9f74ce92175d186cb8ec08984dbc48bb",
-      "vendoredHash": "1a32989972078abd0d62e1ddae4f6238f643456cc8130bbb4b007b628530898d",
+      "sourceHash": "04ae44612ee27ca3b10bbf8a83f22b4ad9245017aa64fcac7217a33b8299a6c3",
+      "vendoredHash": "9943f68f82afae190959f1511628a8d0b8d2c39c839c79199dc1fd120f924236",
       "affectedModules": [
         "dev-stack"
       ]
