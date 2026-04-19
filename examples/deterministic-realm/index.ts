@@ -216,6 +216,10 @@ export async function runOnce(): Promise<void> {
       })
     }
   } finally {
+    // Best-effort: close the WorldModel. Any trailing WebSocket messages that fire the
+    // session's `observation` listener AFTER this point are silently no-ops because
+    // WorldModel.close() flips an internal `closed` flag and all mutators early-return.
+    // See WorldModel.isOpen() for the full rationale.
     world.close()
   }
 }

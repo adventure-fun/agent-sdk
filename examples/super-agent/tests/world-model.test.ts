@@ -158,4 +158,52 @@ describe("WorldModel", () => {
     expect(world.getBlockedDoorsForTemplate("sunken-crypt").length).toBe(0)
     world.close()
   })
+
+  it("silently no-ops mutators after close instead of throwing", () => {
+    // Regression: bot-agents supervisor was flagging deterministic-realm sessions as
+    // crashed because trailing WebSocket observations fired the session's observation
+    // listener AFTER world.close() ran in the finally block. bun:sqlite throws
+    // `RangeError: Cannot use a closed database` from every db.prepare call, which
+    // propagated out of the listener and killed the session abruptly. All mutators
+    // must silently no-op and all readers must return empty/null defaults.
+    const world = WorldModel.open(":memory:")
+    world.close()
+
+    // Idempotent close — must not throw on a double close.
+    expect(() => world.close()).not.toThrow()
+
+    // Writes: must not throw.
+    expect(() => world.startRun("t", "Test", "rogue", 1)).not.toThrow()
+    expect(() => world.endRun(1, {
+      outcome: "extracted",
+      floorReached: 1,
+      turnsPlayed: 1,
+      goldEarned: 0,
+      xpEarned: 0,
+      realmCompleted: false,
+    })).not.toThrow()
+    expect(() => world.ingestObservation(buildObservation({ turn: 1 }))).not.toThrow()
+    expect(() => world.recordDeath("Goblin")).not.toThrow()
+    expect(() => world.upsertShopPrices([])).not.toThrow()
+    expect(() => world.addRealmTip("t", "rogue", "tip")).not.toThrow()
+    expect(() => world.upsertBlockedDoor({
+      templateId: "t",
+      targetId: "d",
+      floor: 1,
+      roomId: "r",
+      x: 1,
+      y: 1,
+    })).not.toThrow()
+    expect(() => world.deleteBlockedDoor("t", "d")).not.toThrow()
+    expect(() => world.setMeta("k", "v")).not.toThrow()
+
+    // Reads: must return sensible defaults.
+    expect(world.startRun("t", "Test", "rogue", 1)).toBe(0)
+    expect(world.countRuns()).toBe(0)
+    expect(world.getShopPrice("anything")).toBeNull()
+    expect(world.getEnemyProfile("t", "anything", "rogue")).toBeNull()
+    expect(world.getBlockedDoorsForTemplate("anything")).toEqual([])
+    expect(world.getMeta("anything")).toBeNull()
+    expect(world.summarizeForLLM("t", "rogue")).toBe("")
+  })
 })

@@ -123,6 +123,23 @@ export class WorldModel {
   private previousHp = 0
   private previousTurn = 0
 
+  /**
+   * Guards the DB from being used after close. The bot-agents supervisor flow is:
+   *   runOnce() → finally { world.close() } → supervisor cooldown → runOnce() again
+   * but the underlying agent WebSocket can deliver one or more trailing observation
+   * frames AFTER `start()` resolves and the finally block has closed `db`. Those
+   * trailing frames fire the session's `observation` listener, which calls
+   * `world.ingestObservation` / `world.upsertBlockedDoor` / etc. Without a guard
+   * those calls throw `RangeError: Cannot use a closed database` from bun:sqlite
+   * and the supervisor treats the session as crashed instead of cleanly ended.
+   *
+   * Treat every public method as a best-effort: after close, writes silently no-op
+   * and reads return empty/null/0. We log a one-shot warning the first time a
+   * post-close call is observed so the pattern is still visible in logs.
+   */
+  private closed = false
+  private loggedPostCloseUse = false
+
   constructor(db: Database) {
     this.db = db
   }
@@ -131,8 +148,27 @@ export class WorldModel {
     return new WorldModel(openWorldDatabase(path))
   }
 
+  /**
+   * Idempotent close. Subsequent DB operations no-op instead of throwing so
+   * trailing-socket-message listeners can fire safely during supervisor rotation.
+   */
   close(): void {
+    if (this.closed) return
+    this.closed = true
     this.db.close()
+  }
+
+  /** Internal: returns true if the DB is usable; emits a one-shot trace otherwise. */
+  private isOpen(opName: string): boolean {
+    if (!this.closed) return true
+    if (!this.loggedPostCloseUse) {
+      this.loggedPostCloseUse = true
+      // Single warning per instance — logs are already noisy with bot output.
+      console.warn(
+        `[world-model] ignored post-close ${opName}() call (stale listener during supervisor rotation)`,
+      )
+    }
+    return false
   }
 
   /**
@@ -144,6 +180,7 @@ export class WorldModel {
     klass: CharacterClass,
     characterLevel: number,
   ): number {
+    if (!this.isOpen("startRun")) return 0
     const stmt = this.db.prepare(
       `INSERT INTO realm_runs (template_id, template_name, character_class, character_level, started_at)
        VALUES (?, ?, ?, ?, ?)
@@ -171,6 +208,7 @@ export class WorldModel {
   }
 
   endRun(runId: number, summary: RealmRunSummary): void {
+    if (!this.isOpen("endRun")) return
     this.db
       .prepare(
         `UPDATE realm_runs
@@ -205,6 +243,7 @@ export class WorldModel {
    * call on every turn.
    */
   ingestObservation(obs: Observation): void {
+    if (!this.isOpen("ingestObservation")) return
     if (this.currentTemplateId === null || this.currentClass === null) return
 
     const templateId = this.currentTemplateId
@@ -258,6 +297,7 @@ export class WorldModel {
    * Records that a specific enemy killed the character. Call from the `death` event.
    */
   recordDeath(causeName: string): void {
+    if (!this.isOpen("recordDeath")) return
     if (this.currentTemplateId === null || this.currentClass === null) return
     this.db
       .prepare(
@@ -271,6 +311,7 @@ export class WorldModel {
   }
 
   upsertShopPrices(items: ReadonlyArray<ShopCatalogItem>): void {
+    if (!this.isOpen("upsertShopPrices")) return
     const now = Date.now()
     const stmt = this.db.prepare(
       `INSERT INTO shop_prices (template_id, name, type, rarity, equip_slot, class_restriction, buy_price, sell_price, stats_json, last_seen_at)
@@ -303,6 +344,7 @@ export class WorldModel {
   }
 
   getShopPrice(templateId: string): ShopPriceRecord | null {
+    if (!this.isOpen("getShopPrice")) return null
     const row = this.db
       .prepare(
         `SELECT template_id, name, type, rarity, equip_slot, class_restriction,
@@ -330,6 +372,7 @@ export class WorldModel {
     enemyName: string,
     klass: CharacterClass,
   ): EnemyProfile | null {
+    if (!this.isOpen("getEnemyProfile")) return null
     const row = this.db
       .prepare(
         `SELECT template_id, enemy_name, character_class, sightings, kills, deaths_to, last_seen_at
@@ -350,6 +393,7 @@ export class WorldModel {
   }
 
   addRealmTip(templateId: string, klass: CharacterClass, note: string): void {
+    if (!this.isOpen("addRealmTip")) return
     this.db
       .prepare(
         `INSERT INTO realm_tips (template_id, character_class, note, added_at)
@@ -363,6 +407,7 @@ export class WorldModel {
    * the empty string when nothing is known, so callers can safely prepend it to prompts.
    */
   summarizeForLLM(templateId: string, klass: CharacterClass, maxChars = 800): string {
+    if (!this.isOpen("summarizeForLLM")) return ""
     const runsRow = this.db
       .prepare(
         `SELECT COUNT(*) as total,
@@ -439,6 +484,7 @@ export class WorldModel {
     requiredKeyTemplateId?: string | null
     name?: string | null
   }): void {
+    if (!this.isOpen("upsertBlockedDoor")) return
     const now = Date.now()
     this.db
       .prepare(
@@ -470,6 +516,7 @@ export class WorldModel {
 
   /** Returns every blocked door known for a realm template. Used to hydrate mapMemory. */
   getBlockedDoorsForTemplate(templateId: string): BlockedDoorRecord[] {
+    if (!this.isOpen("getBlockedDoorsForTemplate")) return []
     const rows = this.db
       .prepare(
         `SELECT template_id, target_id, floor, room_id, x, y, required_key_template_id, name, first_seen_at, last_seen_at
@@ -492,12 +539,14 @@ export class WorldModel {
 
   /** Removes a blocked door once the agent successfully opens it. */
   deleteBlockedDoor(templateId: string, targetId: string): void {
+    if (!this.isOpen("deleteBlockedDoor")) return
     this.db
       .prepare(`DELETE FROM blocked_doors WHERE template_id = ? AND target_id = ?`)
       .run(templateId, targetId)
   }
 
   setMeta(key: string, value: string): void {
+    if (!this.isOpen("setMeta")) return
     this.db
       .prepare(
         `INSERT INTO meta (key, value) VALUES (?, ?)
@@ -507,6 +556,7 @@ export class WorldModel {
   }
 
   getMeta(key: string): string | null {
+    if (!this.isOpen("getMeta")) return null
     const row = this.db.prepare("SELECT value FROM meta WHERE key = ?").get(key) as
       | { value: string }
       | null
@@ -514,6 +564,7 @@ export class WorldModel {
   }
 
   countRuns(): number {
+    if (!this.isOpen("countRuns")) return 0
     const row = this.db.prepare("SELECT COUNT(*) as c FROM realm_runs").get() as { c: number }
     return row.c
   }
