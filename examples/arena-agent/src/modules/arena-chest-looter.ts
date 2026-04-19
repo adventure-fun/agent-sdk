@@ -94,8 +94,23 @@ export class ArenaChestLooterModule implements ArenaAgentModule {
       .map((chest) => ({ chest, dist: chebyshev(you.position, chest) }))
       .sort((a, b) => a.dist - b.dist)[0]!
     if (target.dist === 0) {
+      // Standing on the chest tile — surface the interact action
+      // directly so we don't burn a turn waiting for the LLM to
+      // realize the pickup is now legal. The engine emits one
+      // `interact` row per drop on the actor's tile (see
+      // `computeArenaLegalActions` in shared/engine/src/arena.ts).
+      const interact = observation.legal_actions.find(
+        (a): a is Extract<Action, { type: "interact" }> => a.type === "interact",
+      )
+      if (interact) {
+        return {
+          suggestedAction: interact,
+          reasoning: `Standing on chest tile — picking up loot pile ${interact.target_id}.`,
+          confidence: 0.85,
+        }
+      }
       return {
-        reasoning: "Standing on chest tile — tactical LLM can choose interact.",
+        reasoning: "Standing on chest tile but no interact legal-action present.",
         confidence: 0,
       }
     }
