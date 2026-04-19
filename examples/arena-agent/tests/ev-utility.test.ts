@@ -5,8 +5,6 @@ import {
   expectedAttackDamage,
   expectedIncomingDamageAt,
   scoreAttackCandidate,
-  scoreHealCandidate,
-  scoreInteractCandidate,
   scoreMoveCandidate,
 } from "../src/modules/index.js"
 import {
@@ -17,12 +15,15 @@ import {
 } from "./helpers/arena-fixture.js"
 
 /**
- * EV scoring integration tests. These protect against the four behavioral
+ * EV scoring integration tests. These protect against the behavioral
  * pathologies we set out to fix:
  *   1. Bots ping-ponging between flee and engage.
  *   2. Deterministic bots that never commit to an attack.
  *   3. Aggressive archetypes not behaving differently from cautious ones.
- *   4. Opportunist bots ignoring loot piles.
+ *
+ * Heal / interact scoring tests were removed alongside the consumable
+ * and chest-loot mechanics — arena is now equipment-only
+ * (ARENA_DESIGN.md §1/§9/§10).
  *
  * Each test builds a minimal observation, runs the scoring helpers, and
  * verifies the sign/ordering of utilities rather than exact numbers (the
@@ -104,70 +105,6 @@ describe("EV utility scoring — scoreMoveCandidate", () => {
     const away = scoreMoveCandidate(ctx, moveAction("left"), {})
     // `away` should score >= `intoDanger` because risk decreases.
     expect(away.utility).toBeGreaterThanOrEqual(intoDanger.utility)
-  })
-})
-
-describe("EV utility scoring — scoreHealCandidate", () => {
-  it("emergency HP awards critical bonus", () => {
-    const you = buildArenaEntity({ id: "you", hp: { current: 10, max: 100 } })
-    const obs = buildArenaObservation({ you, entities: [you] })
-    const ctx = buildUtilityContext(obs, ARCHETYPE_PROFILES.balanced)
-    const cand = scoreHealCandidate(
-      ctx,
-      { type: "use_item", item_id: "inv-gph" },
-      { magnitude: 50, templateId: "greater-health-potion" },
-    )
-    expect(cand.utility).toBeGreaterThan(60)
-    expect(cand.components.expected_heal).toBe(50)
-  })
-
-  it("over-heal is penalized so small potions beat large ones when the gap is tiny", () => {
-    const you = buildArenaEntity({ id: "you", hp: { current: 90, max: 100 } })
-    const obs = buildArenaObservation({ you, entities: [you] })
-    const ctx = buildUtilityContext(obs, ARCHETYPE_PROFILES.balanced)
-    const small = scoreHealCandidate(
-      ctx,
-      { type: "use_item", item_id: "inv-hp" },
-      { magnitude: 25, templateId: "health-potion" },
-    )
-    const mega = scoreHealCandidate(
-      ctx,
-      { type: "use_item", item_id: "inv-mega" },
-      { magnitude: 80, templateId: "mega-health-potion" },
-    )
-    expect(small.utility).toBeGreaterThan(mega.utility)
-  })
-})
-
-describe("EV utility scoring — scoreInteractCandidate", () => {
-  it("greedy opportunist scores higher than cautious on the same pile", () => {
-    const you = buildArenaEntity({ id: "you" })
-    const obs = buildArenaObservation({ you, entities: [you] })
-    const ctxGreedy = buildUtilityContext(obs, ARCHETYPE_PROFILES.opportunist)
-    const ctxCautious = buildUtilityContext(obs, ARCHETYPE_PROFILES.cautious)
-    const a = scoreInteractCandidate(
-      ctxGreedy,
-      { type: "interact", target_id: "pile-1" },
-      { itemCount: 3, hostileAdjacent: false },
-    )
-    const b = scoreInteractCandidate(
-      ctxCautious,
-      { type: "interact", target_id: "pile-1" },
-      { itemCount: 3, hostileAdjacent: false },
-    )
-    expect(a.utility).toBeGreaterThan(b.utility)
-  })
-
-  it("camper-adjacent piles score negatively", () => {
-    const you = buildArenaEntity({ id: "you" })
-    const obs = buildArenaObservation({ you, entities: [you] })
-    const ctx = buildUtilityContext(obs, ARCHETYPE_PROFILES.balanced)
-    const camped = scoreInteractCandidate(
-      ctx,
-      { type: "interact", target_id: "pile-1" },
-      { itemCount: 1, hostileAdjacent: true },
-    )
-    expect(camped.utility).toBeLessThan(0)
   })
 })
 

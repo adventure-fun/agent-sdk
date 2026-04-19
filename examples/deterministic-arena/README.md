@@ -1,8 +1,8 @@
 # deterministic-arena
 
 Zero-LLM arena runner. Uses the same `arena-agent` module pipeline — combat,
-self-care, positioning, cowardice avoidance, chest-looter, wave-predictor,
-approach — but never calls OpenRouter. Every turn, each module emits a list
+positioning, cowardice avoidance, wave-predictor, approach — but never
+calls OpenRouter. Every turn, each module emits a list
 of **action candidates with an expected-value (EV) utility**, and the agent
 picks `argmax(utility)` across the entire set. If nothing scores, the agent
 emits `{ type: "wait" }`.
@@ -25,8 +25,7 @@ Each module returns `ArenaActionCandidate[]` with the shape:
   components: {
     expected_damage_dealt,       // E[dmg to target(s)]
     expected_damage_taken,       // E[incoming dmg at destination tile]
-    expected_heal,               // E[HP restored by a consumable]
-    strategic_bonus,             // engagement / bait / flee / loot bonus
+    strategic_bonus,             // engagement / bait / flee bonus
     risk_weight,                 // archetype risk aversion
   },
 }
@@ -36,33 +35,35 @@ Utility is roughly
 
 ```
 utility = expected_damage_dealt
-        + expected_heal
         + strategic_bonus
         - risk_weight * expected_damage_taken
 ```
 
 with module-specific bonuses (finisher bonus for attacks that drop a target
-to 0 HP, commit bonus when we have HP advantage, camper penalty on loot
-piles with an adjacent hostile, etc.).
+to 0 HP, commit bonus when we have HP advantage, etc.). Arena is
+equipment-only (ARENA_DESIGN.md §1/§9/§10) so there is no heal component
+and no chest / loot scoring.
 
 ## Archetype table
 
 Profiles live in
 [`agent-sdk/examples/arena-agent/src/modules/archetypes.ts`](../arena-agent/src/modules/archetypes.ts).
 
-| Archetype     | aggression | riskWeight | greed | approachMax | commit HP∆ | Notes                         |
-|---------------|-----------:|-----------:|------:|------------:|-----------:|-------------------------------|
-| `aggressive`  | 0.85       | 0.4        | 0.7   | 8           | 0.05       | Chases far, shrugs off risk. |
-| `balanced`    | 0.55       | 0.7        | 1.0   | 6           | 0.10       | Default all-rounder.         |
-| `cautious`    | 0.25       | 1.2        | 1.2   | 4           | 0.20       | Only commits at clear edge.  |
-| `opportunist` | 0.50       | 0.6        | 1.4   | 5           | 0.12       | Loots hot piles, grabs kills. |
+| Archetype     | aggression | riskWeight | approachMax | commit HP∆ | Notes                         |
+|---------------|-----------:|-----------:|------------:|-----------:|-------------------------------|
+| `aggressive`  | 0.85       | 0.4        | 8           | 0.05       | Chases far, shrugs off risk. |
+| `balanced`    | 0.55       | 0.7        | 6           | 0.10       | Default all-rounder.         |
+| `cautious`    | 0.25       | 1.2        | 4           | 0.20       | Only commits at clear edge.  |
+| `opportunist` | 0.50       | 0.6        | 5           | 0.12       | Grabs kill opportunities.    |
 
 - `riskWeight` multiplies `expected_damage_taken` when summing utility.
-- `greed` multiplies chest / loot strategic bonuses (and the camper penalty).
 - `approachMax` is the Chebyshev radius inside which the approach module
   will emit a "move toward weakest player" candidate.
 - `commit HP∆` is the HP-advantage ratio above which the cowardice module
   commits to attacking instead of fleeing.
+- `greed` / `emergencyHpShift` / `safeHealHpShift` / `chestGreedMultiplier`
+  are retained on `ArchetypeProfile` for backwards compatibility but no
+  longer drive any module behavior since arena became equipment-only.
 
 ## Env
 
@@ -73,7 +74,7 @@ Profiles live in
 | `BOT_AGGRESSION`       | archetype   | Fine-tune the archetype's `aggression` knob (`0..1`).|
 | `CHARACTER_CLASS`      | `rogue`     | Class seeded on `/characters/roll`.                  |
 | `CHARACTER_NAME`       | —           | Display name override.                               |
-| `EMERGENCY_HP_PERCENT` | `0.25`      | ArenaSelfCareModule emergency trigger (ratio).       |
+| `EMERGENCY_HP_PERCENT` | `0.25`      | Legacy — no-op since arena became equipment-only.    |
 | `AGENT_PRIVATE_KEY`    | —           | EVM key for auth + x402.                             |
 | `AGENT_WALLET_NETWORK` | `base`      | Wallet network.                                      |
 | `API_URL` / `WS_URL`   | localhost   | Backend URLs.                                        |

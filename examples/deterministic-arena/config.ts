@@ -7,11 +7,9 @@ import {
 } from "../../src/index.js"
 import {
   ArenaApproachModule,
-  ArenaChestLooterModule,
   ArenaCombatModule,
   ArenaCowardiceAvoidanceModule,
   ArenaPositioningModule,
-  ArenaSelfCareModule,
   ArenaWavePredictorModule,
   getArchetypeProfile,
   parseBotArchetype,
@@ -89,20 +87,14 @@ export function resolveArchetypeFromEnv(): ArchetypeProfile {
 /**
  * Same module roster as the LLM arena-agent. The modules themselves branch
  * on `context.archetype`, so there is no deterministic-specific module list.
+ * `ArenaSelfCareModule` and `ArenaChestLooterModule` were retired alongside
+ * the consumable / chest-loot mechanics (ARENA_DESIGN.md §1/§9/§10).
  */
 export function createDeterministicArenaModules(): ArenaAgentModule[] {
-  const emergencyRaw = Number(process.env.EMERGENCY_HP_PERCENT ?? "0.25")
-  const emergencyHpPercent =
-    Number.isFinite(emergencyRaw) && emergencyRaw > 0 && emergencyRaw < 1
-      ? emergencyRaw
-      : 0.25
-
   return [
-    new ArenaSelfCareModule({ emergencyHpPercent }),
     new ArenaCowardiceAvoidanceModule(),
     new ArenaCombatModule(),
     new ArenaPositioningModule(),
-    new ArenaChestLooterModule(),
     new ArenaApproachModule(),
     new ArenaWavePredictorModule(),
   ]

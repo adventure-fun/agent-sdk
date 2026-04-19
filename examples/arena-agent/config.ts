@@ -7,11 +7,9 @@ import {
 } from "../../src/index.js"
 import {
   ArenaApproachModule,
-  ArenaChestLooterModule,
   ArenaCombatModule,
   ArenaCowardiceAvoidanceModule,
   ArenaPositioningModule,
-  ArenaSelfCareModule,
   ArenaWavePredictorModule,
   type ArenaAgentModule,
 } from "./src/modules/index.js"
@@ -92,32 +90,26 @@ export function createArenaConfig(): AgentConfig {
  * Returns the ordered arena module list. Priorities descend so the registry
  * (which sorts by priority) evaluates high-urgency modules first.
  *
- *   100 ArenaSelfCareModule           — emergency heal / safe heal at low HP
  *    95 ArenaCowardiceAvoidanceModule — never let the pairing counter tick to 3
  *    92 ArenaCombatModule             — PvP target selection
  *    85 ArenaPositioningModule        — fallback movement when combat declines
- *    80 ArenaChestLooterModule        — grace-period + safe-distance chest runs
  *    78 ArenaApproachModule           — close distance to weakest hostile
  *    70 ArenaWavePredictorModule      — bait incoming waves onto opponents
  *
- * The super-agent `ClassProfileRegistry` is accepted for signature parity with
- * `ArenaCombatModule` and future class-aware arena modules; it is not used by
- * the current five modules but keeps the factory extensible without a breaking
- * change when `arena-ability-selection` modules land in Phase 16.
+ * Arena is equipment-only (ARENA_DESIGN.md §1/§9/§10): `ArenaSelfCareModule`
+ * and `ArenaChestLooterModule` were retired along with the consumable /
+ * chest-loot / death-drop mechanics they drove. `emergencyHpPercent` is
+ * still accepted via env for compatibility with older deployments but is
+ * currently a no-op.
+ *
+ * The super-agent `ClassProfileRegistry` is accepted for signature parity
+ * with `ArenaCombatModule` and future class-aware arena modules.
  */
 export function createArenaModules(_profiles: ClassProfileRegistry): ArenaAgentModule[] {
-  const emergencyRaw = Number(process.env.EMERGENCY_HP_PERCENT ?? "0.25")
-  const emergencyHpPercent =
-    Number.isFinite(emergencyRaw) && emergencyRaw > 0 && emergencyRaw < 1
-      ? emergencyRaw
-      : 0.25
-
   return [
-    new ArenaSelfCareModule({ emergencyHpPercent }),
     new ArenaCowardiceAvoidanceModule(),
     new ArenaCombatModule(),
     new ArenaPositioningModule(),
-    new ArenaChestLooterModule(),
     new ArenaApproachModule(),
     new ArenaWavePredictorModule(),
   ]

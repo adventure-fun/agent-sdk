@@ -8,11 +8,9 @@ import {
 import {
   ARCHETYPE_PROFILES,
   ArenaApproachModule,
-  ArenaChestLooterModule,
   ArenaCombatModule,
   ArenaCowardiceAvoidanceModule,
   ArenaPositioningModule,
-  ArenaSelfCareModule,
   ArenaWavePredictorModule,
   createArenaAgentContext,
   createArenaModuleRegistry,
@@ -34,8 +32,10 @@ import {
  *   (B) Cowardice-avoidance no longer ping-pongs — attack wins when
  *       HP advantage is real, flee wins when it isn't.
  *   (C) Aggressive archetypes reach targets faster than cautious ones.
- *   (D) Opportunists loot when safe; aggressives skip loot when a
- *       player is in range.
+ *
+ * The D-case (chest-looter opportunism) was retired alongside the
+ * `ArenaChestLooterModule` — arena is now equipment-only, see
+ * ARENA_DESIGN.md §1/§9/§10.
  */
 describe("EV decision layer — pickTopEvCandidate", () => {
   it("projects legacy confidence-only recommendations into utility space via LEGACY_UTILITY_SCALE", () => {
@@ -117,11 +117,9 @@ describe("EV integration — module roster on a single turn", () => {
 
   function buildRegistry() {
     return createArenaModuleRegistry([
-      new ArenaSelfCareModule(),
       new ArenaCowardiceAvoidanceModule(),
       new ArenaCombatModule(),
       new ArenaPositioningModule(),
-      new ArenaChestLooterModule(),
       new ArenaApproachModule(),
       new ArenaWavePredictorModule(),
     ])
@@ -285,43 +283,4 @@ describe("EV integration — module roster on a single turn", () => {
     expect(aggApproachRec?.suggestedAction).toBeDefined()
   })
 
-  it("D: opportunist loots when safe, aggressive ignores loot when no PvP target is near", () => {
-    const you = buildArenaEntity({ id: "you", position: { x: 5, y: 5 } })
-    const obs = buildArenaObservation({
-      you,
-      entities: [you],
-      round: 2,
-      chest_positions: [{ x: 8, y: 5 }],
-      legal_actions: [
-        moveAction("up"),
-        moveAction("down"),
-        moveAction("left"),
-        moveAction("right"),
-      ],
-    })
-    const opRecs = buildRegistry().analyzeAll(
-      obs,
-      createArenaAgentContext({ archetype: ARCHETYPE_PROFILES.opportunist }),
-    )
-    const opTop = pickTopEvCandidate(opRecs)
-    expect(opTop?.moduleName).toBe("arena-chest-looter")
-
-    // Aggressive should lean toward positioning/wait, not chest routing,
-    // because chest greed is halved but there's still no PvP target to
-    // approach. We only require that the aggressive choice is NOT the
-    // chest pathing move, OR it IS the same move but sourced from the
-    // positioning/approach module (argmax tiebreak).
-    const aggRecs = buildRegistry().analyzeAll(
-      obs,
-      createArenaAgentContext({ archetype: ARCHETYPE_PROFILES.aggressive }),
-    )
-    const aggTop = pickTopEvCandidate(aggRecs)
-    if (aggTop) {
-      expect([
-        "arena-chest-looter",
-        "arena-positioning",
-        "arena-approach",
-      ]).toContain(aggTop.moduleName)
-    }
-  })
 })

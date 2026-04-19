@@ -7,7 +7,6 @@ import {
 } from "../src/modules/archetypes.js"
 import { createArenaAgentContext } from "../src/modules/base.js"
 import { ArenaCombatModule } from "../src/modules/arena-combat.js"
-import { ArenaSelfCareModule } from "../src/modules/arena-self-care.js"
 import {
   attackAction,
   buildArenaEntity,
@@ -79,43 +78,5 @@ describe("archetype wiring into modules", () => {
     )
     expect(aggressive.confidence).toBeGreaterThan(baseline.confidence)
     expect(cautious.confidence).toBeLessThan(baseline.confidence)
-  })
-
-  it("ArenaSelfCareModule safe-heal trigger shifts with archetype", () => {
-    // 48% HP: balanced should heal (threshold 0.50), aggressive should NOT
-    // because their safeHealHpShift pushes the bar down to ~0.35.
-    const you = buildArenaEntity({
-      id: "you",
-      position: { x: 5, y: 5 },
-      hp: { current: 48, max: 100 },
-      kind: "player",
-    })
-    ;(you as unknown as { inventory: unknown }).inventory = [
-      { id: "pot-1", template_id: "health-potion", quantity: 1 },
-    ]
-    const farEnemy = buildArenaEntity({
-      id: "far-opp",
-      position: { x: 12, y: 12 },
-    })
-    const obs = buildArenaObservation({
-      you,
-      entities: [you, farEnemy],
-      legal_actions: [
-        { type: "use_item", item_id: "pot-1" },
-        { type: "wait" },
-      ],
-    })
-
-    const mod = new ArenaSelfCareModule()
-    const balanced = mod.analyze(
-      obs,
-      createArenaAgentContext({ archetype: ARCHETYPE_PROFILES.balanced }),
-    )
-    const aggressive = mod.analyze(
-      obs,
-      createArenaAgentContext({ archetype: ARCHETYPE_PROFILES.aggressive }),
-    )
-    expect(balanced.suggestedAction?.type).toBe("use_item")
-    expect(aggressive.suggestedAction).toBeUndefined()
   })
 })

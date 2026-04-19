@@ -9,10 +9,12 @@ completion, and exits. No dungeon modules, no realm progression.
 - Queues for an arena bracket, polls until the matchmaker promotes the
   character into a match, then connects via
   `GameClient.connectArenaMatch(matchId, ticket)`.
-- Drives actions with seven arena-specific `AgentModule`s (combat,
-  self-care, positioning, cowardice avoidance, chest-looter, wave-predictor,
-  approach) wrapped by an `ArenaPromptAdapter` that injects arena rules +
-  threat ranking + class PvP rubric + recent-events memory.
+- Drives actions with five arena-specific `AgentModule`s (combat,
+  positioning, cowardice avoidance, wave-predictor, approach) wrapped by
+  an `ArenaPromptAdapter` that injects arena rules + threat ranking +
+  class PvP rubric + recent-events memory. `ArenaSelfCareModule` and
+  `ArenaChestLooterModule` were retired when arena became equipment-only
+  (ARENA_DESIGN.md §1/§9/§10).
 
 Phase 15 adds the hybrid supervisor that alternates dungeons and arena;
 this example stops after one match.
@@ -58,6 +60,6 @@ bun run examples/arena-agent/index.ts
 
 - `index.ts` — `runOnce()` entry point; queues, polls, connects, plays.
 - `config.ts` — `createArenaConfig`, `createArenaModules` factory.
-- `src/modules/` — six arena-specific modules.
+- `src/modules/` — five arena-specific modules.
 - `src/llm/arena-prompt-adapter.ts` — arena system-prompt augmentation.
 - `tests/` — module + prompt-adapter + connectArenaMatch unit tests.

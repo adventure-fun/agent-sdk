@@ -3,11 +3,10 @@
  * thresholds without swapping out the module pipeline itself.
  *
  * Why archetypes exist:
- *   We ship one set of modules (combat, self-care, chest-looter,
- *   cowardice-avoidance, positioning, wave-predictor). To get variety in
- *   the spectate UI and in gameplay we parameterize those modules by a
- *   small set of archetypes keyed off the bot's personality. Same code,
- *   different numbers.
+ *   We ship one set of modules (combat, cowardice-avoidance, positioning,
+ *   approach, wave-predictor). To get variety in the spectate UI and in
+ *   gameplay we parameterize those modules by a small set of archetypes
+ *   keyed off the bot's personality. Same code, different numbers.
  *
  * Knobs (all plain multipliers / offsets; keeps tuning trivial):
  *   - aggression                 (0.0 .. 1.0) — general "how much to attack"
@@ -16,15 +15,18 @@
  *   - combatConfidenceBoost      added to ArenaCombatModule's confidence
  *                                 before clamping. Cautious archetypes get
  *                                 a negative value, berserkers positive.
- *   - emergencyHpShift           added to the ArenaSelfCareModule emergency
- *                                 threshold (fraction). Berserkers heal at
- *                                 the last second; cowards heal early.
- *   - safeHealHpShift            same but for the "safe" heal threshold.
  *   - fleeDistanceBonus          added to the Chebyshev distance required
- *                                 before opportunist/cautious archetypes
- *                                 will break off to loot/reposition.
- *   - chestGreedMultiplier       >1 makes ArenaChestLooterModule fire more
- *                                 aggressively; <1 suppresses it.
+ *                                 before cautious archetypes will break
+ *                                 off to reposition.
+ *
+ * Legacy knobs (retained for shape compatibility with existing env
+ * overrides and archetype-profile snapshots, but no module reads them
+ * any more — the arena heal/chest/interact surfaces they steered were
+ * retired alongside the equipment-only arena transition, see
+ * ARENA_DESIGN.md §1/§9/§10):
+ *   - emergencyHpShift / safeHealHpShift  (powered ArenaSelfCareModule)
+ *   - chestGreedMultiplier / greed        (powered ArenaChestLooterModule
+ *                                          and scoreInteractCandidate)
  *
  * Keeping all of this as flat numbers (no functions) means tests can snapshot
  * the profile and any downstream module just reads the field it cares about.

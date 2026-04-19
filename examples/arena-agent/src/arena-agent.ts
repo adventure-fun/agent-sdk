@@ -24,10 +24,10 @@ const MAX_ARENA_HISTORY = 20
 /**
  * Short-circuit threshold for the module-first pipeline. Any module whose
  * confidence meets or exceeds this value wins the turn without ever
- * consulting the LLM. Tuned against `ArenaSelfCareModule` (emergency heal
- * at 0.95), `ArenaCombatModule` (finishable at 0.85), and the chest looter
- * (high-value adjacent pile at 0.85) so clearly-optimal plays never burn
- * LLM credits or eat the 15s server turn timer on rate-limit backoff.
+ * consulting the LLM. Tuned against `ArenaCombatModule` (finishable at
+ * 0.85) and `ArenaCowardiceAvoidanceModule` (imminent cowardice tick at
+ * 0.9) so clearly-optimal plays never burn LLM credits or eat the 15s
+ * server turn timer on rate-limit backoff.
  */
 const HIGH_CONFIDENCE_THRESHOLD = 0.8
 

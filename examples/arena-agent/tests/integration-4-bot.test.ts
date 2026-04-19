@@ -62,7 +62,6 @@ const { clearArenaRegistry } = await import(
 import { ArenaAgent } from "../src/arena-agent.js"
 import { ArenaPromptAdapter } from "../src/llm/arena-prompt-adapter.js"
 import {
-  ArenaChestLooterModule,
   ArenaCombatModule,
   ArenaCowardiceAvoidanceModule,
   ArenaPositioningModule,
@@ -243,7 +242,6 @@ function makeAgent(): ArenaAgent {
     new ArenaCowardiceAvoidanceModule(),
     new ArenaCombatModule(),
     new ArenaPositioningModule(),
-    new ArenaChestLooterModule(),
     new ArenaWavePredictorModule(),
   ]
   const llm = new ArenaPromptAdapter(makeFakeModuleLLM())

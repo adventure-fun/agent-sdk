@@ -12,10 +12,11 @@ import { chebyshev, manhattan } from "./base.js"
 /**
  * Expected-Value action scoring primitives.
  *
- * Modules call the `scoreAttackCandidate` / `scoreMoveCandidate` /
- * `scoreHealCandidate` / `scoreInteractCandidate` helpers to convert a
- * legal action into an `ArenaActionCandidate` with a utility scalar the
- * decision layer can argmax over. The formulas intentionally mirror the
+ * Modules call the `scoreAttackCandidate` / `scoreMoveCandidate` helpers
+ * to convert a legal action into an `ArenaActionCandidate` with a utility
+ * scalar the decision layer can argmax over. Heal / interact scoring
+ * was removed alongside the consumable and chest-loot mechanics — arena
+ * is equipment-only (ARENA_DESIGN.md §1/§9/§10). The formulas intentionally mirror the
  * engine's own `resolveAttack` / `calcHitThreshold` math so the bot's
  * "expected damage" predictions stay aligned with real outcomes.
  *
@@ -31,9 +32,6 @@ import { chebyshev, manhattan } from "./base.js"
 
 type AttackAction = Extract<Action, { type: "attack" }>
 type MoveAction = Extract<Action, { type: "move" }>
-type UseItemAction = Extract<Action, { type: "use_item" }>
-type InteractAction = Extract<Action, { type: "interact" }>
-
 const DIRECTION_DELTAS: Record<
   "up" | "down" | "left" | "right",
   { dx: number; dy: number }
@@ -301,91 +299,6 @@ export function scoreMoveCandidate(
   }
 }
 
-/**
- * Score a `use_item` heal action. Utility rewards closing the HP gap and
- * gets a huge bonus when HP is critical; over-healing is penalized.
- */
-export function scoreHealCandidate(
-  ctx: ArenaUtilityContext,
-  action: UseItemAction,
-  options: { magnitude: number; templateId: string },
-): ArenaActionCandidate {
-  const { self, archetype } = ctx
-  const hpCurrent = self.hp.current
-  const hpMax = self.hp.max
-  const hpRatio = hpCurrent / Math.max(1, hpMax)
-  const gap = Math.max(0, hpMax - hpCurrent)
-
-  const effectiveHeal = Math.min(options.magnitude, gap)
-  const wasted = Math.max(0, options.magnitude - gap)
-
-  const emergencyTrigger = clampRatio(0.25 + (archetype.emergencyHpShift ?? 0))
-  const emergency = hpRatio < emergencyTrigger
-
-  const criticalBonus = emergency ? 50 : 0
-  const wastePenalty = wasted * 1.5
-  const takenNow = expectedIncomingDamageAt(ctx, self.position)
-  const survivalBonus = Math.min(effectiveHeal, takenNow) * 2
-
-  const strategic = criticalBonus - wastePenalty + survivalBonus
-
-  const utility = effectiveHeal * 1.5 + strategic - archetype.riskWeight * 0
-
-  return {
-    action,
-    reasoning: `Heal with ${options.templateId} (+${effectiveHeal} effective, HP ${hpCurrent}/${hpMax})`,
-    utility,
-    components: {
-      expected_damage_dealt: 0,
-      expected_damage_taken: 0,
-      expected_heal: effectiveHeal,
-      strategic_bonus: strategic,
-      risk_weight: archetype.riskWeight,
-    },
-  }
-}
-
-/**
- * Score an `interact` action — usually picking up a loot pile. Greed
- * archetype knob scales the bonus so opportunists path to loot and
- * aggressives skip it.
- */
-export function scoreInteractCandidate(
-  ctx: ArenaUtilityContext,
-  action: InteractAction,
-  options: { itemCount: number; hostileAdjacent: boolean },
-): ArenaActionCandidate {
-  const { archetype } = ctx
-  const base = 18 * archetype.greed
-  const itemBonus = options.itemCount * 3 * archetype.greed
-  // Camper is a deterrent, not just a drag. Scaled so even the greediest
-  // archetype sees negative utility on a camped pile.
-  const camperPenalty = options.hostileAdjacent ? -40 - base : 0
-  const strategic = base + itemBonus + camperPenalty
-
-  return {
-    action,
-    reasoning: `Interact with ${action.target_id} (items=${options.itemCount}, greed=${archetype.greed.toFixed(2)}${
-      options.hostileAdjacent ? ", camper adjacent" : ""
-    })`,
-    utility: strategic,
-    components: {
-      expected_damage_dealt: 0,
-      expected_damage_taken: 0,
-      expected_heal: 0,
-      strategic_bonus: strategic,
-      risk_weight: archetype.riskWeight,
-    },
-  }
-}
-
 function getEffectiveStats(entity: ArenaEntity): CharacterStats {
   return entity.effective_stats ?? entity.stats
-}
-
-function clampRatio(n: number): number {
-  if (!Number.isFinite(n)) return 0
-  if (n <= 0) return 0
-  if (n >= 0.95) return 0.95
-  return n
 }
