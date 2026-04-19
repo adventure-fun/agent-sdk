@@ -1170,6 +1170,7 @@ function actionsMatch(left: Action, right: Action): boolean {
     case "equip":
     case "pickup":
     case "drop":
+    case "discard":
       return left.item_id === (right as typeof left).item_id
     case "use_item":
       return (
