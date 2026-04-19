@@ -56,6 +56,7 @@ import { computeCharacterRollNameForAttempt } from "./character-roll-name.js"
 import type { CharacterNameProvider } from "./character-name-provider.js"
 import type { ChatPersonality } from "./chat/personality.js"
 import { SpendingTracker } from "./spending-tracker.js"
+import { waitDecisionDelay } from "./decision-delay.js"
 
 const DEFAULT_MODULES: AgentModule[] = [
   new CombatModule(),
@@ -252,6 +253,21 @@ export class BaseAgent {
   // disabled + wallet empty) and will emergency-retreat forever. The main
   // loop bails when the streak exceeds a threshold to avoid infinite loops.
   private emptyExtractionStreak = 0
+
+  // Absolute-stall detector. If the character's observable state (floor,
+  // room, tile, xp, gold) doesn't change for `ABSOLUTE_STALL_TURNS`
+  // consecutive observations, something is wrong that the within-realm
+  // escape modules (anti-loop, stuck-escape, key-*) can't solve on
+  // their own — classic symptom is a deterministic bot bouncing
+  // between two adjacent tiles forever while the supervisor silently
+  // racks up thousands of "stall-NNNN" turns (see stall-6776 from the
+  // 2026-04 incident). Hard-abandoning the run lets the outer loop
+  // regenerate the realm and gives the backend a break from the spam.
+  //
+  // `lastProgressKey` is the observable progress fingerprint; when it
+  // changes we reset. Reset to null on realm-boundary (`playRealm`).
+  private lastProgressKey: string | null = null
+  private lastProgressTurn = 0
 
   constructor(config: AgentConfig, options: BaseAgentOptions) {
     // An API key is only required when the planner might actually call out
@@ -1734,7 +1750,28 @@ export class BaseAgent {
 
   private async handleObservation(observation: Observation): Promise<void> {
     try {
+      // Absolute-stall detector — see `lastProgressKey` declaration for
+      // full rationale. Runs BEFORE the planner so we trip the brake
+      // without burning another turn's action on a stuck bot.
+      if (this.isAbsolutelyStalled(observation)) {
+        const stallTurns = observation.turn - this.lastProgressTurn
+        const stallError = new Error(
+          `absolute-stall hard-abandon: no progress for ${stallTurns} turns `
+            + `(turn=${observation.turn}, last_progress=${this.lastProgressKey})`,
+        )
+        console.warn(`[agent] ${stallError.message}; disconnecting run`)
+        this.emit("error", stallError)
+        this.clientInstance?.disconnect()
+        this.failRun(stallError)
+        return
+      }
       const result = await this.processObservation(observation)
+      // Randomized 500-1500ms think time (env-tunable, no-op for LLM
+      // runtimes that leave the env unset). Primarily smooths the
+      // deterministic realm fleet's request cadence so every bot
+      // doesn't POST within the same ms of receiving an observation.
+      // See agent-sdk/src/decision-delay.ts for rationale.
+      await waitDecisionDelay()
       this.clientInstance?.sendAction(result.action)
     } catch (error) {
       const normalizedError = error instanceof Error ? error : new Error(String(error))
@@ -1743,12 +1780,60 @@ export class BaseAgent {
     }
   }
 
+  /**
+   * Returns true when the character's observable progress fingerprint
+   * hasn't changed for `ABSOLUTE_STALL_TURNS` consecutive turns. Also
+   * updates the internal tracker as a side effect (so the next call
+   * either resets or ticks forward). Caller is expected to hard-abandon
+   * the run when this returns true.
+   *
+   * Env knob: AGENT_ABSOLUTE_STALL_TURNS (default 200, set to 0 to
+   * disable entirely).
+   */
+  private isAbsolutelyStalled(observation: Observation): boolean {
+    const maxStallRaw = Number(process.env["AGENT_ABSOLUTE_STALL_TURNS"] ?? 200)
+    const maxStall =
+      Number.isFinite(maxStallRaw) && maxStallRaw > 0 ? Math.floor(maxStallRaw) : 0
+
+    // `tile` coordinates, `room_id`, `floor` — movement within a realm.
+    // `xp` + `gold` — kill / loot / quest progress even when a module
+    //   is "circling" a specific tile waiting for something.
+    // `hp.current` — a bot in combat that's getting hit is also not
+    //   stalled (the fight itself is progress).
+    const character = observation.character
+    const position = observation.position
+    const key = [
+      position.floor,
+      position.room_id,
+      position.tile.x,
+      position.tile.y,
+      character.xp,
+      observation.gold,
+      character.hp.current,
+    ].join(":")
+
+    if (this.lastProgressKey === null || this.lastProgressKey !== key) {
+      this.lastProgressKey = key
+      this.lastProgressTurn = observation.turn
+      return false
+    }
+
+    if (maxStall === 0) return false
+    return observation.turn - this.lastProgressTurn >= maxStall
+  }
+
   private async playRealm(client: AgentClient, realmId: string): Promise<RunOutcome> {
     // Each realm instance gets a fresh planner + context so that leftover strategic plans
     // (e.g. queued actions after an emergency retreat) and stale map memory from the previous
     // realm can't bleed into the new run's first turns.
     this.planner.reset?.()
     this.context = createAgentContext(this.config)
+    // Reset the absolute-stall tracker per realm — a new realm is by
+    // definition progress, and we don't want a stall from the previous
+    // realm to carry over (the new realm will legitimately start near
+    // entrance coordinates with the same xp/gold snapshot).
+    this.lastProgressKey = null
+    this.lastProgressTurn = 0
 
     const completion = new Promise<RunOutcome>((resolve, reject) => {
       this.runCompletion = { resolve, reject }

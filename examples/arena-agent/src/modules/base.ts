@@ -8,7 +8,7 @@ import type { ArchetypeProfile } from "./archetypes.js"
  *
  * Optional `archetype` carries per-bot behavioral tuning (aggression,
  * self-care thresholds, chest-greed) so the same module pipeline can drive
- * 24 deterministic bots with distinct personalities without forking code.
+ * deterministic bots with distinct personalities without forking code.
  * Modules MUST treat an unset profile as `balanced` to stay test-stable.
  */
 export interface ArenaAgentContext {

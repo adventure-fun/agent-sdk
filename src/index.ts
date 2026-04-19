@@ -1,5 +1,6 @@
 export * from "./adapter.js"
 export * from "./agent.js"
+export * from "./decision-delay.js"
 export * from "./character-roll-name.js"
 export * from "./character-name-provider.js"
 export * from "./auth.js"

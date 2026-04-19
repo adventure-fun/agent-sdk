@@ -178,7 +178,7 @@
     },
     {
       "file": "backend/src/game/session.ts",
-      "hash": "1aa40cc4049979ad88dfffee50acbc2f7eaf0336b89b92ae96c747a44dc28c7f",
+      "hash": "044fd05bb3e771b210b459788c56f9c2f25981fab8cf9b2b565f88c051ec0f5b",
       "affectedModules": [
         "agent-lifecycle",
         "chat"
@@ -195,7 +195,7 @@
     },
     {
       "file": "backend/src/routes/characters.ts",
-      "hash": "0b653ad33b107e88711604a6a8473bfa3a30aeaef2b4d124c425dd63db7e73c2",
+      "hash": "6d25a464b2fe2839e3597f6263fbf65bd9ad95badb4ec9b09ae8debdfe7853cd",
       "affectedModules": [
         "dev-stack",
         "agent-lifecycle"
@@ -218,7 +218,7 @@
     },
     {
       "file": "backend/src/index.ts",
-      "hash": "70a7b510889a6939c99374a771dd7e14fd7ec28c6cb20a98d552f540640a006f",
+      "hash": "8dff634753a8434d2ce46ff3759d50a552b00cc1ddcee0c2d2662ae289dbc204",
       "affectedModules": [
         "dev-stack",
         "chat"

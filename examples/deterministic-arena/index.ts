@@ -5,6 +5,7 @@ import {
   GameClient,
   createX402Client,
   isX402CapableWalletAdapter,
+  randomDecisionDelayMs,
   type ArenaObservation,
 } from "../../src/index.js"
 import {
@@ -15,7 +16,16 @@ import {
 } from "./config.js"
 import { DeterministicArenaAgent } from "./src/deterministic-arena-agent.js"
 
-const QUEUE_POLL_INTERVAL_MS = 2_000
+// Queue-status poll cadence. The arena lobby UI is the primary 2s
+// consumer of this endpoint; the bot fleet is happy to poll much more
+// slowly — matches typically take longer than 10s to match anyway, and
+// on the API side every bot poll is a Supabase `.eq(alive).select(id)`
+// against the `characters` table (even with the Redis alive-character
+// cache, bot churn keeps that hot). Slowing bot polls from 2s → 10s
+// cuts the per-bot poll rate 5× without any user-visible latency cost,
+// since the server also sends `match_found` via the WS upgrade on
+// `connectArenaMatch`.
+const QUEUE_POLL_INTERVAL_MS = 10_000
 const QUEUE_POLL_TIMEOUT_MS = 10 * 60_000
 
 /**
@@ -141,23 +151,41 @@ export async function runOnce(): Promise<void> {
       if (latestObservation.you.id !== myTurnEntityId) return
 
       inflight = true
+      const delay = randomDecisionDelayMs()
+      // Deferred dispatch — we committed to acting on *this* observation
+      // by capturing it here. Later `onObservation` callbacks will
+      // still overwrite `latestObservation`, but any newer observation
+      // that arrives mid-delay must NOT pre-empt this turn or we race
+      // ourselves. Re-check `myTurnEntityId` after the delay because the
+      // server could have rotated the turn (e.g. turn-timeout, match-end)
+      // while we were thinking.
       const observation = latestObservation
       const actingEntityId = myTurnEntityId
-      try {
-        const decision = agent.processArenaObservation(observation)
-        console.log(
-          `[det-arena] action turn=${observation.turn} ${JSON.stringify(decision.action)}`
-            + ` | ${decision.reasoning}`,
-        )
-        if (myTurnEntityId === actingEntityId) {
+
+      const dispatch = () => {
+        try {
+          if (myTurnEntityId !== actingEntityId) {
+            // Turn rotated away during the think — drop silently. The
+            // next `your_turn` will call maybeAct() again.
+            return
+          }
+          const decision = agent.processArenaObservation(observation)
+          console.log(
+            `[det-arena] action turn=${observation.turn} ${JSON.stringify(decision.action)}`
+              + ` | ${decision.reasoning}`
+              + (delay > 0 ? ` (think ${delay}ms)` : ""),
+          )
           client.sendArenaAction(decision.action)
           myTurnEntityId = null
+        } catch (err) {
+          console.error("[det-arena] failed to process observation:", err)
+        } finally {
+          inflight = false
         }
-      } catch (err) {
-        console.error("[det-arena] failed to process observation:", err)
-      } finally {
-        inflight = false
       }
+
+      if (delay === 0) dispatch()
+      else setTimeout(dispatch, delay)
     }
   })
 
