@@ -35,24 +35,21 @@ const DIRECTION_DELTAS: Record<
  *     opponent, i.e. place ourselves between the opponent and their side of
  *     the map.
  *
- * Spawn points live on `ArenaMap.spawn_points`, which is not in the
- * observation, so the runner plumbs them in via constructor.
+ * Spawn points come from the live observation
+ * (`ArenaObservation.spawn_points`, populated server-side from
+ * `state.map.spawn_points`). No constructor-time wiring required.
  */
 export class ArenaWavePredictorModule implements ArenaAgentModule {
   readonly name = "arena-wave-predictor"
   readonly priority = 70
-  private readonly spawnPoints: ReadonlyArray<{ x: number; y: number }>
-
-  constructor(spawnPoints: ReadonlyArray<{ x: number; y: number }> = []) {
-    this.spawnPoints = spawnPoints
-  }
 
   analyze(
     observation: ArenaObservation,
     _context: ArenaAgentContext,
   ): ArenaModuleRecommendation {
-    if (this.spawnPoints.length === 0) {
-      return { reasoning: "No spawn points configured.", confidence: 0 }
+    const spawnPoints = observation.spawn_points ?? []
+    if (spawnPoints.length === 0) {
+      return { reasoning: "No spawn points on the map.", confidence: 0 }
     }
     if (observation.next_wave_turn === null) {
       return { reasoning: "No wave scheduled.", confidence: 0 }
@@ -86,7 +83,7 @@ export class ArenaWavePredictorModule implements ArenaAgentModule {
 
     // Pick the spawn nearest to the target opponent — that's the spawn
     // whose NPCs will approach the opponent first as we slide alongside.
-    const spawnNearTarget = [...this.spawnPoints]
+    const spawnNearTarget = [...spawnPoints]
       .map((s) => ({ s, d: manhattan(s, target.position) }))
       .sort((a, b) => a.d - b.d)[0]!.s
 

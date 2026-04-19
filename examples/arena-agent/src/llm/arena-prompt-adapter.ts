@@ -1,4 +1,3 @@
-import { setTimeout as sleep } from "node:timers/promises"
 import {
   parseActionFromText,
   type Action,
@@ -9,10 +8,6 @@ import {
 } from "../../../../src/index.js"
 import { rankThreats, type ThreatEntry } from "../modules/arena-threat-model.js"
 import type { ArenaModuleRecommendation } from "../modules/base.js"
-
-const RATE_LIMIT_MAX_RETRIES = 3
-const RATE_LIMIT_BASE_DELAY_MS = 5_000
-const RATE_LIMIT_MAX_DELAY_MS = 120_000
 
 /**
  * Class-specific PvP rubric injected into the system prompt. Kept concise
@@ -88,20 +83,37 @@ export class ArenaPromptAdapter {
   }
 
   async decide(prompt: ArenaDecisionPrompt): Promise<ArenaDecisionResult> {
+    if (!this.inner.generateText) {
+      // Rather than crash mid-match, degrade gracefully to module-only.
+      return this.fallbackToModule(
+        prompt,
+        `Inner LLMAdapter (${this.inner.name}) does not implement generateText()`,
+      )
+    }
+
     const { system, user } = this.buildPrompt(prompt)
-    const text = await withRateLimitBackoff(`${this.name}.decide`, async () => {
-      if (!this.inner.generateText) {
-        throw new Error(
-          `Arena prompt adapter requires the inner LLMAdapter (${this.inner.name}) to implement generateText().`,
-        )
-      }
-      return this.inner.generateText({
+    let text: string
+    try {
+      text = await this.inner.generateText({
         system,
         user,
         maxTokens: 512,
         temperature: 0.25,
       })
-    })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      if (err instanceof Error && isRateLimitError(err)) {
+        // Rate-limit backoff would normally sleep 5-120s, but the server
+        // expires our turn at 15s and defaults us to `wait`. Instead, bail
+        // to the best available module immediately — the next turn we'll
+        // try the LLM again with a fresh 15s budget.
+        console.warn(
+          `[${this.name}.decide] rate limited; falling back to top module suggestion (no retry)`,
+        )
+        return this.fallbackToModule(prompt, `rate-limit: ${message}`)
+      }
+      return this.fallbackToModule(prompt, `LLM call threw: ${message}`)
+    }
 
     const legalActions: Action[] = prompt.observation.legal_actions
     const action = parseActionFromText(text, legalActions)
@@ -110,20 +122,32 @@ export class ArenaPromptAdapter {
       return { action, reasoning }
     }
 
-    // Fallback: pick the highest-confidence module suggestion if LLM failed.
+    return this.fallbackToModule(prompt, "LLM response unparseable")
+  }
+
+  /**
+   * Shared fallback path: pick the highest-confidence module that produced
+   * a concrete action, or emit `wait` if nothing fired. Kept as a single
+   * helper so every failure mode (parse error, rate limit, adapter bug)
+   * produces the same behaviour.
+   */
+  private fallbackToModule(
+    prompt: ArenaDecisionPrompt,
+    reason: string,
+  ): ArenaDecisionResult {
     const fallback = prompt.moduleRecommendations
       .filter((r) => r.suggestedAction)
       .sort((a, b) => b.confidence - a.confidence)[0]
     if (fallback?.suggestedAction) {
       return {
         action: fallback.suggestedAction,
-        reasoning: `LLM response unparseable; falling back to module "${fallback.moduleName}": ${fallback.reasoning}`,
+        reasoning: `${reason}; falling back to module "${fallback.moduleName}" (conf=${fallback.confidence.toFixed(2)}): ${fallback.reasoning}`,
       }
     }
-
-    // Last-resort fallback: `wait`. Logged clearly so operators can tune the
-    // prompt if this path is ever hit outside of test fixtures.
-    return { action: { type: "wait" }, reasoning: "LLM unparseable and no module suggestion — waiting." }
+    return {
+      action: { type: "wait" },
+      reasoning: `${reason}; no module suggestion available — waiting.`,
+    }
   }
 
   buildPrompt(prompt: ArenaDecisionPrompt): { system: string; user: string } {
@@ -256,41 +280,7 @@ function extractReasoningFromText(text: string): string | null {
   return match ? match[1] ?? null : null
 }
 
-async function withRateLimitBackoff<T>(label: string, fn: () => Promise<T>): Promise<T> {
-  let lastError: Error | null = null
-  for (let attempt = 0; attempt <= RATE_LIMIT_MAX_RETRIES; attempt += 1) {
-    try {
-      return await fn()
-    } catch (err) {
-      if (!(err instanceof Error) || !isRateLimitError(err)) {
-        throw err
-      }
-      lastError = err
-      if (attempt >= RATE_LIMIT_MAX_RETRIES) break
-      const retryAfter = parseRetryAfterFromError(lastError)
-      const fallbackDelay = Math.min(
-        RATE_LIMIT_BASE_DELAY_MS * 2 ** attempt,
-        RATE_LIMIT_MAX_DELAY_MS,
-      )
-      const delay = Math.min(retryAfter ?? fallbackDelay, RATE_LIMIT_MAX_DELAY_MS)
-      console.warn(
-        `[arena-llm] ${label}: rate limited (attempt ${attempt + 1}); sleeping ${Math.round(delay / 1000)}s`,
-      )
-      await sleep(delay)
-    }
-  }
-  throw lastError ?? new Error("rate-limit retry exhausted")
-}
-
 function isRateLimitError(err: Error): boolean {
   const msg = err.message.toLowerCase()
   return msg.includes("rate limit") || msg.includes("429")
-}
-
-function parseRetryAfterFromError(err: Error): number | null {
-  const match = err.message.match(/retry after (\d+)\s*s/i)
-  if (!match || !match[1]) return null
-  const seconds = Number.parseInt(match[1], 10)
-  if (!Number.isFinite(seconds) || seconds < 0) return null
-  return seconds * 1000
 }

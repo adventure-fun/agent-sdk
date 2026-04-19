@@ -8,12 +8,14 @@ import {
 } from "./helpers/arena-fixture.js"
 
 describe("ArenaWavePredictorModule", () => {
+  const mod = new ArenaWavePredictorModule()
+
   it("defers when next_wave_turn is null or far off", () => {
-    const mod = new ArenaWavePredictorModule([{ x: 0, y: 7 }])
     const you = buildArenaEntity({ id: "you", position: { x: 5, y: 7 } })
     const obs = buildArenaObservation({
       you,
       entities: [you],
+      spawn_points: [{ x: 0, y: 7 }],
       next_wave_turn: null,
       legal_actions: [moveAction("right"), moveAction("left")],
     })
@@ -21,8 +23,6 @@ describe("ArenaWavePredictorModule", () => {
   })
 
   it("positions between opponent and the nearest spawn point when wave is within 2 turns", () => {
-    const spawn = { x: 0, y: 7 }
-    const mod = new ArenaWavePredictorModule([spawn])
     const you = buildArenaEntity({ id: "you", position: { x: 5, y: 7 } })
     const opponent = buildArenaEntity({
       id: "opp",
@@ -31,6 +31,7 @@ describe("ArenaWavePredictorModule", () => {
     const obs = buildArenaObservation({
       you,
       entities: [you, opponent],
+      spawn_points: [{ x: 0, y: 7 }],
       turn: 5,
       next_wave_turn: 7,
       legal_actions: [
@@ -50,11 +51,11 @@ describe("ArenaWavePredictorModule", () => {
   })
 
   it("defers when no opponents are alive", () => {
-    const mod = new ArenaWavePredictorModule([{ x: 0, y: 7 }])
     const you = buildArenaEntity({ id: "you", position: { x: 5, y: 7 } })
     const obs = buildArenaObservation({
       you,
       entities: [you],
+      spawn_points: [{ x: 0, y: 7 }],
       turn: 5,
       next_wave_turn: 7,
       legal_actions: [moveAction("right")],
@@ -62,13 +63,13 @@ describe("ArenaWavePredictorModule", () => {
     expect(mod.analyze(obs, createArenaAgentContext()).suggestedAction).toBeUndefined()
   })
 
-  it("defers when no spawn points are configured", () => {
-    const mod = new ArenaWavePredictorModule([])
+  it("defers when the map has no spawn points", () => {
     const you = buildArenaEntity({ id: "you", position: { x: 5, y: 7 } })
     const opp = buildArenaEntity({ id: "opp", position: { x: 10, y: 7 } })
     const obs = buildArenaObservation({
       you,
       entities: [you, opp],
+      spawn_points: [],
       turn: 5,
       next_wave_turn: 7,
       legal_actions: [moveAction("right")],

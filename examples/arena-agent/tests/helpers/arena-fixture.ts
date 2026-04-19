@@ -120,6 +120,8 @@ export interface ArenaObservationOverrides {
   phase?: ArenaMatchPhase
   map_id?: string
   grid?: TileType[][]
+  chest_positions?: { x: number; y: number }[]
+  spawn_points?: { x: number; y: number }[]
   entities?: ArenaEntity[]
   you?: ArenaEntity
   turn_order?: string[]
@@ -159,6 +161,8 @@ export function buildArenaObservation(
     phase: overrides.phase ?? "grace",
     map_id: overrides.map_id ?? "arena-pit",
     grid: overrides.grid ?? buildEmptyArenaGrid(),
+    chest_positions: overrides.chest_positions ?? [],
+    spawn_points: overrides.spawn_points ?? [],
     entities: resolvedEntities,
     you,
     turn_order: overrides.turn_order ?? resolvedEntities.map((e) => e.id),

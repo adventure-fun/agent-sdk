@@ -126,6 +126,7 @@ export async function runOneArenaMatch(
   let myTurnEntityId: string | null = null
   let myCharacterId: string | null = null
   let inflight = false
+  let currentTurnDeadline: { timeoutMs: number; startedAt: number } | null = null
   let placement: 1 | 2 | 3 | 4 | null = null
   let goldAwarded = 0
   let endedReason: ArenaResultEndedReason = "abandoned"
@@ -150,6 +151,7 @@ export async function runOneArenaMatch(
         },
         onYourTurn: ({ entity_id, timeout_ms }) => {
           myTurnEntityId = entity_id
+          currentTurnDeadline = { timeoutMs: timeout_ms, startedAt: Date.now() }
           log(`[arena-runner] your_turn (${timeout_ms}ms budget)`)
         },
         onArenaDeath: (data) => {
@@ -196,14 +198,20 @@ export async function runOneArenaMatch(
       if (observation.you.id !== myTurnEntityId) return
       if (inflight) return
       inflight = true
+      const deadline = currentTurnDeadline
       try {
-        const decision = await agent.processArenaObservation(observation)
+        const decision = await agent.processArenaObservation(observation, {
+          ...(deadline
+            ? { timeoutMs: deadline.timeoutMs, turnStartedAt: deadline.startedAt }
+            : {}),
+        })
         log(
           `[arena-runner] action turn=${observation.turn} ${JSON.stringify(decision.action)}`
             + ` | ${decision.reasoning}`,
         )
         client.sendArenaAction(decision.action)
         myTurnEntityId = null
+        currentTurnDeadline = null
       } catch (err) {
         log(
           `[arena-runner] failed to process observation: ${err instanceof Error ? err.message : String(err)}`,

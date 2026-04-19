@@ -5,8 +5,8 @@
     {
       "canonical": "shared/schemas/src/index.ts",
       "vendored": "agent-sdk/src/protocol.ts",
-      "canonicalHash": "3294ac6c1854ffec976fac9c415da543b1c7515bd9e12201f678cb2d6ce9af21",
-      "generatedHash": "d60bc9b08441d952b2f134d905a38f26bfa5cdfe1c5d43c74179e1c6f60eb275",
+      "canonicalHash": "3dbfc4550f3243ed66a703dc437236b3d8cabd9622ddab2f74b9404ea3bb1dd5",
+      "generatedHash": "d57388542f3a3e0c75ca66e0488adf113e7cd82c918e51508835dd52f88b6fd8",
       "types": [
         "Stats",
         "CharacterStats",
@@ -102,12 +102,12 @@
         "ArenaAction": "55cbccd763bfaa9ba0559becd37355d19dd3e506b3967a9b6fcb596b0a9d9a90",
         "ArenaEvent": "953054ce2468a9579244eaa5f5cd01e579044bbb810035af35c277fc4cbfafc2",
         "ProximityWarning": "fd57b6b71aae38abe34dc5d0025f714c337f0eb4cdfa4633d80c179294a279ba",
-        "ArenaObservation": "ab74817c0b2eeaadeba2b87e069b30c5250e24b950157f7d301b6751b4b9a0c1",
+        "ArenaObservation": "bb99ad91a4caa8de6cdd57df2884c0f6d52e8da0b122237dc021a4018d1f325a",
         "ArenaSpectatorObservation": "14e411b7774f7a1f826352ad21b19a4338472b6ffd8f99d3b49b940cd9a2072d",
         "ArenaMatchResultPlacement": "f8fda68930b6299cfdfc3ce3914ff21ce80678a2717f5fb08fb537eab9431f2d",
         "ArenaMatchResult": "18b1c58cb79782bf65aa249f5b0e7eab7d69de269855e6f2dc6e69855d918ceb",
-        "ArenaState": "ca742dc65ae1ea4ee69f5ed3b2578155a8c3e1f50bdaa08349811244d0da8b40",
-        "ArenaMatchEndReason": "10c1695b522fe8d0fa239f6ecdc5b51bf46167e75a24f4e88b4318e4b61080e2",
+        "ArenaState": "1dfab6b62ee3c4bc2f0888aa5d775eeaac287144893a855858ff36078cedcf92",
+        "ArenaMatchEndReason": "ffba47d723ea526e6288209bac4d4beb76d37ea2b22fd5018ecab19ea5cac229",
         "ArenaClientMessage": "f256bbc6a1695dd64993f6b6bc2415c05c7748cf7a8e5e037e2492a59ecbb24d",
         "ArenaServerMessage": "d61a78040c089d613e124dae45f75b08829bd6b6e312d1e681eeb101157d3d79",
         "PaymentAcceptOption402": "86a1a8d8da52cf034e8913a64594a113c05ef71ba472ecaee0528b9fb3ab732b",
@@ -256,7 +256,7 @@
     },
     {
       "file": "backend/src/redis/publishers.ts",
-      "hash": "7dd6896d931de905dfbccae7bd233ba34f539c7b28f5b2f290020540ba9c6541",
+      "hash": "5ac629fb253d55bf4395d3767b89f34b66b06eb8807ba10ef23a33e4122b5707",
       "affectedModules": [
         "chat"
       ]
@@ -273,8 +273,8 @@
     {
       "source": "shared/schemas/src/index.ts",
       "vendored": "agent-sdk/dev/engine/types.ts",
-      "sourceHash": "3294ac6c1854ffec976fac9c415da543b1c7515bd9e12201f678cb2d6ce9af21",
-      "vendoredHash": "cc97f560aff64bd37d91f0906f65d19a53111d42464ca13dcdf8dbe4eb8c9112",
+      "sourceHash": "3dbfc4550f3243ed66a703dc437236b3d8cabd9622ddab2f74b9404ea3bb1dd5",
+      "vendoredHash": "5a79300b51feeeed3068dfa73c5082815f10c4a53e5032bcf17d44aca9fdadf1",
       "affectedModules": [
         "dev-stack"
       ]

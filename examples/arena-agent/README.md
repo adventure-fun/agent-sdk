@@ -25,8 +25,7 @@ this example stops after one match.
 | `ARENA_BRACKET`     | `rookie` \| `veteran` \| `champion`                        | default `rookie` |
 | `CHARACTER_CLASS`   | `rogue` \| `knight` \| `mage` \| `archer`                  | required when rolling |
 | `LLM_API_KEY`       | `sk-or-v1-...`                                            | OpenRouter key |
-| `LLM_MODEL`         | `anthropic/claude-sonnet-4.6`                             | strategic model |
-| `TACTICAL_LLM_MODEL`| `anthropic/claude-haiku-4.5`                              | tactical model |
+| `LLM_MODEL`         | `anthropic/claude-sonnet-4.6`                             | strategic tie-break model (module-first) |
 | `AGENT_PRIVATE_KEY` | `0x...`                                                   | env wallet |
 | `ARENA_QUEUE_POLL_MS` | `2000`                                                  | queue poll interval |
 | `ARENA_QUEUE_TIMEOUT_MS` | `180000`                                              | give up if no match |

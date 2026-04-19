@@ -34,47 +34,72 @@ const DIRECTION_DELTAS: Record<
  * for the open arena maps we ship with, and the tactical LLM can correct
  * degenerate cases on subsequent turns.
  *
- * The arena observation doesn't carry a chest list directly (chests live on
- * the static `ArenaMap.chest_positions`), so the module accepts the list via
- * constructor. The `runArenaMatch` bootstrap will plumb it from map content.
+ * Chest positions come from the live observation
+ * (`ArenaObservation.chest_positions`, populated server-side from
+ * `state.map.chest_positions`). No constructor-time wiring required —
+ * the module works out-of-the-box on any arena map.
+ *
+ * Bump-to-interact parity: the module tries to `interact` as soon as it
+ * is within Chebyshev ≤ 1 of a live chest/loot drop, matching
+ * `computeArenaLegalActions` and the dungeon pickup semantics.
  */
 export class ArenaChestLooterModule implements ArenaAgentModule {
   readonly name = "arena-chest-looter"
   readonly priority = 80
-  private readonly chestPositions: ReadonlyArray<{ x: number; y: number }>
-
-  constructor(chestPositions: ReadonlyArray<{ x: number; y: number }> = []) {
-    this.chestPositions = chestPositions
-  }
 
   analyze(
     observation: ArenaObservation,
-    _context: ArenaAgentContext,
+    context: ArenaAgentContext,
   ): ArenaModuleRecommendation {
-    if (this.chestPositions.length === 0) {
-      return { reasoning: "No chest positions configured.", confidence: 0 }
+    const greed = context.archetype?.chestGreedMultiplier ?? 1
+    // Prefer live drops (chests that have already been opened and spawned
+    // death-drop piles) over raw chest spawn tiles — the pile is the
+    // actual loot. If no drops remain, fall back to the static chest
+    // tiles for early-game pathing.
+    const dropTargets = observation.death_drops.map((d) => d.position)
+    const chestTargets = observation.chest_positions ?? []
+    const targets = dropTargets.length > 0 ? dropTargets : chestTargets
+    if (targets.length === 0) {
+      return { reasoning: "No chests or loot piles on the map.", confidence: 0 }
     }
 
     const moves = observation.legal_actions.filter(
       (a): a is MoveAction => a.type === "move",
     )
-    if (moves.length === 0) {
-      return { reasoning: "No legal move actions — deferring to combat.", confidence: 0 }
-    }
+    const interactActions = observation.legal_actions.filter(
+      (a): a is Extract<Action, { type: "interact" }> => a.type === "interact",
+    )
 
     const you = observation.you
     const hostilesByPosition = observation.entities.filter(
       (e) => e.id !== you.id && e.alive && !e.stealth,
     )
 
-    const reachableChests = this.chestPositions.filter((chest) => {
+    // Bump-to-interact short-circuit: if the engine already emits an
+    // interact action (i.e. a drop is within Chebyshev ≤ 1) just take it.
+    // Matches the same 0.85 confidence the former "standing on the tile"
+    // path used so it still beats the 0.80 module-first threshold.
+    if (interactActions.length > 0) {
+      const interact = interactActions[0]!
+      return {
+        suggestedAction: interact,
+        reasoning: `Loot pile within reach — picking up pile ${interact.target_id}.`,
+        confidence: clampConfidence(0.85 * greed),
+      }
+    }
+
+    if (moves.length === 0) {
+      return { reasoning: "No legal move actions — deferring to combat.", confidence: 0 }
+    }
+
+    const reachableTargets = targets.filter((target) => {
       const hostileAdjacent = hostilesByPosition.some(
-        (h) => chebyshev(h.position, chest) <= 1,
+        (h) => h.id !== you.id && chebyshev(h.position, target) <= 1,
       )
       return !hostileAdjacent
     })
-    if (reachableChests.length === 0) {
-      return { reasoning: "Every chest has a camper adjacent.", confidence: 0 }
+    if (reachableTargets.length === 0) {
+      return { reasoning: "Every chest / pile has a camper adjacent.", confidence: 0 }
     }
 
     // Late game gate: require ≥4 tiles of breathing room.
@@ -90,42 +115,37 @@ export class ArenaChestLooterModule implements ArenaAgentModule {
       }
     }
 
-    const target = reachableChests
-      .map((chest) => ({ chest, dist: chebyshev(you.position, chest) }))
+    const target = reachableTargets
+      .map((pos) => ({ pos, dist: chebyshev(you.position, pos) }))
       .sort((a, b) => a.dist - b.dist)[0]!
-    if (target.dist === 0) {
-      // Standing on the chest tile — surface the interact action
-      // directly so we don't burn a turn waiting for the LLM to
-      // realize the pickup is now legal. The engine emits one
-      // `interact` row per drop on the actor's tile (see
-      // `computeArenaLegalActions` in shared/engine/src/arena.ts).
-      const interact = observation.legal_actions.find(
-        (a): a is Extract<Action, { type: "interact" }> => a.type === "interact",
-      )
-      if (interact) {
-        return {
-          suggestedAction: interact,
-          reasoning: `Standing on chest tile — picking up loot pile ${interact.target_id}.`,
-          confidence: 0.85,
-        }
-      }
+
+    // If we're already adjacent (Chebyshev ≤ 1) but no `interact` action
+    // is legal, there must be no drop at that chest yet — keep the
+    // recommendation low confidence so the LLM can pick combat instead.
+    if (target.dist <= 1) {
       return {
-        reasoning: "Standing on chest tile but no interact legal-action present.",
-        confidence: 0,
+        reasoning: `Already adjacent to target (${target.pos.x},${target.pos.y}) with no active pile.`,
+        confidence: 0.3,
       }
     }
 
-    const toward = chooseMoveToward(moves, you.position, target.chest)
+    const toward = chooseMoveToward(moves, you.position, target.pos)
     if (!toward) {
       return { reasoning: "No legal move reduces distance to chest.", confidence: 0 }
     }
     return {
       suggestedAction: toward,
-      reasoning: `Pathing to chest at (${target.chest.x},${target.chest.y}) — ${target.dist} tiles away.`,
-      confidence: 0.55,
-      context: { chest: target.chest },
+      reasoning: `Pathing to loot at (${target.pos.x},${target.pos.y}) — ${target.dist} tiles away.`,
+      confidence: clampConfidence(0.55 * greed),
+      context: { chest: target.pos },
     }
   }
+}
+
+function clampConfidence(n: number): number {
+  if (!Number.isFinite(n) || n < 0) return 0
+  if (n > 0.99) return 0.99
+  return n
 }
 
 function chooseMoveToward(

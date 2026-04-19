@@ -30,12 +30,13 @@ export class ArenaCombatModule implements ArenaAgentModule {
 
   analyze(
     observation: ArenaObservation,
-    _context: ArenaAgentContext,
+    context: ArenaAgentContext,
   ): ArenaModuleRecommendation {
     const attackActions = observation.legal_actions.filter(isAttackAction)
     if (attackActions.length === 0) {
       return { reasoning: "No legal attack targets.", confidence: 0 }
     }
+    const confidenceBoost = context.archetype?.combatConfidenceBoost ?? 0
 
     const byId = new Map(observation.entities.map((e) => [e.id, e]))
     const legalByTarget = new Map<string, AttackAction[]>()
@@ -59,7 +60,7 @@ export class ArenaCombatModule implements ArenaAgentModule {
       return {
         suggestedAction: action,
         reasoning: `Finishing ${pick.entity.name} at ${pick.entity.hp.current} HP.`,
-        confidence: 0.97,
+        confidence: clamp01(0.97 + confidenceBoost),
         context: { target_id: pick.entity.id, finishable: true },
       }
     }
@@ -73,7 +74,7 @@ export class ArenaCombatModule implements ArenaAgentModule {
       return {
         suggestedAction: action,
         reasoning: `Engaging ${pick.entity.name} (highest player threat in range).`,
-        confidence: 0.85,
+        confidence: clamp01(0.85 + confidenceBoost),
         context: { target_id: pick.entity.id, finishable: false },
       }
     }
@@ -87,7 +88,7 @@ export class ArenaCombatModule implements ArenaAgentModule {
       return {
         suggestedAction: action,
         reasoning: `No player in attack range; clearing NPC ${pick.entity.name}.`,
-        confidence: 0.65,
+        confidence: clamp01(0.65 + confidenceBoost),
         context: { target_id: pick.entity.id, npc: true },
       }
     }
@@ -116,4 +117,10 @@ function chooseBestAttackAction(
 ): AttackAction {
   const withAbility = candidates.find((a) => a.ability_id)
   return withAbility ?? candidates[0]!
+}
+
+function clamp01(n: number): number {
+  if (n < 0) return 0
+  if (n > 1) return 1
+  return n
 }

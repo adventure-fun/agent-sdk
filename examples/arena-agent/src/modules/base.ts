@@ -1,9 +1,15 @@
 import type { ArenaAction, ArenaObservation } from "../../../../src/index.js"
+import type { ArchetypeProfile } from "./archetypes.js"
 
 /**
  * Arena-specific context passed to each module. Kept minimal (turn + past
  * actions) — arena observations are full-fidelity, so modules do NOT need a
  * reconstructed map memory like the dungeon `AgentContext`.
+ *
+ * Optional `archetype` carries per-bot behavioral tuning (aggression,
+ * self-care thresholds, chest-greed) so the same module pipeline can drive
+ * 24 deterministic bots with distinct personalities without forking code.
+ * Modules MUST treat an unset profile as `balanced` to stay test-stable.
  */
 export interface ArenaAgentContext {
   turn: number
@@ -13,6 +19,11 @@ export interface ArenaAgentContext {
     action: ArenaAction
     reasoning: string
   }>
+  /**
+   * Optional archetype profile for behavior tuning. If unset modules should
+   * use their built-in defaults; see `archetypes.ts` for the knob catalog.
+   */
+  archetype?: ArchetypeProfile
 }
 
 /**
@@ -49,8 +60,14 @@ export interface ArenaModuleRegistry {
   ): ArenaModuleRecommendation[]
 }
 
-export function createArenaAgentContext(): ArenaAgentContext {
-  return { turn: 0, previousActions: [] }
+export function createArenaAgentContext(
+  options: { archetype?: ArchetypeProfile } = {},
+): ArenaAgentContext {
+  return {
+    turn: 0,
+    previousActions: [],
+    ...(options.archetype ? { archetype: options.archetype } : {}),
+  }
 }
 
 export function createArenaModuleRegistry(

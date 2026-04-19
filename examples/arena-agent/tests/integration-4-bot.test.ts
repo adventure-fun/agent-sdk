@@ -243,11 +243,8 @@ function makeAgent(): ArenaAgent {
     new ArenaCowardiceAvoidanceModule(),
     new ArenaCombatModule(),
     new ArenaPositioningModule(),
-    new ArenaChestLooterModule([
-      { x: 5, y: 5 },
-      { x: 6, y: 6 },
-    ]),
-    new ArenaWavePredictorModule([{ x: 6, y: 6 }]),
+    new ArenaChestLooterModule(),
+    new ArenaWavePredictorModule(),
   ]
   const llm = new ArenaPromptAdapter(makeFakeModuleLLM())
   return new ArenaAgent({ modules, llm })

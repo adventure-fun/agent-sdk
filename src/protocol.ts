@@ -455,6 +455,22 @@ export interface ArenaObservation {
   phase: ArenaMatchPhase
   map_id: string
   grid: TileType[][]
+  /**
+   * Static chest spawn tiles copied from the arena map. Exposed so bots
+   * can plan loot routes without re-looking up the map catalog by
+   * `map_id`. Stable for the entire match. Optional on the type for
+   * backward compatibility with older fixtures; the server always
+   * populates this field from `state.map.chest_positions`.
+   */
+  chest_positions?: { x: number; y: number }[]
+  /**
+   * Static NPC wave spawn tiles copied from the arena map. Exposed so
+   * bots can predict where the next wave enters and position
+   * accordingly. Stable for the entire match. Optional on the type for
+   * backward compatibility with older fixtures; the server always
+   * populates this field from `state.map.spawn_points`.
+   */
+  spawn_points?: { x: number; y: number }[]
   entities: ArenaEntity[]
   you: ArenaEntity
   /** Entity IDs in initiative order for the current round. */
@@ -573,11 +589,18 @@ export interface ArenaState {
 
 /** Terminal reason for an arena match. "abandoned" is emitted when no
  *  players ever attached before the inactivity cutoff and carries a null
- *  result; all other reasons carry a full {@link ArenaMatchResult}. */
+ *  result; all other reasons carry a full {@link ArenaMatchResult}.
+ *
+ *  Historically this union included `"sudden_death"`, but in practice
+ *  `ArenaSession.checkWinCondition` only ever calls `endMatch` with
+ *  `"last_standing"` or `"tie_break"` — sudden-death damage is a
+ *  per-round schedule that eventually forces one of those two outcomes.
+ *  The per-match `ArenaMatchResult.ended_reason` column on persisted
+ *  rows retains `"sudden_death"` as a valid stored value for historical
+ *  compatibility with Phase 7 records. */
 
 export type ArenaMatchEndReason =
   | "last_standing"
-  | "sudden_death"
   | "tie_break"
   | "abandoned"
 

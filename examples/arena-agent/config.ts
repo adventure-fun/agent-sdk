@@ -10,6 +10,7 @@ import {
   ArenaCombatModule,
   ArenaCowardiceAvoidanceModule,
   ArenaPositioningModule,
+  ArenaSelfCareModule,
   ArenaWavePredictorModule,
   type ArenaAgentModule,
 } from "./src/modules/index.js"
@@ -49,9 +50,18 @@ export function createArenaConfig(): AgentConfig {
       network: (process.env.AGENT_WALLET_NETWORK ?? "base") as WalletNetwork,
       ...(process.env.AGENT_PRIVATE_KEY ? { privateKey: process.env.AGENT_PRIVATE_KEY } : {}),
     },
+    // ArenaAgent runs its own module-first decision pipeline (see
+    // `src/arena-agent.ts`) and intentionally does NOT delegate to the
+    // BaseAgent planner, so the `decision.strategy` / `tacticalModel`
+    // knobs below are dead config for arena. Pinning `strategy: "planned"`
+    // keeps `AgentConfig` happy (it's required by the type) but nothing
+    // in the arena path ever calls the planner with a tactical model —
+    // `LLM_MODEL` alone drives the strategic tie-break call. Dropping
+    // `TACTICAL_LLM_MODEL` from the arena compose env avoids misleading
+    // operators into thinking they need two OpenRouter models per arena
+    // bot.
     decision: {
       strategy: "planned",
-      tacticalModel: process.env.TACTICAL_LLM_MODEL ?? "anthropic/claude-haiku-4.5",
       maxPlanLength: 6,
       moduleConfidenceThreshold: 0.7,
       emergencyHpPercent: Number(process.env.EMERGENCY_HP_PERCENT ?? "0.25"),
@@ -81,11 +91,12 @@ export function createArenaConfig(): AgentConfig {
  * Returns the ordered arena module list. Priorities descend so the registry
  * (which sorts by priority) evaluates high-urgency modules first.
  *
- *   95 ArenaCowardiceAvoidanceModule — never let the pairing counter tick to 3
- *   92 ArenaCombatModule            — PvP target selection
- *   85 ArenaPositioningModule       — fallback movement when combat declines
- *   80 ArenaChestLooterModule       — grace-period + safe-distance chest runs
- *   70 ArenaWavePredictorModule     — bait incoming waves onto opponents
+ *   100 ArenaSelfCareModule           — emergency heal / safe heal at low HP
+ *    95 ArenaCowardiceAvoidanceModule — never let the pairing counter tick to 3
+ *    92 ArenaCombatModule             — PvP target selection
+ *    85 ArenaPositioningModule        — fallback movement when combat declines
+ *    80 ArenaChestLooterModule        — grace-period + safe-distance chest runs
+ *    70 ArenaWavePredictorModule      — bait incoming waves onto opponents
  *
  * The super-agent `ClassProfileRegistry` is accepted for signature parity with
  * `ArenaCombatModule` and future class-aware arena modules; it is not used by
@@ -93,7 +104,14 @@ export function createArenaConfig(): AgentConfig {
  * change when `arena-ability-selection` modules land in Phase 16.
  */
 export function createArenaModules(_profiles: ClassProfileRegistry): ArenaAgentModule[] {
+  const emergencyRaw = Number(process.env.EMERGENCY_HP_PERCENT ?? "0.25")
+  const emergencyHpPercent =
+    Number.isFinite(emergencyRaw) && emergencyRaw > 0 && emergencyRaw < 1
+      ? emergencyRaw
+      : 0.25
+
   return [
+    new ArenaSelfCareModule({ emergencyHpPercent }),
     new ArenaCowardiceAvoidanceModule(),
     new ArenaCombatModule(),
     new ArenaPositioningModule(),

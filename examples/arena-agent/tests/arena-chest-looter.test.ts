@@ -30,7 +30,7 @@ function placeChest(
 describe("ArenaChestLooterModule", () => {
   const mod = new ArenaChestLooterModule()
 
-  it("defers when no chest positions are provided", () => {
+  it("defers when no chest positions are on the map and no drops are present", () => {
     const obs = buildArenaObservation()
     const rec = mod.analyze(obs, createArenaAgentContext())
     expect(rec.suggestedAction).toBeUndefined()
@@ -38,12 +38,11 @@ describe("ArenaChestLooterModule", () => {
 
   it("in round <= 5 with the nearest chest unguarded, moves toward it", () => {
     const you = buildArenaEntity({ id: "you", position: { x: 5, y: 5 } })
-    const chest = { x: 8, y: 5 }
-    const mod = new ArenaChestLooterModule([chest])
     const obs = buildArenaObservation({
       you,
       entities: [you],
       round: 3,
+      chest_positions: [{ x: 8, y: 5 }],
       legal_actions: [
         moveAction("up"),
         moveAction("down"),
@@ -64,12 +63,11 @@ describe("ArenaChestLooterModule", () => {
       id: "opp",
       position: { x: 9, y: 5 },
     })
-    const chest = { x: 8, y: 5 }
-    const mod = new ArenaChestLooterModule([chest])
     const obs = buildArenaObservation({
       you,
       entities: [you, opponent],
       round: 3,
+      chest_positions: [{ x: 8, y: 5 }],
       legal_actions: [
         moveAction("up"),
         moveAction("down"),
@@ -87,12 +85,11 @@ describe("ArenaChestLooterModule", () => {
       id: "threat",
       position: { x: 7, y: 5 },
     })
-    const chest = { x: 10, y: 5 }
-    const mod = new ArenaChestLooterModule([chest])
     const withThreat = buildArenaObservation({
       you,
       entities: [you, threat],
       round: 8,
+      chest_positions: [{ x: 10, y: 5 }],
       legal_actions: [
         moveAction("up"),
         moveAction("down"),
@@ -110,6 +107,7 @@ describe("ArenaChestLooterModule", () => {
       you,
       entities: [you, safeThreat],
       round: 8,
+      chest_positions: [{ x: 10, y: 5 }],
       legal_actions: [
         moveAction("up"),
         moveAction("down"),
@@ -121,14 +119,25 @@ describe("ArenaChestLooterModule", () => {
     expect(recSafe.suggestedAction?.type).toBe("move")
   })
 
-  it("recommends interact (not move) when standing on the chest tile with a legal interact action", () => {
+  it("recommends interact (not move) when a loot pile is within Chebyshev <= 1 of the actor", () => {
+    // The engine emits a single `interact` row per eligible pile; the
+    // module just forwards it. Actor position doesn't need to be the
+    // exact tile — bump-to-interact handles same-tile + 8 neighbours.
     const you = buildArenaEntity({ id: "you", position: { x: 5, y: 5 } })
-    const chest = { x: 5, y: 5 }
-    const mod = new ArenaChestLooterModule([chest])
     const obs = buildArenaObservation({
       you,
       entities: [you],
       round: 3,
+      chest_positions: [{ x: 5, y: 5 }],
+      death_drops: [
+        {
+          position: { x: 6, y: 5 },
+          items: [],
+          gold: 0,
+          source_player: "chest-0",
+          turn_dropped: 0,
+        },
+      ],
       legal_actions: [
         moveAction("up"),
         moveAction("down"),
@@ -147,12 +156,11 @@ describe("ArenaChestLooterModule", () => {
 
   it("does not interfere when the only legal action is to attack", () => {
     const you = buildArenaEntity({ id: "you", position: { x: 5, y: 5 } })
-    const chest = { x: 8, y: 5 }
-    const mod = new ArenaChestLooterModule([chest])
     const obs = buildArenaObservation({
       you,
       entities: [you],
       round: 3,
+      chest_positions: [{ x: 8, y: 5 }],
       legal_actions: [attackAction("rat"), { type: "wait" }],
     })
     const rec = mod.analyze(obs, createArenaAgentContext())

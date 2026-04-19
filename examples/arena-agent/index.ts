@@ -112,6 +112,9 @@ export async function runOnce(): Promise<void> {
   let myTurnEntityId: string | null = null
   let latestObservation: ArenaObservation | null = null
   let inflight = false
+  // Track the most recent `your_turn` deadline so the agent can skip
+  // the LLM when the server is about to expire our turn.
+  let currentTurnDeadline: { timeoutMs: number; startedAt: number } | null = null
 
   await new Promise<void>((resolve, reject) => {
     let settled = false
@@ -130,6 +133,7 @@ export async function runOnce(): Promise<void> {
       },
       onYourTurn: ({ entity_id, timeout_ms }) => {
         myTurnEntityId = entity_id
+        currentTurnDeadline = { timeoutMs: timeout_ms, startedAt: Date.now() }
         console.log(`[arena-agent] your_turn (${timeout_ms}ms budget)`)
         void maybeAct()
       },
@@ -169,8 +173,13 @@ export async function runOnce(): Promise<void> {
       inflight = true
       const observation = latestObservation
       const actingEntityId = myTurnEntityId
+      const deadline = currentTurnDeadline
       try {
-        const decision = await agent.processArenaObservation(observation)
+        const decision = await agent.processArenaObservation(observation, {
+          ...(deadline
+            ? { timeoutMs: deadline.timeoutMs, turnStartedAt: deadline.startedAt }
+            : {}),
+        })
         console.log(
           `[arena-agent] action turn=${observation.turn} ${JSON.stringify(decision.action)}`
             + ` | ${decision.reasoning}`,
@@ -180,6 +189,7 @@ export async function runOnce(): Promise<void> {
         if (myTurnEntityId === actingEntityId) {
           client.sendArenaAction(decision.action)
           myTurnEntityId = null
+          currentTurnDeadline = null
         }
       } catch (err) {
         console.error("[arena-agent] failed to process observation:", err)
