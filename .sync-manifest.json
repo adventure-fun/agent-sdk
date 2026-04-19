@@ -5,8 +5,8 @@
     {
       "canonical": "shared/schemas/src/index.ts",
       "vendored": "agent-sdk/src/protocol.ts",
-      "canonicalHash": "3dbfc4550f3243ed66a703dc437236b3d8cabd9622ddab2f74b9404ea3bb1dd5",
-      "generatedHash": "d57388542f3a3e0c75ca66e0488adf113e7cd82c918e51508835dd52f88b6fd8",
+      "canonicalHash": "67d18091f7e53cd3e1322015b04199ab07d67c4a50677a65d1c39956f241e76d",
+      "generatedHash": "48b842f34fe8e0a7c9ffb9dd8641b346243048ef677baed870958de0835da772",
       "types": [
         "Stats",
         "CharacterStats",
@@ -273,8 +273,8 @@
     {
       "source": "shared/schemas/src/index.ts",
       "vendored": "agent-sdk/dev/engine/types.ts",
-      "sourceHash": "3dbfc4550f3243ed66a703dc437236b3d8cabd9622ddab2f74b9404ea3bb1dd5",
-      "vendoredHash": "5a79300b51feeeed3068dfa73c5082815f10c4a53e5032bcf17d44aca9fdadf1",
+      "sourceHash": "67d18091f7e53cd3e1322015b04199ab07d67c4a50677a65d1c39956f241e76d",
+      "vendoredHash": "cc97f560aff64bd37d91f0906f65d19a53111d42464ca13dcdf8dbe4eb8c9112",
       "affectedModules": [
         "dev-stack"
       ]
