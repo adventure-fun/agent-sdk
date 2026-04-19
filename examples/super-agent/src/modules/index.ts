@@ -18,5 +18,9 @@ export {
   buildRoomGraph,
   bfsFirstStepDirection,
 } from "./extraction-router.js"
-export { KeyHunterModule } from "./key-hunter.js"
+export {
+  KeyHunterModule,
+  __resetKeyHunterForTests,
+  __peekKeyHunterStateForTests,
+} from "./key-hunter.js"
 export { StuckEscapeModule } from "./stuck-escape.js"
