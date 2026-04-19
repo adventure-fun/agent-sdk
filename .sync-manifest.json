@@ -5,8 +5,8 @@
     {
       "canonical": "shared/schemas/src/index.ts",
       "vendored": "agent-sdk/src/protocol.ts",
-      "canonicalHash": "9b01c3f0752bd0ad9e2b5cddf453d3325ae1b11a9027ec463796f2e43f3acda6",
-      "generatedHash": "e550427e8ecb598974e465bcc4988d169c8c95878acd50b65778c78ac2791e66",
+      "canonicalHash": "3294ac6c1854ffec976fac9c415da543b1c7515bd9e12201f678cb2d6ce9af21",
+      "generatedHash": "d60bc9b08441d952b2f134d905a38f26bfa5cdfe1c5d43c74179e1c6f60eb275",
       "types": [
         "Stats",
         "CharacterStats",
@@ -102,7 +102,7 @@
         "ArenaAction": "55cbccd763bfaa9ba0559becd37355d19dd3e506b3967a9b6fcb596b0a9d9a90",
         "ArenaEvent": "953054ce2468a9579244eaa5f5cd01e579044bbb810035af35c277fc4cbfafc2",
         "ProximityWarning": "fd57b6b71aae38abe34dc5d0025f714c337f0eb4cdfa4633d80c179294a279ba",
-        "ArenaObservation": "0e2c74c47d0615320d80874223c0087cb8afde68e9ff903973331fffe9752270",
+        "ArenaObservation": "ab74817c0b2eeaadeba2b87e069b30c5250e24b950157f7d301b6751b4b9a0c1",
         "ArenaSpectatorObservation": "14e411b7774f7a1f826352ad21b19a4338472b6ffd8f99d3b49b940cd9a2072d",
         "ArenaMatchResultPlacement": "f8fda68930b6299cfdfc3ce3914ff21ce80678a2717f5fb08fb537eab9431f2d",
         "ArenaMatchResult": "18b1c58cb79782bf65aa249f5b0e7eab7d69de269855e6f2dc6e69855d918ceb",
@@ -273,7 +273,7 @@
     {
       "source": "shared/schemas/src/index.ts",
       "vendored": "agent-sdk/dev/engine/types.ts",
-      "sourceHash": "9b01c3f0752bd0ad9e2b5cddf453d3325ae1b11a9027ec463796f2e43f3acda6",
+      "sourceHash": "3294ac6c1854ffec976fac9c415da543b1c7515bd9e12201f678cb2d6ce9af21",
       "vendoredHash": "cc97f560aff64bd37d91f0906f65d19a53111d42464ca13dcdf8dbe4eb8c9112",
       "affectedModules": [
         "dev-stack"

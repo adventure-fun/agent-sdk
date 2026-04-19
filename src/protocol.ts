@@ -459,6 +459,13 @@ export interface ArenaObservation {
   you: ArenaEntity
   /** Entity IDs in initiative order for the current round. */
   turn_order: string[]
+  /**
+   * Entity IDs that have already consumed their turn in the CURRENT round.
+   * Mirrors the spectator observation so the participant play view can drive
+   * the exact same animated turn-order sidebar (Acting / Up next / Done /
+   * Eliminated) instead of the simpler initiative strip.
+   */
+  acted_this_round: string[]
   next_wave_turn: number | null
   proximity_warnings: ProximityWarning[]
   recent_events: ArenaEvent[]

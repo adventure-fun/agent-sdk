@@ -96,6 +96,7 @@ function observationMsg(matchId: string, turn: number): ArenaServerMessage {
       alive: true,
     },
     turn_order: ["you"],
+    acted_this_round: [],
     next_wave_turn: null,
     proximity_warnings: [],
     recent_events: [],

@@ -121,6 +121,30 @@ describe("ArenaChestLooterModule", () => {
     expect(recSafe.suggestedAction?.type).toBe("move")
   })
 
+  it("recommends interact (not move) when standing on the chest tile with a legal interact action", () => {
+    const you = buildArenaEntity({ id: "you", position: { x: 5, y: 5 } })
+    const chest = { x: 5, y: 5 }
+    const mod = new ArenaChestLooterModule([chest])
+    const obs = buildArenaObservation({
+      you,
+      entities: [you],
+      round: 3,
+      legal_actions: [
+        moveAction("up"),
+        moveAction("down"),
+        moveAction("left"),
+        moveAction("right"),
+        { type: "interact", target_id: "chest-0" },
+      ],
+    })
+    const rec = mod.analyze(obs, createArenaAgentContext())
+    expect(rec.suggestedAction?.type).toBe("interact")
+    if (rec.suggestedAction?.type === "interact") {
+      expect(rec.suggestedAction.target_id).toBe("chest-0")
+    }
+    expect(rec.confidence).toBeGreaterThan(0.5)
+  })
+
   it("does not interfere when the only legal action is to attack", () => {
     const you = buildArenaEntity({ id: "you", position: { x: 5, y: 5 } })
     const chest = { x: 8, y: 5 }
