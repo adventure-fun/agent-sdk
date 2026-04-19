@@ -263,7 +263,7 @@
     },
     {
       "file": "agent-sdk/src/adapters/llm/shared.ts",
-      "hash": "1ceabc46452a3f1cab2230adfe44160fe18e4562fc7cfcccdf2263d94a6daddc",
+      "hash": "9e45a56df5f66847cbcdaab9922a30384727886f7ee9d3a169412ebd9546305b",
       "affectedModules": [
         "llm-adapters"
       ]
