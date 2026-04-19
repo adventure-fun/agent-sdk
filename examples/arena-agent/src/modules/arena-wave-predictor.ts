@@ -3,11 +3,14 @@ import type {
   ArenaObservation,
 } from "../../../../src/index.js"
 import type {
+  ArenaActionCandidate,
   ArenaAgentContext,
   ArenaAgentModule,
   ArenaModuleRecommendation,
 } from "./base.js"
 import { chebyshev, manhattan } from "./base.js"
+import { buildUtilityContext, scoreMoveCandidate } from "./utility.js"
+import { getArchetypeProfile } from "./archetypes.js"
 
 type MoveAction = Extract<Action, { type: "move" }>
 
@@ -22,22 +25,11 @@ const DIRECTION_DELTAS: Record<
 }
 
 /**
- * Wave-bait positioning module. When the next NPC wave is within 2 turns,
- * moves in the direction that brings us closer to the opponent while keeping
- * the nearest spawn point on the opposite side of the opponent — NPCs that
- * spawn at the opponent's edge will path toward the nearest target and will
- * hit the opponent first, not us.
- *
- * Geometry:
- *   - Identify the spawn point farthest from us (nearest to the opponent we
- *     want to bait).
- *   - Choose the legal move that minimizes the chebyshev distance to that
- *     opponent, i.e. place ourselves between the opponent and their side of
- *     the map.
- *
- * Spawn points come from the live observation
- * (`ArenaObservation.spawn_points`, populated server-side from
- * `state.map.spawn_points`). No constructor-time wiring required.
+ * Wave-bait positioning module — EV scored. When the next NPC wave is
+ * within 2 turns, emits move candidates that reposition us between the
+ * nearest spawn point and the closest opponent, with a strategic bonus
+ * scaled by aggression (aggressive bots are more willing to take the
+ * bait risk).
  */
 export class ArenaWavePredictorModule implements ArenaAgentModule {
   readonly name = "arena-wave-predictor"
@@ -45,7 +37,7 @@ export class ArenaWavePredictorModule implements ArenaAgentModule {
 
   analyze(
     observation: ArenaObservation,
-    _context: ArenaAgentContext,
+    context: ArenaAgentContext,
   ): ArenaModuleRecommendation {
     const spawnPoints = observation.spawn_points ?? []
     if (spawnPoints.length === 0) {
@@ -59,7 +51,10 @@ export class ArenaWavePredictorModule implements ArenaAgentModule {
       return { reasoning: `Wave not imminent (${turnsUntilWave} turns away).`, confidence: 0 }
     }
 
+    const archetype = context.archetype ?? getArchetypeProfile("balanced")
+    const utilCtx = buildUtilityContext(observation, archetype)
     const you = observation.you
+
     const opponents = observation.entities.filter(
       (e) => e.id !== you.id && e.alive && !e.stealth && e.kind === "player",
     )
@@ -67,9 +62,6 @@ export class ArenaWavePredictorModule implements ArenaAgentModule {
       return { reasoning: "No player opponents to bait wave toward.", confidence: 0 }
     }
 
-    // Target opponent = closest player. Baiting a far-away player is
-    // unlikely to land since wave NPCs typically go after the nearest
-    // target to their spawn tile.
     const target = opponents
       .map((o) => ({ o, d: manhattan(you.position, o.position) }))
       .sort((a, b) => a.d - b.d)[0]!.o
@@ -81,37 +73,36 @@ export class ArenaWavePredictorModule implements ArenaAgentModule {
       return { reasoning: "No legal move to reposition.", confidence: 0 }
     }
 
-    // Pick the spawn nearest to the target opponent — that's the spawn
-    // whose NPCs will approach the opponent first as we slide alongside.
     const spawnNearTarget = [...spawnPoints]
       .map((s) => ({ s, d: manhattan(s, target.position) }))
       .sort((a, b) => a.d - b.d)[0]!.s
 
-    // Best move = the one that minimizes distance to the target opponent
-    // WHILE keeping us on the opposite side of them from that spawn point.
-    // In practice: move toward the target. If the target is between us and
-    // the spawn, we'll pull past them on the next turn.
-    let best: MoveAction | null = null
-    let bestScore = Number.POSITIVE_INFINITY
+    const candidates: ArenaActionCandidate[] = []
     for (const move of moves) {
       const delta = DIRECTION_DELTAS[move.direction]
       const next = { x: you.position.x + delta.dx, y: you.position.y + delta.dy }
-      const score = chebyshev(next, target.position)
-      if (score < bestScore) {
-        bestScore = score
-        best = move
-      }
-    }
-    if (!best) {
-      return { reasoning: "No move reduces distance to target opponent.", confidence: 0 }
+      const before = chebyshev(you.position, target.position)
+      const after = chebyshev(next, target.position)
+      const gain = before - after
+      // Wave-bait bonus: moving toward target gets a bonus proportional
+      // to aggression; turnsUntilWave urgency amplifies it.
+      const baitMagnitude = (3 - turnsUntilWave) * 4 * (0.4 + archetype.aggression)
+      const strategicBonus = gain * baitMagnitude
+      candidates.push(
+        scoreMoveCandidate(utilCtx, move, {
+          target: target.position,
+          strategicBonus,
+          reasoning: `Wave-bait ${move.direction} — bait ${target.name} into spawn (${spawnNearTarget.x},${spawnNearTarget.y})`,
+        }),
+      )
     }
 
+    const top = [...candidates].sort((a, b) => b.utility - a.utility)[0]!
     return {
-      suggestedAction: best,
-      reasoning:
-        `Wave arrives in ${turnsUntilWave}t — sliding toward ${target.name} so the wave ` +
-        `spawning at (${spawnNearTarget.x},${spawnNearTarget.y}) pressures them first.`,
-      confidence: 0.55,
+      suggestedAction: top.action,
+      reasoning: top.reasoning,
+      confidence: 0.5,
+      candidates,
       context: { target_opponent: target.id, spawn_point: spawnNearTarget },
     }
   }

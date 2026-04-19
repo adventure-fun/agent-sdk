@@ -3,8 +3,11 @@ import type {
   ArenaObservation,
 } from "../../../src/index.js"
 import {
+  collectAllCandidates,
   createArenaAgentContext,
   createArenaModuleRegistry,
+  pickTopEvCandidate,
+  type ArenaActionCandidate,
   type ArenaAgentContext,
   type ArenaAgentModule,
   type ArenaModuleRecommendation,
@@ -27,6 +30,16 @@ const MAX_ARENA_HISTORY = 20
  * LLM credits or eat the 15s server turn timer on rate-limit backoff.
  */
 const HIGH_CONFIDENCE_THRESHOLD = 0.8
+
+/**
+ * Utility margin required for the EV decision layer to commit without
+ * consulting the LLM. If the top EV candidate outscores the runner-up
+ * by at least this amount the agent takes it immediately (covers
+ * emergency heals, finishing blows, lone legal moves, etc.). When the
+ * margin is tighter the LLM picks between the top candidates instead
+ * — the classic "ML tie-break" behavior the user asked for.
+ */
+const EV_DOMINANT_MARGIN = 15
 
 /**
  * Hard deadline buffer for LLM calls. If fewer than this many milliseconds
@@ -138,23 +151,54 @@ export class ArenaAgent {
     recommendations: ArenaModuleRecommendation[],
     options: ArenaAgentDecideOptions,
   ): Promise<ArenaDecisionResult> {
-    const top = pickTopRecommendation(recommendations)
+    // EV-first decision path. Flatten every module's candidates into a
+    // single pool and pick argmax utility. If the top candidate
+    // dominates the runner-up by >= EV_DOMINANT_MARGIN, commit directly
+    // (no LLM call). Otherwise, ask the LLM to tie-break.
+    const evTop = pickTopEvCandidate(recommendations)
+    const runnerUp = pickSecondBestUtility(recommendations, evTop)
+    const dominant =
+      evTop !== null &&
+      (runnerUp === null || evTop.utility - runnerUp.utility >= EV_DOMINANT_MARGIN)
 
-    if (top && top.confidence >= HIGH_CONFIDENCE_THRESHOLD) {
+    if (evTop && dominant) {
       return {
-        action: top.suggestedAction!,
-        reasoning: `module-first:${top.moduleName} (conf=${top.confidence.toFixed(2)}) :: ${top.reasoning}`,
+        action: evTop.action,
+        reasoning: `ev-dominant:${evTop.moduleName ?? "?"} (util=${evTop.utility.toFixed(2)}) :: ${evTop.reasoning}`,
+      }
+    }
+
+    // Legacy short-circuit: a module with confidence >= 0.8 still wins
+    // even if no candidates were produced (keeps back-compat with
+    // non-EV modules and existing tests).
+    const topByConfidence = pickTopRecommendation(recommendations)
+    if (
+      topByConfidence &&
+      topByConfidence.confidence >= HIGH_CONFIDENCE_THRESHOLD &&
+      !evTop
+    ) {
+      return {
+        action: topByConfidence.suggestedAction!,
+        reasoning: `module-first:${topByConfidence.moduleName} (conf=${topByConfidence.confidence.toFixed(2)}) :: ${topByConfidence.reasoning}`,
       }
     }
 
     const budgetMs = remainingTurnBudgetMs(options)
     if (budgetMs !== null && budgetMs < LLM_DEADLINE_BUFFER_MS) {
-      if (top) {
+      if (evTop) {
         return {
-          action: top.suggestedAction!,
+          action: evTop.action,
           reasoning:
-            `deadline-fallback (${budgetMs}ms left) → module:${top.moduleName}` +
-            ` (conf=${top.confidence.toFixed(2)}) :: ${top.reasoning}`,
+            `deadline-fallback (${budgetMs}ms left) → ev:${evTop.moduleName ?? "?"}` +
+            ` (util=${evTop.utility.toFixed(2)}) :: ${evTop.reasoning}`,
+        }
+      }
+      if (topByConfidence) {
+        return {
+          action: topByConfidence.suggestedAction!,
+          reasoning:
+            `deadline-fallback (${budgetMs}ms left) → module:${topByConfidence.moduleName}` +
+            ` (conf=${topByConfidence.confidence.toFixed(2)}) :: ${topByConfidence.reasoning}`,
         }
       }
       return { action: { type: "wait" }, reasoning: `deadline-fallback (${budgetMs}ms left); no module fired` }
@@ -166,6 +210,36 @@ export class ArenaAgent {
       recentActions: this.context.previousActions,
     })
   }
+}
+
+function pickSecondBestUtility(
+  recommendations: readonly ArenaModuleRecommendation[],
+  top: ArenaActionCandidate | null,
+): ArenaActionCandidate | null {
+  if (!top) return null
+  // Use the same flattened pool `pickTopEvCandidate` uses — including
+  // legacy confidence-only recommendations projected via
+  // LEGACY_UTILITY_SCALE — so the dominance margin compares apples to
+  // apples. Reference equality on `top` wins over action-json equality
+  // because multiple modules may suggest the same action.
+  const candidates = collectAllCandidates(recommendations)
+  let runnerUp: ArenaActionCandidate | null = null
+  for (const c of candidates) {
+    if (c === top) continue
+    // If a different module suggested the exact same action, treat
+    // it as the same "vote" rather than a runner-up: it reinforces
+    // the top pick instead of competing with it.
+    if (sameAction(c.action, top.action)) continue
+    if (runnerUp === null || c.utility > runnerUp.utility) {
+      runnerUp = c
+    }
+  }
+  return runnerUp
+}
+
+function sameAction(a: ArenaAction, b: ArenaAction): boolean {
+  if (a.type !== b.type) return false
+  return JSON.stringify(a) === JSON.stringify(b)
 }
 
 /**

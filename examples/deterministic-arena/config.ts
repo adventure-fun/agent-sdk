@@ -6,6 +6,7 @@ import {
   type WalletNetwork,
 } from "../../src/index.js"
 import {
+  ArenaApproachModule,
   ArenaChestLooterModule,
   ArenaCombatModule,
   ArenaCowardiceAvoidanceModule,
@@ -102,6 +103,7 @@ export function createDeterministicArenaModules(): ArenaAgentModule[] {
     new ArenaCombatModule(),
     new ArenaPositioningModule(),
     new ArenaChestLooterModule(),
+    new ArenaApproachModule(),
     new ArenaWavePredictorModule(),
   ]
 }

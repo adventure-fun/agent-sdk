@@ -254,8 +254,19 @@ export class BaseAgent {
   private emptyExtractionStreak = 0
 
   constructor(config: AgentConfig, options: BaseAgentOptions) {
-    if (!config.llm.apiKey) {
-      throw new Error("LLM API key is required")
+    // An API key is only required when the planner might actually call out
+    // to a real LLM. The "module-only" strategy skips the planner entirely
+    // (see planner.ts L139), so deterministic fleet agents can legitimately
+    // boot with `apiKey: ""` paired with a NullLLMAdapter. The adapter
+    // itself still throws on any `decide` / `plan` / `generateText` call,
+    // preserving the fail-loud contract for misconfigured setups.
+    if (
+      !config.llm.apiKey &&
+      config.decision?.strategy !== "module-only"
+    ) {
+      throw new Error(
+        'LLM API key is required (set decision.strategy = "module-only" to run without an LLM)',
+      )
     }
 
     this.config = config

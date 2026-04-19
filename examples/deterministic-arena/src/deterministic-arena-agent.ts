@@ -5,6 +5,7 @@ import type {
 import {
   createArenaAgentContext,
   createArenaModuleRegistry,
+  pickTopEvCandidate,
   type ArenaAgentContext,
   type ArenaAgentModule,
   type ArenaModuleRecommendation,
@@ -81,13 +82,17 @@ export class DeterministicArenaAgent {
     const recommendations = this.registry.analyzeAll(observation, this.context)
     this.lastRecommendations = recommendations
 
-    const top = pickTopRecommendation(recommendations)
-    const decision: DeterministicArenaDecision = top
+    // EV decision: argmax across every module's `candidates[]` (and any
+    // legacy suggestedAction projected to utility). This replaces the
+    // pure "highest confidence wins" heuristic that caused bots to ping-
+    // pong between conflicting module suggestions.
+    const evTop = pickTopEvCandidate(recommendations)
+    const decision: DeterministicArenaDecision = evTop
       ? {
-          action: top.suggestedAction,
-          reasoning: `deterministic:${top.moduleName} (conf=${top.confidence.toFixed(2)}) :: ${top.reasoning}`,
-          moduleName: top.moduleName ?? null,
-          confidence: top.confidence,
+          action: evTop.action,
+          reasoning: `deterministic:${evTop.moduleName ?? "?"} (util=${evTop.utility.toFixed(2)}) :: ${evTop.reasoning}`,
+          moduleName: evTop.moduleName ?? null,
+          confidence: Math.min(0.99, Math.max(0, evTop.utility / 60)),
         }
       : {
           action: { type: "wait" },
@@ -109,6 +114,8 @@ export class DeterministicArenaAgent {
   }
 }
 
+// Retained for back-compat with earlier tests/fixtures that import the
+// helper. The production path now uses `pickTopEvCandidate` above.
 function pickTopRecommendation(
   recommendations: readonly ArenaModuleRecommendation[],
 ): (ArenaModuleRecommendation & { suggestedAction: ArenaAction }) | null {
@@ -123,3 +130,6 @@ function pickTopRecommendation(
     ? (best as ArenaModuleRecommendation & { suggestedAction: ArenaAction })
     : null
 }
+// Keep the tree-shaker from dropping pickTopRecommendation even though the
+// main decision path no longer references it.
+void pickTopRecommendation

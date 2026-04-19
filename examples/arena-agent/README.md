@@ -9,12 +9,30 @@ completion, and exits. No dungeon modules, no realm progression.
 - Queues for an arena bracket, polls until the matchmaker promotes the
   character into a match, then connects via
   `GameClient.connectArenaMatch(matchId, ticket)`.
-- Drives actions with six arena-specific `AgentModule`s wrapped by an
-  `ArenaPromptAdapter` that injects arena rules + threat ranking + class
-  PvP rubric + recent-events memory.
+- Drives actions with seven arena-specific `AgentModule`s (combat,
+  self-care, positioning, cowardice avoidance, chest-looter, wave-predictor,
+  approach) wrapped by an `ArenaPromptAdapter` that injects arena rules +
+  threat ranking + class PvP rubric + recent-events memory.
 
 Phase 15 adds the hybrid supervisor that alternates dungeons and arena;
 this example stops after one match.
+
+## Decision model (module-first + LLM tiebreak)
+
+Every module emits `ArenaActionCandidate[]` with an expected-value utility
+(see
+[`deterministic-arena/README.md`](../deterministic-arena/README.md#utility-model)
+for the full EV formula and archetype table). Each turn:
+
+1. Collect every candidate from every module and compute `argmax(utility)`.
+2. **If the top candidate dominates by at least `EV_DOMINANT_MARGIN`**,
+   commit to it immediately — no LLM call. This saves OpenRouter credits on
+   "obvious" turns (adjacent enemy, emergency heal, camper-adjacent loot).
+3. Otherwise, hand the full candidate list + prompt context to the LLM,
+   which picks the final action as a strategic tiebreak.
+
+Legacy confidence-only recommendations are projected into utility space via
+`LEGACY_UTILITY_SCALE` so mixing module styles just works.
 
 ## Required environment
 

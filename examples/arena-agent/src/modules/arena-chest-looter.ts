@@ -3,13 +3,21 @@ import type {
   ArenaObservation,
 } from "../../../../src/index.js"
 import type {
+  ArenaActionCandidate,
   ArenaAgentContext,
   ArenaAgentModule,
   ArenaModuleRecommendation,
 } from "./base.js"
 import { chebyshev } from "./base.js"
+import {
+  buildUtilityContext,
+  scoreInteractCandidate,
+  scoreMoveCandidate,
+} from "./utility.js"
+import { getArchetypeProfile } from "./archetypes.js"
 
 type MoveAction = Extract<Action, { type: "move" }>
+type InteractAction = Extract<Action, { type: "interact" }>
 
 const DIRECTION_DELTAS: Record<
   "up" | "down" | "left" | "right",
@@ -22,26 +30,18 @@ const DIRECTION_DELTAS: Record<
 }
 
 /**
- * Greedy chest-running module. Only acts in two windows:
+ * Chest-looter module — EV scored. Contributes two kinds of candidates:
  *
- *   (a) Early game (round ≤ 5), regardless of threat distance.
- *   (b) Late game (round > 5) only when NO hostile entity sits within 3
- *       Chebyshev tiles of the agent — i.e. we have breathing room.
+ *   - Interact candidates for every legal `interact` action, scored via
+ *     `scoreInteractCandidate` (greed-weighted, item-count-weighted,
+ *     camper-penalty).
+ *   - Move candidates heading toward the nearest SAFE loot pile,
+ *     scored via `scoreMoveCandidate({ target, strategicBonus })` with
+ *     `strategicBonus = 10 * archetype.greed / max(1, distance)`.
  *
- * Either way, the nearest un-adjacent chest is picked; chests with a hostile
- * entity already adjacent are always excluded (running into a camper is a
- * loss). Pathfinding is a single-step greedy move — a full BFS is overkill
- * for the open arena maps we ship with, and the tactical LLM can correct
- * degenerate cases on subsequent turns.
- *
- * Chest positions come from the live observation
- * (`ArenaObservation.chest_positions`, populated server-side from
- * `state.map.chest_positions`). No constructor-time wiring required —
- * the module works out-of-the-box on any arena map.
- *
- * Bump-to-interact parity: the module tries to `interact` as soon as it
- * is within Chebyshev ≤ 1 of a live chest/loot drop, matching
- * `computeArenaLegalActions` and the dungeon pickup semantics.
+ * Safety: targets whose adjacent tiles contain a hostile are excluded,
+ * and in round > 5 we also require at least 3 tiles of breathing room
+ * (still configurable via greed — high-greed archetypes ignore this).
  */
 export class ArenaChestLooterModule implements ArenaAgentModule {
   readonly name = "arena-chest-looter"
@@ -51,118 +51,103 @@ export class ArenaChestLooterModule implements ArenaAgentModule {
     observation: ArenaObservation,
     context: ArenaAgentContext,
   ): ArenaModuleRecommendation {
-    const greed = context.archetype?.chestGreedMultiplier ?? 1
-    // Prefer live drops (chests that have already been opened and spawned
-    // death-drop piles) over raw chest spawn tiles — the pile is the
-    // actual loot. If no drops remain, fall back to the static chest
-    // tiles for early-game pathing.
-    const dropTargets = observation.death_drops.map((d) => d.position)
+    const archetype = context.archetype ?? getArchetypeProfile("balanced")
+    const utilCtx = buildUtilityContext(observation, archetype)
+    const you = observation.you
+
+    const dropTargets = observation.death_drops.map((d) => d)
     const chestTargets = observation.chest_positions ?? []
-    const targets = dropTargets.length > 0 ? dropTargets : chestTargets
-    if (targets.length === 0) {
+    if (dropTargets.length === 0 && chestTargets.length === 0) {
       return { reasoning: "No chests or loot piles on the map.", confidence: 0 }
     }
 
-    const moves = observation.legal_actions.filter(
-      (a): a is MoveAction => a.type === "move",
-    )
-    const interactActions = observation.legal_actions.filter(
-      (a): a is Extract<Action, { type: "interact" }> => a.type === "interact",
-    )
-
-    const you = observation.you
-    const hostilesByPosition = observation.entities.filter(
+    const hostiles = observation.entities.filter(
       (e) => e.id !== you.id && e.alive && !e.stealth,
     )
 
-    // Bump-to-interact short-circuit: if the engine already emits an
-    // interact action (i.e. a drop is within Chebyshev ≤ 1) just take it.
-    // Matches the same 0.85 confidence the former "standing on the tile"
-    // path used so it still beats the 0.80 module-first threshold.
-    if (interactActions.length > 0) {
-      const interact = interactActions[0]!
-      return {
-        suggestedAction: interact,
-        reasoning: `Loot pile within reach — picking up pile ${interact.target_id}.`,
-        confidence: clampConfidence(0.85 * greed),
-      }
-    }
+    const interactActions = observation.legal_actions.filter(
+      (a): a is InteractAction => a.type === "interact",
+    )
+    const moves = observation.legal_actions.filter(
+      (a): a is MoveAction => a.type === "move",
+    )
 
-    if (moves.length === 0) {
-      return { reasoning: "No legal move actions — deferring to combat.", confidence: 0 }
-    }
+    const candidates: ArenaActionCandidate[] = []
 
-    const reachableTargets = targets.filter((target) => {
-      const hostileAdjacent = hostilesByPosition.some(
-        (h) => h.id !== you.id && chebyshev(h.position, target) <= 1,
+    // Interact candidates (bump-to-interact short-circuit).
+    for (const action of interactActions) {
+      const drop = dropTargets.find((d) => {
+        // The engine surfaces death drops keyed by source_player; match
+        // against target_id which should map to the pile id in legal
+        // actions. Fall back to assuming the nearest pile if no direct
+        // match (keeps behavior reasonable for future drop shapes).
+        return d.source_player === action.target_id
+      })
+      const itemCount = drop ? drop.items.length : 1
+      const hostileAdjacent = drop
+        ? hostiles.some((h) => chebyshev(h.position, drop.position) <= 1)
+        : false
+      candidates.push(
+        scoreInteractCandidate(utilCtx, action, { itemCount, hostileAdjacent }),
       )
-      return !hostileAdjacent
+    }
+
+    // Move-toward candidates for any safe loot tile.
+    const lootPositions = dropTargets.length > 0
+      ? dropTargets.map((d) => ({ pos: d.position, items: d.items.length }))
+      : chestTargets.map((pos) => ({ pos, items: 1 }))
+
+    const safeTargets = lootPositions.filter(({ pos }) => {
+      const hostileAdjacent = hostiles.some((h) => chebyshev(h.position, pos) <= 1)
+      if (hostileAdjacent) return false
+      // Late-game danger gate, softened by greed.
+      if (observation.round > 5) {
+        const dangerRadius = Math.max(1, Math.ceil(3 / archetype.greed))
+        const tooClose = hostiles.some(
+          (h) => chebyshev(h.position, you.position) < dangerRadius,
+        )
+        if (tooClose) return false
+      }
+      return true
     })
-    if (reachableTargets.length === 0) {
-      return { reasoning: "Every chest / pile has a camper adjacent.", confidence: 0 }
-    }
 
-    // Late game gate: require ≥4 tiles of breathing room.
-    if (observation.round > 5) {
-      const anyClose = hostilesByPosition.some(
-        (h) => chebyshev(h.position, you.position) < 3,
-      )
-      if (anyClose) {
-        return {
-          reasoning: "Hostile within 3 tiles in round > 5 — too dangerous to loot.",
-          confidence: 0,
-        }
+    // Pick the nearest safe target for the approach-toward bonus.
+    const nearestSafe = safeTargets
+      .map(({ pos, items }) => ({ pos, items, dist: chebyshev(you.position, pos) }))
+      .sort((a, b) => a.dist - b.dist)[0]
+
+    if (nearestSafe && moves.length > 0) {
+      for (const move of moves) {
+        const delta = DIRECTION_DELTAS[move.direction]
+        const next = { x: you.position.x + delta.dx, y: you.position.y + delta.dy }
+        const before = chebyshev(you.position, nearestSafe.pos)
+        const after = chebyshev(next, nearestSafe.pos)
+        const gain = before - after
+        // Greed-weighted strategic bonus, scaled by item count.
+        const magnitude = 6 * archetype.greed + nearestSafe.items * archetype.greed
+        const strategicBonus = gain * magnitude
+        const scored = scoreMoveCandidate(utilCtx, move, {
+          target: nearestSafe.pos,
+          strategicBonus,
+          reasoning: `Loot path ${move.direction} → (${nearestSafe.pos.x},${nearestSafe.pos.y}) (greed=${archetype.greed.toFixed(2)})`,
+        })
+        candidates.push(scored)
       }
     }
 
-    const target = reachableTargets
-      .map((pos) => ({ pos, dist: chebyshev(you.position, pos) }))
-      .sort((a, b) => a.dist - b.dist)[0]!
-
-    // If we're already adjacent (Chebyshev ≤ 1) but no `interact` action
-    // is legal, there must be no drop at that chest yet — keep the
-    // recommendation low confidence so the LLM can pick combat instead.
-    if (target.dist <= 1) {
-      return {
-        reasoning: `Already adjacent to target (${target.pos.x},${target.pos.y}) with no active pile.`,
-        confidence: 0.3,
-      }
+    if (candidates.length === 0) {
+      return { reasoning: "No safe loot candidates.", confidence: 0 }
     }
 
-    const toward = chooseMoveToward(moves, you.position, target.pos)
-    if (!toward) {
-      return { reasoning: "No legal move reduces distance to chest.", confidence: 0 }
-    }
+    const top = [...candidates].sort((a, b) => b.utility - a.utility)[0]!
+    // Interact is a "sure thing" pickup — surface high confidence so the
+    // legacy confidence-based consumers also prefer it over a pathing move.
+    const confidence = top.action.type === "interact" ? 0.85 : 0.5
     return {
-      suggestedAction: toward,
-      reasoning: `Pathing to loot at (${target.pos.x},${target.pos.y}) — ${target.dist} tiles away.`,
-      confidence: clampConfidence(0.55 * greed),
-      context: { chest: target.pos },
+      suggestedAction: top.action,
+      reasoning: top.reasoning,
+      confidence,
+      candidates,
     }
   }
-}
-
-function clampConfidence(n: number): number {
-  if (!Number.isFinite(n) || n < 0) return 0
-  if (n > 0.99) return 0.99
-  return n
-}
-
-function chooseMoveToward(
-  moves: MoveAction[],
-  from: { x: number; y: number },
-  to: { x: number; y: number },
-): MoveAction | null {
-  let best: MoveAction | null = null
-  let bestScore = Number.POSITIVE_INFINITY
-  for (const move of moves) {
-    const delta = DIRECTION_DELTAS[move.direction]
-    const next = { x: from.x + delta.dx, y: from.y + delta.dy }
-    const score = chebyshev(next, to)
-    if (score < bestScore) {
-      bestScore = score
-      best = move
-    }
-  }
-  return best
 }

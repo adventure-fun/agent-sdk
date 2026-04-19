@@ -6,6 +6,7 @@ import {
   type WalletNetwork,
 } from "../../src/index.js"
 import {
+  ArenaApproachModule,
   ArenaChestLooterModule,
   ArenaCombatModule,
   ArenaCowardiceAvoidanceModule,
@@ -96,6 +97,7 @@ export function createArenaConfig(): AgentConfig {
  *    92 ArenaCombatModule             — PvP target selection
  *    85 ArenaPositioningModule        — fallback movement when combat declines
  *    80 ArenaChestLooterModule        — grace-period + safe-distance chest runs
+ *    78 ArenaApproachModule           — close distance to weakest hostile
  *    70 ArenaWavePredictorModule      — bait incoming waves onto opponents
  *
  * The super-agent `ClassProfileRegistry` is accepted for signature parity with
@@ -116,6 +118,7 @@ export function createArenaModules(_profiles: ClassProfileRegistry): ArenaAgentM
     new ArenaCombatModule(),
     new ArenaPositioningModule(),
     new ArenaChestLooterModule(),
+    new ArenaApproachModule(),
     new ArenaWavePredictorModule(),
   ]
 }

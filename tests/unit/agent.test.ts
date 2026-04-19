@@ -43,7 +43,7 @@ describe("BaseAgent", () => {
     expect(agent).toBeDefined()
   })
 
-  it("throws on missing LLM API key", () => {
+  it("throws on missing LLM API key with the default planned strategy", () => {
     const config = createDefaultConfig({
       llm: { provider: "openrouter", apiKey: "" },
       wallet: { type: "env" },
@@ -53,6 +53,22 @@ describe("BaseAgent", () => {
       llmAdapter: createMockLLM(),
       walletAdapter: createMockWallet(),
     })).toThrow(/LLM API key/)
+  })
+
+  it("allows an empty LLM API key when decision.strategy is module-only", () => {
+    // Deterministic fleet agents (e.g. deterministic-realm) pair an empty
+    // api key with a NullLLMAdapter. The planner never calls the LLM in
+    // that mode, so the BaseAgent guard must not reject the config.
+    const config = createDefaultConfig({
+      llm: { provider: "openrouter", apiKey: "" },
+      wallet: { type: "env" },
+      decision: { strategy: "module-only" },
+    })
+
+    expect(() => new BaseAgent(config, {
+      llmAdapter: createMockLLM(),
+      walletAdapter: createMockWallet(),
+    })).not.toThrow()
   })
 
   it("accepts custom modules", () => {

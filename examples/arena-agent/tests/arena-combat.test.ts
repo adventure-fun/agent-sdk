@@ -56,7 +56,17 @@ describe("ArenaCombatModule", () => {
     })
     const rec = mod.analyze(obs, createArenaAgentContext())
     expect(rec.suggestedAction).toEqual(attackAction("wounded"))
-    expect(rec.confidence).toBeGreaterThanOrEqual(0.95)
+    // Under the EV model the module emits a candidate with a large
+    // strategic finisher bonus; the hand-picked 0.95 confidence is
+    // replaced by a utility scoreboard. Just verify the candidate
+    // set for "wounded" dominates.
+    const woundedUtilities = rec.candidates
+      ?.filter((c) => c.action.type === "attack" && c.action.target_id === "wounded")
+      .map((c) => c.utility) ?? []
+    const healthyUtilities = rec.candidates
+      ?.filter((c) => c.action.type === "attack" && c.action.target_id === "healthy")
+      .map((c) => c.utility) ?? []
+    expect(Math.max(...woundedUtilities)).toBeGreaterThan(Math.max(...healthyUtilities))
   })
 
   it("prefers a player target over an NPC even if the NPC is closer", () => {

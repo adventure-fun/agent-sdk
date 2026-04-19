@@ -45,6 +45,26 @@ export interface ArchetypeProfile {
   safeHealHpShift: number
   fleeDistanceBonus: number
   chestGreedMultiplier: number
+  /**
+   * Utility-model knobs (consumed by `modules/utility.ts`). The EV decision
+   * layer replaces the old hand-tuned confidence ladder — these numbers
+   * directly shape the action scoring formula.
+   *
+   *   - `riskWeight`: multiplier on expected damage taken. `1.0` = risk-neutral,
+   *     `< 1.0` = aggressive risk tolerance, `> 1.0` = cautious risk aversion.
+   *   - `greed`: multiplier on chest / loot strategic_bonus. Makes opportunists
+   *     path to loot even when a rival is nearby, and aggressives skip it.
+   *   - `approachDistanceMax`: Chebyshev radius inside which the approach
+   *     module will emit a close-in move candidate. Aggressives see farther,
+   *     cautious archetypes stay home.
+   *   - `commitHpAdvantageThreshold`: minimum HP-ratio advantage required to
+   *     prefer an attack candidate over a flee candidate during a
+   *     proximity-warning turn. Cautious bots need a bigger edge.
+   */
+  riskWeight: number
+  greed: number
+  approachDistanceMax: number
+  commitHpAdvantageThreshold: number
 }
 
 export const ARCHETYPE_PROFILES: Record<BotArchetype, ArchetypeProfile> = {
@@ -56,6 +76,10 @@ export const ARCHETYPE_PROFILES: Record<BotArchetype, ArchetypeProfile> = {
     safeHealHpShift: -0.15,
     fleeDistanceBonus: -1,
     chestGreedMultiplier: 0.7,
+    riskWeight: 0.4,
+    greed: 0.7,
+    approachDistanceMax: 8,
+    commitHpAdvantageThreshold: 0.05,
   },
   balanced: {
     archetype: "balanced",
@@ -65,6 +89,10 @@ export const ARCHETYPE_PROFILES: Record<BotArchetype, ArchetypeProfile> = {
     safeHealHpShift: 0,
     fleeDistanceBonus: 0,
     chestGreedMultiplier: 1,
+    riskWeight: 0.7,
+    greed: 1,
+    approachDistanceMax: 6,
+    commitHpAdvantageThreshold: 0.1,
   },
   cautious: {
     archetype: "cautious",
@@ -74,6 +102,10 @@ export const ARCHETYPE_PROFILES: Record<BotArchetype, ArchetypeProfile> = {
     safeHealHpShift: 0.15,
     fleeDistanceBonus: 1,
     chestGreedMultiplier: 1.2,
+    riskWeight: 1.2,
+    greed: 1.2,
+    approachDistanceMax: 4,
+    commitHpAdvantageThreshold: 0.2,
   },
   opportunist: {
     archetype: "opportunist",
@@ -83,6 +115,10 @@ export const ARCHETYPE_PROFILES: Record<BotArchetype, ArchetypeProfile> = {
     safeHealHpShift: 0.1,
     fleeDistanceBonus: 1,
     chestGreedMultiplier: 1.4,
+    riskWeight: 0.6,
+    greed: 1.4,
+    approachDistanceMax: 5,
+    commitHpAdvantageThreshold: 0.12,
   },
 }
 

@@ -46,8 +46,19 @@ describe("ArenaCowardiceAvoidanceModule", () => {
       proximity_warnings: [proximityWarning("you", "rival", 1)],
     })
     const rec = mod.analyze(obs, createArenaAgentContext())
+    // EV model: both attack and flee candidates are emitted; with a
+    // 65 HP-ratio advantage the attack dominates by utility.
     expect(rec.suggestedAction).toEqual(attackAction("rival"))
-    expect(rec.confidence).toBeGreaterThanOrEqual(0.9)
+    const attackCandidate = rec.candidates?.find(
+      (c) => c.action.type === "attack" && c.action.target_id === "rival",
+    )
+    const fleeCandidates = rec.candidates?.filter((c) => c.action.type === "move") ?? []
+    const bestFlee = fleeCandidates.reduce<number | null>(
+      (m, c) => (m === null || c.utility > m ? c.utility : m),
+      null,
+    )
+    expect(attackCandidate).toBeDefined()
+    expect(attackCandidate!.utility).toBeGreaterThan(bestFlee ?? -Infinity)
   })
 
   it("breaks range when pressed at counter 1 without HP advantage", () => {

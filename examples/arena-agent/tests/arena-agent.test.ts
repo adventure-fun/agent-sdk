@@ -147,11 +147,18 @@ describe("ArenaAgent.processArenaObservation", () => {
     const decision = await agent.processArenaObservation(obs)
 
     expect(decision.action).toEqual({ type: "wait" })
-    expect(decision.reasoning).toContain("module-first:fake-self-care")
+    // Post-EV-rewrite: a single dominant candidate gets reported as
+    // `ev-dominant` (legacy confidence is projected into utility space
+    // via LEGACY_UTILITY_SCALE). The old `module-first:` label only
+    // fires for modules that produced a `suggestedAction` WITHOUT a
+    // legacy-confidence value — keep that path covered separately.
+    expect(decision.reasoning).toMatch(/ev-dominant:fake-self-care|module-first:fake-self-care/)
     expect((llm as LLMAdapter & { calls: number }).calls).toBe(0)
   })
 
-  it("falls through to the LLM when no module meets the 0.80 threshold", async () => {
+  it("falls through to the LLM when two candidates are within the EV-dominant margin", async () => {
+    // With two near-tied candidates (projected utility diff < EV_DOMINANT_MARGIN=15),
+    // the decision layer defers to the LLM as the strategic tiebreak.
     const you = buildArenaEntity({ id: "you" })
     const obs = buildArenaObservation({
       you,
@@ -160,8 +167,11 @@ describe("ArenaAgent.processArenaObservation", () => {
 
     const llm = countingLLM()
     const adapter = new ArenaPromptAdapter(llm)
-    const softModule = makeFixedModule("fake-soft", 0.4, moveAction("up"))
-    const agent = new ArenaAgent({ modules: [softModule], llm: adapter })
+    // Two modules with legacy confidences 0.4 and 0.35 → projected utilities
+    // 12 and 10.5 (margin 1.5 << 15). Dominance guard is NOT satisfied.
+    const softA = makeFixedModule("fake-a", 0.4, moveAction("up"))
+    const softB = makeFixedModule("fake-b", 0.35, { type: "wait" })
+    const agent = new ArenaAgent({ modules: [softA, softB], llm: adapter })
 
     const decision = await agent.processArenaObservation(obs)
 
@@ -178,8 +188,11 @@ describe("ArenaAgent.processArenaObservation", () => {
 
     const llm = countingLLM()
     const adapter = new ArenaPromptAdapter(llm)
-    const softModule = makeFixedModule("fake-soft", 0.6, moveAction("down"))
-    const agent = new ArenaAgent({ modules: [softModule], llm: adapter })
+    // Again, two near-tied modules so the EV-dominant short-circuit can't
+    // handle this turn and we need to actually hit the deadline guard.
+    const softA = makeFixedModule("fake-a", 0.55, moveAction("down"))
+    const softB = makeFixedModule("fake-b", 0.5, { type: "wait" })
+    const agent = new ArenaAgent({ modules: [softA, softB], llm: adapter })
 
     // 15s server budget, but 14s already elapsed → < 3s buffer left.
     const decision = await agent.processArenaObservation(obs, {
@@ -187,6 +200,7 @@ describe("ArenaAgent.processArenaObservation", () => {
       turnStartedAt: Date.now() - 14_000,
     })
 
+    // Best legacy-confidence candidate wins under the deadline fallback.
     expect(decision.action).toEqual({ type: "move", direction: "down" })
     expect(decision.reasoning).toContain("deadline-fallback")
     expect((llm as LLMAdapter & { calls: number }).calls).toBe(0)
@@ -209,8 +223,11 @@ describe("ArenaAgent.processArenaObservation", () => {
       },
     }
     const adapter = new ArenaPromptAdapter(rateLimitLLM)
-    const softModule = makeFixedModule("fake-move", 0.5, moveAction("right"))
-    const agent = new ArenaAgent({ modules: [softModule], llm: adapter })
+    // Near-tied modules so we actually reach the LLM path and observe the
+    // rate-limit fallback.
+    const softA = makeFixedModule("fake-move", 0.5, moveAction("right"))
+    const softB = makeFixedModule("fake-wait", 0.45, { type: "wait" })
+    const agent = new ArenaAgent({ modules: [softA, softB], llm: adapter })
 
     const started = Date.now()
     const decision = await agent.processArenaObservation(obs)

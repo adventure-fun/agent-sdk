@@ -42,9 +42,11 @@ describe("DeterministicArenaAgent", () => {
     const you = buildArenaEntity({ id: "you" })
     const obs = buildArenaObservation({ you, entities: [you] })
     const decision = agent.processArenaObservation(obs)
+    // EV model: legacy confidence-only recommendations get projected into
+    // utility space via LEGACY_UTILITY_SCALE (30), so 0.9 → 27 beats
+    // 0.3 → 9 and the "high" module still wins.
     expect(decision.action.type).toBe("attack")
     expect(decision.moduleName).toBe("high")
-    expect(decision.confidence).toBeCloseTo(0.9)
   })
 
   it("defaults to wait when no module suggests an action", () => {
