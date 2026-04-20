@@ -360,6 +360,31 @@ export class ActionPlanner {
       return null
     }
 
+    // Defer to higher-confidence purposeful modules. The east-bias override is meant to push past
+    // the LLM's "wait and think" oscillation, not to overrule deterministic modules that have
+    // identified a concrete objective (a locked door we hold the key for, an interactable to use,
+    // an item to grab). Without this guard, holding `mine-key` and having a hydrated locked door
+    // at (4,2) loses every turn for 12 turns to a generic "step right" — the bot walks past the
+    // door without trying it.
+    const PURPOSEFUL_OVERRIDE_MODULES = new Set([
+      "key-hunter",
+      "key-door",
+      "interactable-router",
+      "item-magnet",
+    ])
+    const purposefulOverride = recommendations.find(
+      (rec) =>
+        rec.moduleName !== undefined
+        && PURPOSEFUL_OVERRIDE_MODULES.has(rec.moduleName)
+        && rec.suggestedAction !== undefined
+        && rec.confidence >= 0.85
+        && this.isActionLegal(rec.suggestedAction, observation.legal_actions),
+    )
+    if (purposefulOverride) {
+      delete agentContext.mapMemory.explorationHomingOverrideStreak
+      return null
+    }
+
     const maxStreak = this.config.explorationHomingOverrideMaxStreak ?? 12
     const streak = agentContext.mapMemory.explorationHomingOverrideStreak ?? 0
     if (streak >= maxStreak) {

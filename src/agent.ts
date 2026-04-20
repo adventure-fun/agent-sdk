@@ -1519,11 +1519,26 @@ export class BaseAgent {
     const preferredHealingItem = healingItems[0]
     const desiredPotions = lobbyConfig.buyPotionMinimum ?? 2
     if (!hookFullyHandled && preferredHealingItem && desiredPotions > 0) {
-      const ownedHealing = countInventoryTemplates(
-        state.inventory,
-        new Set(healingItems.map((item) => item.id)),
-      )
-      if (ownedHealing < desiredPotions && state.inventoryGold >= (preferredHealingItem.buy_price ?? 0)) {
+      const healingTemplateIds = new Set(healingItems.map((item) => item.id))
+      let ownedHealing = countInventoryTemplates(state.inventory, healingTemplateIds)
+      const potionPrice = preferredHealingItem.buy_price ?? 0
+
+      // Emergency funding: when wounded with no healing in inventory and not enough gold for the
+      // cheapest potion, sell anything sellable (including equipment) to scrape together one
+      // potion. Better to enter the realm with one heal than to loop empty-extractions forever.
+      const hpCurrent = state.character.hp_current ?? 0
+      const hpMax = Math.max(state.character.hp_max ?? 1, 1)
+      const wounded = hpCurrent / hpMax < 0.7
+      if (
+        wounded
+        && ownedHealing === 0
+        && state.inventoryGold < potionPrice
+      ) {
+        state = await this.runEmergencyPotionFunding(client, state, potionPrice)
+        ownedHealing = countInventoryTemplates(state.inventory, healingTemplateIds)
+      }
+
+      if (ownedHealing < desiredPotions && state.inventoryGold >= potionPrice) {
         const quantity = Math.min(
           desiredPotions - ownedHealing,
           preferredHealingItem.stack_limit ?? desiredPotions - ownedHealing,
@@ -1549,6 +1564,48 @@ export class BaseAgent {
         }
       }
     }
+  }
+
+  /**
+   * Sell anything sellable (including equipment) in priority order until we have enough gold
+   * to afford one potion or run out of sellable items. Used only when the bot is wounded with
+   * no healing options and would otherwise enter the realm and immediately retreat. The sort
+   * picks lowest-sell-price-first so we offload junk before equipment when both are present.
+   */
+  private async runEmergencyPotionFunding(
+    client: AgentClient,
+    initialState: LobbyState,
+    potionPrice: number,
+  ): Promise<LobbyState> {
+    let state = initialState
+    if (state.inventoryGold >= potionPrice) return state
+
+    const templatesById = new Map(state.itemTemplates.map((t) => [t.id, t]))
+    type Sellable = { item: InventoryItem; price: number }
+    const candidates: Sellable[] = []
+    for (const item of state.inventory) {
+      const template = templatesById.get(item.template_id)
+      if (isProtectedLobbyItem(item.template_id, template)) continue
+      const price = template?.sell_price ?? 0
+      if (price <= 0) continue
+      candidates.push({ item, price })
+    }
+    candidates.sort((a, b) => a.price - b.price)
+
+    for (const { item } of candidates) {
+      if (state.inventoryGold >= potionPrice) break
+      try {
+        await client.sellShopItem({ itemId: item.id, quantity: item.quantity })
+      } catch (error) {
+        const normalizedError = error instanceof Error ? error : new Error(String(error))
+        this.emit("error", normalizedError)
+        continue
+      }
+      const refreshedState = await this.loadLobbyState(client)
+      if (!refreshedState) return state
+      state = refreshedState
+    }
+    return state
   }
 
   private async runInventoryCleanupPhase(
