@@ -9,6 +9,26 @@ import { bfsStep } from "./bfs.js"
 
 const COMPLETED_STATUSES = new Set(["boss_cleared", "realm_cleared"])
 
+const KEY_NAME_PATTERN = /\bkey\b/i
+
+/**
+ * Per-context bookkeeping of (door targetId, key template_id) pairs we've already probed.
+ * Prevents infinite re-probing when a held key turns out NOT to fit a visible locked door.
+ * Lives in a WeakMap so we don't pollute MapMemory.
+ */
+const probedPairsByContext = new WeakMap<AgentContext, Set<string>>()
+function getProbedPairs(context: AgentContext): Set<string> {
+  let s = probedPairsByContext.get(context)
+  if (!s) {
+    s = new Set()
+    probedPairsByContext.set(context, s)
+  }
+  return s
+}
+function pairKey(targetId: string, templateId: string): string {
+  return `${targetId}::${templateId}`
+}
+
 /**
  * Routes the agent back to a locked door when the matching key is in inventory.
  *
@@ -55,6 +75,12 @@ export class KeyDoorModule implements AgentModule {
       candidates.push(door)
     }
     if (candidates.length === 0) {
+      // Probe-on-sight fallback: when we hold a key-like item AND a visible locked door
+      // hasn't yet revealed its required template id, take one interact attempt to learn
+      // the requirement. interact_blocked will populate `requiredKeyTemplateId` and the
+      // matched-key path above takes over on subsequent turns.
+      const probe = tryProbeUnknownLockedDoor(observation, context, doors)
+      if (probe) return probe
       return idle("No held key matches a pending locked door.")
     }
 
@@ -121,6 +147,57 @@ export class KeyDoorModule implements AgentModule {
 
 function idle(reason: string): ModuleRecommendation {
   return { reasoning: reason, confidence: 0 }
+}
+
+/**
+ * When the agent holds any key-like item, try to interact with a visible+adjacent locked door
+ * whose `requiredKeyTemplateId` we don't know yet. Each (door, key) pair is attempted at most
+ * once per AgentContext lifetime to avoid infinite re-probing of mismatched pairs.
+ * Returns a recommendation with confidence 0.92, or null if no probe is possible.
+ */
+function tryProbeUnknownLockedDoor(
+  observation: Observation,
+  context: AgentContext,
+  doors: Map<string, EncounteredDoor>,
+): ModuleRecommendation | null {
+  const heldKeyTemplateIds: string[] = []
+  for (const slot of observation.inventory) {
+    if (KEY_NAME_PATTERN.test(slot.name) || /-key$/i.test(slot.template_id)) {
+      heldKeyTemplateIds.push(slot.template_id)
+    }
+  }
+  if (heldKeyTemplateIds.length === 0) return null
+
+  const probed = getProbedPairs(context)
+  const currentFloor = observation.position.floor
+
+  for (const door of doors.values()) {
+    if (!door.isBlocked) continue
+    if (door.requiredKeyTemplateId) continue
+    if (door.floor !== currentFloor) continue
+    const visibleEntity = observation.visible_entities.find((entity) => entity.id === door.targetId)
+    if (!visibleEntity) continue
+    const legal = observation.legal_actions.some(
+      (action) => action.type === "interact" && action.target_id === door.targetId,
+    )
+    if (!legal) continue
+
+    for (const keyTemplateId of heldKeyTemplateIds) {
+      const key = pairKey(door.targetId, keyTemplateId)
+      if (probed.has(key)) continue
+      probed.add(key)
+      const interactAction: Extract<Action, { type: "interact" }> = {
+        type: "interact",
+        target_id: door.targetId,
+      }
+      return {
+        suggestedAction: interactAction,
+        reasoning: `Probing locked ${door.name ?? door.targetId} with held key ${keyTemplateId} to learn requirement.`,
+        confidence: 0.92,
+      }
+    }
+  }
+  return null
 }
 
 // Re-export for tests that want to exercise BFS in isolation.

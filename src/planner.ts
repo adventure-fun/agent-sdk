@@ -53,7 +53,7 @@ export interface PlannerDecision extends DecisionResult {
 }
 
 const STUCK_TURNS_WITHOUT_NEW_ROOM_THRESHOLD = 20
-const STUCK_TRIGGER_COOLDOWN = 10
+const STUCK_TRIGGER_COOLDOWN = 5
 
 export class ActionPlanner {
   private currentPlan: ActivePlan | null = null

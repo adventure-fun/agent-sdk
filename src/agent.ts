@@ -17,6 +17,7 @@ import { authenticate, type SessionToken } from "./auth.js"
 import { BanterEngine, ChatManager } from "./chat/index.js"
 import {
   GameClient,
+  GameClientError,
   type ItemTemplateSummary,
   type RealmTemplateSummary,
   type ShopCatalogItem,
@@ -1772,7 +1773,21 @@ export class BaseAgent {
       // doesn't POST within the same ms of receiving an observation.
       // See agent-sdk/src/decision-delay.ts for rationale.
       await waitDecisionDelay()
-      this.clientInstance?.sendAction(result.action)
+      // Guard against close-during-decision-delay races: if the run was finished (extraction,
+      // death, fatal error) or the socket was closed (reconnect in progress), drop the action
+      // silently. The next observation — from a successful reconnect or the next realm — will
+      // drive the next decision. Without this guard, a benign "socket already closed" race
+      // surfaces as a crash that triggers a 2-60s supervisor backoff and the bot's character
+      // visibly stands still in the realm during that window.
+      if (!this.isRunning || !this.clientInstance) return
+      try {
+        this.clientInstance.sendAction(result.action)
+      } catch (sendError) {
+        if (sendError instanceof GameClientError && sendError.kind === "network") {
+          return
+        }
+        throw sendError
+      }
     } catch (error) {
       const normalizedError = error instanceof Error ? error : new Error(String(error))
       this.emit("error", normalizedError)

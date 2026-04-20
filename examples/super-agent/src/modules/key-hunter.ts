@@ -211,35 +211,53 @@ export class KeyHunterModule implements AgentModule {
       }
     }
 
+    // Prefer known locked doors with unknown key requirement on this floor before generic
+    // frontier tiles. The agent can probe such a door with KeyDoorModule's probe path once
+    // adjacent — much more direct than wandering the map looking for unexplored tiles.
+    const lockedDoorTargets = collectUnknownLockedDoorCoords(observation, context)
+
     const frontierCoords = collectFrontierCoords(observation, context)
-    if (frontierCoords.size === 0) {
+    if (frontierCoords.size === 0 && lockedDoorTargets.length === 0) {
       state.target = null
       return idle("Holding an unplaced key but no known frontier tile exists yet.")
     }
 
-    // Validate the committed target is still a frontier. If not, repick.
+    // Validate the committed target is still a valid candidate (locked-door or frontier).
+    // If not, repick.
     if (state.target) {
       const key = `${state.target.x},${state.target.y}`
-      if (!frontierCoords.has(key)) {
+      const stillLockedDoor = lockedDoorTargets.some(
+        (c) => c.x === state.target!.x && c.y === state.target!.y,
+      )
+      if (!stillLockedDoor && !frontierCoords.has(key)) {
         state.target = null
       }
     }
 
-    // Decide on (or renew) the target.
+    // Decide on (or renew) the target. Prefer locked-door targets over generic frontiers.
     let targetCoord: { x: number; y: number } | null =
       state.target && state.target.floor === currentFloor
         ? { x: state.target.x, y: state.target.y }
         : null
+    let targetIsLockedDoor = false
 
     if (!targetCoord) {
-      targetCoord = pickBestFrontier(
-        observation,
-        context,
-        Array.from(frontierCoords.values()),
-      )
-      if (!targetCoord) {
-        state.target = null
-        return idle("Holding an unplaced key but no reachable frontier tile.")
+      const doorPick = lockedDoorTargets.length > 0
+        ? pickBestFrontier(observation, context, lockedDoorTargets)
+        : null
+      if (doorPick) {
+        targetCoord = doorPick
+        targetIsLockedDoor = true
+      } else {
+        targetCoord = pickBestFrontier(
+          observation,
+          context,
+          Array.from(frontierCoords.values()),
+        )
+        if (!targetCoord) {
+          state.target = null
+          return idle("Holding an unplaced key but no reachable frontier tile.")
+        }
       }
       state.target = {
         floor: currentFloor,
@@ -247,6 +265,10 @@ export class KeyHunterModule implements AgentModule {
         y: targetCoord.y,
         committedTurn: context.turn,
       }
+    } else {
+      targetIsLockedDoor = lockedDoorTargets.some(
+        (c) => c.x === targetCoord!.x && c.y === targetCoord!.y,
+      )
     }
 
     // BFS-step toward the committed target.
@@ -300,18 +322,45 @@ export class KeyHunterModule implements AgentModule {
     }
 
     const heldKeys = Array.from(keyTemplates).join(", ")
+    const targetLabel = targetIsLockedDoor
+      ? `known locked door at (${targetCoord.x},${targetCoord.y}) to probe it`
+      : `committed frontier (${targetCoord.x},${targetCoord.y})`
     return {
       suggestedAction: step,
-      reasoning: `Holding unplaced key(s) [${heldKeys}]; routing ${step.direction} toward committed frontier (${targetCoord.x},${targetCoord.y}).`,
+      reasoning: `Holding unplaced key(s) [${heldKeys}]; routing ${step.direction} toward ${targetLabel}.`,
       confidence: 0.88,
       context: {
         phase: "key-hunt",
         heldKeys: Array.from(keyTemplates),
         target: targetCoord,
+        targetIsLockedDoor,
         committedTurn: state.target?.committedTurn ?? context.turn,
       },
     }
   }
+}
+
+/**
+ * Returns coords of locked doors on the current floor whose key requirement is unknown
+ * (`requiredKeyTemplateId === undefined` AND `isBlocked === true`). Includes both currently
+ * visible doors and remembered ones. KeyDoorModule's probe-on-sight path opens these once we
+ * arrive adjacent.
+ */
+function collectUnknownLockedDoorCoords(
+  observation: Observation,
+  context: AgentContext,
+): Array<{ x: number; y: number }> {
+  const doors = context.mapMemory.encounteredDoors
+  if (!doors || doors.size === 0) return []
+  const currentFloor = observation.position.floor
+  const out: Array<{ x: number; y: number }> = []
+  for (const door of doors.values()) {
+    if (!door.isBlocked) continue
+    if (door.requiredKeyTemplateId) continue
+    if (door.floor !== currentFloor) continue
+    out.push({ x: door.x, y: door.y })
+  }
+  return out
 }
 
 function idle(reason: string): ModuleRecommendation {
