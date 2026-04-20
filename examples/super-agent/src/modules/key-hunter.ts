@@ -78,6 +78,12 @@ interface KeyHunterState {
    * agent back to the key-hunt the very next turn.
    */
   silentUntilTurn: number
+  /**
+   * Targets we've stalled on this realm — keyed `floor:x,y`. Skipped during target
+   * selection so a wall-bashed locked door we can't actually reach doesn't keep
+   * pulling us back into the same dead-end every time the silent window expires.
+   */
+  bannedTargets: Set<string>
 }
 
 const stateByContext = new WeakMap<AgentContext, KeyHunterState>()
@@ -90,6 +96,7 @@ function getState(context: AgentContext): KeyHunterState {
       positions: [],
       lastRealmTemplate: null,
       silentUntilTurn: 0,
+      bannedTargets: new Set(),
     }
     stateByContext.set(context, s)
   }
@@ -162,6 +169,7 @@ export class KeyHunterModule implements AgentModule {
       state.target = null
       state.positions = []
       state.silentUntilTurn = 0
+      state.bannedTargets = new Set()
       state.lastRealmTemplate = currentTemplate
     }
 
@@ -192,6 +200,21 @@ export class KeyHunterModule implements AgentModule {
       )
     }
 
+    // Stall detection: agent has been at the same tile for the last STALL_TILE_REPEAT turns
+    // on this floor. This happens when BFS routes through tiles it believes are passable but
+    // the engine actually blocks (wall, locked door without bump-interact resolution, etc.).
+    // Ban the current target so we don't re-pick it, drop commitment, silent-yield to anti-loop.
+    if (detectStall(state.positions, currentFloor)) {
+      if (state.target) {
+        state.bannedTargets.add(`${state.target.floor}:${state.target.x},${state.target.y}`)
+      }
+      state.target = null
+      state.silentUntilTurn = context.turn + 6
+      return idle(
+        "Detected key-hunt stall (no position change for several turns); banning target and yielding to anti-loop exploration.",
+      )
+    }
+
     // If we reached our committed target, clear it so we repick.
     if (
       state.target
@@ -214,9 +237,18 @@ export class KeyHunterModule implements AgentModule {
     // Prefer known locked doors with unknown key requirement on this floor before generic
     // frontier tiles. The agent can probe such a door with KeyDoorModule's probe path once
     // adjacent — much more direct than wandering the map looking for unexplored tiles.
-    const lockedDoorTargets = collectUnknownLockedDoorCoords(observation, context)
+    const isBanned = (x: number, y: number): boolean =>
+      state.bannedTargets.has(`${currentFloor}:${x},${y}`)
+
+    const lockedDoorTargets = collectUnknownLockedDoorCoords(observation, context).filter(
+      (c) => !isBanned(c.x, c.y),
+    )
 
     const frontierCoords = collectFrontierCoords(observation, context)
+    for (const key of Array.from(frontierCoords.keys())) {
+      const coord = frontierCoords.get(key)!
+      if (isBanned(coord.x, coord.y)) frontierCoords.delete(key)
+    }
     if (frontierCoords.size === 0 && lockedDoorTargets.length === 0) {
       state.target = null
       return idle("Holding an unplaced key but no known frontier tile exists yet.")
@@ -395,6 +427,26 @@ function pushPosition(
   if (state.positions.length > POSITION_HISTORY_LEN) {
     state.positions.shift()
   }
+}
+
+const STALL_TILE_REPEAT = 4
+
+/**
+ * Returns true when the last STALL_TILE_REPEAT same-floor entries in `positions` are all
+ * the same tile — i.e. the agent has not moved for several turns despite emitting actions.
+ * Caused by BFS suggesting a move the engine then blocks (wall, locked door bump that fails
+ * a precondition, etc.). When detected, KeyHunter should drop its target and yield so the
+ * anti-loop module can try a different direction.
+ */
+function detectStall(
+  positions: KeyHunterState["positions"],
+  currentFloor: number,
+): boolean {
+  const sameFloor = positions.filter((p) => p.floor === currentFloor)
+  if (sameFloor.length < STALL_TILE_REPEAT) return false
+  const tail = sameFloor.slice(-STALL_TILE_REPEAT)
+  const first = tail[0]!
+  return tail.every((p) => p.x === first.x && p.y === first.y)
 }
 
 /**
